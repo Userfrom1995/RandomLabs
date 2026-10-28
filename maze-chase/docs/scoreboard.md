@@ -661,3 +661,55 @@ installers extracted from the archives. The tarball digests reproduce
 twice on this host with the pinned inputs; the deb is tied to the dpkg
 toolchain above and the RPM header records this build host, so both are
 host-bound. Cross-host byte identity is not claimed.
+
+## 2026-10-28 (published rc.1 artifacts, Linux x86_64 and deployed site)
+
+Measured against the assets published by release run
+[40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683)
+from tag commit `11a0037b9692c4b3da711632ff9938533650efd3`. The host was
+Ubuntu 24.04.5 LTS (Linux 6.17.0-1022-azure x86_64). The release
+terminal binary is SHA-256
+`9f6cd45a440e37ddf22f9072a9991e7047284b7a04d7effa55e2ff3387b83c83`;
+all eight terminal rows re-sign on it with `build.sources_dirty: false`
+and their numbers are in the
+[terminal compatibility matrix](terminal-compat.md).
+
+Package lifecycle:
+
+- Debian: `dpkg -i` installed both `.deb` files, `--version` reported
+  `0.1.0`, a real PTY session played, paused, and quit to title, the
+  settings file (sha256
+  `099c133e05f2626c65fe5ba45ea9e280e40709f8b6f198c031b500cf61481a73`)
+  survived a reinstall, and `dpkg -r` removed the binaries.
+- Fedora 41 (podman container): `dnf install -y` installed both `.rpm`
+  files with their X11 and audio dependencies, the terminal played a
+  PTY session, `dnf reinstall` preserved the same settings hash,
+  `dnf remove -y` removed the packages, and `rpm -q` plus an `ls` of
+  the install path confirmed removal. Removal was not checked with
+  `command -v`, which reports a stale shell hash path after deletion.
+- Tarballs: the shipped `install-linux.sh --prefix` installed both
+  layers, `--version` reported `0.1.0`, the terminal played a PTY
+  session, a reinstall left the binary byte-identical (`cmp`) and the
+  settings hash unchanged, and `uninstall-linux.sh` removed both
+  binaries.
+
+Desktop probe: the packaged desktop binary rendered a 1100x760 P6
+frame under Xvfb on Debian and on Fedora (the Fedora frame measured
+100.0% non-black). The host had no writable audio device, so the
+released binary was run against a PulseAudio null sink and its output
+was captured: title music peaked at 0.1536 with RMS 0.0268 and 52.1%
+non-zero samples; gameplay (start plus arrow keys through `xdotool`)
+peaked at 0.4446 with RMS 0.0503 and 17,698 samples above 0.2. This
+proves both the music and effects paths from the shipped binary, not
+from the test synth; a real-speaker review is still pending.
+
+Deployed Pages:
+
+- `node web/e2e/site-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/ 9331`:
+  `SITE-E2E ALL GREEN: 661 assertions`.
+- `node web/e2e/browser-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/index.html 9332`:
+  `E2E: ALL GREEN` (279 assertions, zero console errors), including
+  the persisted mute and low-mix audio checks.
+
+The macOS and Windows per-OS rows and the real-speaker review remain
+open; the stable tag is not cut on this evidence alone.

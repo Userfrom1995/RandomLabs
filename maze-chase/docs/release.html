@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 15171; source-fnv: 3379e935a7811676; output-fnv: 701d7c0448afe9d0 -->
+<!-- generated from docs/release.md; source-bytes: 16723; source-fnv: 76e770f83b08c52d; output-fnv: 0bc9b1b89afed65d -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -58,7 +58,7 @@
 <li>Stable Rust 1.89 or newer (<code>rustc --version</code>). The workspace uses edition 2021 with no pinned nightly features; the locked dependency graph requires 1.89 for the desktop layer. The release pipeline pins Rust 1.99.0 for every native job (the toolchain that produced the committed WebAssembly bytes), and the release build, test, and verifier commands use <code>--locked</code> so <code>Cargo.lock</code> is enforced.</li>
 <li>For the browser build: <code>rustup target add wasm32-unknown-unknown</code>.</li>
 <li>For the browser E2E: Node 22+ (the CDP harnesses use the built-in WebSocket; no npm packages) plus a headless chromium; serving uses <code>python3 -m http.server</code> (<code>python -m http.server</code> on Windows).</li>
-<li>Debian/Ubuntu packaging: <code>dpkg-dev</code>, <code>rpm</code>, <code>rpm2cpio</code>, <code>cpio</code>, plus <code>libasound2-dev</code> and <code>libudev-dev</code> for the desktop build. Fedora/RHEL hosts only need the <code>rpm-build</code> equivalent of the RPM tools.</li>
+<li>Debian/Ubuntu packaging: <code>dpkg-dev</code>, <code>rpm</code>, <code>rpm2cpio</code>, <code>cpio</code>, plus <code>libasound2-dev</code> and <code>libudev-dev</code> for the desktop build, and <code>libxkbcommon-x11-0</code> so the Xvfb-gated windowed probe can load winit's XKB backend. Fedora/RHEL hosts only need the <code>rpm-build</code> equivalent of the RPM tools.</li>
 <li>macOS packaging: <code>hdiutil</code> (part of macOS) and the Xcode command line tools. Windows packaging: Inno Setup 6.3 or newer (<code>iscc.exe</code>; the installer uses <code>x64compatible</code>), installed by the release job.</li>
 <li>No cross-OS relabeling is allowed: the Windows zip and installer are built on Windows, the app and dmg on macOS, and the deb/rpm on the matching Linux architecture; the tarballs are built on the host named in the artifact.</li>
 </ul>
@@ -159,6 +159,16 @@ Get-FileHash -Algorithm SHA256 &lt;file&gt; # Windows PowerShell</code></pre>
 <p>The release notes state the unsigned status. Windows SmartScreen and macOS Gatekeeper warnings are expected; they are not a signature claim.</p>
 <h3 id="candidate-and-stable-releases">Candidate and stable releases</h3>
 <p>The 0.1.0 candidate is tagged <code>maze-chase-v0.1.0-rc.1</code> and published as an unsigned prerelease from release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a>. Before the stable release, re-run every per-OS install, upgrade, and uninstall row against those artifacts and re-sign the terminal matrix. Then bump the workspace version to <code>1.0.0</code> and cut <code>maze-chase-v1.0.0</code> as a stable release. No stable tag is cut while a binding check is open.</p>
+<h3 id="published-artifact-verification-linux">Published-artifact verification (Linux)</h3>
+<p>On 2026-10-28 the published rc.1 assets were exercised on Ubuntu 24.04.5 LTS (Linux 6.17.0-1022-azure x86_64). The terminal compatibility matrix was re-signed on the release terminal binary (SHA-256 <code>9f6cd45a440e37ddf22f9072a9991e7047284b7a04d7effa55e2ff3387b83c83</code>) from tag commit <code>11a0037b</code>; all eight rows pass with <code>build.sources_dirty: false</code>, and the measured numbers live in the <a href="terminal-compat.html">terminal compatibility matrix</a>.</p>
+<ul>
+<li>The <code>.deb</code> packages install, report <code>0.1.0</code>, run a real PTY session, preserve settings across reinstall, and remove their binaries.</li>
+<li>The <code>.rpm</code> packages do the same inside a Fedora 41 container, including a <code>dnf reinstall</code> that keeps the settings file and a <code>dnf remove</code> that leaves user data in place.</li>
+<li>The tarballs install through the shipped <code>install-linux.sh --prefix</code>, reinstall over themselves without changing the binary or settings, and uninstall through <code>uninstall-linux.sh</code>.</li>
+<li>The packaged desktop binary renders a 1100x760 P6 frame under Xvfb on Debian and Fedora, and captured audio from the release binary carries both the title music and gameplay effects.</li>
+<li>The deployed Pages game passed 661 site assertions and 279 browser assertions against the production URL, with zero console errors.</li>
+</ul>
+<p>The Linux rows are complete, while the macOS and Windows per-OS rows and the real-speaker review remain open. The stable tag therefore stays gated.</p>
 <h2 id="clean-checkout-release-checklist">Clean-checkout release checklist</h2>
 <ol>
 <li>Fresh <code>git clone</code>, toolchain plus system libraries above.</li>

@@ -24,7 +24,7 @@
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [x] Windows installer plus zip (built and smoke-tested by the native Windows release job in run 40161835683), [x] macOS app plus dmg plus tarball (built and smoke-tested by the native macOS release job in run 40161835683), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [x] `maze-chase-release.yml` pipeline installed via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`, merged as #758), [x] release candidate artifacts on the official Releases page (`maze-chase-v0.1.0-rc.1` prerelease, published 2026-10-25), [x] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; the release candidate artifacts are now published) (PR 6 target, Refs #582, Refs #657)
 - Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [x] deployed-URL browser E2E including mobile (`site-e2e.js` ALL GREEN at 157 assertions against the PR #759 Pages preview at 1280x900 and 390x844; PR 7 target, Refs #582, Closes #660)
-- Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
+- Final Phase: Full-Product Verification and Release Sign-Off: [x] Linux terminal matrix re-signed on the released artifacts (all eight rows pass on the rc.1 binary with `sources_dirty: false`), [ ] native macOS and Windows terminal rows re-signed, [x] Linux install/upgrade/uninstall from the released deb, rpm, and tarball artifacts (settings preserved; Fedora 41 rpm flow included), [ ] native macOS and Windows install/upgrade/uninstall from the released artifacts, [x] deployed Pages E2E for the game and every subpage (661 site assertions plus 279 browser assertions, zero console errors), [x] Linux desktop visual probe and release-binary audio capture (title music plus effects; 1100x760 P6 frame under Xvfb), [ ] real-speaker review on native hosts, [x] Phase 7 follow-ups fixed with tests (docs href escaping, release-copy claim paraphrases, mobile nav pill visibility, too-small key guard), [x] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [x] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
 ## Current step
 
@@ -41,6 +41,15 @@ site is crawled for the game and every subpage. Every row records the
 artifact hash it executed, so no claim rests on a compile or a green CI
 run. The macOS and Windows rows still need their native hosts, and the
 stable `maze-chase-v1.0.0` tag stays gated on those rows.
+
+The Linux evidence is complete: eight terminal rows re-signed on the
+published binary, both deb and rpm install/reinstall/remove flows plus
+the tarball scripts, 1100x760 desktop probes on Debian and Fedora, a
+release-binary audio capture through a PulseAudio null sink, and the
+deployed site E2E at 661 site plus 279 browser assertions. The four
+Phase 7 follow-ups are fixed on this branch with tests, and the
+compatibility matrix, release guide, scoreboard, and findings ledger
+are reconciled to the rc.1 evidence.
 
 ## Next steps
 
@@ -2218,3 +2227,32 @@ stable `maze-chase-v1.0.0` tag stays gated on those rows.
   guide, and scoreboard. The macOS and Windows rows and the stable release
   cut remain per-OS and Maintainer work. Evidence is written as it lands;
   this entry is updated before the review handoff. - the Builder
+
+- 2026-10-28 (builder, Final Phase evidence and follow-up closure on
+  `opencode/issue582-20261028002308`): re-ran and re-signed all eight
+  Linux terminal rows on the published rc.1 terminal binary (tag commit
+  `11a0037b`, SHA-256 `9f6cd45a...`, `sources_dirty: false`) and
+  committed the refreshed bundles and screenshots in `397b72f6`.
+  Exercised the published `.deb`, `.rpm`, and tarball install,
+  reinstall, and uninstall flows (settings file preserved across every
+  reinstall; Fedora 41 rpm flow through `dnf` in a container), probed
+  the packaged desktop binary under Xvfb on Debian and Fedora
+  (1100x760 P6 frames), and captured title music plus gameplay effects
+  from the release binary through a PulseAudio null sink (music peak
+  0.1536 / RMS 0.0268; gameplay peak 0.4446 / RMS 0.0503 with 17,698
+  samples above 0.2). The deployed production Pages site passed 661
+  site assertions and 279 browser assertions with zero console errors.
+  Fixed the four Phase 7 follow-ups: escaped docs navigation hrefs in
+  `render-docs.mjs`; broadened the release-copy claim checker with a
+  paraphrase matrix test; added `site-nav.js` to the four horizontal-nav
+  subpages plus a 390px active-pill assertion (site-e2e now 670
+  assertions); and ignored gameplay/menu keys while the too-small card
+  is up except mute and title-Esc (new app test, plus a terminal doc
+  sentence). Verification: `cargo test --workspace --no-fail-fast
+  --locked` 631 passed / 0 failed, `tester_site` 7/7,
+  `tester_packaging` 27/27, `render-docs.mjs --check` 15 docs current
+  with 423 links, `maze-chase-verify` 19/19, `cargo fmt --all --check`
+  clean, and site-e2e 670 assertions locally. Reconciled `terminal-compat.md`,
+  `release.md`, `scoreboard.md`, and the findings ledger to the rc.1
+  evidence. The macOS and Windows rows and the real-speaker review
+  remain open; the stable tag stays gated. - the Builder
