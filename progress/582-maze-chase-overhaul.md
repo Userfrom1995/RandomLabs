@@ -2258,7 +2258,10 @@ are reconciled to the rc.1 evidence.
   evidence. Delegation ledger: four read-only general subagents ran in
   parallel: the terminal key-guard review, the docs/evidence
   re-derivation, the site JS/E2E audit, and the progress/contract
-  audit. The primary context re-derived the rc.1 binary hash from the
+  audit. The terminal audit found no key leak; the evidence audit
+  matched all eight bundles to the published digest; the site audit
+  found the 390px false-pass; the contract audit found the checklist
+  overclaims. The primary context re-derived the rc.1 binary hash from the
   published tarball, ran the terminal crate suite, `maze-chase-verify`
   19/19, the 49 harness-contract tests, and `render-docs.mjs --check`,
   and owns the final diff. Skills: no registry skill matched.
@@ -2296,14 +2299,47 @@ are reconciled to the rc.1 evidence.
   PPMs identified as current-tree reference captures. Public docs no
   longer defer the sound review to the Final Phase; it stays pending
   native macOS/Windows hosts. Verification: `cargo test -p
-  maze-chase-terminal --no-fail-fast --locked` 279 passed / 0 failed,
+  maze-chase-terminal --no-fail-fast --locked` 276 passed / 0 failed,
   `cargo fmt --all --check` clean, `maze-chase-verify` 19/19,
   `test_harness_contract.py` 50/50 including the new frame-count test,
   `render-docs.mjs --check` 15 docs current with 423 links, and local
   site-e2e 673 assertions. Delegation ledger: three read-only explore
   subagents audited the terminal key/resize paths, the site nav/E2E
-  evidence, and the docs/evidence reconciliation; the primary context
-  made every edit, re-derived the bundle count, and ran the full
-  verification set. Skills: no registry skill matched. The macOS and
+  evidence, and the docs/evidence reconciliation; the terminal audit
+  confirmed the armed-capture gap, the site audit found the
+  releases-only false-pass, and the docs audit found the straddling
+  frame mismatch. The primary context made every edit, re-derived the
+  bundle count, and ran the full verification set. Skills: no registry
+  skill matched. The macOS and
   Windows rows and the real-speaker review remain open; the stable tag
   stays gated. - the Fixer
+
+- 2026-10-28 (fixer, second review round on PR #772 at head `c1580c54`):
+  applied the blocking public-record correction and the cheap
+  non-blocking findings. Blocking: `compatibility.html` now names the
+  published `maze-chase-v0.1.0-rc.1` terminal binary from tag commit
+  `11a0037b` (SHA-256 `9f6cd45a`) and records that the raw transcript
+  stays a host artifact, matching all eight committed evidence bundles.
+  Non-blocking: the README parity row now says the real-speaker review
+  is pending native hosts; the release-copy claim checker matches
+  signing phrases only at a word start (so "unsigned binary" and
+  "unsigned release" pass), replaces the bare "now stable" phrase with
+  "is now stable", and gains fixtures for "This is an unsigned binary."
+  and "This is not now stable."; `site-nav.js` re-reveals the active
+  pill on every debounced resize instead of only on width changes; and
+  both delegation ledgers now record one result line per subagent. The
+  earlier fixer entry's terminal-suite count is corrected to 276.
+  Verification: `cargo test -p maze-chase-terminal --no-fail-fast
+  --locked` 276 passed / 0 failed, `cargo fmt --all --check` clean,
+  `render-docs.mjs --check` 15 docs current with 423 links, and the
+  focused `release_claim_checker_catches_paraphrases` test passes.
+  Delegation ledger: three read-only general subagents ran in parallel:
+  the docs/evidence consistency audit, the claim-checker boundary
+  audit, and the progress/ledger audit. The docs audit matched the
+  compatibility page, README, and terminal matrix to all eight rc.1
+  bundles; the claim-checker audit confirmed the boundary matrix and
+  ran the focused test green; the ledger audit confirmed the result
+  lines, the 276 count, and no new em dash. The primary context made
+  every edit and ran the verification set. Skills: no registry skill
+  matched. The macOS and Windows rows and the real-speaker review
+  remain open; the stable tag stays gated. - the Fixer
