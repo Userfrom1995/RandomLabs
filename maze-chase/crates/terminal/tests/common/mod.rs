@@ -165,6 +165,19 @@ pub fn check_internal_links(pages: &[PathBuf]) -> (usize, usize, Vec<String>) {
     (checked, fragments_checked, problems)
 }
 
+/// Match `phrase` only when it does not continue a preceding word, so
+/// "unsigned binary" never reads as "signed binary" and "unsigned release"
+/// never reads as "signed release".
+fn contains_word_start(haystack: &str, needle: &str) -> bool {
+    haystack.match_indices(needle).any(|(index, _)| {
+        haystack[..index]
+            .chars()
+            .next_back()
+            .map(|previous| !previous.is_alphanumeric())
+            .unwrap_or(true)
+    })
+}
+
 /// Return the first artifact-signing or stable-release claim in `text`,
 /// leaving the legitimate "signed parity gate" and "design pass signed"
 /// wording alone.
@@ -200,7 +213,7 @@ pub fn signing_or_stable_claim(text: &str) -> Option<String> {
         "completed signing",
         "authenticode signed",
     ] {
-        if lower.contains(phrase) {
+        if contains_word_start(&lower, phrase) {
             return Some(format!("claims signing: {phrase}"));
         }
     }
@@ -231,7 +244,7 @@ pub fn signing_or_stable_claim(text: &str) -> Option<String> {
         "stable tag is live",
         "stable tag is now live",
         "release is now stable",
-        "now stable",
+        "is now stable",
         "promoted to stable",
         "graduated from release candidate",
         "left prerelease",

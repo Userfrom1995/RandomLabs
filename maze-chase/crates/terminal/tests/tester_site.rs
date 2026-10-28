@@ -297,6 +297,7 @@ fn release_claim_checker_catches_paraphrases() {
         "The stable release is here.",
         "The stable build is live.",
         "The release is now stable.",
+        "The build is now stable.",
         "The candidate was promoted to stable.",
         "We are out of prerelease.",
         "The production release is available.",
@@ -310,6 +311,9 @@ fn release_claim_checker_catches_paraphrases() {
     for allowed in [
         "The binaries are unsigned.",
         "SmartScreen warns because the binary is unsigned.",
+        "This is an unsigned binary.",
+        "This is an unsigned release.",
+        "This is not now stable.",
         "The design pass signed off on the layout.",
         "The signed parity gate covers the engine rows.",
         "No stable tag is cut while a binding check is open.",
