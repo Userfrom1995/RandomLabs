@@ -378,7 +378,7 @@ function navList(pages, currentName) {
     .map(({ name, title }) => {
       const file = name.slice(0, -3) + ".html";
       const current = name === currentName ? ' aria-current="page"' : "";
-      return `<li><a href="${file}"${current}>${escapeHtml(title)}</a></li>`;
+      return `<li><a href="${escapeHtml(file)}"${current}>${escapeHtml(title)}</a></li>`;
     })
     .join("\n");
 }

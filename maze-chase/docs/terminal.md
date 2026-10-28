@@ -194,7 +194,9 @@ scales (7x1, 8x1) and tall rooms reach tall ones (2x2 through 4 rows)
 instead of collapsing to a single derived diagonal: the fitted plan
 uses the best scale the grid can place, and the measured sweep floor is
 280/1000 at 399x62. Smaller windows get an honest "too small" card
-naming the exact minimum. Resizing
+naming the exact minimum. While the card is up, gameplay and menu keys
+are ignored; mute (M) and Esc on the title screen still work, and the
+full key map returns as soon as the window fits. Resizing
 re-fits live, including mid-run, and the simulation never restarts on
 resize: the frame is cleared and repainted in one step, so no stale
 board fragments survive the change (on the Kitty tier the old image

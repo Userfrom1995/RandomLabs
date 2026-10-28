@@ -408,6 +408,20 @@ async function collectLinks(ws) {
           const rect = control.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
         })(),
+        navPill: (() => {
+          const nav = document.querySelector('.site-nav');
+          const active = nav && nav.querySelector('[aria-current="page"]');
+          if (!nav || !active) return null;
+          const box = nav.getBoundingClientRect();
+          const pill = active.getBoundingClientRect();
+          return {
+            scrollLeft: nav.scrollLeft,
+            left: pill.left,
+            right: pill.right,
+            boxLeft: box.left,
+            boxRight: box.right,
+          };
+        })(),
       };
     })()`);
     assert(mobile.viewportWidth === 390 && mobile.viewportHeight === 844,
@@ -418,6 +432,17 @@ async function collectLinks(ws) {
       assert(mobile.nav.includes(href), `${path} mobile navigation links ${href}`);
     }
     assert(mobile.navVisible, `${path} keeps the site navigation control visible at 390x844`);
+    if (['install.html', 'downloads.html', 'compatibility.html', 'releases.html'].includes(path)) {
+      assert(mobile.navPill, `${path} uses the horizontal site nav at 390x844`);
+      assert(
+        mobile.navPill
+          && mobile.navPill.left >= mobile.navPill.boxLeft - 1
+          && mobile.navPill.right <= mobile.navPill.boxRight + 1,
+        `${path} scrolls the current nav pill fully into view (${mobile.navPill
+          ? `${mobile.navPill.left.toFixed(1)}..${mobile.navPill.right.toFixed(1)} in ${mobile.navPill.boxLeft.toFixed(1)}..${mobile.navPill.boxRight.toFixed(1)}, scrollLeft ${mobile.navPill.scrollLeft.toFixed(1)}`
+          : 'missing'})`,
+      );
+    }
     assert(consoleErrors.length === 0, `${path} mobile load has no console errors`);
     for (const error of consoleErrors) console.error('  console:', error);
     if (path === 'index.html') {
