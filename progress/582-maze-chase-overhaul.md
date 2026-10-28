@@ -8,9 +8,10 @@
 - **Status:** in-progress
 - **Updated:** 2026-10-28
 - **Active Phase:** Final Phase: Full-Product Verification and Release
-  Sign-Off (released-artifact verification on Linux plus the deployed site,
-  the Phase 7 follow-ups, and the ledger close-out; the native macOS and
-  Windows rows and the stable release cut remain)
+  Sign-Off (Linux verification, the deployed site, the Phase 7 follow-ups,
+  and the ledger close-out are complete; this increment is ready for
+  review, while the native macOS and Windows rows and the stable release
+  cut remain)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
