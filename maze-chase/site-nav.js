@@ -9,18 +9,14 @@
     nav.scrollLeft += pill.left - box.left - (box.width - pill.width) / 2;
   };
   reveal();
-  let lastWidth = nav.getBoundingClientRect().width;
   let frame = 0;
-  const onWidthChange = () => {
+  const onResize = () => {
     frame = 0;
-    const width = nav.getBoundingClientRect().width;
-    if (width === lastWidth) return;
-    lastWidth = width;
     reveal();
   };
   const schedule = () => {
     if (frame) return;
-    frame = requestAnimationFrame(onWidthChange);
+    frame = requestAnimationFrame(onResize);
   };
   window.addEventListener("resize", schedule);
   window.addEventListener("orientationchange", schedule);
