@@ -356,6 +356,63 @@ fn same_batch_race_into_degenerate_size_then_back() {
     );
 }
 
+/// The same-batch race must not let a *mapped* key act against the
+/// pre-shrink layout. The unmapped `x` in the other races only proves
+/// the layout heals; it cannot detect a key delivered before
+/// `reconcile_size`, because an unmapped key has no effect either way.
+/// Here the queued key is `p` (Pause): with the pre-key reconcile it is
+/// dropped by the too-small guard, while without it the session pauses
+/// and stays paused after the window grows back.
+#[test]
+fn same_batch_pause_key_cannot_act_against_the_shrunk_layout() {
+    let mut s = Session::start("pause-key", 100, 40);
+    s.reach_playing();
+
+    s.clear_output();
+    stop_child(&s.child);
+    s.type_bytes(b"p");
+    set_winsize(&s.pty.master, 40, 20);
+    send_signal(s.child.id(), libc::SIGWINCH);
+    send_signal(s.child.id(), libc::SIGCONT);
+
+    assert!(
+        s.wait(CARD_40X20, Duration::from_secs(3)),
+        "race did not reach the 40x20 card; tail: {}",
+        tail(&s.out)
+    );
+    let seen = String::from_utf8_lossy(&s.out);
+    assert!(
+        !seen.contains(PAUSED_MARKER),
+        "the queued Pause key acted before the resize was reconciled; tail: {}",
+        tail(&s.out)
+    );
+
+    // Grow back: the session must still be in play, not paused. A pause
+    // key that leaked through the race would leave PAUSED here.
+    s.clear_output();
+    set_winsize(&s.pty.master, 100, 40);
+    send_signal(s.child.id(), libc::SIGWINCH);
+    assert!(
+        s.wait(PLAYING_MARKER, Duration::from_secs(3)),
+        "play did not survive the pause-key race; tail: {}",
+        tail(&s.out)
+    );
+    assert!(
+        !String::from_utf8_lossy(&s.out).contains(PAUSED_MARKER),
+        "the queued Pause key leaked through the race; tail: {}",
+        tail(&s.out)
+    );
+
+    // Liveness: Pause still works after the race.
+    s.clear_output();
+    s.type_bytes(b"p");
+    assert!(
+        s.wait(PAUSED_MARKER, Duration::from_secs(3)),
+        "Pause stopped working after the race; tail: {}",
+        tail(&s.out)
+    );
+}
+
 /// Four winsize flips pile up behind one SIGSTOP; the kernel coalesces
 /// them into a single SIGWINCH and the event source loses it in the same
 /// batch as the queued keys. The layout must land on the *last* size.
