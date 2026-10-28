@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/parity.md; source-bytes: 7576; source-fnv: aa5968ad62b10a74; output-fnv: 6481d31da805e4ae -->
+<!-- generated from docs/parity.md; source-bytes: 7573; source-fnv: 902ad7f156ee6c10; output-fnv: 2ad8691a8d028544 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -82,7 +82,7 @@
 <tr><td>Full menu/help/scores/settings/pause flows</td><td><code>screens</code> + <code>chrome</code>, top-10 machine scores</td><td><code>screens</code>, shares <code>~/.maze-chase</code> scores with terminal</td><td>DOM screens, localStorage top-10</td><td>signed</td></tr>
 <tr><td>Per-layer E2E green on this release</td><td>headless suite (layout sweep, full session, resize) plus PTY sessions</td><td>headless suite + Xvfb <code>--probe</code> PPM plus a real-GUI drive</td><td>node smoke + tester regression + CDP browser E2E</td><td>Linux current on this tree; macOS and Windows pre-Pondwake, with fresh reruns tracked in the final sign-off (native runs recorded below and in <code>scoreboard.md</code>)</td></tr>
 <tr><td>Board pixels agree across layers</td><td>same composer; bitmap tiers rasterize at the detected cell geometry (bounded)</td><td>same composer at the fixed 8-ppt reference</td><td>mirrors the shared 8-ppt reference (frame-determinism test)</td><td>signed</td></tr>
-<tr><td>Sound uses one shared score, effect bank, and mix contract</td><td>opt-in BEL plus ticker from the same cue stream</td><td>renders the shared score and recipes at 44.1 kHz, peak-normalized to 0.32/0.50</td><td>schedules the same recipes in WebAudio with the same ceilings</td><td>Linux synth and browser verified; macOS/Windows real-speaker review pending the Final Phase (see <code>docs/audio.md</code>)</td></tr>
+<tr><td>Sound uses one shared score, effect bank, and mix contract</td><td>opt-in BEL plus ticker from the same cue stream</td><td>renders the shared score and recipes at 44.1 kHz, peak-normalized to 0.32/0.50</td><td>schedules the same recipes in WebAudio with the same ceilings</td><td>Linux synth and browser verified; macOS/Windows real-speaker review pending native hosts (see <code>docs/audio.md</code>)</td></tr>
 </tbody></table></div>
 <h2 id="native-proof-record">Native proof record</h2>
 <p>The per-layer E2E and packaged-artifact rows above are signed on Linux on this tree; the macOS and Windows runs below are the pre-Pondwake record, with fresh reruns tracked in the final sign-off. The measured numbers sit in the dated sections of <code>scoreboard.md</code>.</p>

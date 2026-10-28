@@ -169,8 +169,8 @@ executed on their native operating systems (the dated section above
 records the measured numbers). With them, the [parity checklist](parity.md)
 rows signed at that point cover the simulation, layer, and per-layer E2E
 requirements; the later sound row records Linux synth and browser
-evidence and defers macOS/Windows real-speaker review to the Final
-Phase. The #552 reference game was retired in favor of this game by the
+evidence and leaves the macOS/Windows real-speaker review pending
+native hosts. The #552 reference game was retired in favor of this game by the
 Maintainer's explicit step after this verified release merged.
 
 ## 2026-10-18 (overhaul: dynamic layout and full-window composition)
@@ -693,14 +693,21 @@ Package lifecycle:
   settings hash unchanged, and `uninstall-linux.sh` removed both
   binaries.
 
-Desktop probe: the packaged desktop binary rendered a 1100x760 P6
+Desktop probe: the packaged rc.1 desktop binary rendered a 1100x760 P6
 frame under Xvfb on Debian and on Fedora (the Fedora frame measured
-100.0% non-black). The host had no writable audio device, so the
-released binary was run against a PulseAudio null sink and its output
-was captured: title music peaked at 0.1536 with RMS 0.0268 and 52.1%
-non-zero samples; gameplay (start plus arrow keys through `xdotool`)
-peaked at 0.4446 with RMS 0.0503 and 17,698 samples above 0.2. This
-proves both the music and effects paths from the shipped binary, not
+100.0% non-black) with
+`xvfb-run -a maze-chase-desktop --no-pad --probe 30 <out.ppm>` run
+from the unpacked package. The host had no writable audio device, so
+the released binary was routed to a PulseAudio null sink (a null-sink
+module plus a recorder on its monitor) and title music plus gameplay
+(start plus arrow keys through `xdotool`) were captured: title music
+peaked at 0.1536 with RMS 0.0268 and 52.1% non-zero samples; gameplay
+peaked at 0.4446 with RMS 0.0503 and 17,698 samples above 0.2. The
+frame and audio captures are transient host artifacts from that run,
+not committed files: the committed `desktop-probe.ppm` and
+`desktop-gameplay.ppm` are the current-tree reference captures that the
+desktop E2E compares against, not rc.1 run evidence. The figures above
+prove both the music and effects paths from the shipped binary, not
 from the test synth; a real-speaker review is still pending.
 
 Deployed Pages:
@@ -710,6 +717,10 @@ Deployed Pages:
 - `node web/e2e/browser-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/index.html 9332`:
   `E2E: ALL GREEN` (279 assertions, zero console errors), including
   the persisted mute and low-mix audio checks.
+
+The E2E console output is from the 2026-10-28 production-URL run and is
+not committed; the committed harnesses re-run the same commands against
+the deployed URL.
 
 The macOS and Windows per-OS rows and the real-speaker review remain
 open; the stable tag is not cut on this evidence alone.

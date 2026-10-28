@@ -442,11 +442,28 @@ ${body.html}
 `;
 }
 
+// Attributes are emitted through escapeHtml, so a filename containing &
+// arrives as a&amp;b.html. Decode the four entities escapeHtml can produce
+// in a single pass (sequential replaces would double-decode); the
+// fragment stays raw because idExists compares it against the HTML source.
+function decodeHrefEntities(href) {
+  const hashAt = href.indexOf("#");
+  const head = hashAt === -1 ? href : href.slice(0, hashAt);
+  const tail = hashAt === -1 ? "" : href.slice(hashAt);
+  const decoded = head.replace(/&(?:amp|lt|gt|quot);/g, (entity) => ({
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+  })[entity]);
+  return decoded + tail;
+}
+
 function collectLinks(file) {
   const text = readFileSync(file, "utf8");
   const links = [];
   for (const match of text.matchAll(/(?:href|src)="([^"]+)"/g)) {
-    links.push(match[1]);
+    links.push(decodeHrefEntities(match[1]));
   }
   return links;
 }

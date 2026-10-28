@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 16723; source-fnv: 76e770f83b08c52d; output-fnv: 0bc9b1b89afed65d -->
+<!-- generated from docs/release.md; source-bytes: 17249; source-fnv: 3d94a06d7aa5ccd8; output-fnv: 0aecc78861002218 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -165,8 +165,8 @@ Get-FileHash -Algorithm SHA256 &lt;file&gt; # Windows PowerShell</code></pre>
 <li>The <code>.deb</code> packages install, report <code>0.1.0</code>, run a real PTY session, preserve settings across reinstall, and remove their binaries.</li>
 <li>The <code>.rpm</code> packages do the same inside a Fedora 41 container, including a <code>dnf reinstall</code> that keeps the settings file and a <code>dnf remove</code> that leaves user data in place.</li>
 <li>The tarballs install through the shipped <code>install-linux.sh --prefix</code>, reinstall over themselves without changing the binary or settings, and uninstall through <code>uninstall-linux.sh</code>.</li>
-<li>The packaged desktop binary renders a 1100x760 P6 frame under Xvfb on Debian and Fedora, and captured audio from the release binary carries both the title music and gameplay effects.</li>
-<li>The deployed Pages game passed 661 site assertions and 279 browser assertions against the production URL, with zero console errors.</li>
+<li>The packaged desktop binary renders a 1100x760 P6 frame under Xvfb on Debian and Fedora with <code>xvfb-run -a maze-chase-desktop --no-pad --probe 30 &lt;out.ppm&gt;</code> run from the unpacked package, and audio captured from the release binary through a PulseAudio null sink carries both the title music and gameplay effects. Those captures are transient host artifacts, not committed files; the committed <code>desktop-probe.ppm</code> and <code>desktop-gameplay.ppm</code> are current-tree reference captures for the desktop E2E, not rc.1 run evidence.</li>
+<li>The deployed Pages game passed 661 site assertions and 279 browser assertions against the production URL, with zero console errors. The commands are in the <a href="scoreboard.html">release scoreboard</a>; their console output was transient and is not committed, and the committed harnesses re-run the same commands.</li>
 </ul>
 <p>The Linux rows are complete, while the macOS and Windows per-OS rows and the real-speaker review remain open. The stable tag therefore stays gated.</p>
 <h2 id="clean-checkout-release-checklist">Clean-checkout release checklist</h2>

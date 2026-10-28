@@ -180,6 +180,12 @@ impl App {
     /// up on the next resize (issue #673).
     pub fn resize(&mut self, cols: u16, rows: u16) {
         self.layout = layout_for(cols, rows);
+        // The card hides the rebind surface, so an armed capture (or a
+        // stale conflict message) must not outlive the shrink.
+        if self.layout.too_small {
+            self.screens.capture = None;
+            self.screens.capture_error = None;
+        }
         self.clamp_help_scroll();
     }
 
@@ -287,6 +293,17 @@ impl App {
         let Some(key) = crate::input::crossterm_to_key(ev) else {
             return;
         };
+        // Back cancels an armed rebind capture on every layout, including
+        // the too-small card that hides the Rebind surface; every other
+        // key is ignored there so the hidden UI cannot be driven.
+        if self.screens.capture.is_some()
+            && self.screens.current == ScreenId::Rebind
+            && crate::input::action_for_key(&self.keymap, key) == Some(Action::Back)
+        {
+            self.screens.capture = None;
+            self.screens.capture_error = None;
+            return;
+        }
         if self.layout.too_small {
             if let Some(action) = crate::input::action_for_key(&self.keymap, key) {
                 if action == Action::Mute {
@@ -297,17 +314,8 @@ impl App {
             }
             return;
         }
-        // Armed rebind capture eats the next key whole, except Back
-        // which cancels the armed capture (first press) instead of
-        // attempting a rebind that could never succeed.
+        // Armed rebind capture eats the next key whole.
         if self.screens.capture.is_some() && self.screens.current == ScreenId::Rebind {
-            if let Some(action) = crate::input::action_for_key(&self.keymap, key) {
-                if action == Action::Back {
-                    self.screens.capture = None;
-                    self.screens.capture_error = None;
-                    return;
-                }
-            }
             let event = self.screens.capture_key(&mut self.keymap, key);
             self.save_settings();
             self.apply_event(event);
@@ -575,6 +583,9 @@ mod tests {
         assert!(a.layout.too_small);
         a.on_key(key(KeyCode::Enter));
         assert_eq!(a.screens.current, ScreenId::Title);
+        let menu = a.screens.menu;
+        a.on_key(key(KeyCode::Down));
+        assert_eq!(a.screens.menu, menu);
         let mute = a.settings.mute;
         a.on_key(key(KeyCode::Char('m')));
         assert_eq!(a.settings.mute, !mute);
@@ -592,6 +603,45 @@ mod tests {
         b.resize(120, 45);
         b.on_key(key(KeyCode::Char('p')));
         assert_eq!(b.screens.current, ScreenId::Paused);
+        b.resize(40, 20);
+        let paused_menu = b.screens.pause_menu;
+        b.on_key(key(KeyCode::Down));
+        assert_eq!(b.screens.pause_menu, paused_menu);
+        b.on_key(key(KeyCode::Enter));
+        assert_eq!(b.screens.current, ScreenId::Paused);
+        b.on_key(key(KeyCode::Char('p')));
+        assert_eq!(b.screens.current, ScreenId::Paused);
+
+        let mut c = app();
+        for _ in 0..3 {
+            c.on_key(key(KeyCode::Down));
+        }
+        c.on_key(key(KeyCode::Enter));
+        assert_eq!(c.screens.current, ScreenId::Settings);
+        c.screens.settings_row = 2;
+        c.resize(40, 20);
+        let master = c.settings.master;
+        c.on_key(key(KeyCode::Down));
+        assert_eq!(c.screens.settings_row, 2);
+        c.on_key(key(KeyCode::Right));
+        assert_eq!(c.settings.master, master);
+        c.on_key(key(KeyCode::Enter));
+        assert_eq!(c.screens.current, ScreenId::Settings);
+
+        // A shrink clears an armed capture (and its message); Back still
+        // cancels one that is armed while the card is already up.
+        let mut d = app();
+        d.screens.show(ScreenId::Rebind);
+        d.screens.capture = Some(Action::Pause);
+        d.screens.capture_error = Some("stale conflict".into());
+        d.resize(40, 20);
+        assert_eq!(d.screens.capture, None);
+        assert!(d.screens.capture_error.is_none());
+        d.screens.capture = Some(Action::Pause);
+        d.on_key(key(KeyCode::Esc));
+        assert_eq!(d.screens.capture, None);
+        assert!(d.screens.capture_error.is_none());
+        assert_eq!(d.screens.current, ScreenId::Rebind);
     }
 
     #[test]

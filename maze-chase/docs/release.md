@@ -333,10 +333,19 @@ from tag commit `11a0037b`; all eight rows pass with
   reinstall over themselves without changing the binary or settings,
   and uninstall through `uninstall-linux.sh`.
 - The packaged desktop binary renders a 1100x760 P6 frame under Xvfb
-  on Debian and Fedora, and captured audio from the release binary
-  carries both the title music and gameplay effects.
+  on Debian and Fedora with
+  `xvfb-run -a maze-chase-desktop --no-pad --probe 30 <out.ppm>` run
+  from the unpacked package, and audio captured from the release
+  binary through a PulseAudio null sink carries both the title music
+  and gameplay effects. Those captures are transient host artifacts,
+  not committed files; the committed `desktop-probe.ppm` and
+  `desktop-gameplay.ppm` are current-tree reference captures for the
+  desktop E2E, not rc.1 run evidence.
 - The deployed Pages game passed 661 site assertions and 279 browser
-  assertions against the production URL, with zero console errors.
+  assertions against the production URL, with zero console errors. The
+  commands are in the [release scoreboard](scoreboard.md); their
+  console output was transient and is not committed, and the committed
+  harnesses re-run the same commands.
 
 The Linux rows are complete, while the macOS and Windows per-OS rows
 and the real-speaker review remain open. The stable tag therefore stays

@@ -165,9 +165,10 @@ pub fn check_internal_links(pages: &[PathBuf]) -> (usize, usize, Vec<String>) {
     (checked, fragments_checked, problems)
 }
 
-/// Reject artifact-signing or stable-release claims while leaving the
-/// legitimate "signed parity gate" and "design pass signed" wording alone.
-pub fn assert_no_signing_or_stable_claim(text: &str, surface: &str) {
+/// Return the first artifact-signing or stable-release claim in `text`,
+/// leaving the legitimate "signed parity gate" and "design pass signed"
+/// wording alone.
+pub fn signing_or_stable_claim(text: &str) -> Option<String> {
     let lower = text.to_lowercase();
     for phrase in [
         "notariz",
@@ -199,10 +200,9 @@ pub fn assert_no_signing_or_stable_claim(text: &str, surface: &str) {
         "completed signing",
         "authenticode signed",
     ] {
-        assert!(
-            !lower.contains(phrase),
-            "{surface} claims signing: {phrase}"
-        );
+        if lower.contains(phrase) {
+            return Some(format!("claims signing: {phrase}"));
+        }
     }
     for phrase in [
         "stable release is published",
@@ -248,10 +248,18 @@ pub fn assert_no_signing_or_stable_claim(text: &str, surface: &str) {
         "published as a stable release",
         "published the stable release",
     ] {
-        assert!(
-            !lower.contains(phrase),
-            "{surface} claims a stable release: {phrase}"
-        );
+        if lower.contains(phrase) {
+            return Some(format!("claims a stable release: {phrase}"));
+        }
+    }
+    None
+}
+
+/// Fail loudly when a release-copy surface carries one of the rejected
+/// claims, naming the offending phrase.
+pub fn assert_no_signing_or_stable_claim(text: &str, surface: &str) {
+    if let Some(claim) = signing_or_stable_claim(text) {
+        panic!("{surface} {claim}");
     }
 }
 

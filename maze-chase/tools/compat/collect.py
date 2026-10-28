@@ -235,10 +235,10 @@ def sixel_stats(data):
     return {"transmits": count, "payload_bytes": payload}
 
 
-def frame_stats(data):
-    """Segment the stream by synchronized-output markers (the game wraps
-    every frame in ESC[?2026h ... ESC[?2026l)."""
-    frames = []
+def frame_spans(data):
+    """Byte spans of synchronized-output frames (the game wraps every
+    frame in ESC[?2026h ... ESC[?2026l)."""
+    spans = []
     marker_h = b"\x1b[?2026h"
     marker_l = b"\x1b[?2026l"
     pos = 0
@@ -250,8 +250,20 @@ def frame_stats(data):
         if end < 0:
             break
         end += len(marker_l)
-        frames.append(data[start:end])
+        spans.append((start, end))
         pos = end
+    return spans
+
+
+def frame_stats(data, spans=None, start=0, end=None):
+    """Frame stats for spans starting inside [start, end). A frame that
+    straddles a checkpoint boundary is attributed to the phase where it
+    starts, so per-phase counts sum to the transcript-wide total."""
+    if spans is None:
+        spans = frame_spans(data)
+    if end is None:
+        end = len(data)
+    frames = [data[begin:close] for begin, close in spans if start <= begin < end]
     sizes = sorted(len(f) for f in frames)
     stats = {
         "count": len(frames),
@@ -736,13 +748,12 @@ def main():
             transcript = fh.read()
         transcript_sha = sha256_file(transcript_path)
 
-    # Per-phase counters are computed over each phase's byte slice, so a
-    # synchronized frame or a chunked-transmit continuation straddling a
-    # checkpoint boundary can be attributed to no phase: per-phase sums
-    # sit slightly below the whole-transcript protocol_totals (measured
-    # 1-7 frames and ~1 MB of kitty payload on the flood rows). The
-    # transcript-wide totals are the authoritative figures; per-phase
-    # values describe their slice only.
+    # Frame spans are computed once over the whole transcript and each
+    # frame is attributed to the phase containing its opening marker, so a
+    # frame straddling a checkpoint boundary still lands in exactly one
+    # phase and per-phase counts sum to the transcript-wide total. Payload
+    # and surface counters keep their per-slice semantics.
+    spans = frame_spans(transcript)
     phases = segment_phases(transcript, events)
     phase_reports = []
     prev_at = None
@@ -762,7 +773,9 @@ def main():
         if phase["at_ms"] is not None:
             prev_at = phase["at_ms"]
         if chunk:
-            report["frames"] = frame_stats(chunk)
+            report["frames"] = frame_stats(
+                transcript, spans, phase["start_byte"], phase["end_byte"]
+            )
             if report.get("duration_ms"):
                 report["frames_per_s"] = round(
                     report["frames"]["count"] * 1000 / report["duration_ms"], 1

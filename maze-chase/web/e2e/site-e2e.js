@@ -442,6 +442,12 @@ async function collectLinks(ws) {
           ? `${mobile.navPill.left.toFixed(1)}..${mobile.navPill.right.toFixed(1)} in ${mobile.navPill.boxLeft.toFixed(1)}..${mobile.navPill.boxRight.toFixed(1)}, scrollLeft ${mobile.navPill.scrollLeft.toFixed(1)}`
           : 'missing'})`,
       );
+      if (path === 'releases.html') {
+        assert(
+          mobile.navPill && mobile.navPill.scrollLeft > 0,
+          `releases.html actually scrolls its overflowing current pill into view at 390x844 (scrollLeft ${mobile.navPill ? mobile.navPill.scrollLeft.toFixed(1) : 'missing'})`,
+        );
+      }
     }
     assert(consoleErrors.length === 0, `${path} mobile load has no console errors`);
     for (const error of consoleErrors) console.error('  console:', error);
@@ -463,6 +469,60 @@ async function collectLinks(ws) {
         `the mobile title card fits the first viewport (bottom ${mobile.titleBottom.toFixed(1)} of ${mobile.viewportHeight}px)`);
     }
   }
+
+  // The nav reveal also runs on layout changes: a desktop load resized to
+  // mobile must re-reveal the current pill. releases.html is the subpage
+  // whose active pill genuinely overflows at 390px.
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
+  });
+  await navigate(ws, BASE + 'releases.html');
+  await send(ws, 'Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+  const desktopNav = await evalJs(ws, `(() => {
+    const nav = document.querySelector('.site-nav');
+    const active = nav && nav.querySelector('[aria-current="page"]');
+    if (!nav || !active) return null;
+    const box = nav.getBoundingClientRect();
+    const pill = active.getBoundingClientRect();
+    return { scrollLeft: nav.scrollLeft, left: pill.left, right: pill.right, boxLeft: box.left, boxRight: box.right };
+  })()`);
+  assert(
+    desktopNav && desktopNav.scrollLeft === 0,
+    `releases.html starts without a nav scroll at 1280 (${desktopNav ? desktopNav.scrollLeft.toFixed(1) : 'missing'})`,
+  );
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
+  });
+  let resizedNav = null;
+  for (let settle = 0; settle < 30; settle++) {
+    await sleep(100);
+    resizedNav = await evalJs(ws, `(() => {
+      const nav = document.querySelector('.site-nav');
+      const active = nav && nav.querySelector('[aria-current="page"]');
+      if (!nav || !active) return null;
+      const box = nav.getBoundingClientRect();
+      const pill = active.getBoundingClientRect();
+      return {
+        scrollLeft: nav.scrollLeft,
+        left: pill.left,
+        right: pill.right,
+        boxLeft: box.left,
+        boxRight: box.right,
+        viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
+      };
+    })()`);
+    if (resizedNav && resizedNav.viewport[0] === 390 && resizedNav.scrollLeft > 0) break;
+  }
+  assert(
+    resizedNav
+      && resizedNav.viewport[0] === 390
+      && resizedNav.scrollLeft > 0
+      && resizedNav.left >= resizedNav.boxLeft - 1
+      && resizedNav.right <= resizedNav.boxRight + 1,
+    `releases.html re-reveals the current nav pill after a resize to 390x844 (${resizedNav
+      ? `viewport ${resizedNav.viewport[0]}x${resizedNav.viewport[1]}, ${resizedNav.left.toFixed(1)}..${resizedNav.right.toFixed(1)} in ${resizedNav.boxLeft.toFixed(1)}..${resizedNav.boxRight.toFixed(1)}, scrollLeft ${resizedNav.scrollLeft.toFixed(1)}`
+      : 'missing'})`,
+  );
 
   // Crawl every internal link once, over HTTP, and verify fragments.
   while (linkQueue.length > 0) {

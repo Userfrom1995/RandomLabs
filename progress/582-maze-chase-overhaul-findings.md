@@ -236,8 +236,16 @@ Severity tag: `overclaim` where public text exceeds reality.
    direction (the pupil placement is theme-constant;
    `crates/terminal/src/raster.rs:212,237-254`); the cell tiers show
    facing, so tiers are not visually equivalent (Phase 4: Visual Identity Redesign).
+   RESOLVED in Phase 4: the Pondwake warden art carries per-direction
+   facing sheets consumed by the shared sprite and atlas path
+   (`raster.rs:130`, `sprites::eyes_rows_for`), and
+   `all_facings_render_without_panic` pins the raster side.
 2. The fright mask never consumes `theme.fright`; on low-contrast
    themes the frightened state is hard to read (Phase 4: Visual Identity Redesign).
+   RESOLVED in Phase 4: the bitmap fright mask takes its color from
+   `theme.fright` (`raster.rs:515`), the Pondwake palettes carry
+   contrast-checked fright colors, and the fright readout tests pin the
+   badge and mask state.
 3. Audio: the tempo constant 132 BPM is duplicated across tracks, the
    title tune plays loudly by default, and the terminal layer routes a
    chime through BEL plus a ticker by default (Phase 5: Sound Design
@@ -247,7 +255,11 @@ Severity tag: `overclaim` where public text exceeds reality.
    to 60 percent and SFX to 80 percent; the terminal BEL chime is opt-in
    and off by default, while the ticker always narrates.
 4. `reduced_flash` suppresses only one of the three flash sources used
-   by the renderer (Phase 4: Visual Identity Redesign).
+   by the renderer (Phase 4: Visual Identity Redesign). RESOLVED in
+   Phase 4: every brightness-bearing call site (pickup burst, golden
+   lily, death hold, fright mask) gates on reduced flash or reduced
+   motion, and `tester_reduced_flash.rs` enumerates the call sites and
+   holds a 180-frame fear window pixel-stable.
 5. Minimum-size token mismatch: the layout floor is 62x35
    (`crates/terminal/src/layout.rs`; the too-small card text matches),
    while docs and help copy in places say 60x36 (Phase 2: Dynamic
@@ -311,7 +323,9 @@ Severity tag: `overclaim` where public text exceeds reality.
 13. The Windows E2E evidence behind the release claims was signed
     despite failing ConPTY sessions (Phase 6: Release Engineering; do
     not repeat signing
-    until the harness is fixed).
+    until the harness is fixed). OPEN, tracked by #683: the Windows
+    harness repair and re-signing are the remaining release-claims
+    row.
 
 ### Docs
 
@@ -359,7 +373,8 @@ named phase; Phase 1 files them, later phases close them.
 13. Release-claims sweep: hub, README, and docs say only what the
     evidence ledger shows; Windows E2E re-signing only after the harness
     is fixed (Phase 6: Release Engineering and Phase 7: Game-First Web
-    Experience).
+    Experience). OPEN, tracked by #683: the hub, README, and docs claims
+    are swept, while the Windows E2E repair and re-signing remain.
 14. Min-size copy alignment (60x36 -> 62x35 where it still appears)
     (Phase 2: Dynamic Terminal Layout and Full-Window Composition).
     RESOLVED in Phase 2: `maze-chase/docs/terminal.md` and the
@@ -585,3 +600,8 @@ stable tag stays gated.
   390px (pinned by a 670-assertion site-e2e run); and keys other than
   mute and title-Esc are ignored while the too-small card is up (pinned
   by `too_small_ignores_keys_except_mute_and_title_quit`).
+
+Accepted open items: the release-claims/Windows-E2E row tracked by
+#683 (Section B.13 and C.13), the native macOS and Windows terminal and
+package rows, and the real-speaker review. None of them is claimed as
+closed by this increment, and the stable tag stays gated on them.

@@ -1312,6 +1312,23 @@ class TestCommittedEvidenceBundle(unittest.TestCase):
             checked += 1
         self.assertGreaterEqual(checked, 8)
 
+    def test_phase_frame_counts_reconcile_with_transcript_total(self):
+        checked = 0
+        for path in self.rows():
+            with open(path, encoding="utf-8") as fh:
+                row = json.load(fh)
+            total = sum(
+                phase.get("frames", {}).get("count", 0)
+                for phase in row["phases"]
+            )
+            self.assertEqual(
+                total, row["protocol_totals"]["frames"]["count"],
+                f"{os.path.basename(path)}: phase frame sum {total} != "
+                f"protocol total",
+            )
+            checked += 1
+        self.assertGreaterEqual(checked, 8)
+
     def test_every_cited_screenshot_matches_its_recorded_hash(self):
         checked = 0
         for path in self.rows():

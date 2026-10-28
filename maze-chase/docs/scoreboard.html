@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/scoreboard.md; source-bytes: 39590; source-fnv: 33c8cbf2fc19c993; output-fnv: 6b1faca60648834f -->
+<!-- generated from docs/scoreboard.md; source-bytes: 40197; source-fnv: 9d91e6c24cd9015f; output-fnv: c2dae9f411211910 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -123,7 +123,7 @@
 <li>Browser: 60 FPS live in the CDP run (release evidence); the canvas composer mirrors the shared 8-ppt reference raster with a frame-determinism test (<code>web::video</code>, <code>web::bridge</code> hostile probes).</li>
 </ul>
 <h2 id="native-os-proof-completed-2026-10-18">Native-OS proof (completed 2026-10-18)</h2>
-<p>Windows and macOS packaged artifacts plus their per-layer E2E runs executed on their native operating systems (the dated section above records the measured numbers). With them, the <a href="parity.html">parity checklist</a> rows signed at that point cover the simulation, layer, and per-layer E2E requirements; the later sound row records Linux synth and browser evidence and defers macOS/Windows real-speaker review to the Final Phase. The #552 reference game was retired in favor of this game by the Maintainer's explicit step after this verified release merged.</p>
+<p>Windows and macOS packaged artifacts plus their per-layer E2E runs executed on their native operating systems (the dated section above records the measured numbers). With them, the <a href="parity.html">parity checklist</a> rows signed at that point cover the simulation, layer, and per-layer E2E requirements; the later sound row records Linux synth and browser evidence and leaves the macOS/Windows real-speaker review pending native hosts. The #552 reference game was retired in favor of this game by the Maintainer's explicit step after this verified release merged.</p>
 <h2 id="2026-10-18-overhaul-dynamic-layout-and-full-window-composition">2026-10-18 (overhaul: dynamic layout and full-window composition)</h2>
 <p>The dynamic-layout overhaul (#582), measured on the Linux build machine:</p>
 <ul>
@@ -277,12 +277,13 @@
 <li>Fedora 41 (podman container): <code>dnf install -y</code> installed both <code>.rpm</code> files with their X11 and audio dependencies, the terminal played a PTY session, <code>dnf reinstall</code> preserved the same settings hash, <code>dnf remove -y</code> removed the packages, and <code>rpm -q</code> plus an <code>ls</code> of the install path confirmed removal. Removal was not checked with <code>command -v</code>, which reports a stale shell hash path after deletion.</li>
 <li>Tarballs: the shipped <code>install-linux.sh --prefix</code> installed both layers, <code>--version</code> reported <code>0.1.0</code>, the terminal played a PTY session, a reinstall left the binary byte-identical (<code>cmp</code>) and the settings hash unchanged, and <code>uninstall-linux.sh</code> removed both binaries.</li>
 </ul>
-<p>Desktop probe: the packaged desktop binary rendered a 1100x760 P6 frame under Xvfb on Debian and on Fedora (the Fedora frame measured 100.0% non-black). The host had no writable audio device, so the released binary was run against a PulseAudio null sink and its output was captured: title music peaked at 0.1536 with RMS 0.0268 and 52.1% non-zero samples; gameplay (start plus arrow keys through <code>xdotool</code>) peaked at 0.4446 with RMS 0.0503 and 17,698 samples above 0.2. This proves both the music and effects paths from the shipped binary, not from the test synth; a real-speaker review is still pending.</p>
+<p>Desktop probe: the packaged rc.1 desktop binary rendered a 1100x760 P6 frame under Xvfb on Debian and on Fedora (the Fedora frame measured 100.0% non-black) with <code>xvfb-run -a maze-chase-desktop --no-pad --probe 30 &lt;out.ppm&gt;</code> run from the unpacked package. The host had no writable audio device, so the released binary was routed to a PulseAudio null sink (a null-sink module plus a recorder on its monitor) and title music plus gameplay (start plus arrow keys through <code>xdotool</code>) were captured: title music peaked at 0.1536 with RMS 0.0268 and 52.1% non-zero samples; gameplay peaked at 0.4446 with RMS 0.0503 and 17,698 samples above 0.2. The frame and audio captures are transient host artifacts from that run, not committed files: the committed <code>desktop-probe.ppm</code> and <code>desktop-gameplay.ppm</code> are the current-tree reference captures that the desktop E2E compares against, not rc.1 run evidence. The figures above prove both the music and effects paths from the shipped binary, not from the test synth; a real-speaker review is still pending.</p>
 <p>Deployed Pages:</p>
 <ul>
 <li><code>node web/e2e/site-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/ 9331</code>: <code>SITE-E2E ALL GREEN: 661 assertions</code>.</li>
 <li><code>node web/e2e/browser-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/index.html 9332</code>: <code>E2E: ALL GREEN</code> (279 assertions, zero console errors), including the persisted mute and low-mix audio checks.</li>
 </ul>
+<p>The E2E console output is from the 2026-10-28 production-URL run and is not committed; the committed harnesses re-run the same commands against the deployed URL.</p>
 <p>The macOS and Windows per-OS rows and the real-speaker review remain open; the stable tag is not cut on this evidence alone.</p>
     </article>
   </div>

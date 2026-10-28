@@ -255,11 +255,11 @@
       "duration_ms": 1667,
       "bytes_per_s": 1400743,
       "frames": {
-        "count": 54,
-        "bytes_mean": 43089,
+        "count": 55,
+        "bytes_mean": 43145,
         "bytes_max": 46440
       },
-      "frames_per_s": 32.4,
+      "frames_per_s": 33.0,
       "surfaces": {
         "playing_hud": {
           "paints": 50,

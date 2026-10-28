@@ -8,10 +8,10 @@
 - **Status:** in-progress
 - **Updated:** 2026-10-28
 - **Active Phase:** Final Phase: Full-Product Verification and Release
-  Sign-Off (Linux verification, the deployed site, the Phase 7 follow-ups,
-  and the ledger close-out are complete; this increment is ready for
-  review, while the native macOS and Windows rows and the stable release
-  cut remain)
+  Sign-Off (Linux verification, the deployed site, and the Phase 7
+  follow-ups are complete; the release-claims/Windows-E2E ledger row
+  (#683) remains open along with the native macOS and Windows rows and
+  the stable release cut, and this increment is ready for review)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -25,7 +25,7 @@
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [x] Windows installer plus zip (built and smoke-tested by the native Windows release job in run 40161835683), [x] macOS app plus dmg plus tarball (built and smoke-tested by the native macOS release job in run 40161835683), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [x] `maze-chase-release.yml` pipeline installed via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`, merged as #758), [x] release candidate artifacts on the official Releases page (`maze-chase-v0.1.0-rc.1` prerelease, published 2026-10-25), [x] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; the release candidate artifacts are now published) (PR 6 target, Refs #582, Refs #657)
 - Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [x] deployed-URL browser E2E including mobile (`site-e2e.js` ALL GREEN at 157 assertions against the PR #759 Pages preview at 1280x900 and 390x844; PR 7 target, Refs #582, Closes #660)
-- Final Phase: Full-Product Verification and Release Sign-Off: [x] Linux terminal matrix re-signed on the released artifacts (all eight rows pass on the rc.1 binary with `sources_dirty: false`), [ ] native macOS and Windows terminal rows re-signed, [x] Linux install/upgrade/uninstall from the released deb, rpm, and tarball artifacts (settings preserved; Fedora 41 rpm flow included), [ ] native macOS and Windows install/upgrade/uninstall from the released artifacts, [x] deployed Pages E2E for the game and every subpage (661 site assertions plus 279 browser assertions, zero console errors), [x] Linux desktop visual probe and release-binary audio capture (title music plus effects; 1100x760 P6 frame under Xvfb), [ ] real-speaker review on native hosts, [x] Phase 7 follow-ups fixed with tests (docs href escaping, release-copy claim paraphrases, mobile nav pill visibility, too-small key guard), [x] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [x] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
+- Final Phase: Full-Product Verification and Release Sign-Off: [x] Linux terminal matrix re-signed on the released artifacts (all eight rows pass on the rc.1 binary with `sources_dirty: false`), [ ] native macOS and Windows terminal rows re-signed, [x] Linux install/upgrade/uninstall from the released deb, rpm, and tarball artifacts (settings preserved; Fedora 41 rpm flow included), [ ] native macOS and Windows install/upgrade/uninstall from the released artifacts, [x] deployed Pages E2E for the game and every subpage (661 site assertions plus 279 browser assertions, zero console errors), [x] Linux desktop visual probe and release-binary audio capture (title music plus effects; 1100x760 P6 frame under Xvfb), [ ] real-speaker review on native hosts, [x] Phase 7 follow-ups fixed with tests (docs href escaping, release-copy claim paraphrases, mobile nav pill visibility, too-small key guard), [ ] reassessment ledger fully resolved or documented (open: B.13/C.13 tracked by #683), [ ] stable `maze-chase-v1.0.0` release cut, [x] hub, README, and docs unified for this increment (Refs #582), [ ] final release close-out (Closes #655, Closes #661, Closes #582)
 
 ## Current step
 
@@ -2255,5 +2255,55 @@ are reconciled to the rc.1 evidence.
   with 423 links, `maze-chase-verify` 19/19, `cargo fmt --all --check`
   clean, and site-e2e 670 assertions locally. Reconciled `terminal-compat.md`,
   `release.md`, `scoreboard.md`, and the findings ledger to the rc.1
-  evidence. The macOS and Windows rows and the real-speaker review
+  evidence. Delegation ledger: four read-only general subagents ran in
+  parallel: the terminal key-guard review, the docs/evidence
+  re-derivation, the site JS/E2E audit, and the progress/contract
+  audit. The primary context re-derived the rc.1 binary hash from the
+  published tarball, ran the terminal crate suite, `maze-chase-verify`
+  19/19, the 49 harness-contract tests, and `render-docs.mjs --check`,
+  and owns the final diff. Skills: no registry skill matched.
+  The macOS and Windows rows and the real-speaker review
   remain open; the stable tag stays gated. - the Builder
+
+- 2026-10-28 (fixer, review round on PR #772 at head `71483395`): applied
+  all three blocking findings and the eight non-blocking findings.
+  Blocking: recorded the delegation ledger on the final builder entry;
+  reworded the active phase and ledger checklist so #683 is tracked as
+  open instead of claiming the Final Phase closed it, splitting the
+  close-out line from the increment close; and reconciled the findings
+  ledger (B.1/B.2/B.4 resolved with Phase 4 evidence, B.13/C.13 open
+  under #683, Section I accepted open items). Non-blocking: a resize
+  into the too-small card now clears an armed capture, and Back cancels
+  an armed capture before the too-small key guard (test expanded across
+  menu, play, pause, settings, and capture); the main loop reconciles a
+  pending resize before delivering a key in the same batch; the signing
+  claim checker now returns the hit as a value for positive and negative
+  assertions instead of catching panics; `site-nav.js` re-reveals the
+  active pill on resize/orientation change and site-e2e asserts the
+  390px Releases pill is scrolled into view plus a 1280 to 390 resize
+  case (local run: 673 assertions); `collect.py` attributes each frame
+  to the phase containing its opening byte so a frame straddling a
+  phase boundary is no longer dropped, with a contract test proving
+  phase frame counts sum to the transcript total for every bundle; the
+  committed truecolor row's refit phase now carries the straddling frame
+  (54 to 55 frames, re-derived mean 43,145 bytes, 33.0 fps; the
+  transcript itself is not committed, so the mean is re-derived from the
+  phase and leftover byte residuals); `render-docs.mjs` decodes the four
+  entities `escapeHtml` can emit in a single pass before resolving
+  links; and the scoreboard/release guide now name the desktop probe
+  command and qualify the transient frame, audio, and deployed-site
+  console captures as uncommitted run artifacts, with the committed
+  PPMs identified as current-tree reference captures. Public docs no
+  longer defer the sound review to the Final Phase; it stays pending
+  native macOS/Windows hosts. Verification: `cargo test -p
+  maze-chase-terminal --no-fail-fast --locked` 279 passed / 0 failed,
+  `cargo fmt --all --check` clean, `maze-chase-verify` 19/19,
+  `test_harness_contract.py` 50/50 including the new frame-count test,
+  `render-docs.mjs --check` 15 docs current with 423 links, and local
+  site-e2e 673 assertions. Delegation ledger: three read-only explore
+  subagents audited the terminal key/resize paths, the site nav/E2E
+  evidence, and the docs/evidence reconciliation; the primary context
+  made every edit, re-derived the bundle count, and ran the full
+  verification set. Skills: no registry skill matched. The macOS and
+  Windows rows and the real-speaker review remain open; the stable tag
+  stays gated. - the Fixer
