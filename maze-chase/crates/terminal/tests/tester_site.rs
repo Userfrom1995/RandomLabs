@@ -302,11 +302,10 @@ fn release_claim_checker_catches_paraphrases() {
         "The production release is available.",
     ];
     for claim in claims {
-        let caught = std::panic::catch_unwind(|| {
-            common::assert_no_signing_or_stable_claim(claim, "fixture")
-        })
-        .is_err();
-        assert!(caught, "claim checker missed: {claim}");
+        assert!(
+            common::signing_or_stable_claim(claim).is_some(),
+            "claim checker missed: {claim}"
+        );
     }
     for allowed in [
         "The binaries are unsigned.",
@@ -317,7 +316,11 @@ fn release_claim_checker_catches_paraphrases() {
         "The release stays a prerelease until the checks close.",
         "This is not yet a stable release.",
     ] {
-        common::assert_no_signing_or_stable_claim(allowed, "fixture");
+        assert_eq!(
+            common::signing_or_stable_claim(allowed),
+            None,
+            "claim checker false-positive: {allowed}"
+        );
     }
 }
 

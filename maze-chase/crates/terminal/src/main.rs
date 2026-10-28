@@ -1622,7 +1622,13 @@ fn main() {
         // Poll for input; the pacer below decides when a frame is due.
         if event::poll(Duration::from_millis(16)).unwrap_or(false) {
             match event::read() {
-                Ok(TermEvent::Key(key)) => app.on_key(key),
+                Ok(TermEvent::Key(key)) => {
+                    // A SIGWINCH batched with this key can be dropped by
+                    // the event source; reconcile first so the key never
+                    // acts against the pre-shrink layout.
+                    reconcile_size(&mut app);
+                    app.on_key(key);
+                }
                 Ok(TermEvent::Resize(c, r)) => app.resize(c, r),
                 _ => {}
             }

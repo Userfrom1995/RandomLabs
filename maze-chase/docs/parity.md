@@ -55,7 +55,7 @@ match; the map is ours.
 | Full menu/help/scores/settings/pause flows | `screens` + `chrome`, top-10 machine scores | `screens`, shares `~/.maze-chase` scores with terminal | DOM screens, localStorage top-10 | signed |
 | Per-layer E2E green on this release | headless suite (layout sweep, full session, resize) plus PTY sessions | headless suite + Xvfb `--probe` PPM plus a real-GUI drive | node smoke + tester regression + CDP browser E2E | Linux current on this tree; macOS and Windows pre-Pondwake, with fresh reruns tracked in the final sign-off (native runs recorded below and in `scoreboard.md`) |
 | Board pixels agree across layers | same composer; bitmap tiers rasterize at the detected cell geometry (bounded) | same composer at the fixed 8-ppt reference | mirrors the shared 8-ppt reference (frame-determinism test) | signed |
-| Sound uses one shared score, effect bank, and mix contract | opt-in BEL plus ticker from the same cue stream | renders the shared score and recipes at 44.1 kHz, peak-normalized to 0.32/0.50 | schedules the same recipes in WebAudio with the same ceilings | Linux synth and browser verified; macOS/Windows real-speaker review pending the Final Phase (see `docs/audio.md`) |
+| Sound uses one shared score, effect bank, and mix contract | opt-in BEL plus ticker from the same cue stream | renders the shared score and recipes at 44.1 kHz, peak-normalized to 0.32/0.50 | schedules the same recipes in WebAudio with the same ceilings | Linux synth and browser verified; macOS/Windows real-speaker review pending native hosts (see `docs/audio.md`) |
 
 ## Native proof record
 
