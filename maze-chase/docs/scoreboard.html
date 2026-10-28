@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/scoreboard.md; source-bytes: 36891; source-fnv: bae4f2ba5bcf86e5; output-fnv: 7d1a2adda7c0163d -->
+<!-- generated from docs/scoreboard.md; source-bytes: 39590; source-fnv: 33c8cbf2fc19c993; output-fnv: 6b1faca60648834f -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -269,6 +269,21 @@
 <tr><td><code>maze-chase-desktop-0.1.0-linux-x86_64.tar.gz</code></td><td><code>20136625311bd5e343de980bb494611ad8154f646640fbc9fa20e17ac8710125</code></td></tr>
 </tbody></table></div>
 <p>The second full stage reproduced the same <code>SHA256SUMS.txt</code> byte for byte, <code>sha256sum -c</code> passed all six artifacts, and <code>smoke-linux.sh</code> unpacked both deb and rpm payloads, ran each binary's <code>--version</code> and <code>--help</code>, and installed, ran, and uninstalled both tarballs through the installers extracted from the archives. The tarball digests reproduce twice on this host with the pinned inputs; the deb is tied to the dpkg toolchain above and the RPM header records this build host, so both are host-bound. Cross-host byte identity is not claimed.</p>
+<h2 id="2026-10-28-published-rc-1-artifacts-linux-x86-64-and-deployed-site">2026-10-28 (published rc.1 artifacts, Linux x86_64 and deployed site)</h2>
+<p>Measured against the assets published by release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a> from tag commit <code>11a0037b9692c4b3da711632ff9938533650efd3</code>. The host was Ubuntu 24.04.5 LTS (Linux 6.17.0-1022-azure x86_64). The release terminal binary is SHA-256 <code>9f6cd45a440e37ddf22f9072a9991e7047284b7a04d7effa55e2ff3387b83c83</code>; all eight terminal rows re-sign on it with <code>build.sources_dirty: false</code> and their numbers are in the <a href="terminal-compat.html">terminal compatibility matrix</a>.</p>
+<p>Package lifecycle:</p>
+<ul>
+<li>Debian: <code>dpkg -i</code> installed both <code>.deb</code> files, <code>--version</code> reported <code>0.1.0</code>, a real PTY session played, paused, and quit to title, the settings file (sha256 <code>099c133e05f2626c65fe5ba45ea9e280e40709f8b6f198c031b500cf61481a73</code>) survived a reinstall, and <code>dpkg -r</code> removed the binaries.</li>
+<li>Fedora 41 (podman container): <code>dnf install -y</code> installed both <code>.rpm</code> files with their X11 and audio dependencies, the terminal played a PTY session, <code>dnf reinstall</code> preserved the same settings hash, <code>dnf remove -y</code> removed the packages, and <code>rpm -q</code> plus an <code>ls</code> of the install path confirmed removal. Removal was not checked with <code>command -v</code>, which reports a stale shell hash path after deletion.</li>
+<li>Tarballs: the shipped <code>install-linux.sh --prefix</code> installed both layers, <code>--version</code> reported <code>0.1.0</code>, the terminal played a PTY session, a reinstall left the binary byte-identical (<code>cmp</code>) and the settings hash unchanged, and <code>uninstall-linux.sh</code> removed both binaries.</li>
+</ul>
+<p>Desktop probe: the packaged desktop binary rendered a 1100x760 P6 frame under Xvfb on Debian and on Fedora (the Fedora frame measured 100.0% non-black). The host had no writable audio device, so the released binary was run against a PulseAudio null sink and its output was captured: title music peaked at 0.1536 with RMS 0.0268 and 52.1% non-zero samples; gameplay (start plus arrow keys through <code>xdotool</code>) peaked at 0.4446 with RMS 0.0503 and 17,698 samples above 0.2. This proves both the music and effects paths from the shipped binary, not from the test synth; a real-speaker review is still pending.</p>
+<p>Deployed Pages:</p>
+<ul>
+<li><code>node web/e2e/site-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/ 9331</code>: <code>SITE-E2E ALL GREEN: 661 assertions</code>.</li>
+<li><code>node web/e2e/browser-e2e.js https://userfrom1995.github.io/RandomLabs/maze-chase/index.html 9332</code>: <code>E2E: ALL GREEN</code> (279 assertions, zero console errors), including the persisted mute and low-mix audio checks.</li>
+</ul>
+<p>The macOS and Windows per-OS rows and the real-speaker review remain open; the stable tag is not cut on this evidence alone.</p>
     </article>
   </div>
 </main>

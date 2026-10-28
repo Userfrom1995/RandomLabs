@@ -546,3 +546,42 @@ a second of collection after the steering burst, and the full
 `cargo test -p maze-chase-terminal` run is 167 passed / 0 failed with
 fmt clean and no clippy warning from this file. The macOS arm re-runs
 the same suite on the fixed tree.
+
+## I. Final Phase: published-artifact verification (Linux)
+
+The published `maze-chase-v0.1.0-rc.1` assets (tag commit `11a0037b`,
+release run 40161835683) were exercised from the user side on
+2026-10-28. This closes the Linux half of the release checklist; the
+macOS and Windows rows and the real-speaker review remain open, so the
+stable tag stays gated.
+
+- Terminal matrix: all eight Linux rows were re-run on the published
+  terminal binary (SHA-256 `9f6cd45a...`) and re-signed with
+  `build.sources_dirty: false`; the measured numbers in
+  `maze-chase/docs/terminal-compat.md` now derive from the rc.1
+  bundles. The forced sixel paused capture now measures 712 sprite
+  pixels (the earlier 520 was from the previous binary), while the auto
+  VT340 row stays at 520.
+- Packages: the `.deb` install, reinstall, and remove flow preserves the
+  settings file (sha256 `099c133e...`); the `.rpm` files do the same in
+  a Fedora 41 container through `dnf install`, `dnf reinstall`, and
+  `dnf remove`; the tarballs install through the shipped scripts,
+  reinstall byte-identically, and uninstall. Removal was verified with
+  `rpm -q` and the install path, because `command -v` reports a stale
+  shell hash after deletion.
+- Desktop and audio: the packaged desktop binary renders a 1100x760 P6
+  frame under Xvfb on Debian and Fedora, and a PulseAudio null-sink
+  capture of the release binary contains both title music and gameplay
+  effects (music peak 0.1536 / RMS 0.0268; gameplay peak 0.4446 / RMS
+  0.0503 with 17,698 samples above 0.2).
+- Deployed site: the production Pages game passed 661 site assertions
+  and 279 browser assertions with zero console errors, including the
+  persisted mute and low-mix checks.
+- Follow-ups fixed on this branch with tests: the docs renderer now
+  escapes navigation hrefs; the release-copy claim checker rejects the
+  broader paraphrase variants (pinned by
+  `release_claim_checker_catches_paraphrases`); the four horizontal-nav
+  subpages load `site-nav.js` to scroll the current pill into view at
+  390px (pinned by a 670-assertion site-e2e run); and keys other than
+  mute and title-Esc are ignored while the too-small card is up (pinned
+  by `too_small_ignores_keys_except_mute_and_title_quit`).

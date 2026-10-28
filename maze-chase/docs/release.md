@@ -314,6 +314,34 @@ Then bump the workspace version to `1.0.0` and cut
 `maze-chase-v1.0.0` as a stable release. No stable tag is cut while a
 binding check is open.
 
+### Published-artifact verification (Linux)
+
+On 2026-10-28 the published rc.1 assets were exercised on Ubuntu 24.04.5
+LTS (Linux 6.17.0-1022-azure x86_64). The terminal compatibility matrix
+was re-signed on the release terminal binary (SHA-256
+`9f6cd45a440e37ddf22f9072a9991e7047284b7a04d7effa55e2ff3387b83c83`)
+from tag commit `11a0037b`; all eight rows pass with
+`build.sources_dirty: false`, and the measured numbers live in the
+[terminal compatibility matrix](terminal-compat.md).
+
+- The `.deb` packages install, report `0.1.0`, run a real PTY session,
+  preserve settings across reinstall, and remove their binaries.
+- The `.rpm` packages do the same inside a Fedora 41 container,
+  including a `dnf reinstall` that keeps the settings file and a
+  `dnf remove` that leaves user data in place.
+- The tarballs install through the shipped `install-linux.sh --prefix`,
+  reinstall over themselves without changing the binary or settings,
+  and uninstall through `uninstall-linux.sh`.
+- The packaged desktop binary renders a 1100x760 P6 frame under Xvfb
+  on Debian and Fedora, and captured audio from the release binary
+  carries both the title music and gameplay effects.
+- The deployed Pages game passed 661 site assertions and 279 browser
+  assertions against the production URL, with zero console errors.
+
+The Linux rows are complete, while the macOS and Windows per-OS rows
+and the real-speaker review remain open. The stable tag therefore stays
+gated.
+
 ## Clean-checkout release checklist
 
 1. Fresh `git clone`, toolchain plus system libraries above.
