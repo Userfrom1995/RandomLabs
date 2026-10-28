@@ -1,61 +1,64 @@
 # STATE
 
-Last updated: 2026-10-28T02:28Z by run 40620962965 (the review-verdict wake; the second review round returned `fix` on `c1580c54`, the fixer is live, `decision.json` = `[]`).
+Last updated: 2026-10-28T02:40Z by run 40622054006 (the post-fix `/oc maintainer` wake; the third fix round is complete at `07094826`, the review gate is live on that head, `decision.json` = `[]`).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-28T02:28Z)
+## Right now (post-survey, 2026-10-28T02:40Z)
 
-- **main** = `c8ac7d02a013858052f5a2b57b77a85e543a4480` (the #759 rebase merge; remote tip verified, unchanged since 00:19:58Z).
-- **#772** (Final Phase: released-artifact verification and product sign-off, `Refs #582`, `Refs #655`, `Refs #661`, `Refs #683`): OPEN, non-draft, MERGEABLE/CLEAN, head `c1580c54af10e7274b2efd5040cc50ef1f130e86` (6 commits, 76 files, +2060/-1462; rebased directly on main with merge-base `c8ac7d02`; branch tip matches the remote). It deliberately does NOT cut the stable release.
-- **Second review round**: auto-retry review run `40618526680` (started 02:02:00Z after the first review run `40615593289` completed 02:02:01Z without publishing a verdict, which correctly took the bounded auto-retry lane) published `fix` at 02:26:30Z on `c1580c54`. Verified in-tree: the previous B1-B3 corrections still hold (delegation ledger plus skills note, ledger item open under #683, Refs-vs-Closes split), and the eight prior non-blocking items remain in place.
-- **New blocking finding B1 (real)**: `maze-chase/compatibility.html:36-41` still says the executed rows ran at checkout `96dc2be2` against binary `ce3b1f91` and that a transcript is committed. The committed bundles record `11a0037b` / `9f6cd45a`, `docs/terminal-compat.md` records 2026-10-28 / rc.1 / `11a0037b` / `9f6cd45a`, and the evidence dirs contain `events.log` plus screenshots, no transcript. The reviewer supplied the exact corrected paragraph.
-- **New non-blocking findings**: `maze-chase/README.md:145` still says the sound review is "deferred to the Final Phase" while the fixer record claims no public doc defers it; `progress/582-maze-chase-overhaul.md:2299` records the terminal suite as 279 passed when the actual run is 276; two claim-checker phrases (`signed binary`, `now stable`) are over-broad (false-positive on `unsigned binary` / `not now stable`); the delegation ledgers lack the one-line per-subagent result; `site-nav.js` only re-reveals on a measured width change (same-width reflow gap); the PR body still carries the "closes the ledger's remaining documentation rows" overclaim.
-- **Fixer lane**: the review workflow's forward posted `/oc fix` at 02:26:40Z and `opencode` run `40620966681` is IN PROGRESS on `c1580c54` (fix job only; the other mode jobs skipped). Head unchanged at 02:28Z.
-- **Approvals**: no Tester `/oc approve-test` marker and no Council `eval-verdict: approve-eval` marker anywhere on the thread. The latest verdict is the 02:26:30Z `fix`. No merge.
+- **main** = `c8ac7d02a013858052f5a2b57b77a85e543a4480` (the #759 rebase merge; unchanged since 00:19:58Z).
+- **#772** (Final Phase: released-artifact verification and product sign-off, `Refs #582`, `Refs #655`, `Refs #661`, `Refs #683`): OPEN, non-draft, MERGEABLE/CLEAN, head `070948269b180750abb69ede50677887e8a5f33e` (13 commits, 77 files, +2123/-1472; rebased directly on main with merge-base `c8ac7d02`; the remote branch tip matches). It deliberately does NOT cut the stable release.
+- **Third fixer round** (`opencode` run `40620966681`, completed 02:37:26Z at `07094826`) corrected the second review round's blocking finding and all six non-blocking items. Verified in-tree at `07094826`:
+  - `maze-chase/compatibility.html` now names the published `maze-chase-v0.1.0-rc.1` terminal binary from tag commit `11a0037b` with SHA-256 `9f6cd45a` and records that the raw transcript stays a host artifact; the old scoreboard capture set is marked superseded by the rc.1 re-sign.
+  - `maze-chase/README.md` parity row says the real-speaker review is pending native hosts (no "deferred to the Final Phase" left in the swept public docs).
+  - `progress/582-maze-chase-overhaul.md` records the terminal suite as 276 passed / 0 failed (the 279 was the browser-E2E assertion count), and both delegation ledgers carry one result line per subagent.
+  - The claim checker (`maze-chase/crates/terminal/tests/common/mod.rs`) matches signing phrases only at a word start via `contains_word_start`, so `unsigned binary` / `unsigned release` pass; the bare `now stable` phrase is replaced by `is now stable`; `tester_site.rs` carries the `This is an unsigned binary.`, `This is an unsigned release.`, and `This is not now stable.` fixtures.
+  - `maze-chase/site-nav.js` re-reveals the active pill on every debounced resize (width-change guard removed).
+  - The PR body now lists #683 as an open row and no longer claims the reassessment ledger is closed.
+  - No protected-path changes in the PR (no `.github/workflows/**`, `.github/agents/**`, `AGENTS.md`, `LAB.md`, `opencode.json`; no root `/docs/` changes).
+- **Review gate**: the `/oc review` at 02:37:33Z spawned `opencode-review` run `40622039472` (created 02:37:36Z, `Run opencode reviewer` in progress at 02:40Z) on the corrected head. This is the third review round. No duplicate review was dispatched. Two later `opencode-review` runs (`40622054152`, `40622066396`) are queued from the `/oc maintainer` comments and will skip at their job gate.
+- **Approvals**: no Tester `/oc approve-test` marker and no Council `eval-verdict: approve-eval` marker anywhere on the thread. The latest verdict is the 02:26:30Z `fix` on `c1580c54`. No merge.
 - **#745** `opencode/lab-742-owner-pat-env-sanitization` head `7a04fa4a`, CONFLICTING/DIRTY, parked post-delivery (Owner delivery-first directive).
-- **Pages**: production, `maze-chase/`, and `/preview/pr-772/` all HTTP 200; the preview's `maze-chase/site-nav.js` is HTTP 200, so the preview reflects `c1580c54` until the fixer pushes.
-- **Progress ledger** (`progress/582-maze-chase-overhaul.md` at `c1580c54`): Phase 7 `[x]`; Final Phase has the Linux terminal rows, Linux package lifecycle, deployed Pages E2E, desktop/audio probes, and the Phase 7 follow-ups `[x]`; native macOS/Windows rows, real-speaker review, the ledger close-out (B.13/C.13, #683), the stable `maze-chase-v1.0.0` tag, and the final release close-out remain `[ ]`. The Maintainer dispatches the native lanes after this increment merges.
-- **Issues**: 12 open, zero untriaged. #582 is the active Phase Epic with #772 in the fix loop; #655/#657/#659/#661/#677/#678/#683 are folded into the Final Phase scope; #742 via #745 and the #754 quota tracker stay post-delivery; #70/#42 are the boards.
-- **Health** (verified live): allowlist exact 19/19 against the live lab workflow names (only the GitHub-managed `Dependabot Updates`, `Dependency Graph`, `pages-build-deployment` and the self-excluded `maintainer` are outside it); zero held (`action_required`) runs; zero failed/timed-out/startup-failure runs in the newest 60 (the two review runs both concluded success); no stale `opencode/schedule-*`/`opencode/dispatch-*` remote branches; no stranded closed-unmerged work.
+- **Pages**: production root, `maze-chase/`, and `/preview/pr-772/` all HTTP 200. A fresh Pages deploy was dispatched by the fixer push and superseded its predecessor (the cancelled `40622054312` is the expected `pages.yml` `cancel-in-progress: true` behavior).
+- **Progress ledger** (`progress/582-maze-chase-overhaul.md` at `07094826`): Phase 7 `[x]`; Final Phase has the Linux terminal rows, Linux package lifecycle, deployed Pages E2E, desktop/audio probes, the Phase 7 follow-ups, and `hub, README, and docs unified for this increment` `[x]`; native macOS/Windows terminal and package rows, the real-speaker review, the reassessment-ledger close-out (B.13/C.13, #683), the stable `maze-chase-v1.0.0` tag, and the final release close-out remain `[ ]`. The Maintainer dispatches the native lanes after this increment merges.
+- **Issues**: 12 open, zero untriaged. #582 is the active Phase Epic with #772 in the review loop; #655/#657/#659/#661/#677/#678/#683 are folded into the Final Phase scope; #742 via #745 and the #754 quota tracker stay post-delivery; #70/#42 are the boards.
+- **Health** (verified live): allowlist exact 19/19 against the live active workflow names (only the GitHub-managed `Dependabot Updates`, `Dependency Graph`, `pages-build-deployment` and the self-excluded `maintainer` are outside it); zero held (`action_required`) runs; zero failed/timed-out/startup-failure runs in the newest 100 (the cancelled maintainer entries are superseded sibling survey runs, not failures); no stale `opencode/schedule-*`/`opencode/dispatch-*` remote branches; no stranded closed-unmerged work.
 - **Scheduling pressure**: curator's latest schedule run is `40590673117` (2026-10-27 21:54Z; next 6-hour tick due ~03:54Z) and the Auditor's is `40447808966` (2026-10-27 04:05Z; next daily tick due ~04:05Z); the maintainer's latest schedule run is `40603704265` (2026-10-27 23:40Z). None are due yet.
 - **Owner directives active**: delivery-first (6358553065: delivery first, no unnecessary infra churn, lab changes only when genuinely necessary to unblock); Pages contrast fix (6349584523); terrain/river textures (6349595081); Browser/PWA smoothness guardrail (6350485765); no extra sweep (6358553065).
 - **Known deviations**: the review publication gate correctly auto-retried a completed-but-unpublished review (run `40615593289`); the review gate hard-fails on a quota death (correct) but does not classify it (#754); #745 parked/conflicting; the CLI's PR-thread bootstrap re-checkout on issue_comment maintainer runs; the memory-publish keep-both delta duplicates `<!-- run: -->` markers (cosmetic); the test-lane vendored-runner restore leak created the no-op shim commit (dropped by the #759 rebase, lab fix queued post-delivery with the test-lane owner-trailer strip); the 20-minute maintainer cron sleeps for multi-hour windows under GitHub scheduling pressure.
 
 ## Decisions this run
 
-`.maintainer/decision.json` = `[]` (zero dispatches). `.maintainer/comment.md` = a concise #772 status comment (second review returned `fix` on `c1580c54`, the compatibility-page defect confirmed, fixer live, no duplicate dispatch, no merge without approvals, per-OS lanes sequenced post-merge). `.maintainer/personality.md` empty. No `emergency.json`.
-- No duplicate `fix`: the review workflow's forward posted `/oc fix` and `opencode` run `40620966681` is live on `c1580c54`.
-- No `review`/`test`/`eval`: the fix round will push a new head and its forward posts `/oc review`; Tester and Council follow the reviewer's approval chain.
+`.maintainer/decision.json` = `[]` (zero dispatches). `.maintainer/comment.md` = a concise #772 status comment (third fix round verified in-tree, review gate live on `07094826`, no duplicate dispatch, no merge without approvals, per-OS lanes sequenced post-merge). `.maintainer/personality.md` empty. No `emergency.json`.
+- No duplicate `review`: the `/oc review` at 02:37:33Z already spawned `opencode-review` run `40622039472` on the corrected head, and it is live.
+- No `test`/`eval`: the Tester and Council follow the reviewer's approval chain; no approval exists yet.
 - No merge: no Tester or Council approval exists on the current head, and #772 is a `Refs`-only increment that would not close #582 anyway.
-- No per-OS lanes yet: the ledger explicitly sequences the macOS and Windows rows after this increment merges; dispatching now would target a head the fix round may still replace.
+- No per-OS lanes yet: the ledger explicitly sequences the macOS and Windows rows after this increment merges; dispatching now would target a head the review/fix loop may still replace.
 - No `lab`: delivery-first directive; the post-delivery batch waits for the Final Phase delivery.
 - No `curator`/`auditor`: their schedules own them and the next ticks are not yet due.
 - No `create_issue`/`create_pr`/`recover`/`ideate`: zero untriaged, nothing stranded, no ideation request.
 
 ## Callbacks
 
-The hardcoded decision step posts the #772 status comment (empty decision list otherwise). The PAT merge sweep sees #772 unapproved on `c1580c54` and #745 conflicting. The approve-held-runs sweep finds zero held runs. The "Trigger pages deployment if main advanced" step has nothing new to deploy (main unchanged and Pages green for `c8ac7d02`). The memory publish appends this 2026-10-28 entry keep-both per #647. The queued maintainer sibling `40620966691` will survey fresh and either skip or stand down.
+The hardcoded decision step posts the #772 status comment (empty decision list otherwise). The PAT merge sweep sees #772 unapproved on `07094826` and #745 conflicting. The approve-held-runs sweep finds zero held runs. The "Trigger pages deployment if main advanced" step has nothing new to deploy (main unchanged and Pages green for `c8ac7d02`; the fixer-push deploy is already in flight). The memory publish appends this 2026-10-28 entry keep-both per #647. The queued maintainer sibling `40622066315` will survey fresh and stand down.
 
 ## Next run
 
-1. Read the fix outcome on `c1580c54` (run `40620966681`). A pushed fix rounds the head and the lane's own forward posts `/oc review`; do not duplicate it.
-2. Verify B1 is corrected in `maze-chase/compatibility.html` (rc.1 hashes `11a0037b` / `9f6cd45a`, no transcript claim) and the non-blocking record corrections (README wording, 276 test count, claim-checker boundaries, ledger result lines, nav reflow, PR body wording).
-3. On the reviewer approval of the then-current head, the workflow forwards `/oc test`; on the owner-authored `/oc approve-test` marker bound to that head, dispatch exactly one head-bound `{"action": "eval", "pr": 772}`.
-4. On `approve-eval` verify the marker is owner-authored, head-bound to the current head, newer than the Tester marker and the latest eval trigger, and not superseded by a newer `/oc fix` or rejection; verify the PR branch shares history with `main`; merge head-bound (`gh pr merge 772 --rebase --match-head-commit <head>`, merge fallback only for non-linear history, never `--delete-branch`).
-5. After the merge, dispatch the macOS and Windows per-OS testers on #772 (the branch stays intact; the per-OS workflow resolves the merged PR's head ref) against the published rc.1 artifacts: terminal matrix re-sign, desktop install/launch/uninstall, speaker review. Then coordinate the stable `maze-chase-v1.0.0` release from the verified head and close #655/#661/#683/#582 only when every row is signed. Keep #657/#659/#677/#678 folded into the Final Phase scope until their acceptance criteria are met.
-6. Post-delivery lab batch unchanged: the runner-restore tracked-file auto-commit leak plus the test-lane owner-trailer strip, then #754 (quota classifier and fast-fail), the review-gate retry cap (head-bound/time-window counting), the #745 project-config/PR-head-checkout observation, then #745.
-7. Watch the curator ~03:54Z and auditor ~04:05Z ticks.
+1. Read the third review verdict on `07094826` (run `40622039472`). On approval the workflow publishes the signed report and forwards `/oc test`; on `fix` it forwards `/oc fix`. Do not duplicate either.
+2. On the owner-authored `/oc approve-test` marker bound to the then-current head, dispatch exactly one head-bound `{"action": "eval", "pr": 772}`.
+3. On `approve-eval` verify the marker is owner-authored, head-bound to the current head, newer than the Tester marker and the latest eval trigger, and not superseded by a newer `/oc fix` or rejection; verify the PR branch shares history with `main`; merge head-bound (`gh pr merge 772 --rebase --match-head-commit <head>`, merge fallback only for non-linear history, never `--delete-branch`).
+4. After the merge, dispatch the macOS and Windows per-OS testers on #772 (the branch stays intact; the per-OS workflow resolves the merged PR's head ref) against the published rc.1 artifacts: terminal matrix re-sign, desktop install/launch/uninstall, speaker review. Then coordinate the stable `maze-chase-v1.0.0` release from the verified head and close #655/#661/#683/#582 only when every row is signed. Keep #657/#659/#677/#678 folded into the Final Phase scope until their acceptance criteria are met.
+5. Post-delivery lab batch unchanged: the runner-restore tracked-file auto-commit leak plus the test-lane owner-trailer strip, then #754 (quota classifier and fast-fail), the review-gate retry cap (head-bound/time-window counting), the #745 project-config/PR-head-checkout observation, then #745.
+6. Watch the curator ~03:54Z and auditor ~04:05Z ticks.
 
 ## Open questions
 
-1. Does the fix round close B1 cleanly and correct the public records without another round?
-2. Does the re-review approve the corrected head?
-3. Does the Tester pass and does the Council approve the deployed-site evidence against the production URL?
-4. After the merge, do the macOS and Windows lanes sign the rc.1 rows on the first pass, or surface native-host defects?
-5. Does the stable `maze-chase-v1.0.0` tag land through the existing `maze-chase-v*` pipeline without a workflow change?
-6. Do the curator and auditor ticks land on time?
+1. Does the third review round approve the corrected head without another fix cycle?
+2. Does the Tester pass and does the Council approve the deployed-site evidence against the production URL?
+3. After the merge, do the macOS and Windows lanes sign the rc.1 rows on the first pass, or surface native-host defects?
+4. Does the stable `maze-chase-v1.0.0` tag land through the existing `maze-chase-v*` pipeline without a workflow change?
+5. Do the curator and auditor ticks land on time?
 
 - Hephaestus, the Maintainer
