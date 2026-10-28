@@ -1,18 +1,18 @@
 # STATE
 
-Last updated: 2026-10-28T17:13Z by run 40733480577 (schedule hold before the 2026-10-29T00:35:27Z free-usage reset; no redraw, no comment, no new work).
+Last updated: 2026-10-28T21:44Z by run 40774317397 (schedule hold 2h51m before the 2026-10-29T00:35:27Z free-usage reset; no redraw, no comment, no new work).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-28T17:13Z)
+## Right now (post-survey, 2026-10-28T21:44Z)
 
 - **main** = `c8ac7d02a013858052f5a2b57b77a85e543a4480` (the #759 rebase merge; unchanged since 00:19:57Z; remote tip matches).
 - **#772** (Final Phase: released-artifact verification and product sign-off, `Refs #582`, `Refs #655`, `Refs #661`, `Refs #683`): OPEN, non-draft, MERGEABLE/CLEAN, head `75fe4f51b65c4623f15a55ae4c78c321e61e2709` (13 commits; tip committed 03:14:43Z), base/main `c8ac7d02`, remote tip matches, merge-base with `main` = `c8ac7d02`. The Tester's commit is test-only (`maze-chase/crates/terminal/tests/tester_resize_race_hostile.rs`). No protected-path changes. 53 comments.
 - **Tester gate PASSED and still binds**: `opencode-test` run `40623541022` success at 03:20:07Z; signed report 03:20:00Z with decision `maintainer`; owner-authored first-line `/oc approve-test` marker `6459780188` at 03:20:02Z (newer than the 03:14:43Z head commit); `/oc maintainer` handoff 03:20:04Z. No `/oc fix` or rejection after it (the only fix triggers are 01:09:52Z and 02:26:40Z, on earlier heads); no `eval-verdict:` marker anywhere on the thread. The newest thread comment is the 11:49:05Z bot ledger (comment `6468197804`); nothing from the Owner after the 11:10:55Z eval trigger.
 - **Council lane: FOUR consecutive free-usage deaths; hold through the reset.** Draw 1 `40626448562` (failed 03:54:28Z, `retry-after` 72,964s); draw 2 attempt 1 `40634821044` (failed 05:14:54Z, ~68,139s); attempt 2 (Owner re-run from 08:45:42Z, ~30 min, failed 09:26:14Z, 53,420s); draw 4 `40677952778` (owner trigger 11:10:55Z, first 429 11:22:21Z `retry-after` 47,586s, terminal 11:33:09Z `retry-after` 46,938s, both attempts watchdog-killed, failed 11:43:38Z). All the tracked #754 `FreeUsageLimitError` class; none produced a verdict, evidence file, marker, or PR comment. The latest terminal `retry-after` resolves at **2026-10-29T00:35:27Z**. No fifth blind redraw; the next head-bound draw is the first wake at/after the reset.
-- **No new repo activity since the 11:48Z triage**: no Owner comment anywhere (repo-wide comment query since 11:48Z returns only the 11:49:05Z bot ledger); curator schedule run `40686908741` succeeded 12:47:55Z and the Owner-dispatched curator run `40690790960` succeeded 12:59:09Z with decision `[]` (nothing to fix); `opencode-recover` schedule `40720578062` succeeded 15:54:23Z; the newer maintainer `workflow_run` wakes (`40692371425`, `40720672259`) skipped because those upstream runs succeeded.
+- **No new repo activity since the 11:48Z triage**: no Owner comment anywhere (repo-wide comment query since 11:48Z returns only the 11:49:05Z bot ledger); no new issues or PRs. Since the 17:13Z hold: `opencode-recover` schedule `40766613560` succeeded 20:49:33Z and the maintainer `workflow_run` wake `40766705887` skipped on that success.
 - **#773/#774** (Auditor LAB.md and setup.sh findings): verified accurate and non-blocking; parked in the post-delivery lab batch per the Owner's delivery-first directive.
 - **#745** (`opencode/lab-742-owner-pat-env-sanitization`, head `7a04fa4a96e1982ac307ca40973fed29379def0b`): CONFLICTING/DIRTY, unchanged since 2026-10-23, parked post-delivery.
 - **#677/#678**: work implemented on main; native-host acceptance proofs (HiDPI capture, measured idle CPU) remain Final Phase rows. No closure without proof.
@@ -20,14 +20,14 @@ I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through
 - **Health** (verified live): trigger allowlist exact 19/19 against the live active workflow names (23 active minus the GitHub-managed `Dependabot Updates`, `Dependency Graph`, `pages-build-deployment` and the self-excluded `maintainer`). The only failed/timed-out/startup-failure runs in the newest 100 are the two eval quota runs `40677952778` and `40634821044`, both already triaged. Zero held (`action_required`) runs. No stale `opencode/schedule-*`/`opencode/dispatch-*` remote branches.
 - **Issues**: 14 open, all triaged. #582 is the active Phase Epic with #772 in the Council lane; #655/#657/#659/#661/#677/#678/#683 are folded into the Final Phase scope; #742 via #745, #754, #773 and #774 stay post-delivery; #70/#42 are the boards. No untriaged issue.
 - **Deliverable artifacts**: `maze-chase-v0.1.0-rc.1` (pre-release, 2026-10-25) remains the terminal artifact under test; the stable `maze-chase-v1.0.0` is still gated on the Council approval and the native per-OS rows.
-- **Scheduling pressure**: the maintainer `*/20` cron remains heavily throttled (schedule ticks 04:51:26Z, 11:08:06Z, 17:12:30Z; ~6h apart). A pre-reset tick may arrive; it must hold. The reset-time eval dispatch may therefore land on a later tick than 00:35Z (workflow_run wakes could summon us sooner only if something fails).
+- **Scheduling pressure**: the maintainer `*/20` cron remains heavily throttled (today's ticks 04:51:26Z, 11:08:06Z, 17:12:30Z, 21:43:39Z; ~4.5-6.3h apart). The next tick will likely land after the 00:35:27Z reset and can carry the first post-reset draw; workflow_run wakes could summon us sooner only if something fails.
 - **Owner directives active**: delivery-first (6358553065: delivery first, no unnecessary infra churn, lab changes only when genuinely necessary to unblock); Pages contrast fix (6349584523); terrain/river textures (6349595081); Browser/PWA smoothness guardrail (6350485765); no extra sweep (6358553065).
 - **Known deviations**: the #754 quota wall is a provider-side class (per egress IP per day, shared by every free rung) that has killed four #772 Council draws; the observed single-bucket ceiling is ~20-30 minutes of evaluator work, and the reset is the only free recovery path. #745 parked/conflicting; the memory-publish keep-both delta duplicates `<!-- run: -->` markers (cosmetic); the 20-minute maintainer cron sleeps through multi-hour windows under GitHub scheduling pressure.
 
 ## Decisions this run
 
 `.maintainer/decision.json` = `[]`. `.maintainer/comment.md` empty. `.maintainer/personality.md` unchanged. No `emergency.json`.
-- No `eval`: the run is 7h22m before the 2026-10-29T00:35:27Z reset and the standing "no fifth blind redraw" rule from the 11:48Z run is active; a dispatch now is a guaranteed quota stall for no verdict.
+- No `eval`: the run is 2h51m before the 2026-10-29T00:35:27Z reset and the standing "no fifth blind redraw" rule from the 11:48Z run is active; a dispatch now is a guaranteed quota stall for no verdict.
 - No `ping`: the 11:49:05Z ledger (comment `6468197804`) already carries the complete four-draw ledger, the reset time, and the plan; nothing has changed and a repeat would be noise.
 - No `lab`: no infra change can create free-tier allowance; delivery-first directive; #754 stays post-delivery.
 - No merge: no `eval-verdict: approve-eval` marker exists, and the sweep requires a fresh owner-authored head-bound Council approval newer than the Tester verdict and the latest eval trigger.
