@@ -6,11 +6,11 @@
 - **Branch:** opencode/issue582-20261018121223 (this roadmap PR); each phase runs
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
-- **Updated:** 2026-10-26
-- **Active Phase:** Phase 7: Game-First Web Experience and Subpages
-  (complete on PR #759: game-first page, subpages, rendered docs, link
-  checks, local and deployed site E2E green, release copy reconciled to the
-  published `maze-chase-v0.1.0-rc.1`; awaiting review and testing)
+- **Updated:** 2026-10-28
+- **Active Phase:** Final Phase: Full-Product Verification and Release
+  Sign-Off (released-artifact verification on Linux plus the deployed site,
+  the Phase 7 follow-ups, and the ledger close-out; the native macOS and
+  Windows rows and the stable release cut remain)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -28,63 +28,34 @@
 
 ## Current step
 
-Phase 7 (game-first web experience and subpages) is implemented on
-`opencode/issue582-20261024225156`. `maze-chase/index.html` is the
-complete game: the engine boots directly at the project URL, the title,
-help, scores, settings, pause, and game-over surfaces are unchanged, and
-the header carries a compact Site menu instead of a distribution block.
-`play.html` is a redirect that preserves `?seed=` and `#hash` for old
-bookmarks. `install.html`, `downloads.html`, `compatibility.html`, and
-`releases.html` carry the secondary detail under one `site.css` shell and
-one six-link navigation, with the same honest split between built Linux
-packages and the native rows now published unsigned in the
-`maze-chase-v0.1.0-rc.1` prerelease (release run 40161835683). The
-release, downloads, README, and rendered docs copy was reconciled to that
-published candidate in the fix round; the terminal compatibility matrix
-macOS and Windows rows stay awaiting host. `compatibility.html` names only executed Linux rows as passes
-and keeps the macOS, Windows, and unrun Linux terminals under awaiting
-host, with the browser's Chromium-verified shape separated from the
-expected-but-unsigned Firefox and Safari shape.
-
-The docs are now rendered pages. `tools/site/render-docs.mjs` converts
-every `docs/*.md` into a committed `docs/*.html` page with a sidebar,
-heading anchors, tables, code blocks, images, and `.md` links rewritten
-to `.html`. Every generated page carries a byte-length plus FNV-1a
-source marker; `--check` regenerates in memory and verifies the marker,
-then crawls every internal site link and fragment. A fresh `--check` run
-reports 15 docs current and 398 internal links verified. The Rust
-`tester_site` suite re-derives each marker without Node, rejects raw
-markdown links, and walks the same links from disk. The packaging
-crosslink and docs-language suites moved to the new surfaces, and the
-serve-guidance pairing now covers the new pages.
-
-`web/e2e/site-e2e.js` crawls the served site over HTTP and in headless
-chromium, checks every page title, single h1, shared navigation, active
-item, no raw markdown, and no horizontal overflow at 1280x900 and
-390x844, then boots the game, starts a run, pauses, resumes, and checks
-the mobile board minimum and title-card bounds with zero console errors.
-The local run is ALL GREEN at 156 assertions; the existing browser E2E
-is also green at 279 assertions against the new game-first page. PR #759
-carries the phase, and the same site harness is ALL GREEN at 156
-assertions against
-`https://userfrom1995.github.io/RandomLabs/preview/pr-759/maze-chase/`,
-so both the local and deployed game-first shapes are measured rather than
-assumed.
+Phase 7 is merged on `main` as `c8ac7d02` (PR #759, #660 closed); its
+four non-blocking follow-ups are the first work of this Final Phase.
+This run verifies the published `maze-chase-v0.1.0-rc.1` artifacts
+(release run 40161835683, tag commit `11a0037b`) instead of a fresh
+local build: the terminal matrix Linux rows are re-signed by driving the
+shipped `maze-chase-terminal` tarball binary in real Kitty, Ghostty, and
+xterm sessions; the Linux deb, rpm, and tarball install, reinstall, and
+uninstall flows run from the published files; the released desktop
+binary is probed on a real X display; and the deployed production Pages
+site is crawled for the game and every subpage. Every row records the
+artifact hash it executed, so no claim rests on a compile or a green CI
+run. The macOS and Windows rows still need their native hosts, and the
+stable `maze-chase-v1.0.0` tag stays gated on those rows.
 
 ## Next steps
 
-- Reviewer and Tester: PR #759 is ready. Check the game-first page at
-  desktop and 390x844, every subpage, the rendered docs, the redirect, and
-  the honest native-row status. The deployed preview and local E2E evidence
-  are recorded above and in `docs/web.md`.
-- Maintainer: keep the Phase 6 release-workflow installation and native
-  packaging evidence on the Final Phase checklist; keep #582 open until the
-  final release ledger is complete.
-- Per-OS testers: Phase 2 (Linux plus macOS emulator proof), Phase 3 (matrix
-  signing on all three OSes), Phase 6 (native package install/uninstall), and
-  the Final Phase re-verification.
-- Every phase PR carries `Refs #582`; closing keywords only as listed in the
-  roadmap; the parent closes only on the verified final release.
+- Reviewer and Tester: audit the released-artifact evidence in
+  `tools/compat/evidence/`, the Linux package lifecycle log, the deployed
+  site E2E results, the four follow-up fixes, and every updated claim.
+- Maintainer: after this Final Phase increment merges, dispatch the macOS
+  and Windows per-OS testers against the released artifacts (terminal
+  matrix re-sign, desktop install/launch/uninstall, speaker review), then
+  cut the stable release from the verified head.
+- Per-OS testers: sign the macOS and Windows terminal rows and the
+  packaged install, upgrade, and uninstall rows from the published
+  artifacts; record real-speaker audio evaluation.
+- The stable `maze-chase-v1.0.0` release is cut only after those rows are
+  signed; #655, #661, #683, and #582 close only on that verified release.
 
 ## Standing notes
 
@@ -2236,3 +2207,14 @@ assumed.
   `tester_site` 6/6, `tester_packaging` 27/27, `tester_docs_language` 2/2.
   No rebase (per the Maintainer's instruction); project test file only.
   - the Fixer
+
+- 2026-10-28 (builder, Final Phase on `opencode/issue582-20261028002308`):
+  run started. Scope: re-sign the Linux terminal matrix and the Linux
+  install, upgrade, and uninstall rows against the published
+  `maze-chase-v0.1.0-rc.1` artifacts (release run 40161835683, tag commit
+  `11a0037b`); run the deployed production Pages E2E for the game and every
+  subpage; capture and evaluate the shipped visual and audio output; close
+  the four Phase 7 follow-ups; and reconcile the findings ledger, release
+  guide, and scoreboard. The macOS and Windows rows and the stable release
+  cut remain per-OS and Maintainer work. Evidence is written as it lands;
+  this entry is updated before the review handoff. - the Builder
