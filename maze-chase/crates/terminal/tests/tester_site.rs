@@ -287,6 +287,41 @@ fn downloads_status_reports_the_published_candidate_honestly() {
 }
 
 #[test]
+fn release_claim_checker_catches_paraphrases() {
+    let claims = [
+        "The binaries are code-signed with a developer certificate.",
+        "Installers are signed.",
+        "All artifacts have been signed.",
+        "Signing is complete for this candidate.",
+        "We shipped the stable release.",
+        "The stable release is here.",
+        "The stable build is live.",
+        "The release is now stable.",
+        "The candidate was promoted to stable.",
+        "We are out of prerelease.",
+        "The production release is available.",
+    ];
+    for claim in claims {
+        let caught = std::panic::catch_unwind(|| {
+            common::assert_no_signing_or_stable_claim(claim, "fixture")
+        })
+        .is_err();
+        assert!(caught, "claim checker missed: {claim}");
+    }
+    for allowed in [
+        "The binaries are unsigned.",
+        "SmartScreen warns because the binary is unsigned.",
+        "The design pass signed off on the layout.",
+        "The signed parity gate covers the engine rows.",
+        "No stable tag is cut while a binding check is open.",
+        "The release stays a prerelease until the checks close.",
+        "This is not yet a stable release.",
+    ] {
+        common::assert_no_signing_or_stable_claim(allowed, "fixture");
+    }
+}
+
+#[test]
 fn rendered_docs_are_current_and_marked_with_their_source() {
     let docs = common::maze_root().join("docs");
     let mut sources: Vec<PathBuf> = fs::read_dir(&docs)

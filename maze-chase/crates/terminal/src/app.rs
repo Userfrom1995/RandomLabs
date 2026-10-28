@@ -275,11 +275,28 @@ impl App {
         }
     }
 
+    fn toggle_mute(&mut self) {
+        self.settings.mute = !self.settings.mute;
+        self.screens.settings.mute = self.settings.mute;
+        self.sync_chime();
+        self.save_settings();
+    }
+
     /// Route one key event by surface.
     pub fn on_key(&mut self, ev: KeyEvent) {
         let Some(key) = crate::input::crossterm_to_key(ev) else {
             return;
         };
+        if self.layout.too_small {
+            if let Some(action) = crate::input::action_for_key(&self.keymap, key) {
+                if action == Action::Mute {
+                    self.toggle_mute();
+                } else if self.screens.current == ScreenId::Title && action == Action::Back {
+                    self.quit = true;
+                }
+            }
+            return;
+        }
         // Armed rebind capture eats the next key whole, except Back
         // which cancels the armed capture (first press) instead of
         // attempting a rebind that could never succeed.
@@ -301,10 +318,7 @@ impl App {
         };
         // Global mute works on every surface.
         if action == Action::Mute {
-            self.settings.mute = !self.settings.mute;
-            self.screens.settings.mute = self.settings.mute;
-            self.sync_chime();
-            self.save_settings();
+            self.toggle_mute();
             return;
         }
         // Esc on the title quits (the menu also offers Quit explicitly).
@@ -552,6 +566,32 @@ mod tests {
         assert!(a.layout.magnified);
         a.resize(62, 35);
         assert!(!a.layout.magnified);
+    }
+
+    #[test]
+    fn too_small_ignores_keys_except_mute_and_title_quit() {
+        let mut a = app();
+        a.resize(40, 20);
+        assert!(a.layout.too_small);
+        a.on_key(key(KeyCode::Enter));
+        assert_eq!(a.screens.current, ScreenId::Title);
+        let mute = a.settings.mute;
+        a.on_key(key(KeyCode::Char('m')));
+        assert_eq!(a.settings.mute, !mute);
+        a.on_key(key(KeyCode::Esc));
+        assert!(a.quit);
+
+        let mut b = app();
+        b.on_key(key(KeyCode::Enter));
+        assert_eq!(b.screens.current, ScreenId::Playing);
+        b.resize(40, 20);
+        b.on_key(key(KeyCode::Char('p')));
+        assert_eq!(b.screens.current, ScreenId::Playing);
+        b.on_key(key(KeyCode::Right));
+        assert_eq!(b.pending_dir, None);
+        b.resize(120, 45);
+        b.on_key(key(KeyCode::Char('p')));
+        assert_eq!(b.screens.current, ScreenId::Paused);
     }
 
     #[test]
