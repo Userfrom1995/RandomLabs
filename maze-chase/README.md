@@ -141,8 +141,8 @@ results land in `docs/scoreboard.md` and the parity gate in
   record.
 - `docs/parity.md` - #552 parity checklist mapping every pinned
   reference behavior to its engine table and verify row, with the
-  per-layer sound row's macOS/Windows real-speaker review deferred to
-  the Final Phase and the retirement step recorded.
+  per-layer sound row's macOS/Windows real-speaker review pending
+  native hosts and the retirement step recorded.
 
 ## Clean-room rule
 
