@@ -1,4 +1,4 @@
-"""Regression tests for PR #776 (Fixes #776): archived codec summaries and website rule.
+"""Regression tests for issue #776 (fixed by PR #777): archived codec summaries and website rule.
 
 Verifies against the shipped documentation:
 - archive/README.md has exactly one catalog row per archive directory, every
@@ -6,8 +6,8 @@ Verifies against the shipped documentation:
   duplicate targets
 - the Obsidian row describes the shipped design (20 predictors, CMARC, GR
   fallback) and does not present the off-by-default MA-tree-lite seam as shipped
-- the Prism row matches the project's own design statement (Squeeze, MA-tree,
-  context-modeled entropy)
+- the Prism row names Squeeze as optional and the MA-tree as trial-gated, and
+  does not claim an unconditional coupling, matching the analyzer's gating
 - CONTRIBUTING scopes the website rule to current (non-archived) projects,
   exempts archive/, and names both landing pages
 - every current project listed in the root README ships an index.html
@@ -23,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE = ROOT / "archive"
 ARCHIVE_README = ARCHIVE / "README.md"
+PRISM_ANALYZE = ARCHIVE / "prism" / "src" / "codec" / "analyze.cpp"
 CONTRIBUTING = ROOT / "CONTRIBUTING.md"
 README = ROOT / "README.md"
 
@@ -106,7 +107,7 @@ class ArchiveCatalogTest(unittest.TestCase):
                 "MA-tree may only appear as an optional/off seam",
             )
 
-    def test_prism_row_matches_the_project_design_statement(self):
+    def test_prism_row_describes_the_shipped_design(self):
         row_line = next(
             line
             for line in read(ARCHIVE_README).splitlines()
@@ -114,10 +115,44 @@ class ArchiveCatalogTest(unittest.TestCase):
         )
         for needle in ("Squeeze", "JPEG XL CDC", "MA-tree", "context-modeled entropy"):
             self.assertIn(needle, row_line)
-        prism_readme = read(ARCHIVE / "prism" / "README.md")
-        self.assertIn("coupling", prism_readme.lower())
-        self.assertIn("MA-tree", prism_readme)
-        self.assertIn("Squeeze", prism_readme)
+        self.assertRegex(
+            row_line,
+            r"(?i)optional multi-resolution Squeeze",
+            "Squeeze must be named optional: the analyzer emits it per plane only on a coded-bytes win",
+        )
+        self.assertRegex(
+            row_line,
+            r"(?i)trial[- ]gated meta-adaptive MA-tree",
+            "MA-tree must be named trial-gated: it survives only when its trial beats flat coding",
+        )
+        self.assertNotRegex(
+            row_line,
+            r"(?i)coupl\w*",
+            "the analyzer treats Squeeze and the MA-tree as alternatives, not a coupled shipped stream",
+        )
+
+    def test_prism_analyzer_gates_the_catalog_claims(self):
+        source = read(PRISM_ANALYZE)
+        self.assertIn(
+            "choose_squeeze_plan_xband(",
+            source,
+            "per-plane coded-bytes Squeeze selection missing from the analyzer",
+        )
+        self.assertIn(
+            "if (!anyLevel)",
+            source,
+            "the MA-tree trial must be gated on no plane squeezing (the two are alternatives)",
+        )
+        self.assertIn(
+            "if (tree_total < flat_total)",
+            source,
+            "the MA-tree must be accepted by trial bits alone",
+        )
+        self.assertIn(
+            "MATree::single_leaf()",
+            source,
+            "a squeezed stream must clear the tree to a single leaf",
+        )
 
 
 class ContributingWebsiteRuleTest(unittest.TestCase):
