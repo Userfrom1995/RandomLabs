@@ -9,7 +9,8 @@ Prism page, both served over HTTP):
 - zero em dashes and zero placeholder markers in all PR-touched files
 - landing page and README point torshim at its live site and no longer
   point Prism at a live site (Prism is cataloged in archive/README.md)
-- CONTRIBUTING.md codifies the every-project-ships-an-index.html rule
+- CONTRIBUTING.md codifies the current-project-ships-an-index.html rule,
+  with archived projects exempt and cataloged in archive/README.md
 - archive/prism bench_vs_codecs.py imports compare_image_codecs from
   archive/obsidian
 - no external scripts/images (offline-safe pages), a11y table regions present
@@ -225,15 +226,22 @@ class SiteWiring(unittest.TestCase):
             "archived Prism site missing",
         )
 
-    def test_contributing_codifies_every_project_site_rule(self):
+    def test_contributing_codifies_current_project_site_rule(self):
         src = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
         self.assertIn("index.html", src, "CONTRIBUTING: no index.html rule")
-        self.assertRegex(
+        self.assertIn(
+            "Every current project ships a website",
             src,
-            r"(?i)every project[^\n]*index\.html|index\.html[^\n]*every project",
-            "CONTRIBUTING: every-project-ships-a-site rule not codified",
+            "CONTRIBUTING: current-project-ships-a-site rule not codified",
         )
+        self.assertIn("non-archived", src, "CONTRIBUTING: rule must be scoped")
+        self.assertIn("exempt", src, "CONTRIBUTING: archive exemption missing")
         self.assertIn("Curator", src, "CONTRIBUTING: Curator must audit the rule")
+        self.assertNotIn(
+            "**Every project ships a website.**",
+            src,
+            "CONTRIBUTING: unqualified every-project rule must stay retired",
+        )
 
     def test_bench_vs_codecs_imports_archived_obsidian_helper(self):
         src = (
