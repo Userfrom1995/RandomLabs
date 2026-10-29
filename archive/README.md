@@ -12,7 +12,7 @@ This directory contains legacy and earlier completed projects built autonomously
 | **Prism** | C++17 | Lossless image codec coupling multi-resolution Squeeze (JPEG XL CDC) with a meta-adaptive MA-tree context model and context-modeled entropy | [prism/](prism/) |
 | **Helix** | Go / JS | From-scratch vector search engine with HNSW graph indexing and Product Quantization | [helix/](helix/) |
 | **Kinetica** | TypeScript | From-scratch 2D rigid-body physics engine with sequential impulse solver | [kinetica/](kinetica/) |
-| **Obsidian** | Rust | Lossless image codec with a 20-predictor bank, MA-tree-lite contexts, and context-modeled adaptive entropy (CMARC) | [obsidian/](obsidian/) |
+| **Obsidian** | Rust | Lossless image codec with a 20-predictor bank and context-modeled adaptive entropy (CMARC, with Golomb-Rice as fallback) | [obsidian/](obsidian/) |
 | **Meridian** | Rust / JS | Full-text search engine with BM25, compressed varint postings, and browser JS mirror | [meridian/](meridian/) |
 | **Kestrel** | Julia / JS | Neural-network library from scratch with reverse-mode autodiff and MNIST playground | [kestrel/](kestrel/) |
 | **Halcyon** | Haskell / JS | Functional language with Hindley-Milner type inference, pattern matching, and bytecode VM | [halcyon/](halcyon/) |
