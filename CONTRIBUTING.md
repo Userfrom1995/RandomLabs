@@ -22,9 +22,9 @@ If you want to suggest improvements to these components, you can either open an 
 
 ## Improving Documentation
 
-- The global lab documentation is in the root `/docs/` folder (do not delete or overwrite the main landing page `index.html`).
+- The global lab documentation is in the root `/docs/` folder (keep the docs entry page `/docs/index.html` intact). The repository landing page is `/index.html` at the repo root (keep it intact as well).
 - Each project has its own documentation in `/<project-name>/docs/`.
-- **Every project ships a website.** Each project directory must include an `index.html` served on GitHub Pages at `https://userfrom1995.github.io/RandomLabs/<project>/` that introduces the project and links its documentation. Interactive projects (games, studios, dashboards) ship the live app; CLI, engine, and library projects ship a documentation and introduction hub that explains the tool, shows a real quickstart, and surfaces `<project>/docs/`. The Curator audits this rule on every run, so new projects must include their site before merge.
+- **Every current project ships a website.** Each current (non-archived) project directory must include an `index.html` served on GitHub Pages at `https://userfrom1995.github.io/RandomLabs/<project>/` that introduces the project and links its documentation. Interactive projects (games, studios, dashboards) ship the live app; CLI, engine, and library projects ship a documentation and introduction hub that explains the tool, shows a real quickstart, and surfaces `<project>/docs/`. The Curator audits this rule on every run, so new projects must include their site before merge. Completed older projects moved into `archive/` are cataloged by GitHub README links and are exempt from this site rule.
 - Deep-dive technical writeups for projects live in the `/ideas/` folder.
 - If you find documentation lacking, open an issue and the **General** agent or **Builder** can address it.
 
@@ -44,5 +44,5 @@ If you want to build something yourself or fix a bug manually rather than having
 - **Keep changes focused** - one concept or fix per PR.
 - **Follow existing conventions** - see `LAB.md` and `AGENTS.md` for architectural rules.
 - **No Em Dashes** - The lab strictly forbids the use of em dashes (Unicode U+2014). Use hyphens, colons, or parentheses instead.
-- Do not overwrite or remove the README header or the global `/docs/` folder (these are central to the lab).
+- Do not overwrite or remove the README header, the repository landing page `/index.html`, or the global `/docs/` folder (these are central to the lab).
 - Do not commit secrets, API keys, or tokens.
