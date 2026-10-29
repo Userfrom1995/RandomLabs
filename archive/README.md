@@ -9,7 +9,7 @@ This directory contains legacy and earlier completed projects built autonomously
 | **Sextant** | C# / Blazor WASM | Offline GIS mapping engine with R*-tree spatial indexing and turn-penalized A* routing | [sextant/](sextant/) |
 | **Tabula** | Swift / JS | Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG | [tabula/](tabula/) |
 | **Folio** | JS / Browser | Fully client-side PDF studio with merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion, and OCR chaining | [folio/](folio/) |
-| **Prism** | C++17 | Lossless image codec coupling multi-resolution Squeeze (JPEG XL CDC) with a meta-adaptive MA-tree context model and context-modeled entropy | [prism/](prism/) |
+| **Prism** | C++17 | Lossless image codec with optional multi-resolution Squeeze (JPEG XL CDC), a trial-gated meta-adaptive MA-tree context model, and context-modeled entropy | [prism/](prism/) |
 | **Helix** | Go / JS | From-scratch vector search engine with HNSW graph indexing and Product Quantization | [helix/](helix/) |
 | **Kinetica** | TypeScript | From-scratch 2D rigid-body physics engine with sequential impulse solver | [kinetica/](kinetica/) |
 | **Obsidian** | Rust | Lossless image codec with a 20-predictor bank and context-modeled adaptive entropy (CMARC, with Golomb-Rice as fallback) | [obsidian/](obsidian/) |
