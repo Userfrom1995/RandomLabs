@@ -133,14 +133,14 @@ the HUD previews that state until you press Start.
   through a page-level `fetch` override and proves an ABI version skew
   plus a missing export from each first-frame group (fright, HUD flash,
   reduced-motion/high-contrast settings, theme, difficulty) lands on the
-  error card instead of Ready. Rerun any time from `maze-chase/`:
-  `node web/e2e/wasm-smoke.js`, `node web/e2e/boot-gate-e2e.js`, then
-  (with the http server plus CDP chromium up, see
-  `web/e2e/README.md`) `node web/e2e/browser-e2e.js` and
-  `node web/e2e/site-e2e.js`. The site harness also runs unchanged against
-  the deployed Pages preview base URL, where it crawls every subpage and
-  rendered doc for broken links and verifies the game-first boot at
-  390 by 844.
+  error card instead of Ready. Rerun any time from `maze-chase/` with
+  `node web/e2e/wasm-smoke.js` for the instantiation suite and
+  `web/e2e/run-browser-e2e.sh` for the five Chrome/CDP suites (a fresh
+  browser, profile, and debug port per suite; it starts its own static
+  server and prints the exact commands, see `web/e2e/README.md`). The
+  site harness also runs unchanged against the deployed Pages preview
+  base URL, where it crawls every subpage and rendered doc for broken
+  links and verifies the game-first boot at 390 by 844.
 
 ## Troubleshooting
 
