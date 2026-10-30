@@ -52,11 +52,13 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
 Linux (2026-10-30, this runner):
 
 - `python3 -m unittest discover -s maze-chase/tools/compat/tests -v`
-  -> 66 tests, OK (includes the real drive.sh readiness wait with
-  `--driver none`, the fixed-session pass/partial/unverified matrix, and
-  the committed evidence bundle checks).
+  -> 68 tests, OK (includes the real drive.sh readiness wait with
+  `--driver none`, the decimal `--ready-seconds` and stale-transcript
+  regressions, the fixed-session pass/partial/unverified matrix, and the
+  committed evidence bundle checks).
 - `node --test maze-chase/web/e2e/tests/*.test.js`
-  -> 15 tests, all pass.
+  -> 20 tests, all pass (includes the `--plan` isolation/URL mapping,
+  the terminating signal traps, and the failing-suite cleanup contract).
 - `bash maze-chase/web/e2e/run-browser-e2e.sh site-e2e.js`
   -> `SITE-E2E ALL GREEN: 673 assertions` (includes the 390x844 nav-pill
   invariant and the 320x568 re-reveal assertion).
@@ -77,14 +79,14 @@ and readiness gates are platform-independent and unit-tested.
 
 ## Current step
 
-Implementation and Linux verification complete. Handing off for review.
+Review round 1 findings applied and Linux verification is green. Awaiting
+re-review.
 
 ## Next steps
 
-1. Reviewer pass, then the Tester (including the macOS arm) validates the
-   live acceptance on macOS Chrome and a cold compat run.
-2. Address any findings; keep `Refs #786` until the macOS acceptance is
-   proven.
+1. Reviewer re-verification, then the Tester (including the macOS arm)
+   validates the live acceptance on macOS Chrome and a cold compat run.
+2. Keep `Refs #786` until the macOS acceptance is proven.
 
 ## Agent log
 
@@ -98,3 +100,20 @@ Implementation and Linux verification complete. Handing off for review.
   and the fresh-Chrome runner. Added the Node and Python contract tests
   and updated the harness docs. Linux runs above are green; macOS
   acceptance is delegated to the macOS tester.
+- 2026-10-30 (fixer): applied review round 1. F2 normalizes
+  `--ready-seconds` as decimal (08/010 no longer octal), F3 truncates a
+  reused transcript before the readiness baseline, F4 accepts a fully
+  visible fitting nav pill at any scroll offset, F5 makes INT/TERM exit
+  the runner, F6 adds `--plan` plus behavioral isolation/cleanup tests,
+  and F7/minor notes fix the docs, the CDP probe timeout, and the lost
+  Chrome log. Regressions cover all of it.
+- Delegation (fixer): general (compat harness audit) -> traced
+  drive.sh/collect.py and reproduced F2/F3; general (web harness audit)
+  -> traced site-e2e/nav-pill/runner and reproduced F4/F5/F6/F7; general
+  (process/docs audit) -> confirmed F1, the missing ledger, and the false
+  docs claims.
+- Primary verified (fixer): read every changed line; ran the 68-test
+  compat suite, the 20-test node suite, the live 673-assertion
+  site-e2e, and shellcheck/bash -n on both shell harnesses.
+- Skills (fixer): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
