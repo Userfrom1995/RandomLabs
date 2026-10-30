@@ -14,6 +14,7 @@
 #   web/e2e/run-browser-e2e.sh site-e2e.js         # selected suites
 #   web/e2e/run-browser-e2e.sh --base-url URL      # external static server
 #   web/e2e/run-browser-e2e.sh --chrome PATH       # explicit Chrome binary
+#   web/e2e/run-browser-e2e.sh --plan              # print the per-suite plan
 #
 # Defaults: starts a static server on 127.0.0.1:<ephemeral> rooted at the
 # maze-chase/ directory, finds Chrome (the CHROME environment variable or
@@ -28,6 +29,7 @@ WEB_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 BASE_URL=""
 CHROME_BIN="${CHROME:-}"
+PLAN=0
 SCRIPTS=()
 DEFAULT_SCRIPTS=(
   boot-gate-e2e.js
@@ -41,7 +43,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --base-url) BASE_URL="$2"; shift 2 ;;
     --chrome) CHROME_BIN="$2"; shift 2 ;;
-    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    --plan|--dry-run) PLAN=1; shift ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     -*) echo "run-browser-e2e.sh: unknown option: $1" >&2; exit 2 ;;
     *) SCRIPTS+=("$1"); shift ;;
   esac
@@ -64,6 +67,48 @@ for script in "${SCRIPTS[@]}"; do
     exit 2
   }
 done
+
+suite_url() { # script base
+  local script="$1" base="$2"
+  case "$base" in
+    */) ;;
+    *) base="$base/" ;;
+  esac
+  if [ "$script" = "site-e2e.js" ]; then
+    printf '%s\n' "$base"
+  else
+    printf '%sindex.html\n' "$base"
+  fi
+}
+
+free_port() {
+  python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
+}
+
+if [ "$PLAN" = "1" ]; then
+  command -v python3 >/dev/null 2>&1 || {
+    echo "run-browser-e2e.sh: python3 is required to allocate plan ports" >&2
+    exit 3
+  }
+  PLAN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/maze-chase-e2e-plan.XXXXXX")"
+  trap 'rm -rf "$PLAN_ROOT"' EXIT
+  PLAN_BASE="${BASE_URL:-http://127.0.0.1:0/}"
+  SEEN_PORTS=" "
+  for script in "${SCRIPTS[@]}"; do
+    port="$(free_port)"
+    while :; do
+      case "$SEEN_PORTS" in
+        *" $port "*) port="$(free_port)" ;;
+        *) break ;;
+      esac
+    done
+    SEEN_PORTS="$SEEN_PORTS$port "
+    printf '%s\t%s\t%s\t%s\n' \
+      "$script" "$(suite_url "$script" "$PLAN_BASE")" "$port" \
+      "$PLAN_ROOT/profile-${script%.js}"
+  done
+  exit 0
+fi
 
 command -v node >/dev/null 2>&1 || {
   echo "run-browser-e2e.sh: node is required" >&2
@@ -125,7 +170,9 @@ cleanup() {
   fi
   rm -rf "$SCRATCH"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 start_server() {
   local url_file="$SCRATCH/server-url"
@@ -168,10 +215,6 @@ PY
   echo "server: $BASE_URL (root $WEB_ROOT)"
 }
 
-free_port() {
-  python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
-}
-
 wait_for_debug_port() { # port pid
   local port="$1"
   local pid="$2"
@@ -179,7 +222,8 @@ wait_for_debug_port() { # port pid
   while [ "$tries" -lt 150 ]; do
     kill -0 "$pid" 2>/dev/null || return 1
     if node -e '
-      fetch("http://127.0.0.1:" + process.argv[1] + "/json/version")
+      fetch("http://127.0.0.1:" + process.argv[1] + "/json/version",
+        { signal: AbortSignal.timeout(1000) })
         .then((r) => process.exit(r.ok ? 0 : 1))
         .catch(() => process.exit(1));
     ' "$port" >/dev/null 2>&1; then
@@ -211,16 +255,14 @@ run_suite() { # script
     about:blank >"$log" 2>&1 &
   CHROME_PID=$!
   if ! wait_for_debug_port "$port" "$CHROME_PID"; then
-    echo "run-browser-e2e.sh: Chrome did not expose CDP on port $port (see $log)" >&2
+    echo "run-browser-e2e.sh: Chrome did not expose CDP on port $port (Chrome log follows)" >&2
+    cat "$log" >&2 || true
     kill "$CHROME_PID" 2>/dev/null || true
     wait "$CHROME_PID" 2>/dev/null || true
     CHROME_PID=""
     return 1
   fi
-  url="${BASE_URL}index.html"
-  if [ "$script" = "site-e2e.js" ]; then
-    url="$BASE_URL"
-  fi
+  url="$(suite_url "$script" "$BASE_URL")"
   echo "== $script (fresh Chrome, CDP port $port, profile $profile)"
   node "$SCRIPT_DIR/$script" "$url" "$port" || rc=$?
   kill "$CHROME_PID" 2>/dev/null || true
