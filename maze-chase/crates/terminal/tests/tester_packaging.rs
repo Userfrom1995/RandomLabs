@@ -1,8 +1,9 @@
 //! Tester packaging-verification regression suite (final release-audit phase).
 //!
 //! Pins the contracts shipped by the terminal packaging pair plus the
-//! release-audit docs, at the static level so the suite stays fast and
-//! hermetic (no rebuild, no network):
+//! release-audit docs. Most checks are static so the suite stays fast and
+//! hermetic (no rebuild, no network); the release-pipeline tests execute
+//! the extracted workflow steps against hermetic mock binaries:
 //! - both scripts exist, are executable, and pass `bash -n`;
 //! - the tarball script keeps its contract (strict mode, versioned dist
 //!   name from `Cargo.toml`, per-machine `os-arch` suffix, `--version`
@@ -829,6 +830,12 @@ fn release_workflow_binds_new_tags_to_the_built_commit() {
         "an existing tag must be proven to point at the built commit before refresh"
     );
     assert!(
+        body.contains("/commits/refs/tags/${TAG}")
+            && !body.contains("/commits/tags/${TAG}")
+            && !body.contains("/commits/${TAG}"),
+        "the parity gate must resolve the refs/tags namespace explicitly so a same-named branch cannot shadow it and annotated tags still peel"
+    );
+    assert!(
         body.contains("--exit-code --tags")
             && body.contains("exists but its commit cannot be resolved"),
         "a tag without a release must be validated or fail closed"
@@ -858,6 +865,10 @@ fn release_workflow_cuts_a_fresh_candidate_and_states_the_signing_status() {
         "a dispatch must accept an explicit rc number"
     );
     assert!(
+        body.contains("RC_DIGITS") && body.contains("between 1 and 999"),
+        "an explicit rc number must be bounded before bash arithmetic can wrap it"
+    );
+    assert!(
         !body.contains("TAG=\"maze-chase-v${VERSION}-rc.1\""),
         "a branch dispatch must never republish rc.1 at a new commit"
     );
@@ -872,11 +883,430 @@ fn release_workflow_cuts_a_fresh_candidate_and_states_the_signing_status() {
         "the release notes must not promise the old unsigned workaround"
     );
     assert!(
-        body.contains("group: maze-chase-release")
+        body.contains("\n  group: maze-chase-release\n")
             && body.contains("queue: max")
-            && !body.contains("group: maze-chase-release-${{ github.ref }}"),
+            && !body.contains("group: maze-chase-release-"),
         "release runs must serialize globally so two dispatches cannot resolve the same candidate"
     );
+}
+
+/// Extract one step's `run: |` body from the release workflow, with the
+/// YAML block indentation removed, so the suite can execute the real
+/// publishing logic instead of matching strings.
+fn workflow_step_body(workflow: &str, name: &str) -> String {
+    let marker = format!("      - name: {name}\n");
+    let start = workflow
+        .find(&marker)
+        .unwrap_or_else(|| panic!("workflow step {name} must exist"));
+    let after = &workflow[start + marker.len()..];
+    let end = after.find("\n      - name:").unwrap_or(after.len());
+    let step = &after[..end];
+    let run_marker = "        run: |\n";
+    let run_at = step
+        .find(run_marker)
+        .unwrap_or_else(|| panic!("workflow step {name} must carry a block run"));
+    step[run_at + run_marker.len()..]
+        .lines()
+        .map(|line| line.strip_prefix("          ").unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn write_mock_executable(path: &Path, body: &str) {
+    std::fs::write(path, body).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+#[test]
+fn release_refresh_resolves_the_tag_not_a_same_named_branch() {
+    let workflow = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("maze-chase-release.yml"),
+    )
+    .unwrap();
+    let step = workflow_step_body(&workflow, "Create or refresh the release");
+    assert!(
+        step.contains("/commits/refs/tags/${TAG}"),
+        "the parity gate must resolve the refs/tags namespace explicitly"
+    );
+
+    let root = scratch_dir("release-tag-shadow");
+    let bin = root.join("bin");
+    let runner_temp = root.join("runner-temp");
+    let assets = root.join("release-assets");
+    std::fs::create_dir_all(&bin).unwrap();
+    std::fs::create_dir_all(&runner_temp).unwrap();
+    std::fs::create_dir_all(&assets).unwrap();
+    std::fs::write(
+        runner_temp.join("toolchain-info.txt"),
+        "rustc 1.99.0\ncargo 1.99.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        assets.join("maze-chase-desktop-0.1.0-linux-x86_64.tar.gz"),
+        "payload\n",
+    )
+    .unwrap();
+    std::fs::write(assets.join("existing.deb"), "payload\n").unwrap();
+
+    // The mock emulates GitHub's own ref resolution: /commits/{ref}
+    // returns the same-named branch first, /commits/tags/{ref} resolves
+    // only lightweight tags (422 for an annotated tag), and
+    // /commits/refs/tags/{ref} resolves both kinds. A regression to an
+    // ambiguous or lightweight-only path fails the branch-shadow or the
+    // annotated-tag scenario below.
+    write_mock_executable(
+        &bin.join("gh"),
+        r#"#!/bin/sh
+set -u
+printf 'gh %s\n' "$*" >> "${MOCK_LOG:?}"
+case "$1" in
+  api)
+    case "$2" in
+      */commits/refs/tags/*)
+        tag="${2##*/commits/refs/tags/}"
+        [ "$tag" = "${MOCK_TAG:?}" ] || exit 1
+        [ "${MOCK_TAG_EXISTS:-0}" = "1" ] || exit 1
+        [ "${MOCK_TAG_API_FAILS:-0}" = "1" ] && exit 1
+        printf '%s\n' "${MOCK_TAG_SHA:?}"
+        exit 0
+        ;;
+      */commits/tags/*)
+        tag="${2##*/commits/tags/}"
+        [ "$tag" = "${MOCK_TAG:?}" ] || exit 1
+        [ "${MOCK_TAG_EXISTS:-0}" = "1" ] || exit 1
+        [ "${MOCK_ANNOTATED:-0}" = "1" ] && exit 1
+        [ "${MOCK_TAG_API_FAILS:-0}" = "1" ] && exit 1
+        printf '%s\n' "${MOCK_TAG_SHA:?}"
+        exit 0
+        ;;
+      */commits/*)
+        ref="${2##*/commits/}"
+        if [ "$ref" = "${MOCK_TAG:?}" ]; then
+          printf '%s\n' "${MOCK_BRANCH_SHA:?}"
+          exit 0
+        fi
+        [ "${MOCK_TAG_EXISTS:-0}" = "1" ] || exit 1
+        printf '%s\n' "${MOCK_TAG_SHA:?}"
+        exit 0
+        ;;
+    esac
+    exit 1
+    ;;
+  release)
+    case "$2" in
+      view)
+        [ "${MOCK_RELEASE_EXISTS:-0}" = "1" ] || exit 1
+        case "$*" in
+          *--json*assets*) printf 'existing.deb\nstale-payload.rpm\n' ;;
+        esac
+        exit 0
+        ;;
+      upload|edit|create|delete-asset) exit 0 ;;
+    esac
+    exit 1
+    ;;
+esac
+exit 1
+"#,
+    );
+    write_mock_executable(
+        &bin.join("git"),
+        r#"#!/bin/sh
+case "$1" in
+  ls-remote)
+    [ "$2" = "--exit-code" ] || exit 99
+    [ "$3" = "--tags" ] || exit 99
+    [ "$4" = "origin" ] || exit 99
+    [ "$5" = "refs/tags/${MOCK_TAG:?}" ] || exit 99
+    [ "${MOCK_TAG_EXISTS:-0}" = "1" ] && exit 0
+    exit 2
+    ;;
+esac
+exit 99
+"#,
+    );
+
+    let version = crate_version();
+    let tag = format!("maze-chase-v{version}-rc.1");
+    let tested = "2222222222222222222222222222222222222222";
+    let tag_sha = "1111111111111111111111111111111111111111";
+    let run = |scenario: &str, extra: &[(&str, &str)]| {
+        let log = root.join(format!("{scenario}.log"));
+        let _ = std::fs::remove_file(&log);
+        let mut command = Command::new("bash");
+        command
+            .arg("-c")
+            .arg(&step)
+            .current_dir(&root)
+            .env_clear()
+            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+            .env("HOME", &root)
+            .env("GITHUB_REF_TYPE", "branch")
+            .env("GITHUB_REF_NAME", "main")
+            .env("GITHUB_REPOSITORY", "Userfrom1995/RandomLabs")
+            .env("GITHUB_SHA", tested)
+            .env("VERSION", &version)
+            .env("TAG", &tag)
+            .env("RUNNER_TEMP", &runner_temp)
+            .env("MOCK_LOG", &log)
+            .env("MOCK_TAG", &tag)
+            .env("MOCK_TAG_SHA", tag_sha)
+            .env("MOCK_BRANCH_SHA", tested)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        for (key, value) in extra {
+            command.env(key, value);
+        }
+        let output = command.output().expect("run the extracted release step");
+        let log = std::fs::read_to_string(&log).unwrap_or_default();
+        (
+            output.status.success(),
+            log,
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        )
+    };
+
+    let (ok, log, stderr) = run(
+        "branch-shadow",
+        &[("MOCK_TAG_EXISTS", "1"), ("MOCK_RELEASE_EXISTS", "1")],
+    );
+    assert!(
+        !ok,
+        "a tag shadowed by a same-named branch must fail closed"
+    );
+    assert!(
+        stderr.contains("not the tested commit"),
+        "the parity failure must name the commit mismatch: {stderr}"
+    );
+    assert!(
+        log.contains("/commits/refs/tags/"),
+        "the shadowed-tag scenario must actually exercise the tag lookup: {log}"
+    );
+    assert_eq!(
+        log.lines()
+            .filter(|line| !line.starts_with("gh api "))
+            .count(),
+        0,
+        "a shadowed tag must never reach a release operation: {log}"
+    );
+
+    let (ok, log, stderr) = run(
+        "same-commit-refresh",
+        &[
+            ("MOCK_TAG_EXISTS", "1"),
+            ("MOCK_RELEASE_EXISTS", "1"),
+            ("MOCK_TAG_SHA", tested),
+        ],
+    );
+    assert!(ok, "a tag at the tested commit may refresh: {stderr}");
+    assert!(
+        log.contains("release upload") && log.contains("release edit"),
+        "the same-commit refresh must upload and update the release: {log}"
+    );
+
+    let (ok, log, stderr) = run(
+        "missing-tag-create",
+        &[("MOCK_TAG_EXISTS", "0"), ("MOCK_RELEASE_EXISTS", "0")],
+    );
+    assert!(ok, "a missing tag must create the release: {stderr}");
+    assert!(
+        log.contains("release create") && log.contains(&format!("--target {tested}")),
+        "a new tag must bind the release to the tested commit: {log}"
+    );
+
+    let (ok, _log, stderr) = run(
+        "tag-unresolvable",
+        &[("MOCK_TAG_EXISTS", "1"), ("MOCK_TAG_API_FAILS", "1")],
+    );
+    assert!(
+        !ok,
+        "a tag whose commit cannot be resolved must fail closed"
+    );
+    assert!(
+        stderr.contains("exists but its commit cannot be resolved"),
+        "the fail-closed path must name the unresolved tag: {stderr}"
+    );
+
+    let (ok, log, stderr) = run(
+        "annotated-tag",
+        &[
+            ("MOCK_TAG_EXISTS", "1"),
+            ("MOCK_RELEASE_EXISTS", "1"),
+            ("MOCK_TAG_SHA", tested),
+            ("MOCK_ANNOTATED", "1"),
+        ],
+    );
+    assert!(
+        ok,
+        "an annotated tag at the tested commit must refresh through refs/tags: {stderr}"
+    );
+    assert!(
+        log.contains("release upload") && log.contains("release edit"),
+        "the annotated-tag refresh must upload and update the release: {log}"
+    );
+
+    let (ok, log, stderr) = run(
+        "release-without-tag",
+        &[("MOCK_TAG_EXISTS", "0"), ("MOCK_RELEASE_EXISTS", "1")],
+    );
+    assert!(
+        !ok,
+        "a release whose tag is gone must not be refreshed without a commit binding"
+    );
+    assert!(
+        stderr.contains("refusing to refresh an unbound release"),
+        "the unbound-release guard must name the reason: {stderr}"
+    );
+    assert!(
+        !log.contains("release upload")
+            && !log.contains("release edit")
+            && !log.contains("release create")
+            && !log.contains("release delete-asset"),
+        "an unbound release must never reach a release operation: {log}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn release_tag_resolution_rejects_unbounded_and_colliding_candidates() {
+    let workflow = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("maze-chase-release.yml"),
+    )
+    .unwrap();
+    let step = workflow_step_body(&workflow, "Resolve the release tag");
+
+    let root = scratch_dir("release-tag-resolve");
+    let bin = root.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    write_mock_executable(
+        &bin.join("git"),
+        r#"#!/bin/sh
+case "$1" in
+  ls-remote)
+    [ "${MOCK_LS_REMOTE_FAILS:-0}" = "1" ] && exit 1
+    printf 'aaaa refs/tags/maze-chase-v%s-rc.1\n' "${VERSION:?}"
+    printf 'bbbb refs/tags/maze-chase-v%s-rc.2\n' "${VERSION:?}"
+    printf 'cccc refs/tags/maze-chase-v%s-rc.10\n' "${VERSION:?}"
+    exit 0
+    ;;
+esac
+exit 2
+"#,
+    );
+
+    let version = crate_version();
+    let run = |name: &str, ref_type: &str, ref_name: &str, rc: Option<&str>| {
+        let github_env = root.join(format!("{name}.env"));
+        let _ = std::fs::remove_file(&github_env);
+        std::fs::write(&github_env, "").unwrap();
+        let mut command = Command::new("bash");
+        command
+            .arg("-c")
+            .arg(&step)
+            .current_dir(&root)
+            .env_clear()
+            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+            .env("HOME", &root)
+            .env("GITHUB_REF_TYPE", ref_type)
+            .env("GITHUB_REF_NAME", ref_name)
+            .env("GITHUB_ENV", &github_env)
+            .env("VERSION", &version)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(rc) = rc {
+            command.env("RC_INPUT", rc);
+        }
+        let output = command.output().expect("run the extracted tag resolver");
+        let env = std::fs::read_to_string(&github_env).unwrap_or_default();
+        let tag = env
+            .lines()
+            .find_map(|line| line.strip_prefix("TAG="))
+            .map(str::to_string);
+        (
+            output.status.success(),
+            tag,
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        )
+    };
+
+    let tag_ref = format!("maze-chase-v{version}-rc.5");
+    let (ok, tag, stderr) = run("tag-ref", "tag", &tag_ref, None);
+    assert!(ok, "a tag ref publishes that tag: {stderr}");
+    assert_eq!(tag.as_deref(), Some(tag_ref.as_str()));
+
+    let (ok, tag, stderr) = run("explicit", "branch", "main", Some("7"));
+    assert!(ok, "an explicit rc must resolve: {stderr}");
+    assert_eq!(
+        tag,
+        Some(format!("maze-chase-v{version}-rc.7")),
+        "an explicit rc must name that candidate"
+    );
+
+    let (ok, tag, stderr) = run("padded", "branch", "main", Some("007"));
+    assert!(ok, "leading zeros must still resolve normally: {stderr}");
+    assert_eq!(
+        tag,
+        Some(format!("maze-chase-v{version}-rc.7")),
+        "padded input must normalize to the same candidate"
+    );
+
+    for (name, value) in [
+        ("zero", "0"),
+        ("too-large", "1000"),
+        ("wraps", "18446744073709551617"),
+        ("junk", "rc.1"),
+    ] {
+        let (ok, _tag, stderr) = run(name, "branch", "main", Some(value));
+        assert!(!ok, "rc input {value} must be rejected: {stderr}");
+    }
+
+    let (ok, tag, stderr) = run("auto-next", "branch", "main", None);
+    assert!(ok, "an automatic candidate must resolve: {stderr}");
+    assert_eq!(
+        tag,
+        Some(format!("maze-chase-v{version}-rc.11")),
+        "the resolver must pick the highest existing rc plus one"
+    );
+
+    let fail = |name: &str| {
+        let github_env = root.join(format!("{name}.env"));
+        let _ = std::fs::remove_file(&github_env);
+        std::fs::write(&github_env, "").unwrap();
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg(&step)
+            .current_dir(&root)
+            .env_clear()
+            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+            .env("HOME", &root)
+            .env("GITHUB_REF_TYPE", "branch")
+            .env("GITHUB_REF_NAME", "main")
+            .env("GITHUB_ENV", &github_env)
+            .env("VERSION", &version)
+            .env("MOCK_LS_REMOTE_FAILS", "1")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .expect("run the extracted tag resolver");
+        (
+            output.status.success(),
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        )
+    };
+    let (ok, stderr) = fail("ls-remote-fails");
+    assert!(!ok, "a failed tag listing must fail closed: {stderr}");
+
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]
