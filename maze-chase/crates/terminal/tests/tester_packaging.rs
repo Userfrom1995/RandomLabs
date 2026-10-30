@@ -205,28 +205,34 @@ fn installer_refuses_missing_option_value_with_exit_two() {
     // `$2: unbound variable` exit 1. Both layers ship the same parser.
     for layer in ["terminal", "desktop"] {
         for flag in ["--prefix", "--tarball"] {
-            let out = Command::new("bash")
-                .arg(&layer_packaging_script(layer, "install-linux.sh"))
-                .arg(flag)
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-                .expect("spawn installer");
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            assert_eq!(
-                out.status.code(),
-                Some(2),
-                "{layer} {flag} without a value must exit 2, stderr: {stderr}"
-            );
-            assert!(
-                stderr.contains("usage: install-linux.sh [--prefix DIR] [--tarball FILE]"),
-                "{layer} {flag} without a value must print the usage line, stderr: {stderr}"
-            );
-            assert!(
-                !stderr.contains("unbound variable"),
-                "{layer} {flag} must be guarded before `set -u` expands $2, stderr: {stderr}"
-            );
+            for args in [vec![flag], vec![flag, ""]] {
+                let out = Command::new("bash")
+                    .arg(&layer_packaging_script(layer, "install-linux.sh"))
+                    .args(&args)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    .expect("spawn installer");
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                assert_eq!(
+                    out.status.code(),
+                    Some(2),
+                    "{layer} {flag} {args:?} must exit 2, stderr: {stderr}"
+                );
+                assert!(
+                    stderr.contains("usage: install-linux.sh [--prefix DIR] [--tarball FILE]"),
+                    "{layer} {flag} {args:?} must print the usage line, stderr: {stderr}"
+                );
+                assert!(
+                    !stderr.contains("unbound variable"),
+                    "{layer} {flag} {args:?} must be guarded before `set -u` expands $2, stderr: {stderr}"
+                );
+                assert!(
+                    !stderr.contains(&format!("unknown argument: {flag}")),
+                    "{layer} {flag} {args:?} must be rejected as a missing value, not as an unknown argument: {stderr}"
+                );
+            }
         }
     }
 }
