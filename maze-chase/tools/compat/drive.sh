@@ -110,6 +110,10 @@ esac
   echo "drive.sh: --ready-seconds must be a positive integer" >&2
   exit 2
 }
+# Bash arithmetic reads a leading zero as octal, so `--ready-seconds 08`
+# is an arithmetic error and `010` means 8 seconds. Normalize the validated
+# decimal string before it reaches any arithmetic context.
+READY_SECONDS=$((10#$READY_SECONDS))
 
 # Resolve --outdir to an absolute path on entry: the transcript path is
 # recorded in meta.json for collect.py, which resolves relative transcript
@@ -391,7 +395,12 @@ for kv in "${EXTRA_ENV[@]:-}"; do
 done
 # Baseline the transcript before launch and time the first output from the
 # same instant, so the readiness wait is measured from the launch, not from
-# whenever the window happened to appear.
+# whenever the window happened to appear. A reused --outdir can still hold
+# a previous run's transcript (the launchers' `script` truncates it at
+# launch, but only after this point), so truncate first: the baseline must
+# be this run's starting point, never a stale byte count the new launch
+# can never exceed.
+: > "$TRANSCRIPT"
 READY_BASELINE="$(transcript_bytes)"
 READY_START_MS="$(now_ms)"
 eval "${ENV_PREFIX}$LAUNCH" &
