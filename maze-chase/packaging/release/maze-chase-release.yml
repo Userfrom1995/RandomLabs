@@ -6,7 +6,11 @@
 # through /oc lab). Once installed, dispatch it or push a
 # maze-chase-v<version> tag to build and publish the artifacts.
 #
-# Triggers: version tags (maze-chase-v*) plus manual dispatch.
+# Triggers: version tags (maze-chase-v*) plus manual dispatch. A branch
+# dispatch always cuts a new release candidate: it takes the optional
+# `rc` input, or picks the next unused maze-chase-v<version>-rc.N tag,
+# so an existing candidate is never republished at a different commit.
+# A tag push publishes that exact tag after the tag/commit parity gate.
 # Jobs: native Linux, macOS, and Windows builders run the layer tests,
 # the deterministic verifier, the packaging scripts, and the per-OS
 # smoke (including a real install/uninstall on Windows and a real
@@ -24,6 +28,11 @@ on:
     tags:
       - "maze-chase-v*"
   workflow_dispatch:
+    inputs:
+      rc:
+        description: "Release-candidate number (default: the next unused rc)"
+        required: false
+        type: string
 
 # Only the publish job needs to create or edit the release; the native
 # build jobs only read the checkout and upload workflow artifacts.
@@ -301,23 +310,69 @@ jobs:
           test -s release-assets/SHA256SUMS.txt
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Resolve the release tag
+        shell: bash
+        env:
+          RC_INPUT: ${{ github.event.inputs.rc }}
+        run: |
+          set -euo pipefail
+          # A tag ref publishes that exact tag. A branch dispatch always
+          # cuts a fresh candidate: an explicit rc input, otherwise the
+          # next unused maze-chase-v<version>-rc.N. Existing tags are
+          # listed server-side so the number never collides with a
+          # candidate published from another branch or an earlier run.
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            if [ -n "${RC_INPUT:-}" ]; then
+              case "$RC_INPUT" in
+                "" | *[!0-9]*)
+                  echo "error: the rc input must be a positive integer (got: $RC_INPUT)" >&2
+                  exit 1
+                  ;;
+              esac
+              RC=$((10#$RC_INPUT))
+              if [ "$RC" -lt 1 ]; then
+                echo "error: the rc input must be a positive integer (got: $RC_INPUT)" >&2
+                exit 1
+              fi
+            else
+              TAGS="$(git ls-remote --tags origin "refs/tags/maze-chase-v${VERSION}-rc.*")"
+              RC=0
+              while IFS= read -r ref; do
+                [ -n "$ref" ] || continue
+                n="${ref##*-rc.}"
+                case "$n" in
+                  "" | *[!0-9]*) continue ;;
+                esac
+                n=$((10#$n))
+                if [ "$n" -gt "$RC" ]; then
+                  RC="$n"
+                fi
+              done <<< "$TAGS"
+              RC=$((RC + 1))
+            fi
+            TAG="maze-chase-v${VERSION}-rc.${RC}"
+          fi
+          echo "[maze-chase-release] target tag $TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Create or refresh the release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          TAG="${TAG:?the release tag must be resolved before publishing}"
           # A tag ref derives the classification from its own name; a
           # branch dispatch is always a release candidate. A stable tag
           # can therefore never be published as a prerelease.
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            TAG="$GITHUB_REF_NAME"
             case "$TAG" in
               *-rc.*) PRERELEASE="true" ;;
               *) PRERELEASE="false" ;;
             esac
           else
-            TAG="maze-chase-v${VERSION}-rc.1"
             PRERELEASE="true"
           fi
           NOTES="$(mktemp)"
@@ -345,9 +400,11 @@ jobs:
           Install, upgrade, and uninstall instructions:
           https://github.com/Userfrom1995/RandomLabs/blob/main/maze-chase/docs/release.md
 
-          The desktop and terminal binaries are unsigned. Windows SmartScreen
-          may warn on first launch (More info, then Run anyway); macOS
-          Gatekeeper needs a right-click Open the first time.
+          The terminal and Windows binaries are unsigned. The macOS app bundle
+          is ad-hoc signed: the first launch shows the standard
+          unidentified-developer dialog (Open Anyway, or a right-click Open),
+          not a damaged-app refusal. Windows SmartScreen may warn on first
+          launch (More info, then Run anyway).
           EOF
           # A tag can exist without a release, so validate its commit
           # before either the refresh or the create path. gh resolves
