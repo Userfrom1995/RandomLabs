@@ -178,9 +178,39 @@ fn contains_word_start(haystack: &str, needle: &str) -> bool {
     })
 }
 
-/// Match `phrase` at a word start unless the preceding clause negates it,
-/// so "not notarized" and "never notarized" stay allowed while a positive
-/// notarization claim is still rejected.
+const NEGATION_FILLERS: &[&str] = &[
+    "yet",
+    "been",
+    "being",
+    "fully",
+    "currently",
+    "ever",
+    "actually",
+    "properly",
+    "successfully",
+    "officially",
+    "the",
+    "a",
+    "an",
+    "this",
+    "that",
+    "its",
+    "it",
+    "is",
+    "are",
+    "was",
+    "were",
+    "has",
+    "have",
+    "had",
+    "be",
+    "will",
+];
+
+/// Match `phrase` at a word start unless the nearest preceding content
+/// word negates it, so "not notarized", "never notarized", and "has not
+/// been notarized" stay allowed while a positive notarization claim such
+/// as "not unsigned but notarized" is still rejected.
 fn contains_unnegated_word_start(haystack: &str, needle: &str) -> bool {
     haystack.match_indices(needle).any(|(index, _)| {
         let before = &haystack[..index];
@@ -192,11 +222,19 @@ fn contains_unnegated_word_start(haystack: &str, needle: &str) -> bool {
         if !starts_word {
             return false;
         }
-        !before
-            .split_whitespace()
-            .rev()
-            .take(3)
-            .any(|word| matches!(word, "not" | "never"))
+        for token in before.split_whitespace().rev() {
+            let word = token.trim_matches(|c: char| !c.is_alphanumeric());
+            if word.is_empty() {
+                continue;
+            }
+            if matches!(word, "not" | "never") {
+                return false;
+            }
+            if !NEGATION_FILLERS.contains(&word) {
+                return true;
+            }
+        }
+        true
     })
 }
 
