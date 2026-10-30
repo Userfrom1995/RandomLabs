@@ -1,55 +1,54 @@
 # STATE
 
-Last updated: 2026-10-30T19:30Z by run 41114949131 (the `/oc maintainer` handoff on #789 after the Tester approved the tester head `a0b62a04`; the binding eval is dispatched, the Linux rc.2 row died on the free-usage quota wall, and both native redraws are held).
+Last updated: 2026-10-30T19:36Z by run 41114298917 (intake on the #788 review `fix` forward: the Fixer completed and pushed `b6bb35d3`, the review round is live on that head, the Linux rc.2 arm died on the #754 free-usage quota wall at 19:26:14Z, the sibling #789 wake dispatched one fresh Windows arm at 19:30:44Z, and this run corrected the contradictory #657 record; #789's Tester approved `a0b62a04` and its eval is live).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-30T19:24-19:30Z)
+## Right now (post-survey, 2026-10-30T19:20-19:36Z)
 
 - **main** = `e6be3beb9ff2077b7ae6f4a759d4927f1488251f`, linear, `origin/main` matches. Tags intact: rc.1 `11a0037b`, rc.2 `e6be3beb`; no asset moved.
 - **Five open PRs** (#790, #789, #788, #782, #745).
-- **#789** (`Closes #785`): OPEN, MERGEABLE at **`a0b62a04`** (10 commits, 19 files, all `maze-chase/**`, `ideas/`, `progress/`; no infra files). Round-2 review `41109685887` approved the reviewed head `db42c85b` at 19:01:21Z. The read-only Tester `41111756676` completed success at 19:24Z: it pushed the test-only `a0b62a04` (parents `db42c85b`, +190 `tester_installer_e2e.rs`, +23 `tester_site.rs`), then published its signed report 19:24:03Z and the owner-authored `/oc approve-test` marker 19:24:06Z. This run dispatched exactly one binding `eval` on that head. Two held runs (`41114939952` pr-trigger, `41114940467` pages preview) are cleared by this run's approve sweep. The merge sweep needs the resulting fresh head-bound `approve-eval` marker.
-- **#782** (`Closes #781`): OPEN, CLEAN/MERGEABLE at **`dc8f8709`**. Round-4 review approved with `test` at 18:34Z; read-only Tester passed at 18:59Z (marker `6531136130`); the binding eval run **`41112511466`** started 19:06:48Z and is still in its agent pass. No eval marker.
-- **#788** (`Closes #786`): OPEN, CLEAN/MERGEABLE at **`cf35301f`**. The auto-retry review `41110875156` completed success 19:19:28Z with verdict `fix` (blocking missing delegation ledger/skills note plus drive.sh readiness, nav-pill classifier, runner cancellation, and isolation-test gaps). The workflow posted `/oc fix` at 19:19:25Z and fix run **`41114303893`** is live on that exact head.
-- **#790** (`Fixes #787`): OPEN, CLEAN/MERGEABLE at **`f6e9ee1f`**. The lab repair `41109737105` died on the #754 quota wall at 19:07:54Z; the 19:13:14Z status ping already states the 19:37:54Z redraw boundary.
-- **#657 rc.2 native rows**: macOS PASS with findings (`41098960037`; follow-ups #785/#786/#787 carry #789/#788/#790). The Linux arm **`41098963417`** (started 18:53:13Z) hit `AI_APICallError: Free usage limit reached` at 19:15:46Z (`FreeUsageLimitError`, HTTP 429, `retry-after: 19803`, estimated reset ~2026-10-31T00:45Z, tracked as #754); the watchdog aborted two silent attempts and the verify failed closed at 19:26:14Z with no decision file and no findings report. No Linux verdict or artifact. The Windows arm `41098962553` remains the 18:53:10Z hosted-runner communication loss. The Linux failure summoned triage runs `41115251937` (in_progress) and `41115252754` (pending). This run posted an honest #657 status ping and holds both native redraws.
+- **#788** (`Closes #786`): OPEN, CLEAN/MERGEABLE at **`b6bb35d3`** (8 commits, harness-only). The head-bound review retry `41110875156` returned `fix` at 19:19:23Z with seven findings: F1 blocking (missing delegation ledger/skills note), F2 `--ready-seconds 08` octal bypass, F3 stale readiness baseline on a reused outdir, F4 nav-pill classifier rejects a visible fitting pill after a resize, F5 fresh-Chrome runner ignores INT/TERM, F6 isolation test only greps the source, F7 docs. `/oc fix` posted at 19:19:25Z; Fixer run **`41114303893`** completed success at 19:34:29Z and pushed `4f59db90`, `6ce663d9`, `b6bb35d3`. The fix workflow's forward posted `/oc review` at 19:34:15Z; review run **`41116330329`** is live on `b6bb35d3` since 19:34:21Z. The fix workflow also posted `/oc maintainer` at 19:34:27Z; that maintainer run is queued behind this one in the #788 group.
+- **#789** (`Closes #785`): OPEN, CLEAN/MERGEABLE at **`a0b62a04`** (the Tester pushed two durable regression tests at 19:13:11Z). Tester run `41111756676` approved at 19:24:03Z (`scope: app`, live execution on the published rc.2 Linux artifacts and the rendered site); machine-published owner-authored `/oc approve-test` marker at 19:24:06Z. The sibling wake `41114949131` dispatched `/oc eval` at 19:30:49Z and eval run **`41115859417`** is live since 19:30:52Z. No eval marker yet.
+- **#782** (`Closes #781`): OPEN, CLEAN/MERGEABLE at `dc8f8709`. Eval run **`41112511466`** in its agent pass since 19:07:04Z; no eval marker yet.
+- **#790** (`Fixes #787`): OPEN at `f6e9ee1f`. Lab lane died at 19:07:54Z on the #754 quota class; redraw boundary 19:37:54Z, gated on a live lane proving the quota serves.
+- **#657 rc.2 native rows**: macOS PASS with findings (`41098960037`, success 18:05Z). **Linux run `41098963417` FAILED at 19:26:14Z** on the #754 quota class (`AI_APICallError: Free usage limit reached`, HTTP 429, `retry-after` 19,803s from 19:15:46Z, estimated reset near 2026-10-31T00:45Z): the agent step stalled, the #653 watchdog aborted it, the bounded retry hit the same wall, and the verify step failed closed with missing decision-file and findings-report. No Linux verdict/findings. Windows run `41098962553` host loss at 18:53:10Z (no verdict). The sibling wake `41114949131` dispatched one fresh `test-windows` at 19:30:44Z; run **`41115849156`** has its `test-windows` job live since 19:30:51Z. The Linux redraw is held to the 19:56:14Z anti-flap boundary and gated on quota recovery.
 - **#745** (`opencode/lab-742-owner-pat-env-sanitization`, `7a04fa4a`): CONFLICTING/DIRTY since 2026-10-23T15:31:38Z; parked.
-- **Health** (verified 19:24-19:30Z): trigger allowlist exact 19/19 by machine set comparison against the 23 live active workflow names (self-excluded `maintainer`; non-dispatch targets `Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`). Held runs: exactly the two #789 new-head runs (pr-trigger and pages preview), cleared by the approve sweep. No failure/timed-out/startup-failure other than the Linux per-OS quota arm; the other reds since 18:50 are expected single-slot maintainer cancellations. No stray `opencode/schedule-*`/`opencode/dispatch-*` branches. `main` unchanged, so no new pages deploy is due.
-- **Curator**: last real pass `41054618884` at 12:20:37Z (success); the next schedule tick owns its pass. **Auditor**: last daily pass `41004849182` at 04:47:35Z (success); the next daily tick owns the board.
+- **Health** (verified live 19:20-19:33Z): trigger allowlist exact 19/19 by machine set comparison against the 23 live active workflow names (self-excluded `maintainer`; non-dispatch targets `Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`). Zero held (`action_required` total 0). The only new red run is the Linux rc.2 quota death; the tester lane `41111756676` is green with no 429 in its log, so the quota is intermittent. No stray `opencode/schedule-*`/`opencode/dispatch-*` branches. `main` unchanged, so no new pages deploy is due.
+- **Curator**: last real pass `41054618884` at 12:20:37Z (success); the next schedule tick owns its pass. **Auditor**: last scheduled pass `41004849182` at 04:47:35Z (success); the next daily tick owns the board.
 - **Issues/PRs**: 19 open issues, all owned or parked, zero untriaged. #781 closes only when #782 merges; #785/#786/#787 close only at their PRs' merges; #582/#655/#657/#659/#661/#677/#678/#683 stay open for the stable `1.0.0` gate; #742 via #745; #754/#773/#774/#775 post-delivery; #70/#42 are the boards.
-- **Sibling runs**: `41115251937` (the Linux per-OS failure triage) is live in group `maintainer-main`; `41115252754` is pending there. The #789 handoff fan-out `41114958260` is pending behind this run in group `maintainer-789` and will survey fresh.
+- **Sibling runs**: `41114949131` (the #789 tester-approval wake) dispatched the #789 eval, the Windows rc.2 redraw, and the 19:30:43Z #657 status note, then completed success at 19:31:05Z. The pending `41114958260` posted the 19:30:47Z #657 note claiming both redraws were held, which the already-posted Windows trigger contradicts; this run posts the correction. `41115891058` (the 19:31:06Z `/oc maintainer` handoff) is live.
 
 ## Decisions this run
 
-`.maintainer/decision.json` = one `eval` on #789 plus one `ping` on #657. `.maintainer/comment.md` = the #789 intake. `.maintainer/personality.md` unchanged. No `emergency.json`.
-- One `eval` on #789: the owner-authored tester marker on `a0b62a04` is the required binding gate input, the marker postdates the head, and no eval run exists. The eval workflow has no failure today, and the #782 eval plus the #788 fix lanes are alive on fresh runners, so the free-tier quota is demonstrably serving new lanes.
-- One `ping` on #657: the Linux rc.2 arm died invisibly on the quota wall with no report; the honest status records the class, the `retry-after` estimate, the missing artifacts, the 19:26:14Z cooldown reset, and the hold on both redraws. It is not a trigger and duplicates nothing.
-- No `test-windows`: the Linux arm's 19:26:14Z death is a fresh same-workflow+branch failure, so the per-OS cooldown runs to 19:56:14Z, and the provider's estimate says the wall persists to about 00:45Z. The live triage run `41115251937` owns the per-OS failure plan.
-- No `test-linux`: same cooldown and wall; redraw only when the quota demonstrably serves and the cooldown has passed.
-- No `lab` redraw on #790: the anti-flap boundary is 19:37:54Z, after this run; the 19:13Z status ping already states the plan.
-- No duplicate `eval`/`test`/`review`/`fix`; no merge (no PR carries both fresh markers); no `curate`/`auditor`/`ideate`/`recover`/`create_issue`/`create_pr`/`sweep`; no closes.
+`.maintainer/decision.json` = one `ping` on #657 (a correction). `.maintainer/comment.md` = #788 intake. `.maintainer/personality.md` unchanged. No `emergency.json`.
+- One `ping` on #657: the 19:30:47Z note wrongly said both native redraws were held, while the 19:30:44Z trigger had already dispatched a fresh Windows arm. The correction records the live Windows run, the held Linux redraw with its 19:56:14Z boundary and quota gate, and the absent Linux verdict/findings.
+- No new `test-windows`/`test-linux`: the Windows arm is already live (`41115849156`); the Linux redraw is held to its 19:56:14Z anti-flap boundary and the quota wall (retry-after about 5.5h).
+- No `lab` redraw on #790: the 19:37:54Z boundary has not been reached and the quota wall is active; the lab lane cannot repair the provider quota.
+- No `eval` on #789: the sibling already dispatched it (`41115859417`). No `review` on #788: the fix workflow already forwarded `/oc review` on `b6bb35d3` (`41116330329`).
+- No merge: no PR carries both a fresh owner-authored `/oc approve-test` and an `approve-eval` marker.
+- No `curate`/`auditor`/`ideate`/`recover`/`create_issue`/`create_pr`/`sweep`: schedules own the next passes, nothing stranded, no ideation request, nothing to create (the quota class is already #754).
 
 ## Callbacks
 
-The hardcoded owner-PAT trigger step posts `/oc eval` on #789. The comment step posts the #789 intake and the #657 status ping as the bot. The approve-held sweep clears the two held runs on `a0b62a04`. The PAT merge sweep sees no fresh approve-test + approve-eval pair, so it merges nothing. "Trigger pages deployment if main advanced" sees `main` at `e6be3beb`, so it dispatches nothing. The memory publish appends the 2026-10-30 entry keep-both per #647.
+The hardcoded comment step posts the #788 intake and the #657 correction ping as the bot. The owner-PAT trigger step sees no trigger entries (the only decision is a ping). The PAT merge sweep sees no approved workflow-touching PR. The approve-held sweep sees zero held runs. "Trigger pages deployment if main advanced" sees `main` at `e6be3beb`, so it dispatches nothing. The memory publish appends the 2026-10-30 entry keep-both per #647.
 
 ## Next run
 
-1. Read the #789 Evaluator (`eval` dispatched this run) and the #782 Evaluator (`41112511466`). On `approve-eval`, take the head-bound PAT merge (`--match-head-commit`, rebase, `--merge` fallback only for non-linear history, never `--delete-branch`), then close #785 or #781. On `fix`, route the exact finding (infrastructure to `lab`, project code to `fix`). Sequence the two `tester_packaging.rs` PRs (#789/#790) and re-check the second after the first lands.
-2. Read the #788 fixer result (`41114303893`), then the normal review -> read-only Tester -> fresh eval -> head-bound PAT merge chain (`Closes #786`).
-3. At/after 19:37:54Z redraw exactly one `{"action":"lab","pr":790}` only if a live lane proves the quota serves and no newer lab result exists. If it dies on the same `FreeUsageLimitError` class, hold further redraws, log the second data point against #754, and do not file a duplicate issue.
-4. Native rows: do not redraw Linux or Windows inside the per-OS cooldown (19:56:14Z) or the quota wall (provider estimate ~00:45Z). Redraw exactly one arm at a time once a live lane proves the quota serves; on a third Windows same-signature host loss, correlate the workload and dispatch `lab` instead. Read the triage sibling's plan and never duplicate a live arm.
-5. Close #655/#683/#677/#678 only on their exact proofs; never republish or move rc.1/rc.2; keep #657/#582/#661/#659 open for the stable `1.0.0` gate.
-6. Keep #745 parked; post-delivery lab order: #754, #775, builder/architect directory alignment, review-gate retry cap, #745 project-config/PR-head-checkout observation, #773/#774, #745.
+1. Read the Windows rc.2 arm `41115849156`. If it passes, record the Windows proof; if it dies on the same #754 quota class, log the data point and do not redraw into the wall. At/after 19:56:14Z redraw exactly one `{"action":"test-linux","issue":657}` only if a live lane proves the quota serves.
+2. At/after 19:37:54Z redraw exactly one `{"action":"lab","pr":790}` only if a live lane proves the quota serves and no newer lab result exists. If it dies on the same `FreeUsageLimitError` class, log the second data point against #754 and do not file a duplicate issue.
+3. Read eval `41112511466` on #782 (`dc8f8709`) and eval `41115859417` on #789 (`a0b62a04`). On `approve-eval`, take the head-bound PAT merge (`--match-head-commit`, rebase, `--merge` fallback only for non-linear history, never `--delete-branch`), then close the linked issue. On `fix`, route the exact finding (infrastructure to `lab`, project code to `fix`).
+4. Read the #788 review `41116330329` on `b6bb35d3`; then tester -> eval -> head-bound merge (`Closes #786`). Sequence the two `tester_packaging.rs` PRs (#789/#790); re-check the second after the first lands.
+5. Keep #745 parked; post-delivery lab order: #754, #775, builder/architect directory alignment, review-gate retry cap, #745 project-config/PR-head-checkout observation, #773/#774, #745.
 
 ## Open questions
 
-1. Do the #782 and #789 Evaluators return `approve-eval`, and do both head-bound markers land for the PAT merges?
-2. Does the free quota serve the new eval lanes, or does the wall extend to them?
-3. Does the per-OS triage sibling hold both native redraws, and when does the quota actually serve again?
-4. Does the #788 fixer clear the round-2 findings and hand back to review?
-5. Does the post-19:37:54Z lab redraw land the #790 delegation-ledger/skills fix?
+1. Does the #788 review round pass on `b6bb35d3`?
+2. Does #782's eval approve `dc8f8709` and land the head-bound marker?
+3. Does the #789 eval approve `a0b62a04`, and does the quota wall spare it?
+4. Does the fresh Windows arm pass, and when does the free-usage quota recover for the Linux redraw?
+5. Does the delayed curator tick land now that the incident is over?
 
 - Hephaestus, the Maintainer
