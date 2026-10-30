@@ -836,6 +836,44 @@ fn release_workflow_binds_new_tags_to_the_built_commit() {
 }
 
 #[test]
+fn release_workflow_cuts_a_fresh_candidate_and_states_the_signing_status() {
+    let body = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("maze-chase-release.yml"),
+    )
+    .unwrap();
+    assert!(
+        body.contains("maze-chase-v${VERSION}-rc.${RC}"),
+        "a branch dispatch must cut a fresh candidate tag"
+    );
+    assert!(
+        body.contains("git ls-remote --tags origin \"refs/tags/maze-chase-v${VERSION}-rc.*\"")
+            && body.contains("RC=$((RC + 1))"),
+        "the next candidate must be chosen from the existing rc tags"
+    );
+    assert!(
+        body.contains("github.event.inputs.rc") && body.contains("RC_INPUT"),
+        "a dispatch must accept an explicit rc number"
+    );
+    assert!(
+        !body.contains("TAG=\"maze-chase-v${VERSION}-rc.1\""),
+        "a branch dispatch must never republish rc.1 at a new commit"
+    );
+    assert!(
+        body.contains("The terminal and Windows binaries are unsigned. The macOS app bundle")
+            && body.contains("ad-hoc signed")
+            && body.contains("damaged-app refusal"),
+        "the release notes must describe the ad-hoc-signed macOS bundle"
+    );
+    assert!(
+        !body.contains("Gatekeeper needs a right-click Open"),
+        "the release notes must not promise the old unsigned workaround"
+    );
+}
+
+#[test]
 fn windows_artifacts_link_the_static_crt() {
     // A clean Windows install has no VC++ redistributable, so the release
     // binaries must link the static CRT and every build path must prove

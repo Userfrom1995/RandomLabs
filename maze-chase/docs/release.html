@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 17567; source-fnv: 589fc204eb89eb7b; output-fnv: c634abac72ac7ea5 -->
+<!-- generated from docs/release.md; source-bytes: 17851; source-fnv: 9f41f6fb5c31df0c; output-fnv: bffa0f865f6ba20e -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -150,7 +150,7 @@ sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop</c
 <li>Each native job installs and pins Rust 1.99.0, checks tag/version parity, installs its packaging tools, runs <code>cargo test --workspace --locked</code> plus <code>maze-chase-verify</code>, and stages its host's artifacts. The Linux job also rebuilds the committed wasm and fails if the bytes differ.</li>
 <li>The smoke scripts run on the same host; Windows does a real silent install, launch, and uninstall, and macOS drives a real frame with <code>--probe</code>.</li>
 <li>Each job records <code>rustc --version</code>, <code>cargo --version</code>, and its runner image in <code>dist/toolchain-&lt;os&gt;.txt</code>, then uploads its payloads and <code>SHA256SUMS.txt</code>.</li>
-<li>The publish job downloads every payload, folds the per-host toolchain records into the release notes, removes the records and per-host manifests, re-hashes the complete set into one <code>SHA256SUMS.txt</code>, and creates the GitHub Release (prerelease for <code>-rc.N</code> tags). A dispatch build refreshes <code>maze-chase-v&lt;version&gt;-rc.1</code> only when that tag already points at the tested commit; a tag build publishes that exact tag. A dispatch on a newer commit must cut the next <code>-rc.N</code> tag.</li>
+<li>The publish job downloads every payload, folds the per-host toolchain records into the release notes, removes the records and per-host manifests, re-hashes the complete set into one <code>SHA256SUMS.txt</code>, and creates the GitHub Release (prerelease for <code>-rc.N</code> tags). A tag build publishes that exact tag. A dispatch build always cuts a fresh candidate: it takes the optional <code>rc</code> input, or picks the next unused <code>maze-chase-v&lt;version&gt;-rc.N</code> tag, so an existing candidate is never republished at a different commit.</li>
 </ol>
 <p>Verify a download with:</p>
 <pre><code class="language-sh">sha256sum -c SHA256SUMS.txt          # Linux
@@ -158,7 +158,7 @@ shasum -a 256 -c SHA256SUMS.txt      # macOS
 Get-FileHash -Algorithm SHA256 &lt;file&gt; # Windows PowerShell</code></pre>
 <p>The release notes state the signing status: the terminal and Windows binaries are unsigned, and the macOS app bundle is ad-hoc signed. The first-launch SmartScreen and unidentified-developer prompts are expected; they are not a signature claim.</p>
 <h3 id="candidate-and-stable-releases">Candidate and stable releases</h3>
-<p>The 0.1.0 candidate is tagged <code>maze-chase-v0.1.0-rc.1</code> and published as an unsigned prerelease from release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a>. Before the stable release, re-run every per-OS install, upgrade, and uninstall row against those artifacts and re-sign the terminal matrix. Then bump the workspace version to <code>1.0.0</code> and cut <code>maze-chase-v1.0.0</code> as a stable release. No stable tag is cut while a binding check is open.</p>
+<p>The 0.1.0 candidate is tagged <code>maze-chase-v0.1.0-rc.1</code> and published as an unsigned prerelease from release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a>. Every later repair candidate is cut as a new tag: a branch dispatch of the release pipeline takes an optional <code>rc</code> input, or picks the next unused <code>maze-chase-v0.1.0-rc.N</code> tag, so a published candidate is never republished at a different commit. Before the stable release, re-run every per-OS install, upgrade, and uninstall row against those artifacts and re-sign the terminal matrix. Then bump the workspace version to <code>1.0.0</code> and cut <code>maze-chase-v1.0.0</code> as a stable release. No stable tag is cut while a binding check is open.</p>
 <h3 id="published-artifact-verification-linux">Published-artifact verification (Linux)</h3>
 <p>On 2026-10-28 the published rc.1 assets were exercised on Ubuntu 24.04.5 LTS (Linux 6.17.0-1022-azure x86_64). The terminal compatibility matrix was re-signed on the release terminal binary (SHA-256 <code>9f6cd45a440e37ddf22f9072a9991e7047284b7a04d7effa55e2ff3387b83c83</code>) from tag commit <code>11a0037b</code>; all eight rows pass with <code>build.sources_dirty: false</code>, and the measured numbers live in the <a href="terminal-compat.html">terminal compatibility matrix</a>.</p>
 <ul>

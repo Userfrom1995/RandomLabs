@@ -291,10 +291,10 @@ It runs on a `maze-chase-v*` tag or manual dispatch:
    toolchain records into the release notes, removes the records and
    per-host manifests, re-hashes the complete set into one
    `SHA256SUMS.txt`, and creates the GitHub Release (prerelease for
-   `-rc.N` tags). A dispatch build refreshes
-   `maze-chase-v<version>-rc.1` only when that tag already points at
-   the tested commit; a tag build publishes that exact tag. A dispatch
-   on a newer commit must cut the next `-rc.N` tag.
+   `-rc.N` tags). A tag build publishes that exact tag. A dispatch
+   build always cuts a fresh candidate: it takes the optional `rc`
+   input, or picks the next unused `maze-chase-v<version>-rc.N` tag, so
+   an existing candidate is never republished at a different commit.
 
 Verify a download with:
 
@@ -314,11 +314,14 @@ expected; they are not a signature claim.
 The 0.1.0 candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
 an unsigned prerelease from release run
 [40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683).
-Before the stable release, re-run every per-OS install, upgrade, and
-uninstall row against those artifacts and re-sign the terminal matrix.
-Then bump the workspace version to `1.0.0` and cut
-`maze-chase-v1.0.0` as a stable release. No stable tag is cut while a
-binding check is open.
+Every later repair candidate is cut as a new tag: a branch dispatch of
+the release pipeline takes an optional `rc` input, or picks the next
+unused `maze-chase-v0.1.0-rc.N` tag, so a published candidate is never
+republished at a different commit. Before the stable release, re-run
+every per-OS install, upgrade, and uninstall row against those artifacts
+and re-sign the terminal matrix. Then bump the workspace version to
+`1.0.0` and cut `maze-chase-v1.0.0` as a stable release. No stable tag
+is cut while a binding check is open.
 
 ### Published-artifact verification (Linux)
 
