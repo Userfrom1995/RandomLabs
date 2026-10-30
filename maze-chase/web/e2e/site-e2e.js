@@ -416,6 +416,7 @@ async function collectLinks(ws) {
           const pill = active.getBoundingClientRect();
           return {
             scrollLeft: nav.scrollLeft,
+            overflows: nav.scrollWidth > nav.clientWidth + 1,
             left: pill.left,
             right: pill.right,
             boxLeft: box.left,
@@ -443,10 +444,20 @@ async function collectLinks(ws) {
           : 'missing'})`,
       );
       if (path === 'releases.html') {
-        assert(
-          mobile.navPill && mobile.navPill.scrollLeft > 0,
-          `releases.html actually scrolls its overflowing current pill into view at 390x844 (scrollLeft ${mobile.navPill ? mobile.navPill.scrollLeft.toFixed(1) : 'missing'})`,
-        );
+        // Whether the pill needs a scroll depends on the platform's
+        // fallback font metrics. Assert the honest state either way: an
+        // overflowing nav must be scrolled, a fitting one must not be.
+        if (mobile.navPill && mobile.navPill.overflows) {
+          assert(
+            mobile.navPill.scrollLeft > 0,
+            `releases.html actually scrolls its overflowing current pill into view at 390x844 (scrollLeft ${mobile.navPill.scrollLeft.toFixed(1)})`,
+          );
+        } else {
+          assert(
+            mobile.navPill && mobile.navPill.scrollLeft === 0,
+            `releases.html leaves a fitting nav unscrolled at 390x844 (scrollLeft ${mobile.navPill ? mobile.navPill.scrollLeft.toFixed(1) : 'missing'})`,
+          );
+        }
       }
     }
     assert(consoleErrors.length === 0, `${path} mobile load has no console errors`);
@@ -472,7 +483,8 @@ async function collectLinks(ws) {
 
   // The nav reveal also runs on layout changes: a desktop load resized to
   // mobile must re-reveal the current pill. releases.html is the subpage
-  // whose active pill genuinely overflows at 390px.
+  // used here; 320px is narrow enough that the nav overflows on every
+  // platform's font metrics (390px depends on the fallback font).
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
   });
@@ -491,7 +503,7 @@ async function collectLinks(ws) {
     `releases.html starts without a nav scroll at 1280 (${desktopNav ? desktopNav.scrollLeft.toFixed(1) : 'missing'})`,
   );
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
-    width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
+    width: 320, height: 568, deviceScaleFactor: 2, mobile: true,
   });
   let resizedNav = null;
   for (let settle = 0; settle < 30; settle++) {
@@ -504,6 +516,7 @@ async function collectLinks(ws) {
       const pill = active.getBoundingClientRect();
       return {
         scrollLeft: nav.scrollLeft,
+        overflows: nav.scrollWidth > nav.clientWidth + 1,
         left: pill.left,
         right: pill.right,
         boxLeft: box.left,
@@ -511,16 +524,17 @@ async function collectLinks(ws) {
         viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
       };
     })()`);
-    if (resizedNav && resizedNav.viewport[0] === 390 && resizedNav.scrollLeft > 0) break;
+    if (resizedNav && resizedNav.viewport[0] === 320 && resizedNav.scrollLeft > 0) break;
   }
   assert(
     resizedNav
-      && resizedNav.viewport[0] === 390
+      && resizedNav.viewport[0] === 320
+      && resizedNav.overflows
       && resizedNav.scrollLeft > 0
       && resizedNav.left >= resizedNav.boxLeft - 1
       && resizedNav.right <= resizedNav.boxRight + 1,
-    `releases.html re-reveals the current nav pill after a resize to 390x844 (${resizedNav
-      ? `viewport ${resizedNav.viewport[0]}x${resizedNav.viewport[1]}, ${resizedNav.left.toFixed(1)}..${resizedNav.right.toFixed(1)} in ${resizedNav.boxLeft.toFixed(1)}..${resizedNav.boxRight.toFixed(1)}, scrollLeft ${resizedNav.scrollLeft.toFixed(1)}`
+    `releases.html re-reveals the current nav pill after a resize to 320x568 (${resizedNav
+      ? `viewport ${resizedNav.viewport[0]}x${resizedNav.viewport[1]}, ${resizedNav.left.toFixed(1)}..${resizedNav.right.toFixed(1)} in ${resizedNav.boxLeft.toFixed(1)}..${resizedNav.boxRight.toFixed(1)}, overflows ${resizedNav.overflows}, scrollLeft ${resizedNav.scrollLeft.toFixed(1)}`
       : 'missing'})`,
   );
 
