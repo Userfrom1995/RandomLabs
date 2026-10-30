@@ -4,9 +4,9 @@
 # Usage:
 #   smoke-macos.sh [--app DIR]... [--dmg FILE]... [--tarball FILE]... [--probe]
 #
-# Checks the bundle identifier, executable, and version in Info.plist,
-# launches the bundled binary with --version, mounts disk images, and
-# extracts tarballs. --probe additionally drives a real windowed frame
+# Checks the bundle signature, identifier, executable, and version in
+# Info.plist, launches the bundled binary with --version, mounts disk
+# images, and extracts tarballs. --probe additionally drives a real windowed frame
 # through --probe 1 (requires an Aqua session), which the release
 # pipeline passes on the macOS runner.
 set -euo pipefail
@@ -48,6 +48,16 @@ check_app() {
     echo "smoke: $label has no executable" >&2
     exit 1
   }
+  # A bundle with no valid signature is reported by Gatekeeper as damaged
+  # when downloaded, so the smoke refuses to pass one to the release.
+  command -v codesign >/dev/null || {
+    echo "smoke: codesign missing (Xcode command line tools required)" >&2
+    exit 1
+  }
+  if ! codesign --verify --deep --strict "$app" >/dev/null 2>&1; then
+    echo "smoke: $label bundle has no valid code signature" >&2
+    exit 1
+  fi
   /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist" |
     grep -qx 'games.mazechase.desktop'
   /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist" |

@@ -6,8 +6,10 @@
 #
 # Output: dist/Maze Chase.app (binary plus Info.plist plus docs). No
 # system dependencies: rodio uses CoreAudio and winit uses AppKit, both
-# without extra installs. The bundle is unsigned; first launch needs a
-# right-click Open, then Gatekeeper remembers it. See docs/desktop.md.
+# without extra installs. The bundle is ad-hoc signed after staging: it
+# carries no Developer ID, so first launch still shows the standard
+# unidentified-developer dialog and needs Open Anyway (or a right-click
+# Open), then Gatekeeper remembers it. See docs/desktop.md.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +50,17 @@ cat >"$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+
+# The linker signs the executable, but a bundle without
+# Contents/_CodeSignature/CodeResources reads to Gatekeeper as a damaged
+# signature (a quarantined download is refused with "is damaged and
+# can't be opened") instead of the ordinary unidentified-developer
+# prompt. Ad-hoc sign the whole staged bundle so the documented Open
+# Anyway path works; this grants no Developer ID and is not a notarized
+# release.
+require_command codesign "run on macOS with the Xcode command line tools"
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
 
 echo "staged: $APP"
 "$APP/Contents/MacOS/maze-chase-desktop" --version
