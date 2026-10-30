@@ -9,7 +9,8 @@
 //!   name from `Cargo.toml`, per-machine `os-arch` suffix, `--version`
 //!   probe, no cross-OS relabel path);
 //! - the installer refuses unknown flags (exit 2) and a missing tarball
-//!   (non-zero, no silent success);
+//!   (non-zero, no silent success), and a missing `--prefix` or `--tarball`
+//!   value prints the usage line and exits 2 instead of tripping `set -u`;
 //! - the release docs cross-link only to committed files and the crate
 //!   version cited in the packaging matrix matches `Cargo.toml`.
 
@@ -37,6 +38,10 @@ fn maze_root() -> PathBuf {
 
 fn packaging_script(name: &str) -> PathBuf {
     maze_root().join("packaging").join("terminal").join(name)
+}
+
+fn layer_packaging_script(layer: &str, name: &str) -> PathBuf {
+    maze_root().join("packaging").join(layer).join(name)
 }
 
 fn read_script(name: &str) -> String {
@@ -154,6 +159,10 @@ fn installer_script_keeps_safety_contract() {
         body.contains("unknown argument"),
         "installer must refuse unknown flags loudly"
     );
+    assert!(
+        body.contains("usage: install-linux.sh [--prefix DIR] [--tarball FILE]"),
+        "installer must print its usage line for bad or incomplete options"
+    );
     // The EXIT-trap cleanup must be scoped to the temp dir created for
     // --tarball mode, so a local-mode install can never rm the source dir.
     let trap_line = body
@@ -188,6 +197,38 @@ fn installer_refuses_unknown_flag_with_exit_two() {
         "unknown flag must exit 2, stderr: {}",
         String::from_utf8_lossy(&out.stderr)
     );
+}
+
+#[test]
+fn installer_refuses_missing_option_value_with_exit_two() {
+    // A bare option must reach the usage contract, never `set -u`'s
+    // `$2: unbound variable` exit 1. Both layers ship the same parser.
+    for layer in ["terminal", "desktop"] {
+        for flag in ["--prefix", "--tarball"] {
+            let out = Command::new("bash")
+                .arg(&layer_packaging_script(layer, "install-linux.sh"))
+                .arg(flag)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                .expect("spawn installer");
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            assert_eq!(
+                out.status.code(),
+                Some(2),
+                "{layer} {flag} without a value must exit 2, stderr: {stderr}"
+            );
+            assert!(
+                stderr.contains("usage: install-linux.sh [--prefix DIR] [--tarball FILE]"),
+                "{layer} {flag} without a value must print the usage line, stderr: {stderr}"
+            );
+            assert!(
+                !stderr.contains("unbound variable"),
+                "{layer} {flag} must be guarded before `set -u` expands $2, stderr: {stderr}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -396,12 +437,13 @@ fn release_docs_crosslink_only_committed_files() {
 }
 
 #[test]
-fn downloads_and_readme_claim_only_the_published_unsigned_prerelease() {
+fn downloads_and_readme_claim_only_the_published_prerelease() {
     // The downloads page is the distribution surface. Its status block
-    // must stay short and user-facing: it reports the published unsigned
-    // rc.1 candidate, including the native macOS/Windows rows, and never
-    // claims signing or a stable release. The game-first page carries no
-    // status block at all, so the hunt is the first thing a visitor sees.
+    // must stay short and user-facing: it reports the published rc.2
+    // candidate, including the native macOS/Windows rows and the
+    // ad-hoc-signed macOS app, and never claims notarization or a stable
+    // release. The game-first page carries no status block at all, so the
+    // hunt is the first thing a visitor sees.
     let hub = std::fs::read_to_string(maze_root().join("index.html")).unwrap();
     assert!(
         !hub.contains("release-status"),
@@ -435,10 +477,11 @@ fn downloads_and_readme_claim_only_the_published_unsigned_prerelease() {
         "the status must report the Linux packages as built and smoke-tested: {status}"
     );
     for published in [
-        "maze-chase-v0.1.0-rc.1",
-        "40161835683",
+        "maze-chase-v0.1.0-rc.2",
+        "41080938033",
         "prerelease",
         "unsigned",
+        "ad-hoc signed",
     ] {
         assert!(
             status.contains(published),
@@ -485,7 +528,13 @@ fn downloads_and_readme_claim_only_the_published_unsigned_prerelease() {
         readme.contains("Linux release packages (deb, rpm, tarballs) are built and smoke-tested"),
         "the README must report the Linux packages as built and smoke-tested"
     );
-    for published in ["maze-chase-v0.1.0-rc.1", "40161835683", "unsigned", "#683"] {
+    for published in [
+        "maze-chase-v0.1.0-rc.2",
+        "41080938033",
+        "unsigned",
+        "ad-hoc signed",
+        "#683",
+    ] {
         assert!(
             readme.contains(published),
             "the README must report the published candidate ({published})"

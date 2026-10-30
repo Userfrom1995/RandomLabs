@@ -13,14 +13,22 @@
 # Uninstall with uninstall-linux.sh in this directory.
 set -euo pipefail
 
+usage() {
+  echo "usage: install-linux.sh [--prefix DIR] [--tarball FILE]" >&2
+}
+
 PREFIX="$HOME/.local"
 TARBALL=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --prefix) PREFIX="$2"; shift 2 ;;
-    --tarball) TARBALL="$2"; shift 2 ;;
-    *) echo "unknown argument: $1" >&2; exit 2 ;;
+    --prefix)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then usage; exit 2; fi
+      PREFIX="$2"; shift 2 ;;
+    --tarball)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then usage; exit 2; fi
+      TARBALL="$2"; shift 2 ;;
+    *) usage; echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 

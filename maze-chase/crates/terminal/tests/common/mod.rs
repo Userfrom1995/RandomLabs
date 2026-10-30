@@ -178,6 +178,28 @@ fn contains_word_start(haystack: &str, needle: &str) -> bool {
     })
 }
 
+/// Match `phrase` at a word start unless the preceding clause negates it,
+/// so "not notarized" and "never notarized" stay allowed while a positive
+/// notarization claim is still rejected.
+fn contains_unnegated_word_start(haystack: &str, needle: &str) -> bool {
+    haystack.match_indices(needle).any(|(index, _)| {
+        let before = &haystack[..index];
+        let starts_word = before
+            .chars()
+            .next_back()
+            .map(|previous| !previous.is_alphanumeric())
+            .unwrap_or(true);
+        if !starts_word {
+            return false;
+        }
+        !before
+            .split_whitespace()
+            .rev()
+            .take(3)
+            .any(|word| matches!(word, "not" | "never"))
+    })
+}
+
 /// Return the first artifact-signing or stable-release claim in `text`,
 /// leaving the legitimate "signed parity gate" and "design pass signed"
 /// wording alone.
@@ -213,7 +235,12 @@ pub fn signing_or_stable_claim(text: &str) -> Option<String> {
         "completed signing",
         "authenticode signed",
     ] {
-        if contains_word_start(&lower, phrase) {
+        let found = if phrase == "notariz" {
+            contains_unnegated_word_start(&lower, phrase)
+        } else {
+            contains_word_start(&lower, phrase)
+        };
+        if found {
             return Some(format!("claims signing: {phrase}"));
         }
     }
@@ -291,8 +318,8 @@ pub fn release_copy_surfaces() -> Vec<(&'static str, String)> {
         let text = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("release-copy surface {name} must be readable: {e}"));
         assert!(
-            text.contains("maze-chase-v0.1.0-rc.1"),
-            "{name} must name the published v0.1.0-rc.1 candidate"
+            text.contains("maze-chase-v0.1.0-rc.2"),
+            "{name} must name the published v0.1.0-rc.2 candidate"
         );
         let lower = text.to_lowercase();
         assert!(
