@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 17249; source-fnv: 3d94a06d7aa5ccd8; output-fnv: 0aecc78861002218 -->
+<!-- generated from docs/release.md; source-bytes: 17567; source-fnv: 589fc204eb89eb7b; output-fnv: c634abac72ac7ea5 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -135,7 +135,7 @@ maze-chase-desktop --version
 sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop</code></pre>
 <p>The desktop package installs <code>/usr/bin/maze-chase-desktop</code>, the desktop entry, and the icon, and its removal scripts refresh the desktop and icon caches. The tarball installs per-user with the same <code>install-linux.sh</code> / <code>uninstall-linux.sh</code> pair.</p>
 <h3 id="macos-desktop">macOS, desktop</h3>
-<p>Open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball and copy <code>Maze Chase.app</code> there. The app is unsigned, so the first launch needs a right-click Open (or System Settings, Privacy &amp; Security, Open Anyway). Upgrade by replacing the app; uninstall by moving it to the Bin. Letting macOS keep its settings is normal; remove <code>~/.maze-chase</code> to clear progress and settings.</p>
+<p>Open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball and copy <code>Maze Chase.app</code> there. The app bundle is ad-hoc signed, so the first launch shows the standard unidentified-developer dialog: choose Open Anyway (or System Settings, Privacy &amp; Security, Open Anyway, or a right-click Open). The published rc.1 app predates the ad-hoc signing step; a build from the current tree signs the bundle before the release uploads it. Upgrade by replacing the app; uninstall by moving it to the Bin. Letting macOS keep its settings is normal; remove <code>~/.maze-chase</code> to clear progress and settings.</p>
 <h3 id="macos-terminal">macOS, terminal</h3>
 <p>Extract the terminal tarball and run its <code>install-linux.sh</code> (the script is portable to macOS) or run the binary in place. Remove the installed binary and launch doc with <code>uninstall-linux.sh</code>, adding <code>--purge-config</code> to remove saved settings.</p>
 <h3 id="windows-desktop">Windows, desktop</h3>
@@ -156,7 +156,7 @@ sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop</c
 <pre><code class="language-sh">sha256sum -c SHA256SUMS.txt          # Linux
 shasum -a 256 -c SHA256SUMS.txt      # macOS
 Get-FileHash -Algorithm SHA256 &lt;file&gt; # Windows PowerShell</code></pre>
-<p>The release notes state the unsigned status. Windows SmartScreen and macOS Gatekeeper warnings are expected; they are not a signature claim.</p>
+<p>The release notes state the signing status: the terminal and Windows binaries are unsigned, and the macOS app bundle is ad-hoc signed. The first-launch SmartScreen and unidentified-developer prompts are expected; they are not a signature claim.</p>
 <h3 id="candidate-and-stable-releases">Candidate and stable releases</h3>
 <p>The 0.1.0 candidate is tagged <code>maze-chase-v0.1.0-rc.1</code> and published as an unsigned prerelease from release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a>. Before the stable release, re-run every per-OS install, upgrade, and uninstall row against those artifacts and re-sign the terminal matrix. Then bump the workspace version to <code>1.0.0</code> and cut <code>maze-chase-v1.0.0</code> as a stable release. No stable tag is cut while a binding check is open.</p>
 <h3 id="published-artifact-verification-linux">Published-artifact verification (Linux)</h3>
