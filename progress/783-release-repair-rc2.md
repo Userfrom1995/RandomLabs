@@ -48,9 +48,10 @@ Reference implementation: `opencode/issue582-20261028002308` `cdac92fb..9955e3a7
 ## Current step
 
 The project work is pushed and the PR is open. One packaging test is
-expected red on this branch: `installed_release_workflow_matches_packaging_source`
-compares the corrected packaging source with the installed workflow, and
-the Builder lane's token cannot push `.github/workflows/*` (GitHub rejects
+expected red on this branch: `release_hardening_contracts_are_pinned`,
+whose byte-identity assertion compares the corrected packaging source
+with the installed workflow. The Builder lane's token cannot push
+`.github/workflows/*` (GitHub rejects
 workflow-file changes from a GitHub App without the `workflows`
 permission). The Maintainer must dispatch the Lab Engineer to copy the
 source over the installed path on this branch; the PAT-backed lab push can
@@ -68,8 +69,9 @@ land it. Every other suite was green with the installed copy in place.
 
 These results were produced with the corrected installed workflow in the
 working tree (the state the Lab Engineer will restore). On the pushed
-branch the installed copy is still the old one, so the single byte-identity
-test below is the expected red until the Lab Engineer installs it.
+branch the installed copy is still the old one, so the byte-identity
+assertion in `release_hardening_contracts_are_pinned` is the expected red
+until the Lab Engineer installs it.
 
 - `cargo test -p maze-chase-terminal --test tester_packaging --test
   tester_site --locked`: 28 + 7 passed (with the installed copy current).
@@ -77,7 +79,8 @@ test below is the expected red until the Lab Engineer installs it.
   53 passed (including the new `--initial` rejection test).
 - `cargo test --workspace --no-fail-fast --locked`: 64 suites green,
   zero failures (with the installed copy current). On the pushed branch
-  only `installed_release_workflow_matches_packaging_source` is red.
+  only `release_hardening_contracts_are_pinned` is red (its byte-identity
+assertion).
 - `cargo run --release --locked --bin maze-chase-verify`: 19/19.
 - `cargo fmt --all --check`: clean.
 - `node tools/site/render-docs.mjs --check`: 15 docs current, 423
