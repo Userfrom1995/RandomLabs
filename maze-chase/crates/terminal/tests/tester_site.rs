@@ -419,6 +419,29 @@ fn rendered_docs_are_current_and_marked_with_their_source() {
 }
 
 #[test]
+fn rendered_docs_never_emit_a_blockquote() {
+    let docs = common::maze_root().join("docs");
+    let mut checked = 0;
+    for entry in fs::read_dir(&docs).expect("docs must be readable") {
+        let path = entry.expect("docs entry").path();
+        if !path.extension().map(|x| x == "html").unwrap_or(false) {
+            continue;
+        }
+        let html = fs::read_to_string(&path).expect("read rendered doc");
+        assert!(
+            !html.contains("<blockquote>"),
+            "{} must not render a blockquote; keep `>` tokens inline in the Markdown source",
+            path.display()
+        );
+        checked += 1;
+    }
+    assert!(
+        checked >= 15,
+        "expected the full rendered docs tree, checked {checked}"
+    );
+}
+
+#[test]
 fn every_internal_site_link_and_fragment_resolves() {
     let (checked, fragments_checked, problems) =
         common::check_internal_links(&common::site_pages());
