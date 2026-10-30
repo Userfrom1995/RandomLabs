@@ -49,9 +49,10 @@ runner and nav-pill contracts with `node --test`.
   HTTP and in chromium (every page's title, one h1, shared navigation,
   active item, no raw markdown links, no horizontal overflow at desktop
   and 390x844, every internal link and fragment resolving), proves the
-  current nav pill is fully visible and that a fitting pill stays
-  unscrolled while a clipped one is scrolled into view (platform font
-  metrics, not nav overflow, decide whether a scroll is needed), checks the
+  current nav pill is fully visible and that a clipped pill is scrolled
+  into view (a fully visible fitting pill is valid at any scroll offset;
+  platform font metrics, not nav overflow, decide whether a scroll is
+  needed), checks the
   game page's opened Site menu at 390x844 and the two short landscape
   sizes (480x320, 568x320), proves a wheel over the uncapped open menu
   still scrolls the page, boots the game-first `index.html`, starts a
