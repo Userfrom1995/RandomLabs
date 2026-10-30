@@ -11,8 +11,8 @@
 #
 # --probe additionally drives a real windowed frame through --probe 1;
 # the release job passes it on the macOS runner. The offered app is
-# unsigned, so the smoke checks the bundle and binary rather than
-# Gatekeeper acceptance.
+# ad-hoc signed (no Developer ID), so the smoke verifies the bundle
+# signature and binary rather than Gatekeeper acceptance.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

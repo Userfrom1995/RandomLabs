@@ -5,8 +5,10 @@
 #   bash maze-chase/packaging/desktop/macos-dmg.sh
 #
 # Output: dist/maze-chase-desktop-<version>-macos-<arch>.dmg with the
-# .app, the launch guide, and the license. The image is unsigned; the
-# first launch needs a right-click Open, then Gatekeeper remembers it.
+# .app, the launch guide, and the license. The app is ad-hoc signed (no
+# Developer ID), so the first launch shows the standard
+# unidentified-developer dialog and needs Open Anyway (or a right-click
+# Open), then Gatekeeper remembers it.
 # Disk images are not byte-reproducible (hdiutil records image metadata),
 # so the release publishes their SHA-256 instead of claiming identical
 # rebuilds.
