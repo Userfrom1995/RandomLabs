@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/desktop.md; source-bytes: 10118; source-fnv: 8cce417009df85a7; output-fnv: 02e8270c77af8022 -->
+<!-- generated from docs/desktop.md; source-bytes: 10200; source-fnv: 34377bcd13374bb5; output-fnv: 1b42e4175a48a152 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -63,7 +63,7 @@
 <ul>
 <li><strong>Linux</strong>: <code>sudo apt-get install libasound2-dev libudev-dev</code> (build-time ALSA headers for audio, udev headers for gamepad input) plus <code>libxkbcommon0 libxkbcommon-x11-0</code> (winit runtime for window creation and keyboard handling). Most desktop distributions already ship the xkbcommon pair; the ALSA and udev headers are the packages a fresh build machine is likely missing.</li>
 <li><strong>Windows</strong>: nothing beyond the Rust toolchain (WASAPI audio and Win32 windowing need no extra installs). The zip ships an unsigned <code>.exe</code>: the first launch shows the SmartScreen &quot;Windows protected your PC&quot; prompt (choose More info, then Run anyway), and Windows remembers the choice after that.</li>
-<li><strong>macOS</strong>: nothing beyond the Rust toolchain (CoreAudio and AppKit need no extra installs). The bundle is unsigned: first launch needs right-click Open, then Gatekeeper remembers it.</li>
+<li><strong>macOS</strong>: nothing beyond the Rust toolchain (CoreAudio and AppKit need no extra installs). The app bundle is ad-hoc signed, so first launch shows the standard unidentified-developer dialog: choose Open Anyway (or right-click Open), then Gatekeeper remembers it.</li>
 </ul>
 <p>Build and install from the repo root (<code>RandomLabs/</code>):</p>
 <pre><code class="language-sh"># Linux: release tarball plus install into $HOME/.local

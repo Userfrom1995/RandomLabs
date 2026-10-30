@@ -227,11 +227,15 @@ icon caches. The tarball installs per-user with the same
 ### macOS, desktop
 
 Open the dmg and drag `Maze Chase.app` to Applications, or extract the
-tarball and copy `Maze Chase.app` there. The app is unsigned, so the
-first launch needs a right-click Open (or System Settings, Privacy &
-Security, Open Anyway). Upgrade by replacing the app; uninstall by
-moving it to the Bin. Letting macOS keep its settings is normal; remove
-`~/.maze-chase` to clear progress and settings.
+tarball and copy `Maze Chase.app` there. The app bundle is ad-hoc
+signed, so the first launch shows the standard
+unidentified-developer dialog: choose Open Anyway (or System Settings,
+Privacy & Security, Open Anyway, or a right-click Open). The published
+rc.1 app predates the ad-hoc signing step; a build from the current
+tree signs the bundle before the release uploads it. Upgrade by
+replacing the app; uninstall by moving it to the Bin. Letting macOS
+keep its settings is normal; remove `~/.maze-chase` to clear progress
+and settings.
 
 ### macOS, terminal
 
@@ -300,8 +304,10 @@ shasum -a 256 -c SHA256SUMS.txt      # macOS
 Get-FileHash -Algorithm SHA256 <file> # Windows PowerShell
 ```
 
-The release notes state the unsigned status. Windows SmartScreen and
-macOS Gatekeeper warnings are expected; they are not a signature claim.
+The release notes state the signing status: the terminal and Windows
+binaries are unsigned, and the macOS app bundle is ad-hoc signed. The
+first-launch SmartScreen and unidentified-developer prompts are
+expected; they are not a signature claim.
 
 ### Candidate and stable releases
 

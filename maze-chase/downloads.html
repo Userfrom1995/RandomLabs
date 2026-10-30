@@ -39,8 +39,9 @@
     smoke-tested; the Windows and macOS rows are built and smoked by their
     native jobs in
     <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>.
-    The binaries are unsigned, and the release stays a prerelease until the
-    stable tag.</p>
+    The terminal and Windows binaries are unsigned; the macOS app bundle
+    is ad-hoc signed, and the release stays a prerelease until the stable
+    tag.</p>
   </div>
 
   <div class="btn-row">
@@ -118,8 +119,9 @@
   prerelease. Linux and Windows exercise install, launch, and uninstall in
   <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>;
   macOS validates the app bundle, dmg mount, tarball, and a real windowed
-  probe. The files are unsigned, so SmartScreen and Gatekeeper warnings are
-  expected.</p>
+  probe. The terminal and Windows binaries are unsigned; the macOS app
+  bundle is ad-hoc signed, so SmartScreen and unidentified-developer
+  warnings are expected.</p>
 
   <p>The measured record behind these rows lives in the
   <a href="docs/scoreboard.html">release scoreboard</a> and the
@@ -137,9 +139,11 @@ shasum -a 256 -c SHA256SUMS.txt
 
 # Windows PowerShell (one file at a time)
 Get-FileHash -Algorithm SHA256 .\maze-chase-terminal-0.1.0-windows-x86_64.zip</code></pre>
-  <p>The binaries are unsigned. Windows SmartScreen and macOS Gatekeeper warn
-  on first launch; those prompts are expected and are not a signature claim.
-  See <a href="releases.html">Releases</a> for the current version and notes.</p>
+  <p>The terminal and Windows binaries are unsigned, and the macOS app bundle
+  is ad-hoc signed. Windows SmartScreen and the macOS unidentified-developer
+  prompt appear on first launch; those prompts are expected and are not a
+  signature claim. See <a href="releases.html">Releases</a> for the current
+  version and notes.</p>
 
   <h2 id="requirements">System requirements</h2>
   <div class="grid">
