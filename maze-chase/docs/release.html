@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 17851; source-fnv: 9f41f6fb5c31df0c; output-fnv: bffa0f865f6ba20e -->
+<!-- generated from docs/release.md; source-bytes: 18043; source-fnv: 6b50bba619a5cd44; output-fnv: 9a0f68a98d060288 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -156,7 +156,7 @@ sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop</c
 <pre><code class="language-sh">sha256sum -c SHA256SUMS.txt          # Linux
 shasum -a 256 -c SHA256SUMS.txt      # macOS
 Get-FileHash -Algorithm SHA256 &lt;file&gt; # Windows PowerShell</code></pre>
-<p>The release notes state the signing status: the terminal and Windows binaries are unsigned, and the macOS app bundle is ad-hoc signed. The first-launch SmartScreen and unidentified-developer prompts are expected; they are not a signature claim.</p>
+<p>The release notes for candidates cut by this pipeline state the signing status: the terminal and Windows binaries are unsigned, and the macOS app bundle is ad-hoc signed. The published rc.1 release predates that step, so its notes still describe an unsigned app; use a current-tree build until the next candidate is published. The first-launch SmartScreen and unidentified-developer prompts are expected; they are not a signature claim.</p>
 <h3 id="candidate-and-stable-releases">Candidate and stable releases</h3>
 <p>The 0.1.0 candidate is tagged <code>maze-chase-v0.1.0-rc.1</code> and published as an unsigned prerelease from release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a>. Every later repair candidate is cut as a new tag: a branch dispatch of the release pipeline takes an optional <code>rc</code> input, or picks the next unused <code>maze-chase-v0.1.0-rc.N</code> tag, so a published candidate is never republished at a different commit. Before the stable release, re-run every per-OS install, upgrade, and uninstall row against those artifacts and re-sign the terminal matrix. Then bump the workspace version to <code>1.0.0</code> and cut <code>maze-chase-v1.0.0</code> as a stable release. No stable tag is cut while a binding check is open.</p>
 <h3 id="published-artifact-verification-linux">Published-artifact verification (Linux)</h3>
