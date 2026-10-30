@@ -436,7 +436,6 @@ jobs:
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
-          PR_STATE: ${{ steps.pr-info.outputs.pr_state }}
           # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
           # rewrites any argv that looks like a POSIX absolute path before the
           # child process sees it, so a --body value starting with "/oc" landed
@@ -455,6 +454,13 @@ jobs:
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
+          # Issue #781 F2: the job-start pr_state snapshot goes stale while the
+          # arm runs. Re-read the live state immediately before the handoff so
+          # a PR merged or closed mid-run can never receive a dead /oc fix.
+          live_state=""
+          if [ "$is_pr" = "true" ]; then
+            live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          fi
           # Conversion-proof poster (issue #612): the body travels on stdin
           # (--body-file -), never in argv, so MSYS path conversion can never
           # rewrite the "/oc" prefix. Audit rule R18 asserts this contract.
@@ -463,8 +469,8 @@ jobs:
           }
           case "$action" in
             fix)
-              if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then
-                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${PR_STATE:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
+              if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
+                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
                 post_trigger "/oc maintainer"
               elif echo "$head_ref" | grep -q "opencode/lab"; then
                 post_trigger "/oc lab"
@@ -956,7 +962,6 @@ jobs:
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
-          PR_STATE: ${{ steps.pr-info.outputs.pr_state }}
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
@@ -970,6 +975,13 @@ jobs:
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
+          # Issue #781 F2: the job-start pr_state snapshot goes stale while the
+          # arm runs. Re-read the live state immediately before the handoff so
+          # a PR merged or closed mid-run can never receive a dead /oc fix.
+          live_state=""
+          if [ "$is_pr" = "true" ]; then
+            live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          fi
           # Conversion-proof poster (issue #612): the body travels on stdin
           # (--body-file -), never in argv. Audit rule R18 asserts this contract.
           post_trigger() {
@@ -977,8 +989,8 @@ jobs:
           }
           case "$action" in
             fix)
-              if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then
-                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${PR_STATE:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
+              if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
+                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
                 post_trigger "/oc maintainer"
               elif echo "$head_ref" | grep -q "opencode/lab"; then
                 post_trigger "/oc lab"
@@ -1461,7 +1473,6 @@ jobs:
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
-          PR_STATE: ${{ steps.pr-info.outputs.pr_state }}
           # Issue #612: the live regression. Under Git Bash on windows-latest,
           # MSYS2 path conversion rewrote the --body value "/oc maintainer"
           # into "C:/Program Files/Git/oc maintainer" before gh ever saw it
@@ -1479,6 +1490,13 @@ jobs:
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
+          # Issue #781 F2: the job-start pr_state snapshot goes stale while the
+          # arm runs. Re-read the live state immediately before the handoff so
+          # a PR merged or closed mid-run can never receive a dead /oc fix.
+          live_state=""
+          if [ "$is_pr" = "true" ]; then
+            live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          fi
           # Conversion-proof poster (issue #612): printf -> pipe -> gh reads the
           # body from stdin (--body-file -), so no "/oc" string is ever an argv
           # element of a native process and MSYS conversion has nothing to
@@ -1489,8 +1507,8 @@ jobs:
           }
           case "$action" in
             fix)
-              if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then
-                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${PR_STATE:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
+              if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
+                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
                 post_trigger "/oc maintainer"
               elif echo "$head_ref" | grep -q "opencode/lab"; then
                 post_trigger "/oc lab"

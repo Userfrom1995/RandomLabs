@@ -72,6 +72,7 @@ jobs:
             head_oid=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid')
             echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
             echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$pr" >> "$GITHUB_OUTPUT"
             echo "is_pr=true" >> "$GITHUB_OUTPUT"
           else
             issue="${{ github.event.issue.number }}"
@@ -82,6 +83,9 @@ jobs:
               head_oid=$(gh pr view "$linked_pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid')
               echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
               echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"
+              # Issue #781 F1: a /oc review on a linked issue must guard the
+              # LIVE linked PR, not the issue number (which has no PR state).
+              echo "pr_number=$linked_pr" >> "$GITHUB_OUTPUT"
               echo "is_pr=true" >> "$GITHUB_OUTPUT"
             else
               echo "is_pr=false" >> "$GITHUB_OUTPUT"
@@ -89,11 +93,39 @@ jobs:
             fi
           fi
 
-      # Checkout runs unconditionally so the shared actor-write gate below
-      # always has its script: on a non-PR issue it falls back to the default
-      # branch (issue #428). The gate must precede the notice step below so a
-      # denied trigger produces no comment at all.
+      - name: Guard - target must be an OPEN pull request
+        id: review_guard
+        if: steps.pr-info.outputs.is_pr == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          # Issue #781: a /oc review on a merged or closed PR used to run the
+          # whole review lane against dead code (agent tokens, a verdict post,
+          # and a forward handoff). Resolve the live PR state first and publish
+          # `open=` so every downstream step stays skipped when the target is
+          # not OPEN. A failed or empty state read is refused (fail closed to a
+          # clean skip, never a blind run). F1: the guard runs immediately
+          # after `Get PR info` and searches the RESOLVED PR number (a linked
+          # issue is not a PR and has no PR state). F3: it precedes checkout so
+          # a merged PR with a deleted head still takes the clean-skip path.
+          pr="${{ steps.pr-info.outputs.pr_number }}"
+          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$pr_state" != "OPEN" ]; then
+            echo "::notice::/oc review was triggered on PR #$pr which is not an OPEN pull request (state='${pr_state:-unknown}'); skipping the review run (issue #781)."
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "open=true" >> "$GITHUB_OUTPUT"
+          echo "Target PR #$pr is OPEN; proceeding with review."
+
+      # Checkout, prompt staging, and the actor gate run for a non-PR issue
+      # (the no-linked-PR notice below needs the gate script) and for an OPEN
+      # PR. A non-OPEN PR skips all three so a merged PR whose head branch was
+      # deleted can never fail here before the clean-skip path (issue #781 F3).
       - name: Checkout repository (PR head)
+        if: steps.pr-info.outputs.is_pr != 'true' || steps.review_guard.outputs.open == 'true'
         uses: actions/checkout@v6
         with:
           persist-credentials: true
@@ -102,6 +134,7 @@ jobs:
           fetch-depth: 0
 
       - name: Stage the reviewer system prompt from the workflow commit
+        if: steps.pr-info.outputs.is_pr != 'true' || steps.review_guard.outputs.open == 'true'
         run: |
           set -o pipefail
           # Issue #713 Tester finding: the reviewer prompt was read from the
@@ -128,6 +161,7 @@ jobs:
 
       - name: "Actor write gate (issue #428)"
         id: actor_gate
+        if: steps.pr-info.outputs.is_pr != 'true' || steps.review_guard.outputs.open == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -158,30 +192,6 @@ jobs:
             exit 1
           fi
           bash "$gate_script"
-
-      - name: Guard - target must be an OPEN pull request
-        id: review_guard
-        if: steps.pr-info.outputs.is_pr == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -o pipefail
-          # Issue #781: a /oc review on a merged or closed PR used to run the
-          # whole review lane against dead code (agent tokens, a verdict post,
-          # and a forward handoff). Resolve the live PR state first and publish
-          # `open=` so every downstream step stays skipped when the target is
-          # not OPEN. A failed or empty state read is refused (fail closed to a
-          # clean skip, never a blind run).
-          pr="${{ github.event.issue.number }}"
-          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
-          if [ "$pr_state" != "OPEN" ]; then
-            echo "::notice::/oc review was triggered on #$pr which is not an OPEN pull request (state='${pr_state:-unknown}'); skipping the review run (issue #781)."
-            echo "open=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "open=true" >> "$GITHUB_OUTPUT"
-          echo "Target #$pr is OPEN; proceeding with review."
 
       - name: Skip review for non-PR issue
         if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr != 'true'
@@ -221,20 +231,20 @@ jobs:
 
       - name: Record checked-out PR head
         id: checkout-head
-        if: steps.pr-info.outputs.is_pr == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         run: |
           oid=$(git rev-parse --verify HEAD 2>/dev/null || echo "")
           echo "oid=$oid" >> "$GITHUB_OUTPUT"
           echo "Checked-out PR head: ${oid:-<none>}"
 
       - name: Configure git identity
-        if: steps.pr-info.outputs.is_pr == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         run: |
           git config --global user.name "The Reviewer"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
-        if: steps.pr-info.outputs.is_pr == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         run: |
           rm -f /tmp/random-lab-decision.json
           nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
@@ -245,7 +255,7 @@ jobs:
           echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner when the checked-out head predates it
-        if: steps.pr-info.outputs.is_pr == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         run: |
           set -o pipefail
           # Local `uses: ./.github/actions/opencode-run` resolves against this
@@ -355,6 +365,15 @@ jobs:
           # reaches the agent step, and the publisher verifies owner
           # authorship, so a PR cannot forge a signed review comment with the
           # job token.
+          # Issue #781 F4: a PR that closes between the guard and this step
+          # must not receive a new verdict comment. Re-read the live state
+          # immediately before publishing and skip cleanly.
+          live_pr="${{ steps.pr-info.outputs.pr_number }}"
+          live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$live_state" != "OPEN" ]; then
+            echo "::notice::Target PR #$live_pr is no longer OPEN (state='${live_state:-unknown}'); skipping reviewer report publication (issue #781)."
+            exit 0
+          fi
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file; the verify step below handles the crash."
             exit 0
@@ -429,6 +448,19 @@ jobs:
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the reviewer agent (issue #428): denial is not a crash - no auto-retry, no escalation."
             echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Issue #781 F4: a PR that closes while the reviewer runs must not
+          # auto-retry, force-lab-route, or forward a verdict. Re-read the
+          # live state HERE (the guard's snapshot is the start of the run) and
+          # publish skip_forward so both downstream handoff steps stay
+          # skipped even if one of them would otherwise pass.
+          live_pr="${{ steps.pr-info.outputs.pr_number }}"
+          live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$live_state" != "OPEN" ]; then
+            echo "::notice::Target PR #$live_pr is no longer OPEN (state='${live_state:-unknown}'); skipping the verdict forward and auto-retry (issue #781)."
+            echo "skip_forward=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -603,7 +635,7 @@ jobs:
           echo "::notice::PR #$pr head moved during the review (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual); the review job is read-only and leaves the head untouched."
 
       - name: Force lab routing for infrastructure PRs
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
@@ -658,7 +690,7 @@ jobs:
           fi
 
       - name: Forward reviewer decision
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
