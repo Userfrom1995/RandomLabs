@@ -43,10 +43,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$INITIAL" in
-  [0-9]*x[0-9]*) ;;
-  *) echo "run-macos.sh: --initial must be COLSxROWS (got: $INITIAL)" >&2; exit 2 ;;
-esac
+if [[ ! "$INITIAL" =~ ^[0-9]+x[0-9]+$ ]]; then
+  echo "run-macos.sh: --initial must be COLSxROWS (got: $INITIAL)" >&2
+  exit 2
+fi
 
 [ "$(uname -s)" = "Darwin" ] || { echo "run-macos.sh: this runner is not macOS" >&2; exit 3; }
 for dep in python3 jq; do
