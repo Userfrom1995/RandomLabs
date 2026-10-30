@@ -2346,3 +2346,33 @@ are reconciled to the rc.1 evidence.
   every edit and ran the verification set. Skills: no registry skill
   matched. The macOS and Windows rows and the real-speaker review
   remain open; the stable tag stays gated. - the Fixer
+
+- 2026-10-30 (fixer, macOS Tester fix round on merged `cdac92fb` at
+  head `75fe4f51`): applied the blocking packaging defect and the
+  macOS-only harness/E2E findings. Blocking: `macos-app.sh` now ad-hoc
+  signs the staged app bundle (`codesign --force --deep --sign -`) and
+  verifies it, because the linker-signed executable with no
+  `CodeResources` made a quarantined download report
+  "is damaged and can't be opened" instead of the unidentified-developer
+  prompt; `smoke-macos.sh` runs `codesign --verify --deep --strict`
+  before uploading; the docs now say the bundle is ad-hoc signed and
+  the first launch uses Open Anyway (rc.1 remains the older unsigned
+  prerelease). Harness: `run-macos.sh` applies `--initial` in Terminal,
+  iTerm2, and Ghostty, and records the commit, portable SHA-256, and
+  dirty flag like the Linux arm; `collect.py` records a
+  too-small-card-only session as unverified instead of partial
+  gameplay. E2E: the site nav overflow assertion is gated on real
+  overflow and the resize re-reveal runs at 320x568; the browser fright
+  route runs on a controlled 16 ms clock (frame-counted legs and polled
+  early/tail windows), the mute cue target is polled, and theme labels
+  are awaited before the contrast checks. The installed release
+  workflow and the packaging source stay byte-identical; the
+  release-note copy is unchanged because the fix lane cannot push
+  workflow files, so the signing guidance lives in the project docs.
+  The published rc.1 rebuild from merged head remains a release action.
+  Verification: `cargo test -p maze-chase-terminal --no-fail-fast
+  --locked` 277 passed / 0 failed, `cargo fmt --all --check` clean,
+  `maze-chase-verify` 19/19, `python3 tools/compat/tests/test_harness_contract.py`
+  52/52, `render-docs.mjs --check` 15 docs current with 423 links,
+  site E2E 673/673, and browser E2E 279/279 (Linux; the macOS lane
+  re-runs its own suite). - the Fixer
