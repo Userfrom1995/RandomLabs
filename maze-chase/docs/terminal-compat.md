@@ -17,7 +17,13 @@ means the game process exited on its own and the captures rendered;
 too late for the process to exit before the harness timeout, or captures
 failed the render check) with the exact reason in the JSON
 (`exit.killed`, `light_background_captures`); `unverified` means the row
-did not execute.
+did not execute. A transcript-driven `pass` also requires every fixed
+checkpoint (`title`, `playing`, `paused`, `title-return`, `help`,
+`scores`, `settings`, plus the resize checkpoints when the driver
+exercised resizes) to be present, non-empty, and captured; a driver that
+sees no transcript output within its bounded readiness wait records a
+`readiness-timeout` and the row is `unverified`, never a blank-session
+pass.
 
 ## Executed rows (Linux, published rc.1 artifacts)
 
