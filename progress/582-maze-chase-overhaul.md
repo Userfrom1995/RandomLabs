@@ -2367,10 +2367,10 @@ are reconciled to the rc.1 evidence.
   early/tail windows), the mute cue target is polled, and theme labels
   are awaited before the contrast checks. The installed release
   workflow and the packaging source stay byte-identical; the
-  release-note copy is unchanged because the fix lane cannot push
-  workflow files, so the signing guidance lives in the project docs.
-  The published rc.1 rebuild from merged head remains a release action.
-  Verification: `cargo test -p maze-chase-terminal --no-fail-fast
+  release-note copy and the fresh-candidate dispatch landed on the
+  fresh lane #783, so the signing guidance is also in the release
+  notes. The published rc.1 rebuild from merged head remains a release
+  action. Verification: `cargo test -p maze-chase-terminal --no-fail-fast
   --locked` 277 passed / 0 failed, `cargo fmt --all --check` clean,
   `maze-chase-verify` 19/19, `python3 tools/compat/tests/test_harness_contract.py`
   52/52, `render-docs.mjs --check` 15 docs current with 423 links,
