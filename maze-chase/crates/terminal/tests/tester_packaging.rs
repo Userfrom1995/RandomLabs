@@ -793,6 +793,21 @@ fn tarballs_ship_the_documented_installers_and_smoke_uses_them() {
         macos.contains("maze-chase-terminal-*") && macos.contains("maze-chase-desktop-*"),
         "macOS smoke must classify terminal and desktop tarballs separately"
     );
+    assert!(
+        macos.contains("codesign --verify --deep --strict"),
+        "macOS smoke must verify the bundle signature Gatekeeper checks"
+    );
+    let app = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("desktop")
+            .join("macos-app.sh"),
+    )
+    .unwrap();
+    assert!(
+        app.contains("codesign --force --deep --sign - \"$APP\""),
+        "the macOS app bundle must be ad-hoc signed after staging"
+    );
 }
 
 #[test]
