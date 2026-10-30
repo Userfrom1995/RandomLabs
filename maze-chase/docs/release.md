@@ -10,9 +10,11 @@ The Linux packaging and smoke rows were executed on the release
 container for this tree. The installed
 `.github/workflows/maze-chase-release.yml` then built and smoke-tested
 the Linux, Windows, and macOS rows in release run
-[40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683),
-which published the unsigned `maze-chase-v0.1.0-rc.1` prerelease. The
-measured record lives in [scoreboard.md](scoreboard.md) and the signed
+[41080938033](https://github.com/Userfrom1995/RandomLabs/actions/runs/41080938033),
+which published the `maze-chase-v0.1.0-rc.2` prerelease with 13 assets.
+The terminal and Windows binaries are unsigned; the macOS app is ad-hoc
+signed, passes `codesign --verify --deep --strict`, and is not notarized.
+The measured record lives in [scoreboard.md](scoreboard.md) and the signed
 parity gate in [parity.md](parity.md).
 
 ## Toolchain
@@ -78,7 +80,7 @@ scripts read the workspace version, so the binary, the package
 metadata, the archive names, and the docs cannot drift.
 
 A release tag is exactly `maze-chase-v<workspace version>`; a candidate
-adds a numeric suffix such as `maze-chase-v0.1.0-rc.1`. Before any
+adds a numeric suffix such as `maze-chase-v0.1.0-rc.2`. Before any
 build, the pipeline runs:
 
 ```sh
@@ -227,15 +229,19 @@ icon caches. The tarball installs per-user with the same
 ### macOS, desktop
 
 Open the dmg and drag `Maze Chase.app` to Applications, or extract the
-tarball and copy `Maze Chase.app` there. The app bundle is ad-hoc
-signed, so the first launch shows the standard
-unidentified-developer dialog: choose Open Anyway (or System Settings,
-Privacy & Security, Open Anyway, or a right-click Open). The published
-rc.1 app predates the ad-hoc signing step; a build from the current
-tree signs the bundle before the release uploads it. Upgrade by
-replacing the app; uninstall by moving it to the Bin. Letting macOS
-keep its settings is normal; remove `~/.maze-chase` to clear progress
-and settings.
+tarball and copy `Maze Chase.app` there. The rc.2 app bundle is ad-hoc
+signed and passes `codesign --verify --deep --strict`, so a quarantined
+download shows the unidentified-developer dialog, not the damaged-app
+dialog. It is not notarized and has no Apple Developer ID. On macOS 15
+and later, approve it in System Settings > Privacy & Security > Security
+> Open Anyway; a right-click Open can still end at the Not Opened dialog
+with `Done`. The earlier rc.1 app is unchanged at tag commit
+`11a0037b`; it fails code-signature verification and opens as damaged,
+so install rc.2 instead. This guide is copied into the dmg and tarball
+as `README-desktop.md`; the published rc.2 asset is immutable, so the
+corrected text ships in the next candidate. Upgrade by replacing the
+app; uninstall by moving it to the Bin. Letting macOS keep its settings
+is normal; remove `~/.maze-chase` to clear progress and settings.
 
 ### macOS, terminal
 
@@ -306,18 +312,23 @@ Get-FileHash -Algorithm SHA256 <file> # Windows PowerShell
 
 The release notes for candidates cut by this pipeline state the signing
 status: the terminal and Windows binaries are unsigned, and the macOS app
-bundle is ad-hoc signed. The published rc.1 release predates that step,
-so its notes still describe an unsigned app; use a current-tree build
-until the next candidate is published. The first-launch SmartScreen and
+bundle is ad-hoc signed, passes `codesign --verify --deep --strict`, and
+is not notarized. The rc.2 notes carry that status. The published rc.1
+release predates the ad-hoc signing step, so its notes still describe an
+unsigned app; its macOS app fails code-signature verification and opens
+as damaged, so install rc.2 instead. The first-launch SmartScreen and
 unidentified-developer prompts are expected; they are not a signature
-claim.
+claim. On macOS 15 and later, approve the app in System Settings >
+Privacy & Security > Security > Open Anyway.
 
 ### Candidate and stable releases
 
-The 0.1.0 candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
-an unsigned prerelease from release run
-[40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683).
-Every later repair candidate is cut as a new tag: a branch dispatch of
+The 0.1.0 candidate is tagged `maze-chase-v0.1.0-rc.2` and published as
+a prerelease with 13 assets from release run
+[41080938033](https://github.com/Userfrom1995/RandomLabs/actions/runs/41080938033).
+The earlier rc.1 candidate is unchanged at tag commit `11a0037b`; its
+macOS app fails code-signature verification and opens as damaged. Every
+later repair candidate is cut as a new tag: a branch dispatch of
 the release pipeline takes an optional `rc` input, or picks the next
 unused `maze-chase-v0.1.0-rc.N` tag, so a published candidate is never
 republished at a different commit. Before the stable release, re-run
@@ -359,9 +370,8 @@ from tag commit `11a0037b`; all eight rows pass with
   console output was transient and is not committed, and the committed
   harnesses re-run the same commands.
 
-The Linux rows are complete, while the macOS and Windows per-OS rows
-and the real-speaker review remain open. The stable tag therefore stays
-gated.
+At the time of that rc.1 pass, the macOS and Windows per-OS rows and the
+real-speaker review remained open. The stable tag therefore stays gated.
 
 ## Clean-checkout release checklist
 

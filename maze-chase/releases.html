@@ -37,17 +37,20 @@
       <p><strong>0.1.0</strong> from <code>maze-chase/Cargo.toml</code>. Every
       crate inherits it, so the game, packages, and docs cannot drift.</p>
       <p class="meta">Published tag:
-      <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1"><code>maze-chase-v0.1.0-rc.1</code></a>
+      <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.2"><code>maze-chase-v0.1.0-rc.2</code></a>
       (prerelease)<br />
       Stable tag: <code>maze-chase-v1.0.0</code>, cut after the final checks</p>
     </div>
     <div class="card">
       <h3>Current status</h3>
-      <p>The 0.1.0 candidate was tagged <code>maze-chase-v0.1.0-rc.1</code> and
-      published as a prerelease on 2026-10-25. Its native Linux, Windows, and
-      macOS jobs all passed in
-      <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>.
-      No stable tag is cut while a binding check is open.</p>
+      <p>The 0.1.0 candidate was tagged <code>maze-chase-v0.1.0-rc.2</code> and
+      published as a prerelease on 2026-10-30 with 13 assets. Its native
+      Linux, Windows, and macOS jobs all passed in
+      <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/41080938033">release run 41080938033</a>.
+      The earlier rc.1 candidate is unchanged at tag commit
+      <code>11a0037b</code>; its macOS app fails code-signature verification
+      and opens as damaged. No stable tag is cut while a binding check is
+      open.</p>
       <p class="meta"><span class="status ok">Release candidate published</span></p>
     </div>
     <div class="card">
@@ -126,9 +129,13 @@
   <a href="downloads.html">Downloads</a> for the current build status of each
   row.</p>
   <p>The published
-  <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1">rc.1 prerelease</a>
-  carries these unsigned files, with one <code>SHA256SUMS.txt</code> for the
-  complete set:</p>
+  <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.2">rc.2 prerelease</a>
+  carries these files, with one <code>SHA256SUMS.txt</code> for the complete
+  set. The terminal and Windows binaries are unsigned; the macOS app is
+  ad-hoc signed, passes <code>codesign --verify --deep --strict</code>, and is
+  not notarized. The rc.2 dmg and tarball embed the desktop guide as
+  <code>README-desktop.md</code> from the rc.2 tag; that published copy is
+  immutable, so the corrected text ships in the next candidate.</p>
   <ul>
     <li>Linux: <code>maze-chase-terminal_0.1.0_amd64.deb</code>,
     <code>maze-chase-terminal-0.1.0-1.x86_64.rpm</code>,
@@ -159,15 +166,20 @@
     so it is checksummed rather than claimed byte-reproducible.</li>
     <li>Every release publishes one <code>SHA256SUMS.txt</code> for the whole
     set. The per-host toolchain records are folded into the release notes.</li>
-    <li>The published rc.1 binaries are unsigned. A build from the current
-    tree ad-hoc signs the macOS app bundle; SmartScreen and
-    unidentified-developer warnings are expected and are not a signature
-    claim.</li>
+    <li>The published rc.2 terminal and Windows binaries are unsigned. The
+    macOS app is ad-hoc signed and passes
+    <code>codesign --verify --deep --strict</code>; it is not notarized and has
+    no Apple Developer ID. SmartScreen and unidentified-developer warnings are
+    expected and are not a signature claim. On macOS 15 and later, approve the
+    app in System Settings &gt; Privacy &amp; Security &gt; Security &gt; Open
+    Anyway; a right-click Open can still end at the Not Opened dialog. The
+    earlier rc.1 app is unchanged at tag commit <code>11a0037b</code>; it fails
+    code-signature verification and opens as damaged.</li>
   </ul>
 
   <h2 id="contract">Version and tag contract</h2>
   <p>A release tag is exactly <code>maze-chase-v&lt;workspace version&gt;</code>.
-  A candidate adds a numeric suffix such as <code>-rc.1</code>. Before any
+  A candidate adds a numeric suffix such as <code>-rc.2</code>. Before any
   build, the pipeline checks that the tag matches the workspace version and
   fails closed on a mismatch. A branch dispatch is allowed as a non-release
   build. Published tags are never moved or reused.</p>

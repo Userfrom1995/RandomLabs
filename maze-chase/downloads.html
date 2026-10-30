@@ -33,16 +33,17 @@
 
   <div class="callout" id="release-status">
     <p><strong>Release status.</strong> The
-    <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1"><code>maze-chase-v0.1.0-rc.1</code></a>
-    prerelease (published 2026-10-25) ships the Linux, Windows, and macOS
-    terminal and desktop artifacts. The Linux packages are built and
+    <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.2"><code>maze-chase-v0.1.0-rc.2</code></a>
+    prerelease (published 2026-10-30, 13 assets) ships the Linux, Windows, and
+    macOS terminal and desktop artifacts. The Linux packages are built and
     smoke-tested; the Windows and macOS rows are built and smoked by their
     native jobs in
-    <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>.
-    The terminal and Windows binaries are unsigned; a build from the
-    current tree ad-hoc signs the macOS app bundle, and the release stays a
-    prerelease until the stable tag. The published rc.1 app predates that
-    signing step.</p>
+    <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/41080938033">release run 41080938033</a>.
+    The terminal and Windows binaries are unsigned; the macOS app is ad-hoc
+    signed, passes <code>codesign --verify --deep --strict</code>, and is not
+    notarized. A quarantined download shows the unidentified-developer dialog,
+    not the damaged-app dialog. The release stays a prerelease until the stable
+    tag.</p>
   </div>
 
   <div class="btn-row">
@@ -109,23 +110,29 @@
         <td><code>Maze Chase.app</code> (inside the dmg and tarball),<br />
         <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.dmg</code>,<br />
         <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.tar.gz</code></td>
-        <td><span class="status ok">Published (unsigned)</span></td>
+        <td><span class="status ok">Published (ad-hoc signed)</span></td>
       </tr>
     </tbody>
   </table>
   </div>
 
   <p>Every native row above is published in the
-  <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1"><code>maze-chase-v0.1.0-rc.1</code></a>
+  <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.2"><code>maze-chase-v0.1.0-rc.2</code></a>
   prerelease. Linux and Windows exercise install, launch, and uninstall in
-  <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>;
+  <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/41080938033">release run 41080938033</a>;
   macOS validates the app bundle, dmg mount, tarball, and a real windowed
-  probe. The terminal and Windows binaries are unsigned; a build from the
-  current tree ad-hoc signs the macOS app bundle, so SmartScreen and the
-  unidentified-developer prompt are expected. The published rc.1 app
-  predates that signing step, so a quarantined rc.1 download may be refused
-  as damaged; use a build from the current tree until the next candidate is
-  published.</p>
+  probe. The terminal and Windows binaries are unsigned. The macOS app is
+  ad-hoc signed and passes <code>codesign --verify --deep --strict</code>, so
+  a quarantined download shows the unidentified-developer dialog, not the
+  damaged-app dialog. It is not notarized and has no Apple Developer ID.</p>
+
+  <p><strong>Release history.</strong> The earlier
+  <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1"><code>maze-chase-v0.1.0-rc.1</code></a>
+  prerelease is unchanged at tag commit <code>11a0037b</code>. Its macOS app
+  fails <code>codesign --verify --deep --strict</code> and opens as damaged;
+  use rc.2 for macOS installs. The rc.2 dmg and tarball embed the desktop guide
+  as <code>README-desktop.md</code> from the rc.2 tag. That published copy is
+  immutable, so the corrected Gatekeeper wording ships in the next candidate.</p>
 
   <p>The measured record behind these rows lives in the
   <a href="docs/scoreboard.html">release scoreboard</a> and the
@@ -143,11 +150,14 @@ shasum -a 256 -c SHA256SUMS.txt
 
 # Windows PowerShell (one file at a time)
 Get-FileHash -Algorithm SHA256 .\maze-chase-terminal-0.1.0-windows-x86_64.zip</code></pre>
-  <p>The published rc.1 terminal, Windows, and macOS binaries are unsigned; a
-  build from the current tree ad-hoc signs the macOS app bundle. Windows
-  SmartScreen and the macOS unidentified-developer prompt appear on first
-  launch for current-tree builds; a quarantined rc.1 download may be refused
-  as damaged. Those prompts are expected and are not a signature claim. See
+  <p>The published rc.2 terminal and Windows binaries are unsigned. The macOS
+  app is ad-hoc signed and passes <code>codesign --verify --deep --strict</code>;
+  it is not notarized and has no Apple Developer ID. Windows SmartScreen and
+  the macOS unidentified-developer prompt appear on first launch. On macOS 15
+  and later, approve the app in System Settings &gt; Privacy &amp; Security
+  &gt; Security &gt; Open Anyway; a right-click Open can still end at the Not
+  Opened dialog. The rc.1 macOS app remains invalidly signed and opens as
+  damaged. Those prompts are expected and are not a signature claim. See
   <a href="releases.html">Releases</a> for the current version and notes.</p>
 
   <h2 id="requirements">System requirements</h2>
