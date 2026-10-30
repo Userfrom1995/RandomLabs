@@ -39,9 +39,10 @@
     smoke-tested; the Windows and macOS rows are built and smoked by their
     native jobs in
     <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>.
-    The terminal and Windows binaries are unsigned; the macOS app bundle
-    is ad-hoc signed, and the release stays a prerelease until the stable
-    tag.</p>
+    The terminal and Windows binaries are unsigned; a build from the
+    current tree ad-hoc signs the macOS app bundle, and the release stays a
+    prerelease until the stable tag. The published rc.1 app predates that
+    signing step.</p>
   </div>
 
   <div class="btn-row">
@@ -119,9 +120,12 @@
   prerelease. Linux and Windows exercise install, launch, and uninstall in
   <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>;
   macOS validates the app bundle, dmg mount, tarball, and a real windowed
-  probe. The terminal and Windows binaries are unsigned; the macOS app
-  bundle is ad-hoc signed, so SmartScreen and unidentified-developer
-  warnings are expected.</p>
+  probe. The terminal and Windows binaries are unsigned; a build from the
+  current tree ad-hoc signs the macOS app bundle, so SmartScreen and the
+  unidentified-developer prompt are expected. The published rc.1 app
+  predates that signing step, so a quarantined rc.1 download may be refused
+  as damaged; use a build from the current tree until the next candidate is
+  published.</p>
 
   <p>The measured record behind these rows lives in the
   <a href="docs/scoreboard.html">release scoreboard</a> and the
