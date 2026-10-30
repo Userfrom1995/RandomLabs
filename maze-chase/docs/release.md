@@ -233,9 +233,9 @@ tarball and copy `Maze Chase.app` there. The rc.2 app bundle is ad-hoc
 signed and passes `codesign --verify --deep --strict`, so a quarantined
 download shows the unidentified-developer dialog, not the damaged-app
 dialog. It is not notarized and has no Apple Developer ID. On macOS 15
-and later, approve it in System Settings > Privacy & Security > Security
-> Open Anyway; a right-click Open can still end at the Not Opened dialog
-with `Done`. The earlier rc.1 app is unchanged at tag commit
+and later, approve it in System Settings > Privacy & Security >
+Security > Open Anyway; a right-click Open can still end at the Not
+Opened dialog with `Done`. The earlier rc.1 app is unchanged at tag
 `11a0037b`; it fails code-signature verification and opens as damaged,
 so install rc.2 instead. The desktop guide (`docs/desktop.md`) is copied
 into the dmg and tarball as `README-desktop.md`; the published rc.2 asset
@@ -313,11 +313,13 @@ Get-FileHash -Algorithm SHA256 <file> # Windows PowerShell
 
 The release notes for candidates cut by this pipeline state the signing
 status: the terminal and Windows binaries are unsigned, and the macOS app
-bundle is ad-hoc signed, passes `codesign --verify --deep --strict`, and
-is not notarized. The rc.2 notes carry that status. The published rc.1
-release predates the ad-hoc signing step, so its notes still describe an
-unsigned app; its macOS app fails code-signature verification and opens
-as damaged, so install rc.2 instead. The first-launch SmartScreen and
+bundle is ad-hoc signed. The rc.2 notes state the ad-hoc signature and the
+unidentified-developer (not damaged-app) outcome; the fuller
+`codesign --verify --deep --strict` and not-notarized wording ships with
+the next candidate. The published rc.1 release predates the ad-hoc signing
+step, so its notes still describe an unsigned app; its macOS app fails
+code-signature verification and opens as damaged, so install rc.2 instead.
+The first-launch SmartScreen and
 unidentified-developer prompts are expected; they are not a signature
 claim. On macOS 15 and later, approve the app in System Settings >
 Privacy & Security > Security > Open Anyway.
