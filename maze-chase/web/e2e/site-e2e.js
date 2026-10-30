@@ -455,7 +455,8 @@ async function collectLinks(ws) {
         // Releases pill still fits fully inside it, so scrollLeft 0 is
         // the correct state. Assert the honest invariant either way: a
         // pill that is clipped without a scroll must have been scrolled
-        // into view, and a pill that already fits must stay unscrolled.
+        // into view, while a fully visible pill is valid at any scroll
+        // offset (site-nav.js returns early and never resets a stale one).
         const pill = mobile.navPill;
         const scrollState = navPillScrollState(pill);
         if (scrollState.clippedWithoutScroll) {
@@ -466,7 +467,7 @@ async function collectLinks(ws) {
         } else {
           assert(
             scrollState.ok,
-            `releases.html leaves a fitting current pill unscrolled at 390x844 (scrollLeft ${pill ? pill.scrollLeft.toFixed(1) : 'missing'})`,
+            `releases.html keeps a fitting current pill fully visible at 390x844 (scrollLeft ${pill ? pill.scrollLeft.toFixed(1) : 'missing'})`,
           );
         }
       }
