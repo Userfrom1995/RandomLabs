@@ -1427,6 +1427,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Guard - target must be an OPEN pull request
+        id: fix_guard
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1434,16 +1435,23 @@ jobs:
           # Refuse to run FIX mode unless the trigger target is an OPEN pull
           # request. A closed/merged PR or a bare issue number can never be
           # "fixed" through this path, and auto-retrying against it produces an
-          # unbounded /oc fix (auto-retry N) cascade that burns CI. Bail cleanly.
+          # unbounded /oc fix (auto-retry N) cascade that burns CI. Bail cleanly
+          # and publish `open=false` so every downstream step stays skipped
+          # (issue #781: this guard used to exit 0 without gating anything, so
+          # the fix agent, the baseline capture, the verify retry lane, and the
+          # reviewer handoff all still ran on a merged/closed PR).
           pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           if [ "$pr_state" != "OPEN" ]; then
             echo "::error::/oc fix was triggered on #$pr which is not an OPEN pull request (state='${pr_state:-unknown}'). Refusing to run FIX mode to avoid a runaway cascade. Reopen the PR or post on an actual open PR to drive a fix."
+            echo "open=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "open=true" >> "$GITHUB_OUTPUT"
           echo "Target #$pr is OPEN; proceeding with FIX mode."
 
       - name: Capture baseline
         id: baseline
+        if: steps.fix_guard.outputs.open == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1453,7 +1461,7 @@ jobs:
 
       - name: Run opencode fix agent
         id: opencode
-        if: steps.actor_gate.outputs.run == 'true'
+        if: steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true'
         continue-on-error: true
         # Issue #701: raised 60 -> 120 (three cap deaths in a row on #693 with
         # the edits nearly complete and unpushed); the job cap above is raised
@@ -1483,6 +1491,7 @@ jobs:
 
       - name: Verify fix pushed, else auto-retry
         id: verify
+        if: always() && steps.fix_guard.outputs.open == 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
@@ -1534,6 +1543,7 @@ jobs:
           pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           if [ "$pr_state" != "OPEN" ]; then
             echo "Target #$pr is not an OPEN pull request (state='${pr_state:-unknown}'); no fix possible. Bailing out without auto-retry."
+            echo "skip_forward=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -1569,7 +1579,7 @@ jobs:
           exit 1
 
       - name: Post /oc review to trigger Reviewer
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.skip_forward != 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
@@ -1613,7 +1623,7 @@ jobs:
           exit 0
 
       - name: Strip owner Co-authored-by trailers from the PR branch
-        if: always() && steps.actor_gate.outputs.run == 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1625,7 +1635,7 @@ jobs:
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
-        if: always() && steps.actor_gate.outputs.run == 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
