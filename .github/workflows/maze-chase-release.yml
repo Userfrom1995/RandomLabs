@@ -40,7 +40,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: maze-chase-release-${{ github.ref }}
+  # Dispatches from different branches can resolve the same rc.N at once.
+  # A global group serializes the whole pipeline so only one run can create
+  # a candidate tag at a time, and queue: max keeps every pending tag or
+  # dispatch run instead of letting a newer one displace it.
+  group: maze-chase-release
+  queue: max
   cancel-in-progress: false
 
 jobs:
