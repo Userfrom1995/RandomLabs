@@ -871,6 +871,12 @@ fn release_workflow_cuts_a_fresh_candidate_and_states_the_signing_status() {
         !body.contains("Gatekeeper needs a right-click Open"),
         "the release notes must not promise the old unsigned workaround"
     );
+    assert!(
+        body.contains("group: maze-chase-release\n")
+            && body.contains("queue: max")
+            && !body.contains("group: maze-chase-release-${{ github.ref }}"),
+        "release runs must serialize globally so two dispatches cannot resolve the same candidate"
+    );
 }
 
 #[test]
