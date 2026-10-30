@@ -1,55 +1,59 @@
 # STATE
 
-Last updated: 2026-10-30T17:30Z by run 41097446277 (issue_comment maintainer on #782; round-3 audit repair landed at `dc8f8709` and its review is live; rc.2 verified and the three native rows dispatched on #657).
+Last updated: 2026-10-30T18:10Z by run 41103044073 (issue_comment `/oc maintainer` on #657; the macOS rc.2 row PASSED with findings and three follow-up lanes were opened).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-30T17:30Z)
+## Right now (post-survey, 2026-10-30T18:10Z)
 
-- **main** = `e6be3beb9ff2077b7ae6f4a759d4927f1488251f`, linear, `origin/main` matches. **rc.2 verified**: `maze-chase-v0.1.0-rc.2` is a lightweight tag at `e6be3beb`; the release is a prerelease (`Maze Chase 0.1.0`, published 15:31:44Z, bound to `e6be3beb`), with the full 12-payload set plus `SHA256SUMS.txt` (13 assets). `maze-chase-release` run `41080938033` completed success at 15:31:48Z with all three native jobs plus `Publish GitHub Release` green. rc.1 stays at `11a0037b`, never moved.
-- **#782** (the #781 open-PR guard repair, `Closes #781`): OPEN, CLEAN/MERGEABLE at head **`dc8f87095b3e652b4a6d36b45d726e84c82909c9`** (8 commits). The round-3 Lab Engineer lane (run `41080269000`, success 17:16Z) added `dc8f8709` on `1e491142`: +665/-45 in `silent-stall-audit.sh` (assignment-aware `live_pr`/`live_state` pins, exact linked-PR producer pin, whole-body pins, exact close-block sequences) plus the M3 review-handoff fix (decision trigger targets `steps.pr-info.outputs.pr_number`; report and evidence stay on the trigger thread). The 17:16:37Z App-token rejection is expected wrapper noise; the PAT push landed and the remote head matches. The round-4 review is live on this head: `opencode-review` run `41097422592` (job in progress since 17:16:52Z). Do not dispatch a duplicate review.
-- **Native rows**: this run dispatched exactly one `test-linux`, one `test-macos`, and one `test-windows` on #657 against the rc.2 artifacts. Target #657 is deliberate: `main` still carries the pre-#782 per-OS forwarder, so a `fix` decision routes to `/oc maintainer` on the issue (safe) instead of a dead `/oc fix` on a merged PR. Reports land on #657; triage them next run.
+- **main** = `e6be3beb9ff2077b7ae6f4a759d4927f1488251f`, linear, `origin/main` matches (API and local agree). **rc.2 verified**: `maze-chase-v0.1.0-rc.2` is a lightweight tag at `e6be3beb`; the release is a prerelease (`Maze Chase 0.1.0`, published 15:31:44Z, `targetCommitish` `e6be3beb`), 13 assets (12 payloads plus `SHA256SUMS.txt`). `maze-chase-release` run `41080938033` completed success at 15:31:48Z with all three native jobs plus `Publish GitHub Release` green. rc.1 stays at `11a0037b`, never moved.
+- **#782** (the #781 open-PR guard repair, `Closes #781`): OPEN, CLEAN/MERGEABLE at head **`dc8f87095b3e652b4a6d36b45d726e84c82909c9`**. The round-3 Lab Engineer lane (run `41080269000`) landed `dc8f8709`; the round-4 review (run `41097422592`, started 17:16:52Z) was still in progress at 18:04Z (about 48 minutes into the 90-minute reviewer cap). Do not dispatch a duplicate review. Protected paths, so no fix/continue.
+- **#657 macOS native row: PASS with findings** (report https://github.com/Userfrom1995/RandomLabs/issues/657#issuecomment-6529853597, run `41098960037`). rc.2 macOS payloads match SHA256SUMS; dmg and tarball app pass `codesign --verify --deep --strict` (ad-hoc); quarantine shows unidentified-developer, not damaged; System Settings > Open Anyway launches; rc.1 damaged-app failure reproduced; terminal and desktop install/upgrade/uninstall/gameplay verified; smoke-macos `--probe` passed. Not claimed: HiDPI/Retina, real speaker, iTerm2/Ghostty, Intel/universal, older macOS.
+- **#657 Linux and Windows rows still queued**: the macOS run `41098960037` completed success at 18:05:00Z, so the queue is draining. Run `41098963417` (pending) and run `41098962553` (job `test-windows` queued at 18:00:07Z) are serialized behind the macOS job's concurrency group; do not re-dispatch either.
+- **UNTRIAGED (created this run; numbers assigned by the hardcoded handler after this session)**: the three follow-up issues below. The create_issue self-dispatch should route each; if a run sees one open with no `/oc` comment and no linked branch, route it oldest first.
+  1. `Maze Chase: point the public release copy at rc.2 and correct the macOS signing/installer usage contract` -> Builder (`build`): site pages, project docs, and the two `install-linux.sh` scripts; no workflow files.
+  2. `Maze Chase: make the verification harness deterministic (site-e2e overscroll, macOS cold-start readiness, web E2E isolation)` -> Builder (`build`): test harness only.
+  3. `Maze Chase: correct the Gatekeeper copy in the release workflow notes` -> Lab Engineer (`lab`): packaging source plus installed workflow copy, byte-identical.
 - **#745** (`opencode/lab-742-owner-pat-env-sanitization`, `7a04fa4a`): CONFLICTING/DIRTY since 2026-10-23T15:31:38Z; parked.
-- **#781** stays open until #782 merges. **#657/#582/#655/#661/#659/#683/#677/#678** stay open for the stable `1.0.0` gate; #742 via #745; #754/#773/#774/#775 post-delivery; #70/#42 are the boards.
-- **Health** (verified live 17:17-17:30Z): trigger allowlist exact 19/19 by machine set comparison against the 23 live active workflow names (excluded: `Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`, and the self-excluded `maintainer`). Zero held (`action_required` total 0). No failure/timed-out/startup-failure run newer than the four already-triaged agent failures today (per-OS macOS quota `40982550001`, per-OS Windows runner loss `40982551248`, maintainer `41029310103` and lab `41029313306` quota pair) plus the curator self-heal `41057322721`; the only other non-success runs are expected single-slot maintainer cancellations and a superseded Pages push run. Pages re-deployed the merged tip and the #782 preview successfully. No stray `opencode/schedule-*`/`opencode/dispatch-*` branches. Only rc.1 and rc.2 are tagged.
-- **Issues/PRs**: 16 open issues, all owned or parked, zero untriaged; 2 open PRs (#782 under review, #745 conflicting).
-- **Curator**: no re-dispatch. The next scheduled tick (roughly 18:20Z) owns its pass; keep triaging quota deaths as #754.
-- **Sibling runs**: the 17:16-17:17Z maintainer fan-out skipped/cancelled under the single-slot policy except `41097458872` (pending `workflow_run`). Any sibling must not duplicate the #782 review or the #657 rows.
+- **#781** stays open until #782 merges. **#657/#582/#655/#661/#659/#683/#677/#678** stay open for the stable `1.0.0` gate; the macOS row alone closes none of them. #742 via #745; #754/#773/#774/#775 post-delivery; #70/#42 are the boards.
+- **Health** (verified live 18:02-18:05Z): trigger allowlist exact 19/19 by machine set comparison against the 20 live workflow names (excluded: `maintainer` self). Zero held (`action_required` total 0). No failure/timed-out/startup-failure run newer than the four already-triaged agent failures today (per-OS macOS quota `40982550001`, per-OS Windows runner loss `40982551248`, maintainer `41029310103` and lab `41029313306` quota pair) plus the curator self-heal `41057322721`; the only other non-success runs are expected single-slot maintainer cancellations. Pages re-deployed the merged tip and the #782 preview successfully. No stray `opencode/schedule-*`/`opencode/dispatch-*` branches. Only rc.1 and rc.2 are tagged for maze-chase.
+- **Issues/PRs**: 16 open issues before this run, all owned or parked, zero untriaged; 2 open PRs (#782 under review, #745 conflicting). This run creates three new follow-up issues (recorded above as UNTRIAGED).
+- **Curator**: its 18:00Z scheduled tick had not appeared in the run list at 18:05Z (last scheduled run 12:20:37Z, success). Do not dispatch a duplicate; if it appears and opens a docs PR touching the same release pages, reconcile with the Builder docs lane instead of double-fixing.
+- **Sibling runs**: the 17:59-18:00Z `/oc` fan-out queued the usual skip-only runs in every workflow group. Any sibling maintainer run must see the live #782 review, the queued Linux/Windows rows, and the three new issues, and duplicate none of them.
 
 ## Decisions this run
 
-`.maintainer/decision.json` = `[{"action":"test-linux","issue":657},{"action":"test-macos","issue":657},{"action":"test-windows","issue":657},{"action":"ping","target":657}]`. `.maintainer/comment.md` = #782 intake. `.maintainer/personality.md` unchanged. No `emergency.json`.
-- Three native rows on #657: rc.2 is cut, bound to `e6be3beb`, and complete (jobs, assets, prerelease), so the remaining acceptance rows are the native ones (#655 terminal matrix, #683 Windows E2E re-sign, #677 HiDPI, #678 idle CPU). The issue target keeps the current main forwarder safe.
-- One `ping` on #657 with the rc.2 evidence and the row dispatch: #657 is the release-engineering tracker and stays open for `1.0.0`; the stable tag stays last.
-- No `review` on #782: the owner's 17:16:47Z `/oc review` already started run `41097422592` on the new head.
-- No `lab` on #782: the round-3 repair just landed and no finding is open on this head; the live review owns the next decision and forwards itself.
-- No `fix`/`continue` on #782: protected paths route through `lab`.
-- No `test`/`eval` on #782: no review approval exists at `dc8f8709`.
-- No release `sweep`: rc.2 is already published from `e6be3beb`; a second cut would waste a release run.
-- No per-OS rows on #772: under current `main` a `fix` verdict would post a dead `/oc fix` on the merged PR (the #781 defect).
-- No merge/closes: no approved workflow-touching PR exists; #781 closes only with #782's merge.
+`.maintainer/decision.json` = three `create_issue` entries (the docs/installer lane, the harness lane, the release-notes workflow lane). `.maintainer/comment.md` = the macOS rc.2 row report on #657. `.maintainer/personality.md` unchanged. No `emergency.json`.
+- Three focused issues instead of one catch-all: the docs/installer copy, the harness determinism, and the release-workflow notes have three different owners (Builder, Builder, Lab Engineer) and different review gates.
+- The docs lane is Builder work, not Curator: it includes `maze-chase/docs/*` and `maze-chase/README.md`, which the Curator's scope explicitly excludes, and one owner must keep the site and docs copy identical.
+- The release-notes line is Lab Engineer work: it lives in the pinned release workflow pair, and the Builder token cannot push `.github/workflows/*` (the #784 lesson).
+- No `review`/`fix`/`test`/`eval` on #782: the round-4 review is live and the gate chain owns the next step.
+- No re-dispatch of the Linux/Windows rows: both are queued behind the macOS job.
+- No release `sweep`: rc.2 is published and complete; the next cut waits for the remaining native rows and the copy fixes.
+- No closes: no acceptance row is complete end to end (F1 is user-facing, Linux/Windows pending, HiDPI/idle-CPU unmeasured).
 - No `curate`/`auditor`: their schedules own the next passes.
-- No `create_issue`/`create_pr`/`recover`/`ideate`: zero untriaged, nothing stranded, no ideation request.
+- No `recover`/`ideate`/`create_pr`: nothing stranded, no ideation request, no code-PR lane open.
 
 ## Callbacks
 
-The hardcoded owner-PAT step posts `/oc test-linux`, `/oc test-macos`, and `/oc test-windows` on #657 plus the rc.2 evidence as the bot there; the #782 intake posts as the bot on #782. The PAT merge sweep sees no approved workflow-touching PR. The approve-held-runs sweep has zero held runs. "Trigger pages deployment if main advanced" sees `main` at `e6be3beb`, so it dispatches nothing. The memory publish appends the 2026-10-30 entry keep-both per #647. No `emergency.json` was written.
+The three `create_issue` entries are created by the hardcoded handler as the bot and self-dispatch a PAT-backed maintainer run carrying each number. The macOS report comment stays the evidence on #657. The PAT merge sweep sees no approved workflow-touching PR. The approve-held-runs sweep has zero held runs. "Trigger pages deployment if main advanced" sees `main` at `e6be3beb`, so it dispatches nothing. The memory publish appends the 2026-10-30 entry keep-both per #647. No `emergency.json` was written.
 
 ## Next run
 
-1. Read the #782 review verdict. On approval the workflow auto-forwards `/oc test` (read-only for this infra PR); on findings it rewrites `fix` to `lab` for protected paths. Never duplicate a live lane. On tester approval, dispatch `eval` on the final head, then the head-bound PAT merge (`Closes #781`, branch intact, never `--delete-branch`).
-2. Read the three #657 native reports. On pass: close #655/#683 and #677/#678 only on the exact proofs (terminal matrix rows, Windows E2E re-sign, HiDPI measurement, idle-CPU measurement), record the rows, and keep #657/#582/#661/#659 open until the stable `1.0.0` tag and the real-speaker review complete. On a `fix`/`lab` verdict: triage into the narrowest lane on #657; never republish or move rc.1/rc.2.
-3. After #782 merges: verify #781 closed, main is linear, and the installed per-OS forwarder carries the live-state guard; only then dispatch future rows on merged PRs.
-4. Curator: the next scheduled tick (roughly 18:20Z) owns its pass; if it dies on the #754 free-usage wall, keep triaging as #754 and do not lift the self-heal cap.
-5. Keep #745 parked; post-delivery lab order: #754, #775, the builder/architect directory alignment, the review-gate retry cap, the #745 project-config/PR-head-checkout observation, #773/#774, #745.
+1. Route the three UNTRIAGED issues oldest first: `build` for the release-copy/installer issue, `build` for the harness issue, `lab` for the release-notes issue. Do not route the release-notes issue to `build`.
+2. Read the #782 review verdict. On approval the workflow auto-forwards `/oc test` (read-only for this infra PR); on findings it rewrites `fix` to `lab`. On tester approval, dispatch `eval` on the final head, then the head-bound PAT merge (`Closes #781`, branch intact, never `--delete-branch`).
+3. Read the Linux and Windows rc.2 reports when they land (runs `41098963417` and `41098962553`). On pass, record the rows; close #655/#683/#677/#678 only on their exact proofs (Kitty/Ghostty rows, Windows E2E re-sign, HiDPI measurement, idle-CPU measurement). Never republish or move rc.1/rc.2.
+4. After #782 merges: verify #781 closed, main is linear, and the installed per-OS forwarder carries the live-state guard; only then dispatch future rows on merged PRs.
+5. Watch the 18:00Z curator tick; if it opens a docs PR on the release pages, reconcile with the Builder copy lane rather than double-fixing.
+6. Keep #745 parked; post-delivery lab order: #754, #775, the builder/architect directory alignment, the review-gate retry cap, the #745 project-config/PR-head-checkout observation, #773/#774, #745.
 
 ## Open questions
 
 1. Does the round-4 review approve `dc8f8709`, or does R32 still have a false-green family?
-2. Do the three native rows pass against rc.2 and close #655/#683/#677/#678 on proof?
-3. Does the free quota serve the three concurrent rows plus the #782 review, or does the #754 wall kill one?
-4. Does the ~18:20Z curator tick complete?
+2. Do the Linux and Windows rows pass against rc.2, and can #655/#683/#677/#678 close on proof?
+3. Do the three new follow-up lanes land without a quota death, and does the docs lane stay clear of the Curator's pages?
+4. Does the free quota keep serving the two queued native rows plus the #782 review?
 
 - Hephaestus, the Maintainer
