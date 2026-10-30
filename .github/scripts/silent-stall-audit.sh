@@ -131,10 +131,10 @@
 # must also grant pull-requests: write, and review-comment lanes must grant
 # pull-requests: write, so opencode github run can react and post its session
 # summary at exit).
-# Wired into auditor.yml as the R1-R31 matrix.
+# Wired into auditor.yml as the R1-R32 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R31 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R32 audit the whole tree
 # (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -205,12 +205,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R31 PASS] $name: $desc"
+  [R1-R32 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R31 FAIL] $name: $desc"
+  [R1-R32 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -6583,7 +6583,7 @@ else
     r19_header_end=$(awk -v s="$r19_name_line" 'NR > s && /^[[:space:]]*run: \|/ { print NR; exit }' "$REVIEW_WF")
     [ -n "$r19_header_end" ] || r19_header_end=$((r19_name_line + 40))
     r19_step_header=$(sed -n "${r19_name_line},$((r19_header_end - 1))p" "$REVIEW_WF")
-    printf '%s\n' "$r19_step_header" | grep -qxF "        if: steps.pr-info.outputs.is_pr == 'true' && always()" || r19_bad="${r19_bad} review.yml(verify-if-not-exact)"
+    printf '%s\n' "$r19_step_header" | grep -qxF "        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.review_guard.outputs.open == 'true'" || r19_bad="${r19_bad} review.yml(verify-if-not-exact)"
     printf '%s\n' "$r19_step_header" | grep -qxF '          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r19_bad="${r19_bad} review.yml(verify-gate-env-not-exact)"
     # F17-F19 (review round 4): struct-anchored extraction and execution
     # attributes. The step region must contain exactly one `run: |` key: a
@@ -6661,7 +6661,7 @@ else
     if [ -z "$r19_pub_step" ]; then
       r19_bad="${r19_bad} review.yml(report-publish-step-missing)"
     else
-      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'" || r19_bad="${r19_bad} review.yml(report-publish-not-actor-gated)"
+      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.review_guard.outputs.open == 'true'" || r19_bad="${r19_bad} review.yml(report-publish-not-actor-gated)"
       printf '%s\n' "$r19_pub_step" | grep -q 'mktemp' && r19_bad="${r19_bad} review.yml(report-publisher-tempfile-staging)"
       printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF 'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""' || r19_bad="${r19_bad} review.yml(report-publisher-not-workflow-commit-in-memory)"
       printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$TARGET\" \"\$report\" \"- the Reviewer\"; then" || r19_bad="${r19_bad} review.yml(report-publisher-invocation-not-pipe-form)"
@@ -6799,6 +6799,7 @@ Get PR info
 Checkout repository (PR head)
 Stage the reviewer system prompt from the workflow commit
 "Actor write gate (issue #428)"
+Guard - target must be an OPEN pull request
 Skip review for non-PR issue
 Record checked-out PR head
 Configure git identity
@@ -15369,7 +15370,10 @@ for job_name, steps in found.items():
     step = steps[0]
     if set(step) != {"name", "if", "env", "run"}:
         raise SystemExit("strip-step-key-surface:%s:%r" % (job_name, sorted(step)))
-    if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
+    expected_strip_if = "always() && steps.actor_gate.outputs.run == 'true'"
+    if job_name == "fix":
+        expected_strip_if += " && steps.fix_guard.outputs.open == 'true'"
+    if step.get("if") != expected_strip_if:
         raise SystemExit("strip-step-if:%s" % job_name)
     if step.get("env") != {"GH_TOKEN": "${{ github.token }}"}:
         raise SystemExit("strip-step-env:%s" % job_name)
@@ -21388,16 +21392,838 @@ case "$r31_out" in
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R31) on ${WF}: ${pass} passed, ${fail} failed."
+# [R32] Open-PR guard on the fix and review arms (issue #781): the FIX job's
+# guard used to exit 0 without publishing any state, so a /oc fix on a
+# merged/closed PR still ran the baseline capture, the fix agent, the verify
+# retry lane, and the reviewer handoff; the review arm had no live-state
+# check at all, so /oc review on a closed PR ran the whole review lane; and
+# the per-OS forwarders could post /oc fix on a PR that was no longer open.
+# This rule pins the guard id and output contract, the gating of every
+# downstream fix step, the fail-closed skip output in the verify hard stop,
+# the review-arm guard plus its agent/publish/verify gates, and the per-OS
+# live-state pre-check. It then executes the extracted guard bodies against
+# a mocked gh for OPEN, CLOSED, MERGED, and unknown states, executes the fix
+# verify hard stop under a race (guard passed, state now MERGED) and
+# requires skip_forward=true with no retry and no comment, executes each
+# per-OS forwarder against every state shape, and simulates the step gates
+# to prove a non-OPEN target runs zero agent steps and posts zero comments
+# while an OPEN target still runs and forwards. Mutation self-tests remove
+# each gate, output, and pre-check one at a time and require this rule to
+# fail alone.
+r32_out=$(python3 -I - <<'PY'
+import os
+import shutil
+import subprocess
+import tempfile
+
+import yaml
+
+OPENCODE = ".github/workflows/opencode.yml"
+REVIEW = ".github/workflows/opencode-review.yml"
+PEROS = ".github/workflows/opencode-peros-test.yml"
+
+GUARD_NAME = "Guard - target must be an OPEN pull request"
+FIX_BASELINE = "Capture baseline"
+FIX_AGENT = "Run opencode fix agent"
+FIX_VERIFY = "Verify fix pushed, else auto-retry"
+FIX_FORWARD = "Post /oc review to trigger Reviewer"
+FIX_STRIP = "Strip owner Co-authored-by trailers from the PR branch"
+FIX_APPROVE = "Approve held CI runs on the PR"
+FIX_SIDE_IF = (
+    "always() && steps.actor_gate.outputs.run == 'true'"
+    " && steps.fix_guard.outputs.open == 'true'"
+)
+REVIEW_VERIFY = "Verify review decided, else auto-retry"
+REVIEW_PUBLISH = "Publish reviewer decision report (owner PAT)"
+REVIEW_FORWARD = "Forward reviewer decision"
+REVIEW_SKIP = "Skip review for non-PR issue"
+ARM_TAGS = {"test-linux": "Linux", "test-macos": "macOS", "test-windows": "Windows"}
+PEROS_REPO = "RandomLabs/RandomLabs"
+PEROS_PR_URL = "https://github.com/RandomLabs/RandomLabs/pull/781"
+FIX_AGENT_IF = "steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true'"
+FIX_VERIFY_IF = "always() && steps.fix_guard.outputs.open == 'true'"
+FIX_BASELINE_IF = "steps.fix_guard.outputs.open == 'true'"
+FIX_FORWARD_IF = (
+    "always() && steps.actor_gate.outputs.run == 'true'"
+    " && steps.fix_guard.outputs.open == 'true'"
+    " && steps.verify.outputs.retry != 'true'"
+    " && steps.verify.outputs.skip_forward != 'true'"
+)
+REVIEW_GUARD_IF = "steps.pr-info.outputs.is_pr == 'true'"
+REVIEW_AGENT_IF = (
+    "steps.actor_gate.outputs.run == 'true'"
+    " && steps.pr-info.outputs.is_pr == 'true'"
+    " && steps.review_guard.outputs.open == 'true'"
+)
+REVIEW_VERIFY_IF = (
+    "steps.pr-info.outputs.is_pr == 'true'"
+    " && always() && steps.review_guard.outputs.open == 'true'"
+)
+REVIEW_PUBLISH_IF = (
+    "steps.pr-info.outputs.is_pr == 'true' && always()"
+    " && steps.actor_gate.outputs.run == 'true'"
+    " && steps.review_guard.outputs.open == 'true'"
+)
+REVIEW_FORWARD_PREFIX = (
+    "steps.pr-info.outputs.is_pr == 'true' && always()"
+    " && steps.actor_gate.outputs.run == 'true'"
+    " && steps.verify-review.outcome == 'success'"
+    " && steps.verify-review.outputs.retry != 'true'"
+)
+PEROS_GATE = (
+    "always() && steps.actor_gate.outputs.run == 'true'"
+    " && steps.verify-test.outcome == 'success'"
+    " && steps.findings.outcome == 'success'"
+)
+PR_STATE_ENV = "${{ steps.pr-info.outputs.pr_state }}"
+PR_STATE_CHECK = 'if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then'
+STATE_OUTPUT = 'echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"'
+STATE_QUERY = (
+    'pr_state=$(gh pr view "$num" --repo "${{ github.repository }}"'
+    " --json state --jq '.state' 2>/dev/null || echo \"\")"
+)
+
+MOCK_GH = """#!/usr/bin/env bash
+set -u
+if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
+  printf '%s\\n' "${MOCK_PR_STATE:-}"
+  exit 0
+fi
+if [ "${1:-}" = "issue" ] && [ "${2:-}" = "comment" ]; then
+  body=$(cat)
+  printf '%s\\n' "$body" >> "${MOCK_BODY_LOG:?}"
+  exit 0
+fi
+exit 1
+"""
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError:
+            duplicate = False
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping
+)
+
+
+def load(path):
+    with open(path) as handle:
+        return yaml.load(handle, Loader=StrictLoader)
+
+
+def load_text(text):
+    return yaml.load(text, Loader=StrictLoader)
+
+
+def steps_in(doc, job):
+    jobs = doc.get("jobs") if isinstance(doc, dict) else None
+    if not isinstance(jobs, dict) or not isinstance(jobs.get(job), dict):
+        return []
+    steps = jobs[job].get("steps")
+    return steps if isinstance(steps, list) else []
+
+
+def named(steps, name):
+    return [step for step in steps if isinstance(step, dict) and step.get("name") == name]
+
+
+def identified(steps, step_id):
+    return [step for step in steps if isinstance(step, dict) and step.get("id") == step_id]
+
+
+def run_of(step):
+    value = step.get("run") if isinstance(step, dict) else None
+    return value if isinstance(value, str) else ""
+
+
+def if_of(step):
+    value = step.get("if") if isinstance(step, dict) else None
+    return value if isinstance(value, str) else "always()"
+
+
+def norm_lines(text):
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
+def exactly_one(steps, name, label, problems):
+    hits = named(steps, name)
+    if len(hits) != 1:
+        problems.append("%s(step-count=%d,want=1)" % (label, len(hits)))
+        return None
+    return hits[0]
+
+
+def outputs_of(path):
+    values = {}
+    try:
+        with open(path) as handle:
+            for line in handle:
+                if "=" in line:
+                    key, value = line.rstrip("\n").split("=", 1)
+                    values[key] = value
+    except OSError:
+        pass
+    return values
+
+
+def expand(body):
+    replacements = (
+        ("${{ github.event.issue.number }}", "781"),
+        ("${{ github.repository_owner }}", "RandomLabs"),
+        ("${{ github.repository }}", PEROS_REPO),
+        ("${{ github.event.issue.pull_request.html_url }}", PEROS_PR_URL),
+    )
+    for old, new in replacements:
+        body = body.replace(old, new)
+    return body
+
+
+def sandbox_env(mock_dir, extra):
+    env = {
+        "PATH": mock_dir + ":/usr/bin:/bin",
+        "HOME": os.environ.get("HOME", "/tmp"),
+        "LANG": "C",
+        "LC_ALL": "C",
+        "GH_TOKEN": "fixture-token",
+        "GITHUB_REPOSITORY": PEROS_REPO,
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_RUN_ID": "781",
+    }
+    env.update(extra)
+    return env
+
+
+def run_script(body, env, cwd):
+    return subprocess.run(
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", body],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def make_sandbox():
+    root = tempfile.mkdtemp(prefix="r32-sandbox-")
+    mock_dir = os.path.join(root, "bin")
+    os.makedirs(mock_dir)
+    mock = os.path.join(mock_dir, "gh")
+    with open(mock, "w") as handle:
+        handle.write(MOCK_GH)
+    os.chmod(mock, 0o755)
+    return root, mock_dir
+
+
+def body_log(root, name):
+    path = os.path.join(root, "posted-%s.log" % name)
+    with open(path, "w"):
+        pass
+    return path
+
+
+def comment_bodies(path):
+    try:
+        with open(path) as handle:
+            return [line for line in handle.read().splitlines() if line]
+    except OSError:
+        return []
+
+
+CLAUSES = {
+    "always()": lambda values: True,
+    "steps.actor_gate.outputs.run == 'true'": lambda values: values.get("actor") == "true",
+    "steps.fix_guard.outputs.open == 'true'": lambda values: values.get("open") == "true",
+    "steps.review_guard.outputs.open == 'true'": lambda values: values.get("open") == "true",
+    "steps.verify.outputs.retry != 'true'": lambda values: values.get("retry") != "true",
+    "steps.verify.outputs.skip_forward != 'true'": lambda values: values.get("skip_forward") != "true",
+    "steps.pr-info.outputs.is_pr == 'true'": lambda values: values.get("is_pr") == "true",
+    "steps.pr-info.outputs.is_pr != 'true'": lambda values: values.get("is_pr") != "true",
+    "steps.verify-review.outcome == 'success'": lambda values: values.get("verify_success") == "true",
+    "steps.verify-review.outputs.retry != 'true'": lambda values: values.get("retry") != "true",
+}
+
+
+def eval_expr(expr, values):
+    for raw in expr.split("&&"):
+        clause = raw.strip()
+        if clause not in CLAUSES:
+            raise ValueError(clause)
+        if not CLAUSES[clause](values):
+            return False
+    return True
+
+
+def behavioral_fix(doc, problems):
+    steps = steps_in(doc, "fix")
+    guard = exactly_one(steps, GUARD_NAME, "fix-guard", problems)
+    verify = exactly_one(steps, FIX_VERIFY, "fix-verify", problems)
+    if guard is None or verify is None:
+        return
+    guard_body = expand(run_of(guard))
+    if "${{" in guard_body:
+        problems.append("fix-guard(unexpanded-expression)")
+        return
+    verify_body = expand(run_of(verify))
+    if "${{" in verify_body:
+        problems.append("fix-verify(unexpanded-expression)")
+        return
+    try:
+        root, mock_dir = make_sandbox()
+    except OSError:
+        problems.append("sandbox-unavailable")
+        return
+    try:
+        for name, state, expected in (
+            ("merged", "MERGED", "false"),
+            ("closed", "CLOSED", "false"),
+            ("unknown", "", "false"),
+            ("open", "OPEN", "true"),
+        ):
+            out = os.path.join(root, "out-%s" % name)
+            log = body_log(root, "guard-%s" % name)
+            result = run_script(
+                guard_body,
+                sandbox_env(
+                    mock_dir,
+                    {
+                        "GITHUB_OUTPUT": out,
+                        "MOCK_PR_STATE": state,
+                        "MOCK_BODY_LOG": log,
+                    },
+                ),
+                root,
+            )
+            if result.returncode != 0:
+                problems.append("fix-guard-%s(rc=%d)" % (name, result.returncode))
+                continue
+            values = outputs_of(out)
+            if values.get("open") != expected:
+                problems.append("fix-guard-%s(open=%r)" % (name, values.get("open")))
+            if comment_bodies(log):
+                problems.append("fix-guard-%s(posted-comment)" % name)
+        out = os.path.join(root, "out-race")
+        log = body_log(root, "verify-race")
+        result = run_script(
+            verify_body,
+            sandbox_env(
+                mock_dir,
+                {
+                    "GITHUB_OUTPUT": out,
+                    "MOCK_PR_STATE": "MERGED",
+                    "MOCK_BODY_LOG": log,
+                    "AGENT_GATE": "true",
+                    "BASELINE_HEAD": "fixture-baseline",
+                },
+            ),
+            root,
+        )
+        if result.returncode != 0:
+            problems.append("fix-verify-race(rc=%d)" % result.returncode)
+        else:
+            values = outputs_of(out)
+            if values.get("skip_forward") != "true":
+                problems.append("fix-verify-race(skip_forward=%r)" % values.get("skip_forward"))
+            if values.get("retry") == "true":
+                problems.append("fix-verify-race(retry-posted)")
+        if comment_bodies(log):
+            problems.append("fix-verify-race(posted-comment)")
+    except (OSError, subprocess.TimeoutExpired):
+        problems.append("fix-behavioral-harness-failure")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def simulate_fix(doc, problems):
+    steps = steps_in(doc, "fix")
+    baseline = exactly_one(steps, FIX_BASELINE, "fix-baseline", problems)
+    agent = exactly_one(steps, FIX_AGENT, "fix-agent", problems)
+    verify = exactly_one(steps, FIX_VERIFY, "fix-verify", problems)
+    forward = exactly_one(steps, FIX_FORWARD, "fix-forward", problems)
+    strip = exactly_one(steps, FIX_STRIP, "fix-strip", problems)
+    approve = exactly_one(steps, FIX_APPROVE, "fix-approve", problems)
+    if None in (baseline, agent, verify, forward, strip, approve):
+        return
+    scenarios = {
+        "closed": (
+            {"actor": "true", "open": "false", "retry": "false", "skip_forward": "false"},
+            (False, False, False, False, False, False),
+        ),
+        "open": (
+            {"actor": "true", "open": "true", "retry": "false", "skip_forward": "false"},
+            (True, True, True, True, True, True),
+        ),
+        "race": (
+            {"actor": "true", "open": "true", "retry": "false", "skip_forward": "true"},
+            (True, True, True, False, True, True),
+        ),
+    }
+    for name, (values, expected) in scenarios.items():
+        try:
+            got = (
+                eval_expr(if_of(baseline), values),
+                eval_expr(if_of(agent), values),
+                eval_expr(if_of(verify), values),
+                eval_expr(if_of(forward), values),
+                eval_expr(if_of(strip), values),
+                eval_expr(if_of(approve), values),
+            )
+        except ValueError as exc:
+            problems.append("fix-gates-%s(unsupported-clause=%s)" % (name, exc))
+            continue
+        if got != expected:
+            problems.append("fix-gates-%s(got=%r,want=%r)" % (name, got, expected))
+
+
+def simulate_review(doc, problems):
+    steps = steps_in(doc, "review")
+    agents = identified(steps, "review")
+    if len(agents) != 1:
+        problems.append("review-agent(id-count=%d,want=1)" % len(agents))
+        return
+    verify = exactly_one(steps, REVIEW_VERIFY, "review-verify", problems)
+    publish = exactly_one(steps, REVIEW_PUBLISH, "review-publish", problems)
+    forward = exactly_one(steps, REVIEW_FORWARD, "review-forward", problems)
+    skip = exactly_one(steps, REVIEW_SKIP, "review-skip-notice", problems)
+    if None in (verify, publish, forward, skip):
+        return
+    for name, open_value in (("closed", "false"), ("open", "true")):
+        values = {
+            "actor": "true",
+            "is_pr": "true",
+            "open": open_value,
+            "retry": "false",
+        }
+        try:
+            agent_runs = eval_expr(if_of(agents[0]), values)
+            verify_runs = eval_expr(if_of(verify), values)
+            values["verify_success"] = "true" if verify_runs else "false"
+            publish_runs = eval_expr(if_of(publish), values)
+            forward_runs = eval_expr(if_of(forward), values)
+            skip_runs = eval_expr(if_of(skip), values)
+        except ValueError as exc:
+            problems.append("review-gates-%s(unsupported-clause=%s)" % (name, exc))
+            continue
+        if open_value == "false":
+            if agent_runs or verify_runs or publish_runs or forward_runs or skip_runs:
+                problems.append(
+                    "review-closed(agent=%r,verify=%r,publish=%r,forward=%r,skip=%r)"
+                    % (agent_runs, verify_runs, publish_runs, forward_runs, skip_runs)
+                )
+        else:
+            if not (agent_runs and verify_runs and publish_runs and forward_runs):
+                problems.append(
+                    "review-open(agent=%r,verify=%r,publish=%r,forward=%r)"
+                    % (agent_runs, verify_runs, publish_runs, forward_runs)
+                )
+            if skip_runs:
+                problems.append("review-open(skip-notice-ran)")
+
+
+def validate_opencode(doc, problems):
+    steps = steps_in(doc, "fix")
+    if not steps:
+        problems.append("opencode.yml(fix-job-or-steps-missing)")
+        return
+    guard = exactly_one(steps, GUARD_NAME, "fix-guard", problems)
+    if guard is not None:
+        if guard.get("id") != "fix_guard":
+            problems.append("fix-guard(id=%r,want=fix_guard)" % guard.get("id"))
+        if "if" in guard:
+            problems.append("fix-guard(conditional)")
+        lines = norm_lines(run_of(guard))
+        if 'echo "open=false" >> "$GITHUB_OUTPUT"' not in lines:
+            problems.append("fix-guard(no-open-false-output)")
+        if 'echo "open=true" >> "$GITHUB_OUTPUT"' not in lines:
+            problems.append("fix-guard(no-open-true-output)")
+        try:
+            false_at = lines.index('echo "open=false" >> "$GITHUB_OUTPUT"')
+            exit_at = lines.index("exit 0", false_at)
+            true_at = lines.index('echo "open=true" >> "$GITHUB_OUTPUT"')
+            if not (false_at < exit_at < true_at):
+                problems.append("fix-guard(refusal-exit-order)")
+        except ValueError:
+            problems.append("fix-guard(refusal-exit-missing)")
+        body = run_of(guard)
+        if "gh issue comment" in body or "gh pr comment" in body or " gh api " in body:
+            problems.append("fix-guard(posts-comment)")
+    baseline = exactly_one(steps, FIX_BASELINE, "fix-baseline", problems)
+    if baseline is not None and if_of(baseline) != FIX_BASELINE_IF:
+        problems.append("fix-baseline(if=%r)" % if_of(baseline))
+    agent = exactly_one(steps, FIX_AGENT, "fix-agent", problems)
+    if agent is not None and if_of(agent) != FIX_AGENT_IF:
+        problems.append("fix-agent(if=%r)" % if_of(agent))
+    verify = exactly_one(steps, FIX_VERIFY, "fix-verify", problems)
+    if verify is not None:
+        if if_of(verify) != FIX_VERIFY_IF:
+            problems.append("fix-verify(if=%r)" % if_of(verify))
+        lines = norm_lines(run_of(verify))
+        try:
+            state_at = lines.index('if [ "$pr_state" != "OPEN" ]; then')
+            hard = lines[state_at:]
+            skip_at = hard.index('echo "skip_forward=true" >> "$GITHUB_OUTPUT"')
+            exit_at = hard.index("exit 0", skip_at)
+            if skip_at > exit_at:
+                problems.append("fix-verify(skip-output-after-exit)")
+        except ValueError:
+            problems.append("fix-verify(no-skip-forward-output)")
+    forward = exactly_one(steps, FIX_FORWARD, "fix-forward", problems)
+    if forward is not None and if_of(forward) != FIX_FORWARD_IF:
+        problems.append("fix-forward(if=%r)" % if_of(forward))
+    for name, label in ((FIX_STRIP, "fix-strip"), (FIX_APPROVE, "fix-approve")):
+        step = exactly_one(steps, name, label, problems)
+        if step is not None and if_of(step) != FIX_SIDE_IF:
+            problems.append("%s(if=%r)" % (label, if_of(step)))
+    behavioral_fix(doc, problems)
+    simulate_fix(doc, problems)
+
+
+def validate_review(doc, problems):
+    steps = steps_in(doc, "review")
+    if not steps:
+        problems.append("review.yml(review-job-or-steps-missing)")
+        return
+    guard = exactly_one(steps, GUARD_NAME, "review-guard", problems)
+    if guard is not None:
+        if guard.get("id") != "review_guard":
+            problems.append("review-guard(id=%r,want=review_guard)" % guard.get("id"))
+        if if_of(guard) != REVIEW_GUARD_IF:
+            problems.append("review-guard(if=%r)" % if_of(guard))
+        lines = norm_lines(run_of(guard))
+        if 'echo "open=false" >> "$GITHUB_OUTPUT"' not in lines:
+            problems.append("review-guard(no-open-false-output)")
+        if 'echo "open=true" >> "$GITHUB_OUTPUT"' not in lines:
+            problems.append("review-guard(no-open-true-output)")
+        try:
+            false_at = lines.index('echo "open=false" >> "$GITHUB_OUTPUT"')
+            exit_at = lines.index("exit 0", false_at)
+            true_at = lines.index('echo "open=true" >> "$GITHUB_OUTPUT"')
+            if not (false_at < exit_at < true_at):
+                problems.append("review-guard(refusal-exit-order)")
+        except ValueError:
+            problems.append("review-guard(refusal-exit-missing)")
+        body = run_of(guard)
+        if "gh issue comment" in body or "gh pr comment" in body or " gh api " in body:
+            problems.append("review-guard(posts-comment)")
+    agents = identified(steps, "review")
+    if len(agents) != 1:
+        problems.append("review-agent(id-count=%d,want=1)" % len(agents))
+    elif if_of(agents[0]) != REVIEW_AGENT_IF:
+        problems.append("review-agent(if=%r)" % if_of(agents[0]))
+    verify = exactly_one(steps, REVIEW_VERIFY, "review-verify", problems)
+    if verify is not None and if_of(verify) != REVIEW_VERIFY_IF:
+        problems.append("review-verify(if=%r)" % if_of(verify))
+    publish = exactly_one(steps, REVIEW_PUBLISH, "review-publish", problems)
+    if publish is not None and if_of(publish) != REVIEW_PUBLISH_IF:
+        problems.append("review-publish(if=%r)" % if_of(publish))
+    forward = exactly_one(steps, REVIEW_FORWARD, "review-forward", problems)
+    if forward is not None and if_of(forward) != REVIEW_FORWARD_PREFIX:
+        problems.append("review-forward(if=%r)" % if_of(forward))
+    simulate_review(doc, problems)
+
+
+def behavioral_peros(arm, tag, forward_body, problems):
+    if not shutil.which("jq"):
+        problems.append("peros-%s(jq-missing)" % arm)
+        return
+    root = None
+    try:
+        root, mock_dir = make_sandbox()
+        decision = os.path.join(root, "decision.json")
+        with open(decision, "w") as handle:
+            handle.write('{"action": "fix"}\n')
+        body = expand(forward_body).replace(
+            "/tmp/random-lab-decision.json", decision
+        )
+        if "${{" in body:
+            problems.append("peros-%s(unexpanded-expression)" % arm)
+            return
+        scenarios = (
+            ("merged", "MERGED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("closed", "CLOSED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("unknown", "", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("closed-lab", "CLOSED", PEROS_PR_URL, "opencode/lab-781-x", "/oc maintainer"),
+            ("open-lab", "OPEN", PEROS_PR_URL, "opencode/lab-781-x", "/oc lab"),
+            (
+                "open-fix",
+                "OPEN",
+                PEROS_PR_URL,
+                "opencode/issue781-x",
+                "/oc fix: %s tester findings (see report)" % tag,
+            ),
+            ("non-pr", "", "", "opencode/issue781-x", "/oc maintainer"),
+        )
+        for name, state, pr_url, head_ref, expected in scenarios:
+            log = body_log(root, "%s-%s" % (arm, name))
+            script = body.replace(PEROS_PR_URL, pr_url).replace(
+                "https://github.com/RandomLabs/RandomLabs/pull/781", pr_url
+            )
+            result = run_script(
+                script,
+                sandbox_env(
+                    mock_dir,
+                    {
+                        "MOCK_PR_STATE": state,
+                        "MOCK_BODY_LOG": log,
+                        "PR_STATE": state,
+                        "HEAD_REF": head_ref,
+                    },
+                ),
+                root,
+            )
+            if result.returncode != 0:
+                problems.append("peros-%s-%s(rc=%d)" % (arm, name, result.returncode))
+                continue
+            posted = comment_bodies(log)
+            if posted != [expected]:
+                problems.append(
+                    "peros-%s-%s(posted=%r,want=%r)" % (arm, name, posted, [expected])
+                )
+            if state != "OPEN" and any("/oc fix" in item for item in posted):
+                problems.append("peros-%s-%s(posted-fix-on-non-open)" % (arm, name))
+    except (OSError, subprocess.TimeoutExpired):
+        problems.append("peros-%s(behavioral-harness-failure)" % arm)
+    finally:
+        if root is not None:
+            shutil.rmtree(root, ignore_errors=True)
+
+
+def validate_peros(doc, problems):
+    for arm, tag in ARM_TAGS.items():
+        steps = steps_in(doc, arm)
+        if not steps:
+            problems.append("peros-%s(job-or-steps-missing)" % arm)
+            continue
+        ref = exactly_one(steps, "Get target ref", "peros-%s-target-ref" % arm, problems)
+        if ref is not None:
+            lines = norm_lines(run_of(ref))
+            if STATE_OUTPUT not in lines:
+                problems.append("peros-%s(no-pr-state-output)" % arm)
+            if STATE_QUERY not in lines:
+                problems.append("peros-%s(no-pr-state-query)" % arm)
+        forward = exactly_one(
+            steps, "Forward %s tester decision" % tag, "peros-%s-forward" % arm, problems
+        )
+        if forward is None:
+            continue
+        if if_of(forward) != PEROS_GATE:
+            problems.append("peros-%s(forward-if=%r)" % (arm, if_of(forward)))
+        env = forward.get("env") if isinstance(forward.get("env"), dict) else {}
+        if env.get("PR_STATE") != PR_STATE_ENV:
+            problems.append("peros-%s(no-pr-state-env)" % arm)
+        if env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}":
+            problems.append("peros-%s(no-owner-pat-env)" % arm)
+        body = run_of(forward)
+        lines = norm_lines(body)
+        if PR_STATE_CHECK not in lines:
+            problems.append("peros-%s(no-live-state-check)" % arm)
+        else:
+            check_at = lines.index(PR_STATE_CHECK)
+            window = lines[check_at + 1:check_at + 5]
+            if 'post_trigger "/oc maintainer"' not in window:
+                problems.append("peros-%s(non-open-not-routed-to-maintainer)" % arm)
+            later_maintainer = [
+                index
+                for index, line in enumerate(lines)
+                if index > check_at and line == 'post_trigger "/oc maintainer"'
+            ]
+            fix_posts = [
+                index
+                for index, line in enumerate(lines)
+                if line.startswith('post_trigger "/oc fix:')
+            ]
+            if not later_maintainer or (fix_posts and min(later_maintainer) > min(fix_posts)):
+                problems.append("peros-%s(state-check-after-fix-post)" % arm)
+            lab_branches = [
+                index
+                for index, line in enumerate(lines)
+                if line == 'elif echo "$head_ref" | grep -q "opencode/lab"; then'
+            ]
+            if lab_branches and check_at > min(lab_branches):
+                problems.append("peros-%s(state-check-not-first)" % arm)
+        behavioral_peros(arm, tag, body, problems)
+
+
+def collect(docs):
+    problems = []
+    validate_opencode(docs[OPENCODE], problems)
+    validate_review(docs[REVIEW], problems)
+    validate_peros(docs[PEROS], problems)
+    return problems
+
+
+base_docs = {}
+load_problems = []
+for path in (OPENCODE, REVIEW, PEROS):
+    try:
+        base_docs[path] = load(path)
+    except Exception as exc:  # noqa: BLE001 - any parse failure fails closed
+        load_problems.append("%s(%s)" % (os.path.basename(path), type(exc).__name__))
+
+MUTANTS = (
+    (
+        "fix-agent-gate",
+        OPENCODE,
+        "        if: " + FIX_AGENT_IF + "\n",
+        "        if: steps.actor_gate.outputs.run == 'true'\n",
+    ),
+    (
+        "fix-baseline-gate",
+        OPENCODE,
+        "      - name: Capture baseline\n        id: baseline\n        if: " + FIX_BASELINE_IF + "\n",
+        "      - name: Capture baseline\n        id: baseline\n",
+    ),
+    (
+        "fix-verify-gate",
+        OPENCODE,
+        "      - name: Verify fix pushed, else auto-retry\n        id: verify\n        if: " + FIX_VERIFY_IF + "\n",
+        "      - name: Verify fix pushed, else auto-retry\n        id: verify\n",
+    ),
+    (
+        "fix-forward-guard",
+        OPENCODE,
+        "steps.fix_guard.outputs.open == 'true' && steps.verify.outputs.retry",
+        "steps.verify.outputs.retry",
+    ),
+    (
+        "fix-forward-skip-output",
+        OPENCODE,
+        " && steps.verify.outputs.skip_forward != 'true'",
+        "",
+    ),
+    (
+        "fix-guard-open-false",
+        OPENCODE,
+        'echo "open=false" >> "$GITHUB_OUTPUT"\n',
+        "",
+    ),
+    (
+        "fix-verify-skip-forward",
+        OPENCODE,
+        'echo "skip_forward=true" >> "$GITHUB_OUTPUT"\n',
+        "",
+    ),
+    (
+        "fix-strip-gate",
+        OPENCODE,
+        "      - name: Strip owner Co-authored-by trailers from the PR branch\n        if: " + FIX_SIDE_IF + "\n",
+        "      - name: Strip owner Co-authored-by trailers from the PR branch\n        if: always() && steps.actor_gate.outputs.run == 'true'\n",
+    ),
+    (
+        "fix-approve-gate",
+        OPENCODE,
+        "      - name: Approve held CI runs on the PR\n        continue-on-error: true\n        if: " + FIX_SIDE_IF + "\n",
+        "      - name: Approve held CI runs on the PR\n        continue-on-error: true\n        if: always() && steps.actor_gate.outputs.run == 'true'\n",
+    ),
+    (
+        "review-agent-gate",
+        REVIEW,
+        "        if: " + REVIEW_AGENT_IF + "\n",
+        "        if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr == 'true'\n",
+    ),
+    (
+        "review-verify-gate",
+        REVIEW,
+        "        if: " + REVIEW_VERIFY_IF + "\n",
+        "        if: steps.pr-info.outputs.is_pr == 'true' && always()\n",
+    ),
+    (
+        "review-publish-gate",
+        REVIEW,
+        "        if: " + REVIEW_PUBLISH_IF + "\n",
+        "        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'\n",
+    ),
+    (
+        "peros-state-check",
+        PEROS,
+        PR_STATE_CHECK,
+        "if false; then",
+    ),
+    (
+        "peros-pr-state-env",
+        PEROS,
+        "          PR_STATE: " + PR_STATE_ENV + "\n",
+        "",
+    ),
+    (
+        "peros-pr-state-output",
+        PEROS,
+        "          " + STATE_OUTPUT + "\n",
+        "",
+    ),
+)
+
+problems = list(load_problems)
+if not load_problems:
+    control = collect(base_docs)
+    if control:
+        problems.extend("control:" + item for item in control)
+    for label, path, old, new in MUTANTS:
+        try:
+            with open(path) as handle:
+                text = handle.read()
+        except OSError:
+            problems.append("mutant-%s(source-unreadable)" % label)
+            continue
+        if old not in text:
+            problems.append("mutant-%s(pattern-missing)" % label)
+            continue
+        mutated = text.replace(old, new)
+        try:
+            doc = load_text(mutated)
+        except Exception:  # noqa: BLE001 - a syntactically broken mutant is caught
+            continue
+        docs = dict(base_docs)
+        docs[path] = doc
+        if not collect(docs):
+            problems.append("mutant-%s(not-caught)" % label)
+
+if problems:
+    print("BAD:" + " ".join(problems))
+else:
+    print("OK")
+PY
+)
+case "$r32_out" in
+  OK)
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, the review arm carries the same guard gating its agent, report publisher, and verify step, and every per-OS forwarder resolves the live PR state first and routes a non-OPEN or unknown target to the Maintainer instead of posting /oc fix; the guard bodies are executed against a mock gh for OPEN, CLOSED, MERGED, and unknown states, the verify hard stop is executed under a close race, every per-OS forwarder is executed across OPEN, closed, unknown, and non-PR targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate (issue #781)" "ok"
+    ;;
+  *)
+    check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, and the per-OS forwarders could post /oc fix on a closed PR; the pre-fix unguarded shapes are the regression)" "bad"
+    ;;
+esac
+
+summary="Silent-stall regression audit (R1-R32) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R31)
+  body="## Silent-stall regression audit FAILED (R1-R32)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, or R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), or R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
