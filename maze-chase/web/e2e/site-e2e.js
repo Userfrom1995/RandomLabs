@@ -23,6 +23,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { navPillScrollState } = require('./nav-pill.js');
 
 const BASE = (process.argv[2] || 'http://localhost:8931/').replace(/\/?$/, '/');
 const DEBUG_PORT = Number(process.argv[3] || 9331);
@@ -416,11 +417,15 @@ async function collectLinks(ws) {
           const pill = active.getBoundingClientRect();
           return {
             scrollLeft: nav.scrollLeft,
-            overflows: nav.scrollWidth > nav.clientWidth + 1,
             left: pill.left,
             right: pill.right,
             boxLeft: box.left,
             boxRight: box.right,
+            // Where the pill sits before the nav scroll is applied, so
+            // the harness can tell a genuinely clipped pill from one
+            // that fits in an overflowing nav.
+            unscrolledLeft: pill.left + nav.scrollLeft,
+            unscrolledRight: pill.right + nav.scrollLeft,
           };
         })(),
       };
@@ -445,17 +450,23 @@ async function collectLinks(ws) {
       );
       if (path === 'releases.html') {
         // Whether the pill needs a scroll depends on the platform's
-        // fallback font metrics. Assert the honest state either way: an
-        // overflowing nav must be scrolled, a fitting one must not be.
-        if (mobile.navPill && mobile.navPill.overflows) {
+        // fallback font metrics, not on whether the nav overflows: macOS
+        // Chrome at 390x844 overflows the nav (411 vs 362) while the
+        // Releases pill still fits fully inside it, so scrollLeft 0 is
+        // the correct state. Assert the honest invariant either way: a
+        // pill that is clipped without a scroll must have been scrolled
+        // into view, and a pill that already fits must stay unscrolled.
+        const pill = mobile.navPill;
+        const scrollState = navPillScrollState(pill);
+        if (scrollState.clippedWithoutScroll) {
           assert(
-            mobile.navPill.scrollLeft > 0,
-            `releases.html actually scrolls its overflowing current pill into view at 390x844 (scrollLeft ${mobile.navPill.scrollLeft.toFixed(1)})`,
+            scrollState.ok,
+            `releases.html scrolls its clipped current pill into view at 390x844 (scrollLeft ${pill.scrollLeft.toFixed(1)}, unscrolled ${pill.unscrolledLeft.toFixed(1)}..${pill.unscrolledRight.toFixed(1)} in ${pill.boxLeft.toFixed(1)}..${pill.boxRight.toFixed(1)})`,
           );
         } else {
           assert(
-            mobile.navPill && mobile.navPill.scrollLeft === 0,
-            `releases.html leaves a fitting nav unscrolled at 390x844 (scrollLeft ${mobile.navPill ? mobile.navPill.scrollLeft.toFixed(1) : 'missing'})`,
+            scrollState.ok,
+            `releases.html leaves a fitting current pill unscrolled at 390x844 (scrollLeft ${pill ? pill.scrollLeft.toFixed(1) : 'missing'})`,
           );
         }
       }
