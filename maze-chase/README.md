@@ -14,7 +14,8 @@ ships the Linux, Windows, and macOS terminal and desktop artifacts. The
 Windows installer plus zip and the macOS app, dmg, and tarball are built and
 smoked by the native release jobs in
 [run 40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683).
-The binaries are unsigned. The open tracking issue #582 carries the final
+The terminal and Windows binaries are unsigned; the macOS app bundle is
+ad-hoc signed. The open tracking issue #582 carries the final
 re-verification of every claim, with the release-claims sweep and terminal
 matrix sign-off tracked in #683.** The terminal layer's
 real-emulator truth is recorded in

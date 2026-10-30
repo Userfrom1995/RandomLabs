@@ -38,8 +38,9 @@ To build from source, use Rust 1.89+ with cargo. System needs:
   your PC" prompt (choose More info, then Run anyway), and Windows
   remembers the choice after that.
 - **macOS**: nothing beyond the Rust toolchain (CoreAudio and AppKit
-  need no extra installs). The bundle is unsigned: first launch needs
-  right-click Open, then Gatekeeper remembers it.
+  need no extra installs). The app bundle is ad-hoc signed, so first
+  launch shows the standard unidentified-developer dialog: choose Open
+  Anyway (or right-click Open), then Gatekeeper remembers it.
 
 Build and install from the repo root (`RandomLabs/`):
 
