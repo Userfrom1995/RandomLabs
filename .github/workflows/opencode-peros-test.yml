@@ -48,13 +48,16 @@ jobs:
           num="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          pr_state=""
           if [ "$is_pr" = "true" ]; then
             head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+            pr_state=$(gh pr view "$num" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           else
             head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
             [ -z "$head_ref" ] && head_ref="main"
           fi
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"
           echo "Target ref: $head_ref"
 
       - name: Checkout repository
@@ -433,6 +436,7 @@ jobs:
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+          PR_STATE: ${{ steps.pr-info.outputs.pr_state }}
           # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
           # rewrites any argv that looks like a POSIX absolute path before the
           # child process sees it, so a --body value starting with "/oc" landed
@@ -459,7 +463,10 @@ jobs:
           }
           case "$action" in
             fix)
-              if echo "$head_ref" | grep -q "opencode/lab"; then
+              if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then
+                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${PR_STATE:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
+                post_trigger "/oc maintainer"
+              elif echo "$head_ref" | grep -q "opencode/lab"; then
                 post_trigger "/oc lab"
               elif [ "$is_pr" = "true" ]; then
                 post_trigger "/oc fix: Linux tester findings (see report)"
@@ -497,13 +504,16 @@ jobs:
           num="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          pr_state=""
           if [ "$is_pr" = "true" ]; then
             head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+            pr_state=$(gh pr view "$num" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           else
             head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
             [ -z "$head_ref" ] && head_ref="main"
           fi
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"
           echo "Target ref: $head_ref"
 
       - name: Checkout repository
@@ -946,6 +956,7 @@ jobs:
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+          PR_STATE: ${{ steps.pr-info.outputs.pr_state }}
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
@@ -966,7 +977,10 @@ jobs:
           }
           case "$action" in
             fix)
-              if echo "$head_ref" | grep -q "opencode/lab"; then
+              if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then
+                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${PR_STATE:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
+                post_trigger "/oc maintainer"
+              elif echo "$head_ref" | grep -q "opencode/lab"; then
                 post_trigger "/oc lab"
               elif [ "$is_pr" = "true" ]; then
                 post_trigger "/oc fix: macOS tester findings (see report)"
@@ -1003,13 +1017,16 @@ jobs:
           num="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          pr_state=""
           if [ "$is_pr" = "true" ]; then
             head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+            pr_state=$(gh pr view "$num" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           else
             head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
             [ -z "$head_ref" ] && head_ref="main"
           fi
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"
           echo "Target ref: $head_ref"
 
       - name: Checkout repository
@@ -1444,6 +1461,7 @@ jobs:
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+          PR_STATE: ${{ steps.pr-info.outputs.pr_state }}
           # Issue #612: the live regression. Under Git Bash on windows-latest,
           # MSYS2 path conversion rewrote the --body value "/oc maintainer"
           # into "C:/Program Files/Git/oc maintainer" before gh ever saw it
@@ -1471,7 +1489,10 @@ jobs:
           }
           case "$action" in
             fix)
-              if echo "$head_ref" | grep -q "opencode/lab"; then
+              if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then
+                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${PR_STATE:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
+                post_trigger "/oc maintainer"
+              elif echo "$head_ref" | grep -q "opencode/lab"; then
                 post_trigger "/oc lab"
               elif [ "$is_pr" = "true" ]; then
                 post_trigger "/oc fix: Windows tester findings (see report)"

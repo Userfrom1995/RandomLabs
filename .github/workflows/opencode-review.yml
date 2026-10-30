@@ -159,6 +159,30 @@ jobs:
           fi
           bash "$gate_script"
 
+      - name: Guard - target must be an OPEN pull request
+        id: review_guard
+        if: steps.pr-info.outputs.is_pr == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          # Issue #781: a /oc review on a merged or closed PR used to run the
+          # whole review lane against dead code (agent tokens, a verdict post,
+          # and a forward handoff). Resolve the live PR state first and publish
+          # `open=` so every downstream step stays skipped when the target is
+          # not OPEN. A failed or empty state read is refused (fail closed to a
+          # clean skip, never a blind run).
+          pr="${{ github.event.issue.number }}"
+          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$pr_state" != "OPEN" ]; then
+            echo "::notice::/oc review was triggered on #$pr which is not an OPEN pull request (state='${pr_state:-unknown}'); skipping the review run (issue #781)."
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "open=true" >> "$GITHUB_OUTPUT"
+          echo "Target #$pr is OPEN; proceeding with review."
+
       - name: Skip review for non-PR issue
         if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr != 'true'
         env:
@@ -254,7 +278,7 @@ jobs:
 
       - name: Run opencode reviewer
         id: review
-        if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr == 'true'
+        if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         continue-on-error: true
         timeout-minutes: 90
         uses: ./.github/actions/opencode-run
@@ -292,7 +316,7 @@ jobs:
 
       - name: Publish reviewer decision report (owner PAT)
         id: publish-report
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.review_guard.outputs.open == 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
@@ -360,7 +384,7 @@ jobs:
 
       - name: Verify review decided, else auto-retry
         id: verify-review
-        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.review_guard.outputs.open == 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
