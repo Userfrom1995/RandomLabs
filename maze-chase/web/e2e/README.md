@@ -3,9 +3,9 @@
 Eight durable, dependency-free harnesses (Node 22+ for the CDP harnesses, which
 use the built-in WebSocket; no npm packages) that
 prove the browser layer against the real artifacts. All exit nonzero
-on failure and print `ALL GREEN` on success. `run-browser-e2e.sh` runs
-the CDP suites with a fresh browser per suite, and `tests/` pins the
-runner and nav-pill contracts with `node --test`.
+on failure and print an `ALL GREEN` (or `PASS`) banner on success.
+`run-browser-e2e.sh` runs the CDP suites with a fresh browser per suite,
+and `tests/` pins the runner and nav-pill contracts with `node --test`.
 
 - `wasm-smoke.js [path-to-wasm]`: instantiates the release `.wasm`
   with zero imports and drives a session through the C ABI (boot,
@@ -81,12 +81,16 @@ web/e2e/run-browser-e2e.sh                     # all five CDP suites
 web/e2e/run-browser-e2e.sh site-e2e.js         # selected suites
 web/e2e/run-browser-e2e.sh --base-url URL      # external static server
 web/e2e/run-browser-e2e.sh --chrome PATH       # explicit Chrome binary
+web/e2e/run-browser-e2e.sh --plan              # per-suite URL/port/profile
 ```
 
 It needs node 22+ and python3 (for the static server and a free debug
 port); Chrome is found through `CHROME` or the usual platform names. The
-Node-only suites (`wasm-smoke.js`, `tester-regression.js`,
-`macos-case-audit.js`) run directly with `node`.
+runner prints the server URL and each suite's CDP port and profile;
+`--plan` prints `script<TAB>url<TAB>port<TAB>profile` for every suite
+without launching a browser or a server. The Node-only suites
+(`wasm-smoke.js`, `tester-regression.js`, `macos-case-audit.js`) run
+directly with `node`.
 
 Manual two-shell setup (one suite at a time; prefer the runner):
 
