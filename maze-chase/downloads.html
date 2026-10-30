@@ -143,11 +143,12 @@ shasum -a 256 -c SHA256SUMS.txt
 
 # Windows PowerShell (one file at a time)
 Get-FileHash -Algorithm SHA256 .\maze-chase-terminal-0.1.0-windows-x86_64.zip</code></pre>
-  <p>The terminal and Windows binaries are unsigned, and the macOS app bundle
-  is ad-hoc signed. Windows SmartScreen and the macOS unidentified-developer
-  prompt appear on first launch; those prompts are expected and are not a
-  signature claim. See <a href="releases.html">Releases</a> for the current
-  version and notes.</p>
+  <p>The published rc.1 terminal, Windows, and macOS binaries are unsigned; a
+  build from the current tree ad-hoc signs the macOS app bundle. Windows
+  SmartScreen and the macOS unidentified-developer prompt appear on first
+  launch for current-tree builds; a quarantined rc.1 download may be refused
+  as damaged. Those prompts are expected and are not a signature claim. See
+  <a href="releases.html">Releases</a> for the current version and notes.</p>
 
   <h2 id="requirements">System requirements</h2>
   <div class="grid">

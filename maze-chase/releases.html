@@ -159,9 +159,10 @@
     so it is checksummed rather than claimed byte-reproducible.</li>
     <li>Every release publishes one <code>SHA256SUMS.txt</code> for the whole
     set. The per-host toolchain records are folded into the release notes.</li>
-    <li>The terminal and Windows binaries are unsigned, and the macOS app
-    bundle is ad-hoc signed. SmartScreen and unidentified-developer warnings
-    are expected and are not a signature claim.</li>
+    <li>The published rc.1 binaries are unsigned. A build from the current
+    tree ad-hoc signs the macOS app bundle; SmartScreen and
+    unidentified-developer warnings are expected and are not a signature
+    claim.</li>
   </ul>
 
   <h2 id="contract">Version and tag contract</h2>
