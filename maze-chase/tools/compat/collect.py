@@ -54,6 +54,23 @@ SCHEMA = "maze-chase-compat-evidence/1"
 
 TIER_NAMES = ("kitty-graphics", "sixel", "truecolor-cells", "legacy-cells")
 
+# The fixed session every transcript-driven run executes (drive.sh). A
+# pass must prove each checkpoint actually rendered: present, carrying
+# transcript output, and backed by a decodable capture. The resize
+# checkpoints only exist on drivers that can set a window size (the X11
+# driver); macOS records resize_exercised=false and skips them.
+FIXED_SESSION_CHECKPOINTS = (
+    "title",
+    "playing",
+    "paused",
+    "title-return",
+    "help",
+    "scores",
+    "settings",
+)
+RESIZE_CHECKPOINTS = ("resized-wide", "too-small", "refit")
+TRANSCRIPT_DRIVERS = ("x11", "macos")
+
 CSI_RE = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
 OSC_RE = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 # Kitty graphics: ESC _ G <params> ; <payload> ESC \
@@ -100,6 +117,55 @@ def parse_events(path):
                 }
             )
     return events
+
+
+def required_checkpoints(meta):
+    """The checkpoints the fixed session must have proved before a pass.
+
+    Only transcript-driven sessions (the X11 and macOS drivers) run the
+    fixed choreography. Windows rows carry no pty transcript by design
+    and are graded from the process record and captures, and unverified
+    rows use the `none` driver; neither has this shape.
+    """
+    driver = str(meta.get("driver") or "")
+    if driver not in TRANSCRIPT_DRIVERS:
+        return ()
+    names = list(FIXED_SESSION_CHECKPOINTS)
+    geometry = meta.get("geometry") or {}
+    if geometry.get("resize_exercised") is True:
+        names.extend(RESIZE_CHECKPOINTS)
+    return tuple(names)
+
+
+def readiness_from_events(events):
+    """The driver's first-output wait, copied from events.log.
+
+    drive.sh logs `readiness` when the transcript produced its first
+    bytes and `readiness-timeout` when the bounded wait expired. The
+    numeric fields are parsed back to ints so the evidence row records
+    the measured wait, not a prose summary.
+    """
+    readiness = None
+    timed_out = False
+    for event in events:
+        if event["type"] not in ("readiness", "readiness-timeout"):
+            continue
+        parsed = {}
+        for token in str(event.get("detail") or "").split():
+            if "=" not in token:
+                continue
+            key, value = token.split("=", 1)
+            try:
+                parsed[key] = int(value)
+            except ValueError:
+                parsed[key] = value
+        parsed["timed_out"] = event["type"] == "readiness-timeout"
+        readiness = parsed
+        timed_out = timed_out or parsed["timed_out"]
+    if readiness is None:
+        return None
+    readiness["timed_out"] = timed_out
+    return readiness
 
 
 def segment_phases(transcript, events):
@@ -834,6 +900,7 @@ def main():
         "started_at": meta.get("started_at"),
         "ended_at": meta.get("ended_at"),
         "exit": meta.get("exit"),
+        "readiness": readiness_from_events(events),
         "phases": phase_reports,
         "protocol_totals": {
             "transcript_bytes": len(transcript),
@@ -919,6 +986,63 @@ def main():
     # the reasons all land even when several gates fire together.
     disposition = args.result
     notes = collect_notes(args, meta)
+    # First-paint readiness: a cold terminal can accept the keystrokes
+    # before the game has painted anything, which produced a 0-byte title
+    # checkpoint and duplicate pre-render captures that were still signed
+    # as a pass. drive.sh logs the bounded wait and a timeout. Parse it
+    # here for the fixed-session gate and grade the timeout at the end as
+    # unverified (a timed-out session never rendered its first frame).
+    readiness = result["readiness"]
+    readiness_timed_out = bool(readiness and readiness.get("timed_out"))
+    # Fixed-session honesty: a transcript-driven pass claims the whole
+    # fixed choreography rendered. Each checkpoint must be present, carry
+    # transcript output, and have a decodable capture; a cold start's
+    # 0-byte title phase (or any missing or uncaptured checkpoint) can
+    # never sign a pass. Synthetic single-checkpoint fixtures and Windows
+    # rows (no transcript, graded from the process record) are not this
+    # shape and are skipped by required_checkpoints().
+    required = required_checkpoints(meta)
+    if args.result == "pass" and required and not readiness_timed_out:
+        by_name = {}
+        for phase in result["phases"]:
+            by_name.setdefault(str(phase.get("name", "")).lower(), []).append(
+                phase
+            )
+        missing = []
+        empty = []
+        uncaptured = []
+        for name in required:
+            phases = by_name.get(name, [])
+            if not phases:
+                missing.append(name)
+                continue
+            if any(int(phase.get("bytes", 0)) <= 0 for phase in phases):
+                empty.append(name)
+            if any(not phase.get("screenshot") for phase in phases):
+                uncaptured.append(name)
+        if missing or empty or uncaptured:
+            disposition = "partial"
+            reasons = []
+            if missing:
+                reasons.append(
+                    "missing required checkpoint(s): " + ", ".join(missing)
+                )
+            if empty:
+                reasons.append(
+                    "required checkpoint(s) carried no transcript output: "
+                    + ", ".join(empty)
+                )
+            if uncaptured:
+                reasons.append(
+                    "required checkpoint(s) produced no decodable capture: "
+                    + ", ".join(uncaptured)
+                )
+            notes.append(
+                "recorded partial by collect.py: "
+                + "; ".join(reasons)
+                + "; a pass requires every fixed-session checkpoint to be "
+                  "present, non-empty, and captured"
+            )
     # Tier-observation honesty: on platforms whose sessions carry a
     # transcript (Linux/macOS), every bitmap gate below is keyed on the
     # observed tier, so a transcript that never names it (no VIDEO line
@@ -1150,6 +1274,23 @@ def main():
         )
         notes.append(
             "recorded unverified by collect.py: " + result["unverified_reason"]
+        )
+    # First-paint readiness is the last unverified gate so an earlier
+    # partial downgrade cannot mask it: a session that never painted its
+    # first frame has no rendered checkpoints at all, which is unverified
+    # rather than partial. drive.sh logs `readiness` on first output and
+    # `readiness-timeout` when the bounded wait expires.
+    if args.result in ("pass", "partial") and readiness_timed_out:
+        disposition = "unverified"
+        result["unverified_reason"] = (
+            "the driver saw no transcript output within "
+            + str(readiness.get("waited_ms", 0))
+            + " ms of launch; the terminal never painted its first frame, "
+              "so the session has no rendered checkpoints"
+        )
+        notes.append(
+            "recorded unverified by collect.py: "
+            + result["unverified_reason"]
         )
     result["disposition"] = disposition
     result["notes"] = notes
