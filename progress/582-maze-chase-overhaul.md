@@ -2369,10 +2369,21 @@ are reconciled to the rc.1 evidence.
   workflow and the packaging source stay byte-identical; the
   release-note copy and the fresh-candidate dispatch landed on the
   fresh lane #783, so the signing guidance is also in the release
-  notes. The published rc.1 rebuild from merged head remains a release
-  action. Verification: `cargo test -p maze-chase-terminal --no-fail-fast
+  notes. The next candidate is cut from the merged tree as a fresh rc
+  (never a rebuilt rc.1). Verification: `cargo test -p maze-chase-terminal --no-fail-fast
   --locked` 277 passed / 0 failed, `cargo fmt --all --check` clean,
   `maze-chase-verify` 19/19, `python3 tools/compat/tests/test_harness_contract.py`
   52/52, `render-docs.mjs --check` 15 docs current with 423 links,
   site E2E 673/673, and browser E2E 279/279 (Linux; the macOS lane
-  re-runs its own suite). - the Fixer
+  re-runs its own suite). Delegation ledger (repair-session addendum; the
+  original round recorded none): three parallel general subagents
+  re-audited the round's scopes. The release workflow audit confirmed the
+  byte-identical copy, the tag resolver behavior, and the cross-branch rc
+  race (fixed here). The macOS signing/smoke audit confirmed the ad-hoc
+  codesign-verify chain and the harness identity/too-small checks, and
+  found the unqualified public signing copy (fixed here). The
+  public-copy/progress audit confirmed the remaining published-rc.1
+  contradictions and the contradictory rc.1 rebuild note (both fixed
+  here). The primary context verified every cited line and ran the
+  packaging, site, harness, and docs checks. Skills: no registry skill
+  matched. - the Lab Engineer
