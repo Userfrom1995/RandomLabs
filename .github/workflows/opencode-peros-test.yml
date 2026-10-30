@@ -48,16 +48,13 @@ jobs:
           num="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          pr_state=""
           if [ "$is_pr" = "true" ]; then
             head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
-            pr_state=$(gh pr view "$num" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           else
             head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
             [ -z "$head_ref" ] && head_ref="main"
           fi
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"
           echo "Target ref: $head_ref"
 
       - name: Checkout repository
@@ -454,9 +451,9 @@ jobs:
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
-          # Issue #781 F2: the job-start pr_state snapshot goes stale while the
-          # arm runs. Re-read the live state immediately before the handoff so
-          # a PR merged or closed mid-run can never receive a dead /oc fix.
+          # Issue #781 F2: the PR state can move while the arm runs. Re-read
+          # the live state immediately before the handoff so a PR merged or
+          # closed mid-run can never receive a dead handoff trigger.
           live_state=""
           if [ "$is_pr" = "true" ]; then
             live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
@@ -467,21 +464,23 @@ jobs:
           post_trigger() {
             printf '%s' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true
           }
-          case "$action" in
-            fix)
-              if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
-                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
-                post_trigger "/oc maintainer"
-              elif echo "$head_ref" | grep -q "opencode/lab"; then
-                post_trigger "/oc lab"
-              elif [ "$is_pr" = "true" ]; then
-                post_trigger "/oc fix: Linux tester findings (see report)"
-              else
-                post_trigger "/oc maintainer"
-              fi ;;
-            lab) post_trigger "/oc lab" ;;
-            *) post_trigger "/oc maintainer" ;;
-          esac
+          if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
+            echo "::notice::Tester decision handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing the decision to the Maintainer instead of a dead PR lane (issue #781)."
+            post_trigger "/oc maintainer"
+          else
+            case "$action" in
+              fix)
+                if echo "$head_ref" | grep -q "opencode/lab"; then
+                  post_trigger "/oc lab"
+                elif [ "$is_pr" = "true" ]; then
+                  post_trigger "/oc fix: Linux tester findings (see report)"
+                else
+                  post_trigger "/oc maintainer"
+                fi ;;
+              lab) post_trigger "/oc lab" ;;
+              *) post_trigger "/oc maintainer" ;;
+            esac
+          fi
 
   test-macos:
     if: startsWith(github.event.comment.body, '/oc test-macos') || startsWith(github.event.comment.body, '/opencode test-macos')
@@ -510,16 +509,13 @@ jobs:
           num="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          pr_state=""
           if [ "$is_pr" = "true" ]; then
             head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
-            pr_state=$(gh pr view "$num" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           else
             head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
             [ -z "$head_ref" ] && head_ref="main"
           fi
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"
           echo "Target ref: $head_ref"
 
       - name: Checkout repository
@@ -975,9 +971,9 @@ jobs:
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
-          # Issue #781 F2: the job-start pr_state snapshot goes stale while the
-          # arm runs. Re-read the live state immediately before the handoff so
-          # a PR merged or closed mid-run can never receive a dead /oc fix.
+          # Issue #781 F2: the PR state can move while the arm runs. Re-read
+          # the live state immediately before the handoff so a PR merged or
+          # closed mid-run can never receive a dead handoff trigger.
           live_state=""
           if [ "$is_pr" = "true" ]; then
             live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
@@ -987,21 +983,23 @@ jobs:
           post_trigger() {
             printf '%s' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true
           }
-          case "$action" in
-            fix)
-              if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
-                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
-                post_trigger "/oc maintainer"
-              elif echo "$head_ref" | grep -q "opencode/lab"; then
-                post_trigger "/oc lab"
-              elif [ "$is_pr" = "true" ]; then
-                post_trigger "/oc fix: macOS tester findings (see report)"
-              else
-                post_trigger "/oc maintainer"
-              fi ;;
-            lab) post_trigger "/oc lab" ;;
-            *) post_trigger "/oc maintainer" ;;
-          esac
+          if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
+            echo "::notice::Tester decision handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing the decision to the Maintainer instead of a dead PR lane (issue #781)."
+            post_trigger "/oc maintainer"
+          else
+            case "$action" in
+              fix)
+                if echo "$head_ref" | grep -q "opencode/lab"; then
+                  post_trigger "/oc lab"
+                elif [ "$is_pr" = "true" ]; then
+                  post_trigger "/oc fix: macOS tester findings (see report)"
+                else
+                  post_trigger "/oc maintainer"
+                fi ;;
+              lab) post_trigger "/oc lab" ;;
+              *) post_trigger "/oc maintainer" ;;
+            esac
+          fi
 
   test-windows:
     if: startsWith(github.event.comment.body, '/oc test-windows') || startsWith(github.event.comment.body, '/opencode test-windows')
@@ -1029,16 +1027,13 @@ jobs:
           num="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          pr_state=""
           if [ "$is_pr" = "true" ]; then
             head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
-            pr_state=$(gh pr view "$num" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
           else
             head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
             [ -z "$head_ref" ] && head_ref="main"
           fi
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"
           echo "Target ref: $head_ref"
 
       - name: Checkout repository
@@ -1490,9 +1485,9 @@ jobs:
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
-          # Issue #781 F2: the job-start pr_state snapshot goes stale while the
-          # arm runs. Re-read the live state immediately before the handoff so
-          # a PR merged or closed mid-run can never receive a dead /oc fix.
+          # Issue #781 F2: the PR state can move while the arm runs. Re-read
+          # the live state immediately before the handoff so a PR merged or
+          # closed mid-run can never receive a dead handoff trigger.
           live_state=""
           if [ "$is_pr" = "true" ]; then
             live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
@@ -1505,18 +1500,20 @@ jobs:
           post_trigger() {
             printf '%s' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true
           }
-          case "$action" in
-            fix)
-              if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
-                echo "::notice::/oc fix handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing to the Maintainer instead of a dead fix loop (issue #781)."
-                post_trigger "/oc maintainer"
-              elif echo "$head_ref" | grep -q "opencode/lab"; then
-                post_trigger "/oc lab"
-              elif [ "$is_pr" = "true" ]; then
-                post_trigger "/oc fix: Windows tester findings (see report)"
-              else
-                post_trigger "/oc maintainer"
-              fi ;;
-            lab) post_trigger "/oc lab" ;;
-            *) post_trigger "/oc maintainer" ;;
-          esac
+          if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then
+            echo "::notice::Tester decision handoff for #$target skipped: the pull request is not OPEN (state='${live_state:-unknown}'); routing the decision to the Maintainer instead of a dead PR lane (issue #781)."
+            post_trigger "/oc maintainer"
+          else
+            case "$action" in
+              fix)
+                if echo "$head_ref" | grep -q "opencode/lab"; then
+                  post_trigger "/oc lab"
+                elif [ "$is_pr" = "true" ]; then
+                  post_trigger "/oc fix: Windows tester findings (see report)"
+                else
+                  post_trigger "/oc maintainer"
+                fi ;;
+              lab) post_trigger "/oc lab" ;;
+              *) post_trigger "/oc maintainer" ;;
+            esac
+          fi

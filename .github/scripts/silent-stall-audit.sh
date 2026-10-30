@@ -7176,10 +7176,15 @@ R19P_GH
           r19p_case unverifiable 1 2 success 1 0 "$r19p_tmp/p0.json" 0 "" true "Could not verify"
           r19p_case success-no-decision 1 1 success 0 0 "$r19p_tmp/p0.json" 0 "" true "silent no-op"
           r19p_case gate-denial 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "" false "denial is not a crash"
-          # Issue #781 F4: a PR that closes after the guard (state MERGED) must
-          # take the clean skip: no retry, no verdict post, decision retained,
-          # skip_forward published for the gated force-lab/forward steps.
-          r19p_case mid-run-close 0 0 success 1 1 "$r19p_tmp/p0.json" 0 "" true "no longer OPEN" "" 0 MERGED 1
+          # Issue #781 F4/B2: a PR that closes after the guard (state MERGED)
+          # must take the clean skip even on the crash/unpublished shape: no
+          # retry POST, no verdict post, skip_forward published for the gated
+          # force-lab/forward steps. A decision-absent, failure-outcome,
+          # unpublished-evidence fixture is load-bearing because only the hard
+          # stop's own `exit 0` prevents the crash path from posting a retry
+          # on a closed PR (a present published verdict would exit through the
+          # normal verdict gate and mask a deleted exit).
+          r19p_case mid-run-close 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "" true "no longer OPEN" "" 0 MERGED 1
         fi
       fi
     fi
@@ -16311,7 +16316,9 @@ REVIEW_OBSERVER_NAME = "Detect unexpected PR head movement (reviewer is read-onl
 EXPECTED_REVIEW_OBSERVER_ENV = {
     "GH_TOKEN": "${{ github.token }}",
     "PATH": SYSTEM_PATH,
-    "PR": "${{ github.event.issue.number }}",
+    # Issue #781 M6: a linked-issue trigger has no PR state at the event issue
+    # number; the observer must read the resolved PR (Get PR info output).
+    "PR": "${{ steps.pr-info.outputs.pr_number }}",
     "BRANCH": "${{ steps.pr-info.outputs.head_ref }}",
     "RECORDED": "${{ steps.pr-info.outputs.head_oid }}",
     "CHECKOUT_OID": "${{ steps.checkout-head.outputs.oid }}",
@@ -21466,22 +21473,29 @@ esac
 # This rule pins the guard id and output contract, the gating of every
 # downstream fix step, the fail-closed skip output in the verify hard stop,
 # the review guard's resolved-PR binding (it must never query the event issue
-# number) and its position before checkout, the live re-reads in the review
-# publisher and verify, the skip_forward gates on both review handoffs, and
-# the per-OS live-state pre-check (the stale job-start PR_STATE snapshot is
-# gone). It then executes the extracted guard bodies against a mocked gh for
-# OPEN, CLOSED, MERGED, and unknown states; the mock enforces the exact
-# `pr view <resolved-pr> --repo <repo> --json state --jq .state` argv, so a
-# linked-issue trigger that queries the issue number fails as a wrong-target
-# read. It executes the fix verify hard stop under a race (guard passed, state
-# now MERGED) and the review verify under the same race, requires
-# skip_forward=true with no retry, handoff, or comment, executes each per-OS
-# forwarder against every state shape including a stale snapshot (PR_STATE
-# says OPEN, live state says MERGED), and simulates the step gates to prove a
-# non-OPEN target runs zero agent steps and posts zero comments while an OPEN
-# target still runs and forwards. Mutation self-tests remove or relocate each
-# gate, output, pre-check, and target binding one at a time and require this
-# rule to fail alone.
+# number) and its position before checkout, the linked-PR producer query (a
+# linked issue can never be treated as its own PR), the live re-reads in the
+# review publisher and verify including their own hard-stop `exit 0` inside
+# the close block, exactly one resolved-PR live binding per re-read, the
+# skip_forward gates on both review handoffs, the Record/Configure/Clear
+# open-gates, the resolved-PR force-lab base read, and the per-OS live-state
+# pre-check (the dead job-start
+# pr_state snapshot is gone and the live check gates every forwarding
+# action, not just fix). It then executes the extracted guard bodies against a
+# mocked gh for OPEN, CLOSED, MERGED, and unknown states; the mock enforces
+# the exact `pr view <resolved-pr> --repo <repo> --json state --jq .state`
+# argv, so a linked-issue trigger that queries the issue number fails as a
+# wrong-target read, and the force-lab base read is pinned to the resolved PR.
+# It executes the fix verify hard stop under a race (guard
+# passed, state now MERGED) and the review verify under the same race,
+# requires skip_forward=true with no retry, handoff, or comment, executes each
+# per-OS forwarder against every state shape and every decision action
+# including a stale snapshot (PR_STATE says OPEN, live state says MERGED) and
+# an action=lab close, and simulates the step gates to prove a non-OPEN target
+# runs zero agent steps and posts zero comments while an OPEN target still
+# runs and forwards. Mutation self-tests remove or relocate each gate, output,
+# pre-check, close-block exit, producer, and target binding one at a time and
+# require this rule to fail alone.
 r32_out=$(python3 -I - <<'PY'
 import copy
 import os
@@ -21556,6 +21570,33 @@ REVIEW_LIVE_QUERY = (
     " --json state --jq '.state' 2>/dev/null || echo \"\")"
 )
 REVIEW_LIVE_CLOSE_CHECK = 'if [ "$live_state" != "OPEN" ]; then'
+REVIEW_LIVE_PR_BINDING = 'live_pr="${{ steps.pr-info.outputs.pr_number }}"'
+# Issue #781 B3: the linked-issue producer must come from an open-PR query
+# filtered to this issue's opencode/issue<N>-* branch. The old F1 regression
+# (linked_pr="$issue") makes the guard query an issue as a PR, read unknown,
+# and skip every linked-issue review.
+REVIEW_PR_INFO_LINKED_QUERY = (
+    'linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open'
+    " --json number,headRefName,createdAt \\"
+)
+REVIEW_PR_INFO_LINKED_FILTER = (
+    '--jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))]'
+    ' | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")'
+)
+# Issue #781 M2: the PR-head bookkeeping steps must honor the guard too.
+REVIEW_HEAD_IF = (
+    "steps.pr-info.outputs.is_pr == 'true'"
+    " && steps.review_guard.outputs.open == 'true'"
+)
+REVIEW_RECORD_HEAD = "Record checked-out PR head"
+REVIEW_CONFIGURE = "Configure git identity"
+REVIEW_CLEAR = "Clear runtime decision"
+REVIEW_SIDE_STEPS = (
+    (REVIEW_RECORD_HEAD, "review-record-head"),
+    (REVIEW_CONFIGURE, "review-git-identity"),
+    (REVIEW_CLEAR, "review-clear-decision"),
+)
+FIX_GUARD_PR_BINDING = 'pr="${{ github.event.issue.number }}"'
 PEROS_GATE = (
     "always() && steps.actor_gate.outputs.run == 'true'"
     " && steps.verify-test.outcome == 'success'"
@@ -21564,11 +21605,6 @@ PEROS_GATE = (
 PEROS_LIVE_STATE_CHECK = 'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then'
 PEROS_LIVE_STATE_QUERY = (
     'live_state=$(gh pr view "$target" --repo "${{ github.repository }}"'
-    " --json state --jq '.state' 2>/dev/null || echo \"\")"
-)
-STATE_OUTPUT = 'echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"'
-STATE_QUERY = (
-    'pr_state=$(gh pr view "$num" --repo "${{ github.repository }}"'
     " --json state --jq '.state' 2>/dev/null || echo \"\")"
 )
 
@@ -21691,7 +21727,7 @@ def outputs_of(path):
     return values
 
 
-def expand(body, issue="781", pr_number="781"):
+def expand(body, issue="781", pr_number="781", allow_pr_info=True):
     replacements = (
         ("${{ github.event.issue.number }}", issue),
         ("${{ steps.pr-info.outputs.pr_number }}", pr_number),
@@ -21700,6 +21736,12 @@ def expand(body, issue="781", pr_number="781"):
         ("${{ github.event.issue.pull_request.html_url }}", PEROS_PR_URL),
     )
     for old, new in replacements:
+        # Issue #781 M3: the fix job has no pr-info step, so substituting a
+        # pr-info output there would mask a dead guard (production reads an
+        # empty number and skips every fix) behind a green audit. Leave it
+        # unexpanded; behavioral_fix then fails it as an unexpanded expression.
+        if not allow_pr_info and old == "${{ steps.pr-info.outputs.pr_number }}":
+            continue
         body = body.replace(old, new)
     return body
 
@@ -21787,11 +21829,11 @@ def behavioral_fix(doc, problems):
     verify = exactly_one(steps, FIX_VERIFY, "fix-verify", problems)
     if guard is None or verify is None:
         return
-    guard_body = expand(run_of(guard))
+    guard_body = expand(run_of(guard), allow_pr_info=False)
     if "${{" in guard_body:
         problems.append("fix-guard(unexpanded-expression)")
         return
-    verify_body = expand(run_of(verify))
+    verify_body = expand(run_of(verify), allow_pr_info=False)
     if "${{" in verify_body:
         problems.append("fix-verify(unexpanded-expression)")
         return
@@ -22020,6 +22062,13 @@ def validate_opencode(doc, problems):
             problems.append("fix-guard(no-open-false-output)")
         if 'echo "open=true" >> "$GITHUB_OUTPUT"' not in lines:
             problems.append("fix-guard(no-open-true-output)")
+        # Issue #781 M3: the fix job has no pr-info step. The guard must bind
+        # the event issue number, which the fix lane treats as the PR target.
+        if FIX_GUARD_PR_BINDING not in lines:
+            problems.append("fix-guard(pr-binding-not-event-issue)")
+        body = run_of(guard)
+        if "steps.pr-info.outputs.pr_number" in body:
+            problems.append("fix-guard(references-missing-pr-info-step)")
         try:
             false_at = lines.index('echo "open=false" >> "$GITHUB_OUTPUT"')
             exit_at = lines.index("exit 0", false_at)
@@ -22028,7 +22077,6 @@ def validate_opencode(doc, problems):
                 problems.append("fix-guard(refusal-exit-order)")
         except ValueError:
             problems.append("fix-guard(refusal-exit-missing)")
-        body = run_of(guard)
         if "gh issue comment" in body or "gh pr comment" in body or " gh api " in body:
             problems.append("fix-guard(posts-comment)")
     baseline = exactly_one(steps, FIX_BASELINE, "fix-baseline", problems)
@@ -22042,15 +22090,22 @@ def validate_opencode(doc, problems):
         if if_of(verify) != FIX_VERIFY_IF:
             problems.append("fix-verify(if=%r)" % if_of(verify))
         lines = norm_lines(run_of(verify))
+        # Issue #781 B2: the hard stop must both publish skip_forward and exit
+        # inside the same close block. Presence alone is not enough: deleting
+        # the exit falls through to the crash/retry path and can post a retry
+        # on a closed PR.
         try:
             state_at = lines.index('if [ "$pr_state" != "OPEN" ]; then')
-            hard = lines[state_at:]
-            skip_at = hard.index('echo "skip_forward=true" >> "$GITHUB_OUTPUT"')
-            exit_at = hard.index("exit 0", skip_at)
-            if skip_at > exit_at:
-                problems.append("fix-verify(skip-output-after-exit)")
+            fi_at = lines.index("fi", state_at)
+            close_block = lines[state_at:fi_at]
+            if 'echo "skip_forward=true" >> "$GITHUB_OUTPUT"' not in close_block:
+                problems.append("fix-verify(no-skip-forward-output)")
+            if "exit 0" not in close_block:
+                problems.append("fix-verify(live-close-falls-through)")
         except ValueError:
             problems.append("fix-verify(no-skip-forward-output)")
+        if "steps.pr-info.outputs.pr_number" in run_of(verify):
+            problems.append("fix-verify(references-missing-pr-info-step)")
     forward = exactly_one(steps, FIX_FORWARD, "fix-forward", problems)
     if forward is not None and if_of(forward) != FIX_FORWARD_IF:
         problems.append("fix-forward(if=%r)" % if_of(forward))
@@ -22081,6 +22136,47 @@ def validate_opencode(doc, problems):
     simulate_fix(doc, problems)
 
 
+def pin_live_close_body(body, label, problems, require_skip=False):
+    # Issue #781 B1/B2/B4: the live re-read is a hard stop, not a log line.
+    # Exactly one live_pr binding (the resolved PR), before the state query,
+    # inside a block that contains both its own `exit 0` and no event-issue
+    # read. A deleted exit, a second wrong-target binding, or a rebind to the
+    # event issue number must each fail the audit.
+    lines = norm_lines(body)
+    live_prs = [i for i, line in enumerate(lines) if line.startswith("live_pr=")]
+    try:
+        query_at = lines.index(REVIEW_LIVE_QUERY)
+    except ValueError:
+        problems.append("%s(no-live-state-query)" % label)
+        return
+    if len(live_prs) != 1:
+        problems.append("%s(live-pr-assignments=%d,want=1)" % (label, len(live_prs)))
+    elif live_prs[0] >= query_at:
+        problems.append("%s(live-pr-after-query)" % label)
+    elif lines[live_prs[0]] != REVIEW_LIVE_PR_BINDING:
+        problems.append("%s(live-pr-not-resolved-pr)" % label)
+    if REVIEW_LIVE_CLOSE_CHECK not in lines:
+        problems.append("%s(no-live-close-check)" % label)
+        return
+    close_at = lines.index(REVIEW_LIVE_CLOSE_CHECK)
+    try:
+        fi_at = lines.index("fi", close_at)
+    except ValueError:
+        problems.append("%s(unterminated-live-close)" % label)
+        return
+    close_block = lines[close_at:fi_at]
+    if "exit 0" not in close_block:
+        problems.append("%s(live-close-falls-through)" % label)
+    if require_skip and 'echo "skip_forward=true" >> "$GITHUB_OUTPUT"' not in close_block:
+        problems.append("%s(no-skip-forward-in-live-close)" % label)
+    region_start = live_prs[0] if live_prs else close_at
+    if any(
+        "github.event.issue.number" in line
+        for line in lines[region_start:fi_at]
+    ):
+        problems.append("%s(live-block-queries-event-issue)" % label)
+
+
 def validate_review(doc, problems):
     steps = steps_in(doc, "review")
     if not steps:
@@ -22093,6 +22189,18 @@ def validate_review(doc, problems):
             problems.append("review-pr-info(no-pr-thread-pr-number)")
         if 'echo "pr_number=$linked_pr" >> "$GITHUB_OUTPUT"' not in lines:
             problems.append("review-pr-info(no-linked-pr-pr-number)")
+        # Issue #781 B3: pin the producer itself, not only the output echo. A
+        # linked_pr="$issue" regression makes the guard query an issue as a PR
+        # and skip every linked-issue review.
+        linked = [line for line in lines if line.startswith("linked_pr=")]
+        if len(linked) != 1:
+            problems.append(
+                "review-pr-info(linked-pr-assignments=%d,want=1)" % len(linked)
+            )
+        elif linked[0] != REVIEW_PR_INFO_LINKED_QUERY:
+            problems.append("review-pr-info(linked-pr-query-not-exact)")
+        if REVIEW_PR_INFO_LINKED_FILTER not in lines:
+            problems.append("review-pr-info(linked-pr-filter-not-exact)")
     guard = exactly_one(steps, GUARD_NAME, "review-guard", problems)
     if guard is not None:
         if guard.get("id") != "review_guard":
@@ -22155,6 +22263,12 @@ def validate_review(doc, problems):
         )
         if if_of(restore) != expected_restore_if:
             problems.append("review-restore(if=%r)" % if_of(restore))
+    # Issue #781 M2: the PR-head bookkeeping steps are side effects too and
+    # must stay skipped when the guard refused a non-OPEN PR.
+    for name, label in REVIEW_SIDE_STEPS:
+        step = exactly_one(steps, name, label, problems)
+        if step is not None and if_of(step) != REVIEW_HEAD_IF:
+            problems.append("%s(if=%r)" % (label, if_of(step)))
     agents = identified(steps, "review")
     if len(agents) != 1:
         problems.append("review-agent(id-count=%d,want=1)" % len(agents))
@@ -22164,42 +22278,33 @@ def validate_review(doc, problems):
     if publish is not None:
         if if_of(publish) != REVIEW_PUBLISH_IF:
             problems.append("review-publish(if=%r)" % if_of(publish))
-        # Issue #781 F4: the publisher re-reads state because the guard
-        # snapshot can be minutes stale by the time the agent finishes.
-        body = run_of(publish)
-        if 'live_pr="${{ steps.pr-info.outputs.pr_number }}"' not in norm_lines(body):
-            problems.append("review-publish(no-live-pr-binding)")
-        if REVIEW_LIVE_QUERY not in norm_lines(body):
-            problems.append("review-publish(no-live-state-query)")
-        if REVIEW_LIVE_CLOSE_CHECK not in norm_lines(body):
-            problems.append("review-publish(no-live-close-check)")
+        # Issue #781 F4/B1/B4: the publisher re-reads state because the guard
+        # snapshot can be minutes stale by the time the agent finishes, and the
+        # re-read is a hard stop with a resolved-PR-only binding.
+        pin_live_close_body(run_of(publish), "review-publish", problems)
     verify = exactly_one(steps, REVIEW_VERIFY, "review-verify", problems)
     if verify is not None:
         if if_of(verify) != REVIEW_VERIFY_IF:
             problems.append("review-verify(if=%r)" % if_of(verify))
-        lines = norm_lines(run_of(verify))
-        if 'live_pr="${{ steps.pr-info.outputs.pr_number }}"' not in lines:
-            problems.append("review-verify(no-live-pr-binding)")
-        if REVIEW_LIVE_QUERY not in lines:
-            problems.append("review-verify(no-live-state-query)")
-        if REVIEW_LIVE_CLOSE_CHECK not in lines:
-            problems.append("review-verify(no-live-close-check)")
-        try:
-            close_at = lines.index(REVIEW_LIVE_CLOSE_CHECK)
-            skip_at = lines.index(
-                'echo "skip_forward=true" >> "$GITHUB_OUTPUT"', close_at
-            )
-            exit_at = lines.index("exit 0", skip_at)
-            if skip_at > exit_at:
-                problems.append("review-verify(skip-output-after-exit)")
-        except ValueError:
-            problems.append("review-verify(no-skip-forward-output)")
+        pin_live_close_body(
+            run_of(verify), "review-verify", problems, require_skip=True
+        )
     forward = exactly_one(steps, REVIEW_FORWARD, "review-forward", problems)
     if forward is not None and if_of(forward) != REVIEW_FORWARD_PREFIX:
         problems.append("review-forward(if=%r)" % if_of(forward))
     force_lab = exactly_one(steps, REVIEW_FORCE_LAB, "review-force-lab", problems)
-    if force_lab is not None and if_of(force_lab) != REVIEW_FORWARD_PREFIX:
-        problems.append("review-force-lab(if=%r)" % if_of(force_lab))
+    if force_lab is not None:
+        if if_of(force_lab) != REVIEW_FORWARD_PREFIX:
+            problems.append("review-force-lab(if=%r)" % if_of(force_lab))
+        # Issue #781 M6: the base read must target the resolved PR. On a
+        # linked-issue trigger the event issue number has no baseRefName, so
+        # a wrong-target read silently falls back to main and the infra
+        # override misses (or misreads) the changed files.
+        force_body = run_of(force_lab)
+        if 'gh pr view "${{ steps.pr-info.outputs.pr_number }}"' not in force_body:
+            problems.append("review-force-lab(no-resolved-pr-base-read)")
+        if 'gh pr view "${{ github.event.issue.number }}"' in force_body:
+            problems.append("review-force-lab(event-issue-base-read)")
     # Issue #781 F3/F4: no PR-head or post-agent step may run before the guard
     # decided, and both handoffs must sit after the verify hard stop.
     order = (
@@ -22232,8 +22337,6 @@ def behavioral_peros(arm, tag, forward_body, problems):
     try:
         root, mock_dir = make_sandbox()
         decision = os.path.join(root, "decision.json")
-        with open(decision, "w") as handle:
-            handle.write('{"action": "fix"}\n')
         body = expand(forward_body).replace(
             "/tmp/random-lab-decision.json", decision
         )
@@ -22241,11 +22344,11 @@ def behavioral_peros(arm, tag, forward_body, problems):
             problems.append("peros-%s(unexpanded-expression)" % arm)
             return
         scenarios = (
-            ("merged", "MERGED", "MERGED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("closed", "CLOSED", "CLOSED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("unknown", "", "", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("closed-lab", "CLOSED", "CLOSED", PEROS_PR_URL, "opencode/lab-781-x", "/oc maintainer"),
-            ("open-lab", "OPEN", "OPEN", PEROS_PR_URL, "opencode/lab-781-x", "/oc lab"),
+            ("merged", "MERGED", "MERGED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer", "fix"),
+            ("closed", "CLOSED", "CLOSED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer", "fix"),
+            ("unknown", "", "", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer", "fix"),
+            ("closed-lab", "CLOSED", "CLOSED", PEROS_PR_URL, "opencode/lab-781-x", "/oc maintainer", "fix"),
+            ("open-lab", "OPEN", "OPEN", PEROS_PR_URL, "opencode/lab-781-x", "/oc lab", "fix"),
             (
                 "open-fix",
                 "OPEN",
@@ -22253,13 +22356,21 @@ def behavioral_peros(arm, tag, forward_body, problems):
                 PEROS_PR_URL,
                 "opencode/issue781-x",
                 "/oc fix: %s tester findings (see report)" % tag,
+                "fix",
             ),
             # Issue #781 F2: the job-start snapshot said OPEN, but the PR was
             # merged while the arm ran. Only the live re-query catches this.
-            ("stale-snapshot", "MERGED", "OPEN", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("non-pr", "", "", "", "opencode/issue781-x", "/oc maintainer"),
+            ("stale-snapshot", "MERGED", "OPEN", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer", "fix"),
+            ("non-pr", "", "", "", "opencode/issue781-x", "/oc maintainer", "fix"),
+            # Issue #781 M5: the live check must gate every action, not only
+            # fix. action=lab on a merged PR used to post a dead /oc lab.
+            ("lab-merged", "MERGED", "MERGED", PEROS_PR_URL, "opencode/lab-781-x", "/oc maintainer", "lab"),
+            ("lab-open", "OPEN", "OPEN", PEROS_PR_URL, "opencode/lab-781-x", "/oc lab", "lab"),
+            ("maintainer-merged", "MERGED", "MERGED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer", "maintainer"),
         )
-        for name, state, snapshot, pr_url, head_ref, expected in scenarios:
+        for name, state, snapshot, pr_url, head_ref, expected, action in scenarios:
+            with open(decision, "w") as handle:
+                handle.write('{"action": "%s"}\n' % action)
             log = body_log(root, "%s-%s" % (arm, name))
             script = body.replace(PEROS_PR_URL, pr_url).replace(
                 "https://github.com/RandomLabs/RandomLabs/pull/781", pr_url
@@ -22303,11 +22414,10 @@ def validate_peros(doc, problems):
             continue
         ref = exactly_one(steps, "Get target ref", "peros-%s-target-ref" % arm, problems)
         if ref is not None:
-            lines = norm_lines(run_of(ref))
-            if STATE_OUTPUT not in lines:
-                problems.append("peros-%s(no-pr-state-output)" % arm)
-            if STATE_QUERY not in lines:
-                problems.append("peros-%s(no-pr-state-query)" % arm)
+            # Issue #781 M1: the job-start pr_state output had no consumer; its
+            # removal is pinned so a dead snapshot cannot creep back in.
+            if "pr_state" in run_of(ref):
+                problems.append("peros-%s(stale-pr-state-snapshot)" % arm)
         forward = exactly_one(
             steps, "Forward %s tester decision" % tag, "peros-%s-forward" % arm, problems
         )
@@ -22333,6 +22443,16 @@ def validate_peros(doc, problems):
             window = lines[check_at + 1:check_at + 5]
             if 'post_trigger "/oc maintainer"' not in window:
                 problems.append("peros-%s(non-open-not-routed-to-maintainer)" % arm)
+            # Issue #781 M5: the check must gate EVERY forwarding action, not
+            # only fix; a nested check lets action=lab post /oc lab on a dead
+            # PR. Require the check before the case dispatcher.
+            try:
+                case_at = lines.index('case "$action" in')
+            except ValueError:
+                problems.append("peros-%s(no-action-dispatch)" % arm)
+            else:
+                if check_at > case_at:
+                    problems.append("peros-%s(state-check-inside-action)" % arm)
             later_maintainer = [
                 index
                 for index, line in enumerate(lines)
@@ -22523,10 +22643,82 @@ MUTANTS = (
         "          GH_TOKEN: ${{ github.token }}\n",
     ),
     (
-        "peros-pr-state-output",
+        "peros-live-check-fix-only",
         PEROS,
-        "          " + STATE_OUTPUT + "\n",
-        "",
+        'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then',
+        'if [ "$action" = "fix" ] && [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then',
+    ),
+    (
+        "peros-pr-state-snapshot-returns",
+        PEROS,
+        '          is_pr="false"\n          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi\n',
+        '          is_pr="false"\n          pr_state=sentinel\n          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi\n',
+    ),
+    (
+        "review-linked-pr-producer",
+        REVIEW,
+        "--state open --json number,headRefName,createdAt",
+        "--state closed --json number,headRefName,createdAt",
+    ),
+    (
+        "review-force-lab-issue-read",
+        REVIEW,
+        'base=$(gh pr view "${{ steps.pr-info.outputs.pr_number }}"',
+        'base=$(gh pr view "${{ github.event.issue.number }}"',
+    ),
+    (
+        "review-publish-live-close-exit",
+        REVIEW,
+        "            exit 0\n          fi\n          if [ ! -f /tmp/random-lab-decision.json ]; then",
+        "          fi\n          if [ ! -f /tmp/random-lab-decision.json ]; then",
+    ),
+    (
+        "review-verify-live-close-exit",
+        REVIEW,
+        '            echo "skip_forward=true" >> "$GITHUB_OUTPUT"\n            exit 0\n',
+        '            echo "skip_forward=true" >> "$GITHUB_OUTPUT"\n',
+    ),
+    (
+        "fix-verify-live-close-exit",
+        OPENCODE,
+        '            echo "skip_forward=true" >> "$GITHUB_OUTPUT"\n            exit 0\n',
+        '            echo "skip_forward=true" >> "$GITHUB_OUTPUT"\n',
+    ),
+    (
+        "review-publish-live-pr-rebind",
+        REVIEW,
+        '          # immediately before publishing and skip cleanly.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"',
+        '          # immediately before publishing and skip cleanly.\n          live_pr="${{ github.event.issue.number }}"',
+    ),
+    (
+        "review-verify-live-pr-second",
+        REVIEW,
+        '          # skipped even if one of them would otherwise pass.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"',
+        '          # skipped even if one of them would otherwise pass.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"\n          live_pr="${{ github.event.issue.number }}"',
+    ),
+    (
+        "review-record-gate",
+        REVIEW,
+        "      - name: Record checked-out PR head\n        id: checkout-head\n        if: " + REVIEW_HEAD_IF + "\n",
+        "      - name: Record checked-out PR head\n        id: checkout-head\n",
+    ),
+    (
+        "review-configure-gate",
+        REVIEW,
+        "      - name: Configure git identity\n        if: " + REVIEW_HEAD_IF + "\n",
+        "      - name: Configure git identity\n",
+    ),
+    (
+        "review-clear-gate",
+        REVIEW,
+        "      - name: Clear runtime decision\n        if: " + REVIEW_HEAD_IF + "\n",
+        "      - name: Clear runtime decision\n",
+    ),
+    (
+        "fix-guard-pr-info-step",
+        OPENCODE,
+        '        run: |\n          pr="${{ github.event.issue.number }}"\n          # Refuse to run FIX mode unless',
+        '        run: |\n          pr="${{ steps.pr-info.outputs.pr_number }}"\n          # Refuse to run FIX mode unless',
     ),
 )
 
@@ -22548,7 +22740,10 @@ if not load_problems:
         mutated = text.replace(old, new)
         try:
             doc = load_text(mutated)
-        except Exception:  # noqa: BLE001 - a syntactically broken mutant is caught
+        except Exception:  # noqa: BLE001 - a syntactically broken mutant must fail
+            # Issue #781 M4: silently skipping an unparseable mutant would let an
+            # untested mutation pass; record it as a failed mutant instead.
+            problems.append("mutant-%s(parse-error)" % label)
             continue
         docs = dict(base_docs)
         docs[path] = doc
@@ -22597,7 +22792,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR), gating checkout, prompt staging, the actor gate, the agent, report publisher, and verify step, while the publisher and verify each re-read live state and a mid-run close sets skip_forward=true gating both handoffs; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot and routes a non-OPEN or unknown target to the Maintainer instead of posting /oc fix; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, both verify hard stops are executed under close races, every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, and non-PR targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate plus guard order and target binding (issue #781)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab base read targets the resolved PR), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, both verify hard stops are executed under close races, every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab base read, live binding, guard order, and target binding (issue #781)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, and the per-OS forwarders could post /oc fix on a closed PR; the pre-fix unguarded shapes are the regression)" "bad"

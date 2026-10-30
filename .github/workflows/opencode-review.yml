@@ -593,7 +593,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PATH: /usr/bin:/bin
-          PR: ${{ github.event.issue.number }}
+          # Issue #781 M6: on a linked-issue trigger the event issue number is
+          # not a PR; observe the resolved PR so the head read targets it.
+          PR: ${{ steps.pr-info.outputs.pr_number }}
           BRANCH: ${{ steps.pr-info.outputs.head_ref }}
           RECORDED: ${{ steps.pr-info.outputs.head_oid }}
           CHECKOUT_OID: ${{ steps.checkout-head.outputs.oid }}
@@ -678,7 +680,9 @@ jobs:
             echo "Decision '$action' is not fix/continue; no infra override needed."
             exit 0
           fi
-          base=$(gh pr view "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "main")
+          # Issue #781 M6: the base read must target the resolved PR, not the
+          # event issue number (a linked-issue trigger has no PR state there).
+          base=$(gh pr view "${{ steps.pr-info.outputs.pr_number }}" --repo "${{ github.repository }}" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "main")
           git fetch origin "$base" --quiet 2>/dev/null || true
           touched=$(git diff --name-only "origin/$base"...HEAD 2>/dev/null | grep -E '^\.github/(workflows/|agents/)|(^|/)(AGENTS|LAB)\.md$' || true)
           if [ -n "$touched" ]; then
