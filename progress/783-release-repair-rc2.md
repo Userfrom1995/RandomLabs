@@ -22,12 +22,17 @@ Reference implementation: `opencode/issue582-20261028002308` `cdac92fb..9955e3a7
   caveat.
 - Tighten `tools/compat/run-macos.sh` `--initial` validation to
   `[0-9]+x[0-9]+`.
+- Resolve the release tag through the explicit `refs/tags/` namespace so
+  a same-named branch cannot shadow it and annotated tags still peel, and
+  refuse to refresh a release whose tag is gone.
+- Bound the explicit `rc` input and commit the resolver and tag-shadow
+  matrices as behavioral tests.
 - Do not cut the stable tag and do not close any parent issue.
 
 ## Checklist
 
 - [x] Create the increment issue (#783) and branch from `main`
-- [x] Carry the five reference commits (`4641d9a5..9955e3a7`)
+- [x] Carry the five reference commits (`cdac92fb..9955e3a7`)
 - [x] Correct the release-notes signing copy in the source workflow
 - [x] Add the optional `rc` dispatch input and auto-increment tag logic
 - [x] Install the byte-identical release workflow copy (`c6fc135e`)
@@ -41,49 +46,62 @@ Reference implementation: `opencode/issue582-20261028002308` `cdac92fb..9955e3a7
       refs
 - [x] Lab Engineer installs the byte-identical workflow copy
 - [x] Hand off to review after the installed copy lands
+- [x] Resolve the tag through `refs/tags/`, guard unbound releases, and
+      commit the tag-shadow behavioral test
+- [x] Bound the explicit `rc` input and commit the resolver matrix
 
 ## Current step
 
-The Lab Engineer installed the release workflow copy in `c6fc135e`. The
-source and installed files are byte-identical and
-`release_hardening_contracts_are_pinned` is green. The PR is ready for
-review.
+The Lab Engineer repaired the Tester's blocking tag-shadow finding. The
+tag/commit parity lookup now uses `commits/refs/tags/${TAG}`, which
+resolves lightweight and annotated tags to their commit while a plain
+`/commits/{ref}` can resolve a same-named branch first. A release whose
+tag is gone is refused instead of refreshed without a commit binding. The
+source and installed workflow files are byte-identical, the packaging
+suite is green, and the PR is ready for re-review.
 
 ## Next steps
 
-1. Review the release workflow and the public signing copy.
-2. Cut the next candidate only after review; do not move rc.1 or cut the
-   stable tag.
+1. Re-review the release workflow and the public signing copy.
+2. Run the read-only Tester, then the binding Evaluator gate.
+3. Cut the next candidate only after the merge; do not move rc.1 or cut
+   the stable tag.
 
 ## Verification
 
-These results were produced at `c6fc135e` with the installed copy in place;
-the source and installed workflow are byte-identical.
+This repair round ran:
 
 - `cargo test -p maze-chase-terminal --test tester_packaging --test
-  tester_site --locked`: 28 + 7 passed (with the installed copy current).
+  tester_site --locked`: 30 + 7 passed, including the new
+  `release_refresh_resolves_the_tag_not_a_same_named_branch` and
+  `release_tag_resolution_rejects_unbounded_and_colliding_candidates`
+  tests.
 - `python3 -m unittest discover -s maze-chase/tools/compat/tests -v`:
-  53 passed (including the new `--initial` rejection test).
-- `cargo test --workspace --no-fail-fast --locked`: 64 suites green,
-  zero failures (with the installed copy current).
-- `cargo run --release --locked --bin maze-chase-verify`: 19/19.
+  53 passed.
 - `cargo fmt --all --check`: clean.
 - `node tools/site/render-docs.mjs --check`: 15 docs current, 423
   links verified.
-- `site-e2e.js`: 673 assertions, ALL GREEN; `browser-e2e.js`: ALL GREEN
-  (including the fright route).
 - `silent-stall-audit.sh`: 31 passed, 0 failed.
-- The extracted `Resolve the release tag` step was executed against a
-  mock `git` for nine scenarios (tag ref, fresh branch, next after
-  rc.1/rc.2, annotated dereference, explicit and padded input, zero,
-  junk, and a failed ls-remote) and selected the expected tag or failed
-  closed in every case.
+- `bash -n maze-chase/packaging/release/smoke-macos.sh`, a YAML parse of
+  both workflow copies, and `git diff --check`: clean.
+- Live ref-resolution check on 2026-10-30: for the annotated
+  `git/git` tag `v2.0.0`, `commits/tags/v2.0.0` returned HTTP 422 while
+  `commits/refs/tags/v2.0.0` returned the peeled commit
+  `e156455e`; for the lightweight `maze-chase-v0.1.0-rc.1` tag,
+  `commits/refs/tags/...` returned the tag commit `11a0037b`, matching
+  `git ls-remote`.
+- A temporary regression run with `/commits/${TAG}` restored failed the
+  new branch-shadow test before the fix was put back.
+
+The earlier round's results at `c6fc135e` remain the evidence for the
+carried macOS, harness, E2E, and public-copy work; the installed workflow
+and the packaging source are byte-identical at this head.
 
 ## Agent log
 
 - 2026-10-30 (builder): created #783 and branched from `main` at
   `cdac92fb`. Cherry-picked the five reference commits
-  (`4641d9a5..9955e3a7`) so the macOS signing repair, the harness
+  (`cdac92fb..9955e3a7`) so the macOS signing repair, the harness
   identity work, and the cross-platform E2E fixes carry forward with
   their original fixer provenance. Added the follow-ups the review
   found: the release workflow now states the ad-hoc-signed signing
@@ -128,4 +146,35 @@ the source and installed workflow are byte-identical.
     the absent ledgers (added here).
   - Primary context: made and verified every edit and ran the packaging,
     site, harness, fmt, docs, and diff checks above.
+  - Skills: no registry skill matched.
+- 2026-10-30 (lab): repaired the Tester's blocking tag-shadow finding.
+  The parity lookup now uses `commits/refs/tags/${TAG}`: a plain
+  `/commits/{ref}` can resolve a same-named branch before the tag, and
+  `/commits/tags/{ref}` returns 422 for an annotated tag (live check on
+  `git/git` `v2.0.0`). A release whose tag is gone is refused instead of
+  refreshed without a commit binding. The explicit `rc` input is bounded
+  to 1-999 before bash arithmetic. Added two behavioral tests that
+  execute the extracted workflow steps against hermetic mock `gh`/`git`:
+  `release_refresh_resolves_the_tag_not_a_same_named_branch` (shadowed
+  tag fails closed with no release mutation, same-commit refresh,
+  missing-tag create, unresolvable tag, annotated tag, unbound release)
+  and `release_tag_resolution_rejects_unbounded_and_colliding_candidates`
+  (tag ref, explicit, padded, zero, too-large, wrapping, junk,
+  auto-increment, failed ls-remote). Also qualified the release-notes
+  copy and documented why the macOS smoke omits `spctl`. Verification:
+  packaging 30 + site 7, compat 53, fmt clean, docs 15 current with 423
+  links, silent-stall audit 31/0, `bash -n`, YAML parse, and
+  `git diff --check` clean. Delegation ledger:
+  - general subagent: audited the tag fix and tests; returned the byte
+    identity, 30/30 packaging pass, the annotated-tag 422 on
+    `commits/tags/` (fixed to `refs/tags/`), the unbound-release
+    fail-open (fixed), and the unpinned fallback refspec (strengthened
+    in the mock).
+  - general subagent: audited the progress/PR copy and test hermeticity;
+    returned the stale counts and handoff (fixed here), the missing
+    ledger (added here), the docs/release notes ambiguity (fixed here),
+    and a vacuous negative assertion (strengthened here).
+  - Primary context: made every edit, independently reproduced the
+    annotated-tag API result, ran the regression check and the full
+    focused suites, and verified the byte identity.
   - Skills: no registry skill matched. - the Lab Engineer

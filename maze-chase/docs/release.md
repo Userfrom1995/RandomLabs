@@ -304,10 +304,13 @@ shasum -a 256 -c SHA256SUMS.txt      # macOS
 Get-FileHash -Algorithm SHA256 <file> # Windows PowerShell
 ```
 
-The release notes state the signing status: the terminal and Windows
-binaries are unsigned, and the macOS app bundle is ad-hoc signed. The
-first-launch SmartScreen and unidentified-developer prompts are
-expected; they are not a signature claim.
+The release notes for candidates cut by this pipeline state the signing
+status: the terminal and Windows binaries are unsigned, and the macOS app
+bundle is ad-hoc signed. The published rc.1 release predates that step,
+so its notes still describe an unsigned app; use a current-tree build
+until the next candidate is published. The first-launch SmartScreen and
+unidentified-developer prompts are expected; they are not a signature
+claim.
 
 ### Candidate and stable releases
 
