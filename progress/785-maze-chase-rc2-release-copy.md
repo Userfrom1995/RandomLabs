@@ -2,7 +2,7 @@
 
 - **Issue:** #785 (Refs #657, #582)
 - **Branch:** opencode/issue785-20261030181216
-- **Status:** in-progress
+- **Status:** in-review
 - **Updated:** 2026-10-30
 
 ## Checklist
@@ -15,7 +15,9 @@
 - [x] commit, push, open the PR, and hand off to review
 
 ## Current step
-All edits are in place and pushed. Open the PR and hand off to review.
+PR #789 is open for review. The reviewer's round-1 findings are applied and
+re-verified; the remaining gates are the Tester, the Evaluator, and the
+Maintainer merge.
 
 ## Verification
 
@@ -27,20 +29,23 @@ All edits are in place and pushed. Open the PR and hand off to review.
 - `cargo fmt --all --check`: clean.
 - `node tools/site/render-docs.mjs --check`: 15 docs current, 423 internal
   links verified.
-- Manual installer probe: both layers and both flags exit 2 with the usage
-  line and no `unbound variable`.
+- Manual installer probe: both layers, both flags, bare and empty values,
+  exit 2 with the usage line and no `unbound variable`; unknown flags still
+  exit 2.
 - `git diff --check`: clean; no workflow or agent files touched; no em
   dashes.
 
 ## Next steps
-1. Edit both `install-linux.sh` scripts so a missing option value prints the
-   usage line and exits 2.
-2. Update `downloads.html`, `install.html`, `releases.html`, `README.md`,
-   `docs/release.md`, `docs/desktop.md`, and the current-release pointer on
-   `compatibility.html` plus the feature-matrix rows.
-3. Update the rc.1-pinned site and packaging tests to rc.2, add the missing
-   option-value test, regenerate `docs/*.html`, and run the focused suites.
-4. Push, open the PR with `Closes #785`, and write the review decision.
+1. Reviewer re-review of the round-1 fixes.
+2. Tester verification, then the binding Evaluator gate.
+3. Maintainer merge and issue close.
+
+## Delegation (reviewer round 1)
+- explore: stale rc.1 pointer sweep across README/site/docs. Result: no current rc.1 pointers; historical rc.1 records intact; every current pointer names rc.2 and run 41080938033.
+- general: installer option-value probe on both layers and both flags. Result: bare and empty values exit 2 with the usage line and no `unbound variable`; unknown flags exit 2.
+- general: release-claim checker bypass audit. Result: the targeted "not unsigned but notarized" bypasses are rejected and negated forms stay allowed; residual sentence-boundary and contraction edge cases noted as out of scope for this round.
+- skills: no skill fits this release-copy/shell/test task.
+Primary verified: focused cargo suite (31 + 7), `cargo fmt --all --check`, and `node tools/site/render-docs.mjs --check` (15 docs, 423 links).
 
 ## Agent log
 - 2026-10-30 (builder): guarded `--prefix` and `--tarball` in both Linux
@@ -56,3 +61,10 @@ All edits are in place and pushed. Open the PR and hand off to review.
   confirmed the live release metadata and the macOS rc.2 report, and scoped
   the change to the public copy, the two installers, and their tests. No
   workflow files, no release cut, no stable tag.
+- 2026-10-30 (fixer): applied the reviewer's round-1 findings. Rewrapped the
+  macOS approval path so `>` never starts a Markdown line and regenerated
+  `docs/release.html`; narrowed the release-claim negation check to filler
+  words and added the "not unsigned but notarized" bypass cases; corrected
+  the `install.html` embedded-guide name; rewrote the release-notes paragraph
+  to stop claiming rc.2 carries the fuller wording; and extended the
+  installer test to cover empty values and rule out the unknown-argument arm.
