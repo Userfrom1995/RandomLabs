@@ -242,6 +242,20 @@ class TestRunnerEntrypoints(unittest.TestCase):
                 f"Direct invocation fails with: Permission denied",
             )
 
+    def test_macos_initial_rejects_extra_separators(self):
+        proc = subprocess.run(
+            ["bash", os.path.join(COMPAT_DIR, "run-macos.sh"),
+             "--initial", "100x40x50"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        self.assertIn("COLSxROWS", proc.stderr)
+        with open(os.path.join(COMPAT_DIR, "run-macos.sh"),
+                  encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn(r"=~ ^[0-9]+x[0-9]+$", body)
+        self.assertNotIn("[0-9]*x[0-9]*", body)
+
 
 class TestCollectorHonestyGates(unittest.TestCase):
     def setUp(self):
