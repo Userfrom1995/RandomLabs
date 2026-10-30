@@ -414,9 +414,10 @@ jobs:
           https://github.com/Userfrom1995/RandomLabs/blob/main/maze-chase/docs/release.md
 
           The terminal and Windows binaries are unsigned. The macOS app bundle
-          is ad-hoc signed: the first launch shows the standard
-          unidentified-developer dialog (Open Anyway, or a right-click Open),
-          not a damaged-app refusal. Windows SmartScreen may warn on first
+          is ad-hoc signed, not notarized: the first launch shows the standard
+          unidentified-developer dialog; approve it under
+          System Settings > Privacy & Security > Security > Open Anyway. This
+          is not a damaged-app refusal. Windows SmartScreen may warn on first
           launch (More info, then Run anyway).
           EOF
           # A tag can exist without a release, so validate its commit
