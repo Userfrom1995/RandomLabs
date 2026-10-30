@@ -7,7 +7,9 @@
 // Releases pill inside the box). The honest requirement is therefore not
 // "an overflowing nav must be scrolled" but "a pill that is clipped
 // without a scroll must have been scrolled into view". `site-nav.js`
-// returns early when the pill fits, so a fitting pill is unscrolled.
+// returns early when the pill fits and never resets a stale `scrollLeft`,
+// so a fully visible pill is valid at any scroll offset: only a clipped
+// pill must have been scrolled.
 //
 // Input fields come from the page measurement in site-e2e.js:
 //   left, right, boxLeft, boxRight, scrollLeft,
@@ -28,7 +30,7 @@ function navPillScrollState(pill) {
   const clippedWithoutScroll = pill.unscrolledLeft < pill.boxLeft - 1
     || pill.unscrolledRight > pill.boxRight + 1;
   const scrollRequired = clippedWithoutScroll;
-  const ok = visible && (scrollRequired ? pill.scrollLeft > 0 : pill.scrollLeft === 0);
+  const ok = visible && (!scrollRequired || pill.scrollLeft > 0);
   return { visible, clippedWithoutScroll, scrollRequired, ok };
 }
 

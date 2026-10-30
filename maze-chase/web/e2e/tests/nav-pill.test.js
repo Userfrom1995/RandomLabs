@@ -6,7 +6,9 @@
 // whenever the nav overflowed, while the Releases pill fit fully inside the
 // overflowing nav and site-nav.js correctly left it unscrolled. The
 // classifier now asks the honest question: a pill clipped without a scroll
-// must have been scrolled into view, and a pill that fits must stay put.
+// must have been scrolled into view, while a fully visible pill is valid at
+// any scroll offset (site-nav.js returns early and never resets a stale
+// scroll when the pill fits).
 //
 // Run: node --test web/e2e/tests/nav-pill.test.js
 
@@ -35,10 +37,13 @@ test('a fitting pill with no scroll is ok', () => {
   assert.equal(state.ok, true);
 });
 
-test('a fitting pill left in a stale scroll position is not ok', () => {
-  const state = navPillScrollState(pill({ scrollLeft: 20 }));
+test('a visible fitting pill left at a stale scroll position is ok', () => {
+  // A 320-to-430 resize clamps scrollLeft while the Releases pill is
+  // fully visible; site-nav.js returns early and leaves the stale offset.
+  const state = navPillScrollState(pill({ scrollLeft: 36 }));
+  assert.equal(state.visible, true);
   assert.equal(state.clippedWithoutScroll, false);
-  assert.equal(state.ok, false);
+  assert.equal(state.ok, true);
 });
 
 test('a clipped pill scrolled into view is ok', () => {
