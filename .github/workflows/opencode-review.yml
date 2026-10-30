@@ -725,7 +725,13 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
-          pr="${{ github.event.issue.number }}"
+          # Issue #781 review round 3 M3: the handoff must reach the RESOLVED
+          # PR thread, not the trigger thread. A /oc review on a linked issue
+          # used to forward /oc fix and /oc test to that issue, where the fix
+          # and test jobs never fire (they require a PR event). The report and
+          # its evidence stay on the trigger thread; only the decision trigger
+          # moves to the PR.
+          pr="${{ steps.pr-info.outputs.pr_number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."
             exit 1

@@ -21478,27 +21478,37 @@ esac
 # review publisher and verify including their own hard-stop `exit 0` inside
 # the close block, exactly one resolved-PR live binding per re-read, the
 # skip_forward gates on both review handoffs, the Record/Configure/Clear
-# open-gates, the resolved-PR force-lab base read, and the per-OS live-state
-# pre-check (the dead job-start
+# open-gates, the resolved-PR force-lab base read, the resolved-PR decision
+# handoff target, and the per-OS live-state pre-check (the dead job-start
 # pr_state snapshot is gone and the live check gates every forwarding
-# action, not just fix). It then executes the extracted guard bodies against a
-# mocked gh for OPEN, CLOSED, MERGED, and unknown states; the mock enforces
-# the exact `pr view <resolved-pr> --repo <repo> --json state --jq .state`
-# argv, so a linked-issue trigger that queries the issue number fails as a
-# wrong-target read, and the force-lab base read is pinned to the resolved PR.
-# It executes the fix verify hard stop under a race (guard
-# passed, state now MERGED) and the review verify under the same race,
-# requires skip_forward=true with no retry, handoff, or comment, executes each
+# action, not just fix). Review round 3 made the critical bodies immune to
+# spelling and insertion escapes: `Get PR info`, the report publisher, and
+# the verify body are pinned as whole normalized line sequences, a live_pr or
+# live_state write in ANY assignment spelling (export/declare/readonly/local/
+# typeset/printf -v/read included) other than the one canonical line fails,
+# and the close region is pinned as its exact ordered sequence (check, notice,
+# exit 0) positioned before every side effect. It then executes the extracted
+# guard bodies against a mocked gh for OPEN, CLOSED, MERGED, and unknown
+# states; the mock enforces the exact `pr view <resolved-pr> --repo <repo>
+# --json state --jq .state` argv, so a linked-issue trigger that queries the
+# issue number fails as a wrong-target read, and the force-lab base read is
+# pinned to the resolved PR. It executes the fix verify hard stop under a race
+# (guard passed, state now MERGED); the review verify hard stop is executed
+# under the same decision-absent close race by R19's mid-run-close fixture
+# (this rule pins its exact close region statically), each requiring
+# skip_forward=true with no retry, handoff, or comment. It executes each
 # per-OS forwarder against every state shape and every decision action
 # including a stale snapshot (PR_STATE says OPEN, live state says MERGED) and
 # an action=lab close, and simulates the step gates to prove a non-OPEN target
 # runs zero agent steps and posts zero comments while an OPEN target still
 # runs and forwards. Mutation self-tests remove or relocate each gate, output,
-# pre-check, close-block exit, producer, and target binding one at a time and
-# require this rule to fail alone.
+# pre-check, close-block exit, producer, target binding, prefixed second
+# binding, live_state override, inserted line, and handoff target one at a
+# time and require this rule to fail alone.
 r32_out=$(python3 -I - <<'PY'
 import copy
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21571,6 +21581,13 @@ REVIEW_LIVE_QUERY = (
 )
 REVIEW_LIVE_CLOSE_CHECK = 'if [ "$live_state" != "OPEN" ]; then'
 REVIEW_LIVE_PR_BINDING = 'live_pr="${{ steps.pr-info.outputs.pr_number }}"'
+# Issue #781 review round 3 B2: the close block is pinned as an exact ordered
+# sequence per body (publisher without skip_forward, verify with it), so the
+# tested notice line must match the shipped one word for word.
+REVIEW_LIVE_NOTICE = {
+    False: "echo \"::notice::Target PR #$live_pr is no longer OPEN (state='${live_state:-unknown}'); skipping reviewer report publication (issue #781).\"",
+    True: "echo \"::notice::Target PR #$live_pr is no longer OPEN (state='${live_state:-unknown}'); skipping the verdict forward and auto-retry (issue #781).\"",
+}
 # Issue #781 B3: the linked-issue producer must come from an open-PR query
 # filtered to this issue's opencode/issue<N>-* branch. The old F1 regression
 # (linked_pr="$issue") makes the guard query an issue as a PR, read unknown,
@@ -21583,7 +21600,365 @@ REVIEW_PR_INFO_LINKED_FILTER = (
     '--jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))]'
     ' | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")'
 )
+
+# Issue #781 review round 3 B1-B3/M2: the three critical review bodies are
+# pinned as whole normalized line sequences (comments and blank lines dropped,
+# leading/trailing whitespace stripped), so no inserted, exported, re-spelled,
+# or reordered non-comment line anywhere in them can keep this rule green.
+# Regenerate these literals only in lockstep with an intended behavior change.
+REVIEW_PR_INFO_BODY = (
+    'pr="${{ github.event.issue.number }}"',
+    'is_pr="${{ github.event.issue.pull_request != null }}"',
+    'if [ "$is_pr" = "true" ]; then',
+    'head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\')',
+    'head_oid=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq \'.headRefOid\')',
+    'echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"',
+    'echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"',
+    'echo "pr_number=$pr" >> "$GITHUB_OUTPUT"',
+    'echo "is_pr=true" >> "$GITHUB_OUTPUT"',
+    'else',
+    'issue="${{ github.event.issue.number }}"',
+    'linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \\',
+    '--jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")',
+    'if [ -n "$linked_pr" ]; then',
+    'head_ref=$(gh pr view "$linked_pr" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\')',
+    'head_oid=$(gh pr view "$linked_pr" --repo "${{ github.repository }}" --json headRefOid --jq \'.headRefOid\')',
+    'echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"',
+    'echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"',
+    'echo "pr_number=$linked_pr" >> "$GITHUB_OUTPUT"',
+    'echo "is_pr=true" >> "$GITHUB_OUTPUT"',
+    'else',
+    'echo "is_pr=false" >> "$GITHUB_OUTPUT"',
+    'echo "No linked PR found for issue #$issue"',
+    'fi',
+    'fi',
+)
+
+REVIEW_PUBLISH_BODY = (
+    'live_pr="${{ steps.pr-info.outputs.pr_number }}"',
+    'live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'if [ "$live_state" != "OPEN" ]; then',
+    'echo "::notice::Target PR #$live_pr is no longer OPEN (state=\'${live_state:-unknown}\'); skipping reviewer report publication (issue #781)."',
+    'exit 0',
+    'fi',
+    'if [ ! -f /tmp/random-lab-decision.json ]; then',
+    'echo "No decision file; the verify step below handles the crash."',
+    'exit 0',
+    'fi',
+    'report=/tmp/random-lab-report.md',
+    'if [ ! -s "$report" ]; then',
+    'echo "::error::Reviewer decision file is present but /tmp/random-lab-report.md is missing or empty; refusing to forward an unpublished verdict (issue #713)."',
+    'exit 1',
+    'fi',
+    'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then',
+    'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true',
+    'fi',
+    'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""',
+    'if [ -z "$publisher" ]; then',
+    'echo "::error::Report publisher absent from workflow commit ${GITHUB_SHA}; refusing to forward an unpublished verdict (issue #713, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! printf \'%s\' "$publisher" | bash -s -- "$TARGET" "$report" "- the Reviewer"; then',
+    'echo "::error::Reviewer report publication failed; refusing to forward an unpublished verdict (issue #713)."',
+    'exit 1',
+    'fi',
+)
+
+REVIEW_VERIFY_BODY = (
+    'if [ "${AGENT_GATE:-}" != "true" ]; then',
+    'echo "::notice::Actor write gate skipped the reviewer agent (issue #428): denial is not a crash - no auto-retry, no escalation."',
+    'echo "outcome=skipped" >> "$GITHUB_OUTPUT"',
+    'exit 0',
+    'fi',
+    'live_pr="${{ steps.pr-info.outputs.pr_number }}"',
+    'live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'if [ "$live_state" != "OPEN" ]; then',
+    'echo "::notice::Target PR #$live_pr is no longer OPEN (state=\'${live_state:-unknown}\'); skipping the verdict forward and auto-retry (issue #781)."',
+    'echo "skip_forward=true" >> "$GITHUB_OUTPUT"',
+    'exit 0',
+    'fi',
+    'pr="${{ github.event.issue.number }}"',
+    'outcome="${{ steps.review.outcome }}"',
+    'if [ -f /tmp/random-lab-decision.json ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'rm -f /tmp/random-lab-decision.json',
+    'echo "::error::Reviewer decision file does not carry this run\'s contract nonce; discarding it as untrusted because /tmp is writable by PR-executed code (issue #713 round 16)."',
+    'exit 1',
+    'fi',
+    'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then',
+    'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true',
+    'fi',
+    'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null) || evidence_script=""',
+    'if [ -z "$evidence_script" ]; then',
+    'rm -f /tmp/random-lab-decision.json',
+    'echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #616, fail closed)."',
+    'exit 1',
+    'fi',
+    'pub_rc=0',
+    'printf \'%s\' "$evidence_script" | bash -s -- "$pr" "$SINCE" || pub_rc=$?',
+    'published="false"',
+    'case "$pub_rc" in',
+    '0) published="true" ;;',
+    '1) published="false" ;;',
+    '*)',
+    'rm -f /tmp/random-lab-decision.json',
+    'echo "::error::Could not verify whether the reviewer\'s decision comment was published (evidence script exit $pub_rc); refusing to forward an unverified verdict and refusing to auto-retry a possibly-published review. Manual triage required."',
+    'exit 1',
+    ';;',
+    'esac',
+    'echo "Publication evidence for #$pr: evidence script exit $pub_rc (published=$published)."',
+    'unpublished_verdict="false"',
+    'if [ -f /tmp/random-lab-decision.json ]; then',
+    'if [ "$published" = "true" ]; then',
+    'echo "Review decision file present and the decision comment is published; gate produced a verdict."',
+    'exit 0',
+    'fi',
+    'echo "::error::Reviewer wrote a decision file but never published its decision comment (issues #616/#637: death between the decision-file write and the comment post, or a final message that was not the sign-off-bearing decision comment); discarding the unpublished verdict and treating this as a crash."',
+    'rm -f /tmp/random-lab-decision.json',
+    'unpublished_verdict="true"',
+    'fi',
+    'crash_signature="false"',
+    'if [ "$outcome" != "success" ]; then',
+    'echo "::error::Reviewer step finished with outcome \'$outcome\' and no published verdict (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."',
+    'crash_signature="true"',
+    'fi',
+    'if [ "$unpublished_verdict" = "true" ]; then',
+    'echo "::error::Reviewer step ended with an unpublished verdict (issue #637: the session\'s final message must BE the sign-off-bearing decision comment); treating this as a crash."',
+    'crash_signature="true"',
+    'fi',
+    'if [ "$crash_signature" = "true" ]; then',
+    'retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \\',
+    '| jq \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")))] | length\' 2>/dev/null || true)',
+    'if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then',
+    'echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."',
+    'exit 1',
+    'fi',
+    'if [ "$retries" -lt 3 ]; then',
+    'n=$((retries + 1))',
+    'echo "Posting auto-retry $n"',
+    'echo "retry=true" >> "$GITHUB_OUTPUT"',
+    'gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc review (auto-retry $n)"',
+    'exit 0',
+    'fi',
+    'echo "::error::Review gate still dead after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."',
+    'exit 1',
+    'fi',
+    'echo "::error::Reviewer step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."',
+    'exit 1',
+)
 # Issue #781 M2: the PR-head bookkeeping steps must honor the guard too.
+
+# Issue #781 review round 3 (adversarial pass): the fix guard/verify, the
+# review guard, the review handoff, and all three per-OS handoffs are also
+# whole-body pinned. Behavioral coverage alone let an `if [ "${GITHUB_ACTIONS:-}"
+# = "true" ]` override pass every scenario, because the sandbox did not seed
+# the ambient CI variables the hosted runner always sets; a line-anchored
+# binding scan also missed `if true; then live_pr=...; fi`. Keep these
+# literals in lockstep with intended behavior changes.
+
+FIX_GUARD_BODY = (
+    'pr="${{ github.event.issue.number }}"',
+    'pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'if [ "$pr_state" != "OPEN" ]; then',
+    'echo "::error::/oc fix was triggered on #$pr which is not an OPEN pull request (state=\'${pr_state:-unknown}\'). Refusing to run FIX mode to avoid a runaway cascade. Reopen the PR or post on an actual open PR to drive a fix."',
+    'echo "open=false" >> "$GITHUB_OUTPUT"',
+    'exit 0',
+    'fi',
+    'echo "open=true" >> "$GITHUB_OUTPUT"',
+    'echo "Target #$pr is OPEN; proceeding with FIX mode."',
+)
+
+FIX_VERIFY_BODY = (
+    'if [ "${AGENT_GATE:-}" != "true" ]; then',
+    'echo "::notice::Actor write gate skipped the fix agent (issue #428): denial is not a crash - no auto-retry, no escalation."',
+    'echo "outcome=skipped" >> "$GITHUB_OUTPUT"',
+    'exit 0',
+    'fi',
+    'pr="${{ github.event.issue.number }}"',
+    'pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'if [ "$pr_state" != "OPEN" ]; then',
+    'echo "Target #$pr is not an OPEN pull request (state=\'${pr_state:-unknown}\'); no fix possible. Bailing out without auto-retry."',
+    'echo "skip_forward=true" >> "$GITHUB_OUTPUT"',
+    'exit 0',
+    'fi',
+    'head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq \'.headRefOid\' 2>/dev/null)',
+    'if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then',
+    'echo "Fix pushed (PR head moved: $BASELINE_HEAD -> $head_after)"',
+    'exit 0',
+    'fi',
+    'echo "No push detected"',
+    'retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \\',
+    '| jq \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length\' 2>/dev/null || true)',
+    'if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then',
+    'echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."',
+    'exit 1',
+    'fi',
+    'if [ "$retries" -lt 3 ]; then',
+    'n=$((retries + 1))',
+    'echo "Posting auto-retry $n"',
+    'echo "retry=true" >> "$GITHUB_OUTPUT"',
+    'gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc fix (auto-retry $n)"',
+    'exit 0',
+    'fi',
+    'echo "::error::Fix agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."',
+    'exit 1',
+)
+
+REVIEW_GUARD_BODY = (
+    'set -o pipefail',
+    'pr="${{ steps.pr-info.outputs.pr_number }}"',
+    'pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'if [ "$pr_state" != "OPEN" ]; then',
+    'echo "::notice::/oc review was triggered on PR #$pr which is not an OPEN pull request (state=\'${pr_state:-unknown}\'); skipping the review run (issue #781)."',
+    'echo "open=false" >> "$GITHUB_OUTPUT"',
+    'exit 0',
+    'fi',
+    'echo "open=true" >> "$GITHUB_OUTPUT"',
+    'echo "Target PR #$pr is OPEN; proceeding with review."',
+)
+
+REVIEW_FORWARD_BODY = (
+    'pr="${{ steps.pr-info.outputs.pr_number }}"',
+    'if [ ! -f /tmp/random-lab-decision.json ]; then',
+    'echo "::error::No decision file found; verify step above already failed the job closed."',
+    'exit 1',
+    'fi',
+    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'echo "::error::Reviewer decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
+    'exit 1',
+    'fi',
+    'action=$(jq -r \'.action\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'if [ "$action" = "test" ]; then',
+    'echo "Review approved! Posting /oc test to hand over to Tester"',
+    'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc test"',
+    'elif [ "$action" = "fix" ]; then',
+    'echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"',
+    'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"',
+    'elif [ "$action" = "continue" ]; then',
+    'echo "Reviewer detected incomplete work. Posting /oc continue to hand back to Builder"',
+    'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc continue"',
+    'elif [ "$action" = "lab" ]; then',
+    'echo "Reviewer detected infrastructure issues. Posting /oc lab"',
+    'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"',
+    'elif [ "$action" = "maintainer" ]; then',
+    'echo "Reviewer escalating. Posting /oc maintainer to trigger Maintainer"',
+    'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"',
+    'fi',
+)
+
+PEROS_LINUX_FORWARD_BODY = (
+    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'echo "::error::Tester decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
+    'exit 1',
+    'fi',
+    'action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'target="${{ github.event.issue.number }}"',
+    'is_pr="false"',
+    'if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi',
+    'head_ref="$HEAD_REF"',
+    'live_state=""',
+    'if [ "$is_pr" = "true" ]; then',
+    'live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'fi',
+    'post_trigger() {',
+    'printf \'%s\' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true',
+    '}',
+    'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then',
+    'echo "::notice::Tester decision handoff for #$target skipped: the pull request is not OPEN (state=\'${live_state:-unknown}\'); routing the decision to the Maintainer instead of a dead PR lane (issue #781)."',
+    'post_trigger "/oc maintainer"',
+    'else',
+    'case "$action" in',
+    'fix)',
+    'if echo "$head_ref" | grep -q "opencode/lab"; then',
+    'post_trigger "/oc lab"',
+    'elif [ "$is_pr" = "true" ]; then',
+    'post_trigger "/oc fix: Linux tester findings (see report)"',
+    'else',
+    'post_trigger "/oc maintainer"',
+    'fi ;;',
+    'lab) post_trigger "/oc lab" ;;',
+    '*) post_trigger "/oc maintainer" ;;',
+    'esac',
+    'fi',
+)
+
+PEROS_MACOS_FORWARD_BODY = (
+    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'echo "::error::Tester decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
+    'exit 1',
+    'fi',
+    'action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'target="${{ github.event.issue.number }}"',
+    'is_pr="false"',
+    'if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi',
+    'head_ref="$HEAD_REF"',
+    'live_state=""',
+    'if [ "$is_pr" = "true" ]; then',
+    'live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'fi',
+    'post_trigger() {',
+    'printf \'%s\' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true',
+    '}',
+    'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then',
+    'echo "::notice::Tester decision handoff for #$target skipped: the pull request is not OPEN (state=\'${live_state:-unknown}\'); routing the decision to the Maintainer instead of a dead PR lane (issue #781)."',
+    'post_trigger "/oc maintainer"',
+    'else',
+    'case "$action" in',
+    'fix)',
+    'if echo "$head_ref" | grep -q "opencode/lab"; then',
+    'post_trigger "/oc lab"',
+    'elif [ "$is_pr" = "true" ]; then',
+    'post_trigger "/oc fix: macOS tester findings (see report)"',
+    'else',
+    'post_trigger "/oc maintainer"',
+    'fi ;;',
+    'lab) post_trigger "/oc lab" ;;',
+    '*) post_trigger "/oc maintainer" ;;',
+    'esac',
+    'fi',
+)
+
+PEROS_WINDOWS_FORWARD_BODY = (
+    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'echo "::error::Tester decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
+    'exit 1',
+    'fi',
+    'action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'target="${{ github.event.issue.number }}"',
+    'is_pr="false"',
+    'if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi',
+    'head_ref="$HEAD_REF"',
+    'live_state=""',
+    'if [ "$is_pr" = "true" ]; then',
+    'live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+    'fi',
+    'post_trigger() {',
+    'printf \'%s\' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true',
+    '}',
+    'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then',
+    'echo "::notice::Tester decision handoff for #$target skipped: the pull request is not OPEN (state=\'${live_state:-unknown}\'); routing the decision to the Maintainer instead of a dead PR lane (issue #781)."',
+    'post_trigger "/oc maintainer"',
+    'else',
+    'case "$action" in',
+    'fix)',
+    'if echo "$head_ref" | grep -q "opencode/lab"; then',
+    'post_trigger "/oc lab"',
+    'elif [ "$is_pr" = "true" ]; then',
+    'post_trigger "/oc fix: Windows tester findings (see report)"',
+    'else',
+    'post_trigger "/oc maintainer"',
+    'fi ;;',
+    'lab) post_trigger "/oc lab" ;;',
+    '*) post_trigger "/oc maintainer" ;;',
+    'esac',
+    'fi',
+)
+
+PEROS_FORWARD_BODIES = {
+    "test-linux": PEROS_LINUX_FORWARD_BODY,
+    "test-macos": PEROS_MACOS_FORWARD_BODY,
+    "test-windows": PEROS_WINDOWS_FORWARD_BODY,
+}
+
 REVIEW_HEAD_IF = (
     "steps.pr-info.outputs.is_pr == 'true'"
     " && steps.review_guard.outputs.open == 'true'"
@@ -21706,6 +22081,26 @@ def norm_lines(text):
     ]
 
 
+def norm_pinned_lines(text):
+    # Issue #781 review round 3 (adversarial pass): a `#` line inserted in the
+    # middle of a backslash continuation is not an inert comment to bash: it
+    # comments out the rest of the continued command. Comment-only edits stay
+    # tolerated everywhere else, but a comment line directly after a line
+    # ending in a backslash is semantic and is kept in the pinned sequence, so
+    # it can never be dropped out of an exact-body comparison.
+    out = []
+    continued = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#") and not continued:
+            continue
+        out.append(stripped)
+        continued = stripped.endswith("\\")
+    return out
+
+
 def exactly_one(steps, name, label, problems):
     hits = named(steps, name)
     if len(hits) != 1:
@@ -21753,9 +22148,23 @@ def sandbox_env(mock_dir, extra):
         "LANG": "C",
         "LC_ALL": "C",
         "GH_TOKEN": "fixture-token",
+        # Issue #781 review round 3 (adversarial pass): the hosted runner
+        # always exposes the Actions/CI context, so the behavioral fixtures
+        # must too. Otherwise an override gated on GITHUB_ACTIONS (or any
+        # other ambient CI variable) is invisible in the sandbox while it is
+        # live in production.
+        "GITHUB_ACTIONS": "true",
+        "CI": "true",
+        "GITHUB_ACTOR": "lab",
+        "GITHUB_WORKFLOW": "fixture",
         "GITHUB_REPOSITORY": PEROS_REPO,
         "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_SHA": "0" * 40,
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_EVENT_NAME": "issue_comment",
         "GITHUB_RUN_ID": "781",
+        "RUNNER_OS": "Linux",
+        "RUNNER_ARCH": "X64",
     }
     env.update(extra)
     return env
@@ -21998,6 +22407,10 @@ def behavioral_review_guard(doc, problems):
     guard = exactly_one(steps, GUARD_NAME, "review-guard", problems)
     if guard is None:
         return
+    # Issue #781 review round 3 (adversarial pass): whole-body pin so an
+    # ambient-CI-variable-gated override cannot force open=true.
+    if norm_pinned_lines(run_of(guard)) != list(REVIEW_GUARD_BODY):
+        problems.append("review-guard(body-not-exact)")
     try:
         root, mock_dir = make_sandbox()
     except OSError:
@@ -22079,6 +22492,11 @@ def validate_opencode(doc, problems):
             problems.append("fix-guard(refusal-exit-missing)")
         if "gh issue comment" in body or "gh pr comment" in body or " gh api " in body:
             problems.append("fix-guard(posts-comment)")
+        # Issue #781 review round 3 (adversarial pass): whole-body pin so an
+        # ambient-CI-variable-gated override (or any other inserted line) can
+        # never make the guard always publish open=true.
+        if norm_pinned_lines(run_of(guard)) != list(FIX_GUARD_BODY):
+            problems.append("fix-guard(body-not-exact)")
     baseline = exactly_one(steps, FIX_BASELINE, "fix-baseline", problems)
     if baseline is not None and if_of(baseline) != FIX_BASELINE_IF:
         problems.append("fix-baseline(if=%r)" % if_of(baseline))
@@ -22106,6 +22524,10 @@ def validate_opencode(doc, problems):
             problems.append("fix-verify(no-skip-forward-output)")
         if "steps.pr-info.outputs.pr_number" in run_of(verify):
             problems.append("fix-verify(references-missing-pr-info-step)")
+        # Issue #781 review round 3 (adversarial pass): whole-body pin so a
+        # CI-gated override cannot make the mid-run-close hard stop dead.
+        if norm_pinned_lines(run_of(verify)) != list(FIX_VERIFY_BODY):
+            problems.append("fix-verify(body-not-exact)")
     forward = exactly_one(steps, FIX_FORWARD, "fix-forward", problems)
     if forward is not None and if_of(forward) != FIX_FORWARD_IF:
         problems.append("fix-forward(if=%r)" % if_of(forward))
@@ -22136,45 +22558,98 @@ def validate_opencode(doc, problems):
     simulate_fix(doc, problems)
 
 
+def assignment_target(line):
+    # Issue #781 review round 3 B1: a second wrong-target binding written as
+    # `export live_pr=...` (or declare/readonly/local/typeset) must count as an
+    # assignment, not slip past a bare `live_pr=` prefix scan.
+    match = re.match(
+        r"^(?:export[ \t]+|declare[ \t]+(?:-[A-Za-z]+[ \t]+)*"
+        r"|readonly[ \t]+|local[ \t]+|typeset[ \t]+)?"
+        r"([A-Za-z_][A-Za-z0-9_]*)=",
+        line,
+    )
+    return match.group(1) if match else None
+
+
 def pin_live_close_body(body, label, problems, require_skip=False):
-    # Issue #781 B1/B2/B4: the live re-read is a hard stop, not a log line.
-    # Exactly one live_pr binding (the resolved PR), before the state query,
-    # inside a block that contains both its own `exit 0` and no event-issue
-    # read. A deleted exit, a second wrong-target binding, or a rebind to the
-    # event issue number must each fail the audit.
-    lines = norm_lines(body)
-    live_prs = [i for i, line in enumerate(lines) if line.startswith("live_pr=")]
+    # Issue #781 B1/B2/B4 and review round 3 B1/B2: the live re-read is a hard
+    # stop, not a log line. Exactly one live_pr binding (the resolved PR),
+    # immediately before the state query; exactly one live_state assignment,
+    # and it must BE the pinned query line; the close block must be the exact
+    # canonical sequence (check, notice, optional skip_forward, exit 0). Any
+    # alternate assignment spelling, any rebind, any override after the query,
+    # a deleted exit, or an inserted line fails the audit, because a spent
+    # wrong-target read or a live_state override makes the close check dead
+    # while every presence pin stays green.
+    lines = norm_pinned_lines(body)
     try:
         query_at = lines.index(REVIEW_LIVE_QUERY)
     except ValueError:
         problems.append("%s(no-live-state-query)" % label)
         return
-    if len(live_prs) != 1:
-        problems.append("%s(live-pr-assignments=%d,want=1)" % (label, len(live_prs)))
-    elif live_prs[0] >= query_at:
-        problems.append("%s(live-pr-after-query)" % label)
+    live_prs = [
+        i for i, line in enumerate(lines) if assignment_target(line) == "live_pr"
+    ]
+    if live_prs != [query_at - 1]:
+        problems.append(
+            "%s(live-pr-assignments=%r,want=[query-1])" % (label, live_prs)
+        )
     elif lines[live_prs[0]] != REVIEW_LIVE_PR_BINDING:
         problems.append("%s(live-pr-not-resolved-pr)" % label)
-    if REVIEW_LIVE_CLOSE_CHECK not in lines:
+    # A line that mentions `live_pr=` anywhere (eval/printf/let spellings
+    # included) is a second write unless it is the one canonical binding.
+    live_pr_mentions = [i for i, line in enumerate(lines) if "live_pr=" in line]
+    if live_pr_mentions != [query_at - 1]:
+        problems.append(
+            "%s(live-pr-mentions=%r,want=[query-1])" % (label, live_pr_mentions)
+        )
+    state_assigns = [
+        i for i, line in enumerate(lines) if assignment_target(line) == "live_state"
+    ]
+    if state_assigns != [query_at]:
+        problems.append(
+            "%s(live-state-assignments=%r,want=[query])" % (label, state_assigns)
+        )
+    state_mentions = [i for i, line in enumerate(lines) if "live_state=" in line]
+    if state_mentions != [query_at]:
+        problems.append(
+            "%s(live-state-mentions=%r,want=[query])" % (label, state_mentions)
+        )
+    for line in lines:
+        if re.search(r"\b(?:printf\s+-v|read|mapfile|readarray)\b[^#]*\blive_(?:pr|state)\b", line):
+            problems.append("%s(live-alternate-writer:%s)" % (label, line))
+    close_seq = [
+        REVIEW_LIVE_CLOSE_CHECK,
+        REVIEW_LIVE_NOTICE[require_skip],
+        'echo "skip_forward=true" >> "$GITHUB_OUTPUT"' if require_skip else None,
+        "exit 0",
+        "fi",
+    ]
+    close_seq = [line for line in close_seq if line is not None]
+    region = [REVIEW_LIVE_PR_BINDING, REVIEW_LIVE_QUERY] + close_seq
+    if live_prs == [query_at - 1] and state_assigns == [query_at]:
+        region_at = query_at - 1
+        if lines[region_at:region_at + len(region)] != region:
+            problems.append("%s(live-close-region-not-exact)" % label)
+        close_at = region_at + len(region) - 1
+    else:
+        close_at = lines.index(REVIEW_LIVE_CLOSE_CHECK) if REVIEW_LIVE_CLOSE_CHECK in lines else None
+    if close_at is None:
         problems.append("%s(no-live-close-check)" % label)
         return
-    close_at = lines.index(REVIEW_LIVE_CLOSE_CHECK)
-    try:
-        fi_at = lines.index("fi", close_at)
-    except ValueError:
-        problems.append("%s(unterminated-live-close)" % label)
-        return
-    close_block = lines[close_at:fi_at]
-    if "exit 0" not in close_block:
-        problems.append("%s(live-close-falls-through)" % label)
-    if require_skip and 'echo "skip_forward=true" >> "$GITHUB_OUTPUT"' not in close_block:
-        problems.append("%s(no-skip-forward-in-live-close)" % label)
-    region_start = live_prs[0] if live_prs else close_at
     if any(
         "github.event.issue.number" in line
-        for line in lines[region_start:fi_at]
+        for line in lines[query_at - 1:close_at]
     ):
         problems.append("%s(live-block-queries-event-issue)" % label)
+    # The close region must precede every side effect of the step.
+    for needle, tag in (
+        ('gh api "repos/${{ github.repository }}/issues/$pr/comments"', "retry-post"),
+        ("publisher=$(git show", "publisher-extraction"),
+    ):
+        hits = [i for i, line in enumerate(lines) if needle in line]
+        if hits and close_at > hits[0]:
+            problems.append("%s(live-close-after-%s)" % (label, tag))
 
 
 def validate_review(doc, problems):
@@ -22184,15 +22659,18 @@ def validate_review(doc, problems):
         return
     info = exactly_one(steps, "Get PR info", "review-pr-info", problems)
     if info is not None:
-        lines = norm_lines(run_of(info))
+        lines = norm_pinned_lines(run_of(info))
         if 'echo "pr_number=$pr" >> "$GITHUB_OUTPUT"' not in lines:
             problems.append("review-pr-info(no-pr-thread-pr-number)")
         if 'echo "pr_number=$linked_pr" >> "$GITHUB_OUTPUT"' not in lines:
             problems.append("review-pr-info(no-linked-pr-pr-number)")
-        # Issue #781 B3: pin the producer itself, not only the output echo. A
-        # linked_pr="$issue" regression makes the guard query an issue as a PR
-        # and skip every linked-issue review.
-        linked = [line for line in lines if line.startswith("linked_pr=")]
+        # Issue #781 B3 and review round 3 B3: pin the producer itself, not
+        # only the output echo. A linked_pr="$issue" regression makes the
+        # guard query an issue as a PR and skip every linked-issue review, and
+        # an `export linked_pr=...` second binding slips past a prefix scan.
+        linked = [
+            line for line in lines if assignment_target(line) == "linked_pr"
+        ]
         if len(linked) != 1:
             problems.append(
                 "review-pr-info(linked-pr-assignments=%d,want=1)" % len(linked)
@@ -22201,6 +22679,17 @@ def validate_review(doc, problems):
             problems.append("review-pr-info(linked-pr-query-not-exact)")
         if REVIEW_PR_INFO_LINKED_FILTER not in lines:
             problems.append("review-pr-info(linked-pr-filter-not-exact)")
+        linked_mentions = [line for line in lines if "linked_pr=" in line]
+        if len(linked_mentions) != 1:
+            problems.append(
+                "review-pr-info(linked-pr-mentions=%d,want=1)"
+                % len(linked_mentions)
+            )
+        # Review round 3 B3: the whole body is pinned as one canonical
+        # sequence, so the issue input, the producer query, the output echoes,
+        # and the branch order cannot be rewritten or have lines inserted.
+        if lines != list(REVIEW_PR_INFO_BODY):
+            problems.append("review-pr-info(body-not-exact)")
     guard = exactly_one(steps, GUARD_NAME, "review-guard", problems)
     if guard is not None:
         if guard.get("id") != "review_guard":
@@ -22282,6 +22771,16 @@ def validate_review(doc, problems):
         # snapshot can be minutes stale by the time the agent finishes, and the
         # re-read is a hard stop with a resolved-PR-only binding.
         pin_live_close_body(run_of(publish), "review-publish", problems)
+        # Review round 3 B1/B2/M2: the whole publisher body is pinned as one
+        # canonical sequence, so no alternate assignment spelling, override,
+        # inserted line, or reordered close block can keep the audit green.
+        if norm_pinned_lines(run_of(publish)) != list(REVIEW_PUBLISH_BODY):
+            problems.append("review-publish(body-not-exact)")
+        # The report itself stays on the trigger thread (the linked issue),
+        # while the decision handoff below targets the resolved PR.
+        publish_env = publish.get("env") if isinstance(publish.get("env"), dict) else {}
+        if publish_env.get("TARGET") != "${{ github.event.issue.number }}":
+            problems.append("review-publish(target-env=%r)" % publish_env.get("TARGET"))
     verify = exactly_one(steps, REVIEW_VERIFY, "review-verify", problems)
     if verify is not None:
         if if_of(verify) != REVIEW_VERIFY_IF:
@@ -22289,9 +22788,27 @@ def validate_review(doc, problems):
         pin_live_close_body(
             run_of(verify), "review-verify", problems, require_skip=True
         )
+        # Review round 3 B1/B2: the verify body is pinned whole too, so a
+        # rebind or override anywhere in it (not only in the close region)
+        # cannot leave the close check dead while every presence pin is green.
+        if norm_pinned_lines(run_of(verify)) != list(REVIEW_VERIFY_BODY):
+            problems.append("review-verify(body-not-exact)")
     forward = exactly_one(steps, REVIEW_FORWARD, "review-forward", problems)
     if forward is not None and if_of(forward) != REVIEW_FORWARD_PREFIX:
         problems.append("review-forward(if=%r)" % if_of(forward))
+    if forward is not None:
+        # Issue #781 review round 3 M3: the decision handoff targets the
+        # resolved PR (a linked-issue trigger forwards to an issue thread where
+        # the fix/test jobs never fire), while the report and evidence stay on
+        # the trigger thread.
+        forward_lines = norm_pinned_lines(run_of(forward))
+        if forward_lines != list(REVIEW_FORWARD_BODY):
+            problems.append("review-forward(body-not-exact)")
+        forward_prs = [
+            line for line in forward_lines if assignment_target(line) == "pr"
+        ]
+        if forward_prs != ['pr="${{ steps.pr-info.outputs.pr_number }}"']:
+            problems.append("review-forward(pr-bindings=%r)" % forward_prs)
     force_lab = exactly_one(steps, REVIEW_FORCE_LAB, "review-force-lab", problems)
     if force_lab is not None:
         if if_of(force_lab) != REVIEW_FORWARD_PREFIX:
@@ -22433,7 +22950,11 @@ def validate_peros(doc, problems):
         if env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}":
             problems.append("peros-%s(no-owner-pat-env)" % arm)
         body = run_of(forward)
-        lines = norm_lines(body)
+        # Issue #781 review round 3 (adversarial pass): whole-body pin so a
+        # CI-gated live_state override cannot post /oc fix on a dead PR.
+        if norm_pinned_lines(body) != list(PEROS_FORWARD_BODIES[arm]):
+            problems.append("peros-%s(body-not-exact)" % arm)
+        lines = norm_pinned_lines(body)
         if PEROS_LIVE_STATE_QUERY not in lines:
             problems.append("peros-%s(no-live-state-query)" % arm)
         if PEROS_LIVE_STATE_CHECK not in lines:
@@ -22720,6 +23241,105 @@ MUTANTS = (
         '        run: |\n          pr="${{ github.event.issue.number }}"\n          # Refuse to run FIX mode unless',
         '        run: |\n          pr="${{ steps.pr-info.outputs.pr_number }}"\n          # Refuse to run FIX mode unless',
     ),
+    # Issue #781 review round 3 B1: a second wrong-target binding written with
+    # an assignment prefix must fail the audit, not slip past a bare-prefix
+    # scan while the publisher queries the wrong PR.
+    (
+        "review-publish-live-pr-export",
+        REVIEW,
+        '          # immediately before publishing and skip cleanly.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"',
+        '          # immediately before publishing and skip cleanly.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"\n          export live_pr=900',
+    ),
+    # Issue #781 review round 3 B2: a live_state override after the state query
+    # makes the close check dead; the exact close region pin must fail it.
+    (
+        "review-publish-live-state-override",
+        REVIEW,
+        '          # immediately before publishing and skip cleanly.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"\n          live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+        '          # immediately before publishing and skip cleanly.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"\n          live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          live_state="OPEN"',
+    ),
+    (
+        "review-verify-live-state-override",
+        REVIEW,
+        '          # skipped even if one of them would otherwise pass.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"\n          live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
+        '          # skipped even if one of them would otherwise pass.\n          live_pr="${{ steps.pr-info.outputs.pr_number }}"\n          live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          live_state="OPEN"',
+    ),
+    # Issue #781 review round 3 B3: a prefixed second linked_pr binding
+    # restores the F1 producer regression (query an issue as a PR).
+    (
+        "review-linked-pr-export",
+        REVIEW,
+        '            if [ -n "$linked_pr" ]; then',
+        '            export linked_pr="$issue"\n            if [ -n "$linked_pr" ]; then',
+    ),
+    # Issue #781 review round 3 M2: an inserted inert line in the publisher
+    # (outside the close region) must fail the whole-body pin.
+    (
+        "review-publish-inserted-line",
+        REVIEW,
+        "            exit 0\n          fi\n          if [ ! -f /tmp/random-lab-decision.json ]; then",
+        "            exit 0\n          fi\n          echo tamper\n          if [ ! -f /tmp/random-lab-decision.json ]; then",
+    ),
+    (
+        "review-verify-inserted-line",
+        REVIEW,
+        '          outcome="${{ steps.review.outcome }}"',
+        '          outcome="${{ steps.review.outcome }}"\n          echo tamper',
+    ),
+    (
+        "review-pr-info-issue-input",
+        REVIEW,
+        '            issue="${{ github.event.issue.number }}"\n            linked_pr=$(gh pr list',
+        '            issue="900"\n            linked_pr=$(gh pr list',
+    ),
+    # Issue #781 review round 3 M3: the decision handoff must target the
+    # resolved PR thread, not the trigger issue thread.
+    (
+        "review-forward-target",
+        REVIEW,
+        '          pr="${{ steps.pr-info.outputs.pr_number }}"\n          if [ ! -f /tmp/random-lab-decision.json ]; then',
+        '          pr="${{ github.event.issue.number }}"\n          if [ ! -f /tmp/random-lab-decision.json ]; then',
+    ),
+    # Issue #781 review round 3 (adversarial pass): the behavioral sandboxes
+    # now seed the ambient CI context, and every guard/verify/handoff body is
+    # whole-body pinned, so an override gated on a hosted-runner variable can
+    # never stay a false green.
+    (
+        'fix-guard-ci-gate',
+        OPENCODE,
+        '          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          if [ "$pr_state" != "OPEN" ]; then',
+        '          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          if [ "${GITHUB_ACTIONS:-}" = "true" ]; then pr_state="OPEN"; fi\n          if [ "$pr_state" != "OPEN" ]; then',
+    ),
+    (
+        'fix-verify-ci-gate',
+        OPENCODE,
+        '          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          if [ "$pr_state" != "OPEN" ]; then\n            echo "Target #$pr is not an OPEN pull request (state=\'${pr_state:-unknown}\'); no fix possible. Bailing out without auto-retry."',
+        '          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          if [ "${GITHUB_ACTIONS:-}" = "true" ]; then pr_state="OPEN"; fi\n          if [ "$pr_state" != "OPEN" ]; then\n            echo "Target #$pr is not an OPEN pull request (state=\'${pr_state:-unknown}\'); no fix possible. Bailing out without auto-retry."',
+    ),
+    (
+        'review-guard-ci-gate',
+        REVIEW,
+        '          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          if [ "$pr_state" != "OPEN" ]; then\n            echo "::notice::/oc review was triggered on PR #$pr which is not an OPEN pull request (state=\'${pr_state:-unknown}\'); skipping the review run (issue #781)."',
+        '          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          if [ "${GITHUB_ACTIONS:-}" = "true" ]; then pr_state="OPEN"; fi\n          if [ "$pr_state" != "OPEN" ]; then\n            echo "::notice::/oc review was triggered on PR #$pr which is not an OPEN pull request (state=\'${pr_state:-unknown}\'); skipping the review run (issue #781)."',
+    ),
+    (
+        'peros-linux-ci-gate',
+        PEROS,
+        '            live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n          fi',
+        '            live_state=$(gh pr view "$target" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")\n            if [ "${GITHUB_ACTIONS:-}" = "true" ]; then live_state="OPEN"; fi\n          fi',
+    ),
+    (
+        'review-forward-compound',
+        REVIEW,
+        '          action=$(jq -r \'.action\' /tmp/random-lab-decision.json 2>/dev/null || echo "")\n          \n          if [ "$action" = "test" ]; then',
+        '          action=$(jq -r \'.action\' /tmp/random-lab-decision.json 2>/dev/null || echo "")\n          if true; then pr="${{ github.event.issue.number }}"; fi\n          \n          if [ "$action" = "test" ]; then',
+    ),
+    (
+        'review-pr-info-continuation-comment',
+        REVIEW,
+        '            linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \\\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")',
+        '            linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \\\n              # tamper\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")',
+    ),
 )
 
 problems = list(load_problems)
@@ -22792,10 +23412,10 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab base read targets the resolved PR), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, both verify hard stops are executed under close races, every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab base read, live binding, guard order, and target binding (issue #781)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab base read targets the resolved PR), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab base read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781)" "ok"
     ;;
   *)
-    check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, and the per-OS forwarders could post /oc fix on a closed PR; the pre-fix unguarded shapes are the regression)" "bad"
+    check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, the per-OS forwarders could post /oc fix on a closed PR, a prefixed second live_pr/linked_pr binding or a live_state override could restore a wrong-target or dead close check, and a linked-issue handoff could land on the issue thread; the pre-fix unguarded shapes are the regression)" "bad"
     ;;
 esac
 
