@@ -10,6 +10,7 @@
 # Usage:
 #   tools/compat/run-macos.sh                       # Terminal (+ iTerm2/Ghostty when installed)
 #   tools/compat/run-macos.sh --emulator terminal   # one terminal
+#   tools/compat/run-macos.sh --initial 100x40      # size the opened window (default)
 #   tools/compat/run-macos.sh --skip-build          # reuse target/release/maze-chase-terminal
 #
 # Rows this script can produce:
@@ -37,10 +38,15 @@ while [ $# -gt 0 ]; do
     --skip-build) SKIP_BUILD="true"; shift ;;
     --initial) INITIAL="$2"; shift 2 ;;
     --binary) BINARY="$2"; shift 2 ;;
-    --help|-h) sed -n '2,20p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "run-macos.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+case "$INITIAL" in
+  [0-9]*x[0-9]*) ;;
+  *) echo "run-macos.sh: --initial must be COLSxROWS (got: $INITIAL)" >&2; exit 2 ;;
+esac
 
 [ "$(uname -s)" = "Darwin" ] || { echo "run-macos.sh: this runner is not macOS" >&2; exit 3; }
 for dep in python3 jq; do
@@ -60,6 +66,24 @@ if [ -z "$BINARY" ]; then
 fi
 case "$BINARY" in /*) ;; *) BINARY="$PWD/$BINARY" ;; esac
 [ -x "$BINARY" ] || { echo "run-macos.sh: binary not executable: $BINARY" >&2; exit 3; }
+
+# ---------------------------------------------------------------- identity
+# Same provenance contract as run-linux.sh: the commit checked out when
+# the row ran, whether the sources were dirty, and the exact binary hash,
+# so a row never implies the current head produced a reused binary.
+# macOS ships shasum rather than sha256sum.
+BUILD_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+if command -v sha256sum >/dev/null; then
+  BINARY_SHA256="$(sha256sum "$BINARY" 2>/dev/null | awk '{print $1}')"
+else
+  BINARY_SHA256="$(shasum -a 256 "$BINARY" 2>/dev/null | awk '{print $1}')"
+fi
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- crates Cargo.toml Cargo.lock 2>/dev/null)" ]; then
+  SOURCES_DIRTY="true"
+else
+  SOURCES_DIRTY="false"
+fi
+echo "identity: commit $BUILD_COMMIT, binary sha256 ${BINARY_SHA256:-unknown}, sources_dirty $SOURCES_DIRTY"
 
 write_unverified() { # emulator reason
   local emu="$1" reason="$2"
@@ -125,20 +149,25 @@ RUNNER
       cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
 exec osascript -e 'tell application "Terminal" to activate' \
-  -e 'tell application "Terminal" to do script "script -q \"$session/pty.log\" $session/run-game.sh; exit"'
+  -e 'tell application "Terminal" to do script "script -q \"$session/pty.log\" $session/run-game.sh; exit"' \
+  -e "tell application \"Terminal\" to set number of columns of front window to ${INITIAL%x*}" \
+  -e "tell application \"Terminal\" to set number of rows of front window to ${INITIAL#*x}"
 LAUNCH
       ;;
     iterm)
       cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
 exec osascript -e 'tell application "iTerm2" to activate' \
-  -e 'tell application "iTerm2" to create window with default profile command "script -q \\"$session/pty.log\\" $session/run-game.sh"'
+  -e 'tell application "iTerm2" to create window with default profile command "script -q \\"$session/pty.log\\" $session/run-game.sh"' \
+  -e "tell application \"iTerm2\" to tell current session of current window to set columns to ${INITIAL%x*}" \
+  -e "tell application \"iTerm2\" to tell current session of current window to set rows to ${INITIAL#*x}"
 LAUNCH
       ;;
     ghostty)
       cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
-exec ghostty -e script -q '$session/pty.log' '$session/run-game.sh'
+exec ghostty --window-width=${INITIAL%x*} --window-height=${INITIAL#*x} \
+  -e script -q '$session/pty.log' '$session/run-game.sh'
 LAUNCH
       ;;
   esac
@@ -149,6 +178,8 @@ LAUNCH
       --driver macos --launch "$launcher" --outdir "$rundir" \
       --emulator "$emu" --emulator-version "system" \
       --tier "$tier" --initial "$INITIAL" \
+      --build-commit "$BUILD_COMMIT" --binary-sha256 "$BINARY_SHA256" \
+      --sources-dirty "$SOURCES_DIRTY" \
       --game-pid-file "$session/game.pid" \
       --transcript "$session/pty.log"; then
     local result="pass"

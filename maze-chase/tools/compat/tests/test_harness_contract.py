@@ -263,6 +263,46 @@ class TestCollectorHonestyGates(unittest.TestCase):
             f"missing zero-capture reason in {row['notes']}",
         )
 
+    def test_too_small_only_session_is_unverified_not_partial(self):
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            create_png=make_rgb_png(2, 2, bytes([10, 10, 10]) * 4),
+            transcript=(
+                b"window 120x30 is too small\r\n"
+                b"needs at least 62x35\r\n"
+            ),
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "unverified")
+        self.assertIn("too-small", row.get("unverified_reason", ""))
+        self.assertEqual(
+            row["phases"][0]["surfaces"]["too_small"]["paints"], 1
+        )
+
+    def test_session_that_plays_after_the_too_small_card_keeps_its_result(self):
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            create_png=make_rgb_png(2, 2, bytes([10, 10, 10]) * 4),
+            transcript=(
+                b"window 120x30 is too small\r\n"
+                b"video tier: truecolor-cells\r\n"
+                b"VIDEO  truecolor-cells\r\n"
+            ),
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "pass")
+        self.assertFalse(row.get("unverified_reason"))
+
     def test_undecodable_capture_is_rejected_not_copied(self):
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run"),

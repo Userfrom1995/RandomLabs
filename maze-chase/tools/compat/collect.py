@@ -275,6 +275,8 @@ def frame_stats(data, spans=None, start=0, end=None):
 
 SURFACE_MARKERS = (
     ("playing_hud", b"VIDEO  "),
+    ("too_small", b"is too small"),
+    ("too_small_hint", b"needs at least"),
     ("paused", b"PAUSED"),
     ("pause_resume", b"Resume"),
     ("pause_quit", b"Quit to title"),
@@ -1118,6 +1120,37 @@ def main():
         result["sprite_visibility"] = {
             "playing_captures_with_sprites": with_sprites,
         }
+    # Playable-size honesty: a window below the game's floor paints the
+    # too-small card and never starts a round, so the driver's `partial`
+    # (or a superficially clean capture) is not evidence of gameplay. If
+    # the card was painted and no phase ever reached the playing HUD,
+    # record the row as unverified with the reason; a session that
+    # started too-small and later resized into a played round keeps its
+    # pass/partial because the HUD proves gameplay.
+    too_small_phases = [
+        phase["name"]
+        for phase in result["phases"]
+        if (phase.get("surfaces") or {}).get("too_small")
+        or (phase.get("surfaces") or {}).get("too_small_hint")
+    ]
+    playing_phases = [
+        phase["name"]
+        for phase in result["phases"]
+        if ((phase.get("surfaces") or {}).get("playing_hud") or {}).get(
+            "paints", 0
+        ) > 0
+    ]
+    if args.result in ("pass", "partial") and too_small_phases and not playing_phases:
+        disposition = "unverified"
+        result["unverified_reason"] = (
+            "the window stayed below the game's playable floor ("
+            + ", ".join(too_small_phases)
+            + " painted the too-small card and no phase reached the playing "
+              "HUD), so the session never rendered gameplay"
+        )
+        notes.append(
+            "recorded unverified by collect.py: " + result["unverified_reason"]
+        )
     result["disposition"] = disposition
     result["notes"] = notes
 
