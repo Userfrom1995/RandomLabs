@@ -491,6 +491,34 @@ class TestDriveReadiness(unittest.TestCase):
             self.assertIn("positive integer", proc.stderr)
 
     @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_ready_seconds_with_a_leading_zero_is_decimal(self):
+        # Bash arithmetic reads a leading zero as octal: `08` used to be an
+        # arithmetic error that skipped the wait entirely (no readiness
+        # event at all) and `010` silently waited 8 seconds. Both must mean
+        # the decimal value the caller typed.
+        for value, output_after in (("08", "0"), ("010", "8.5")):
+            with self.subTest(value=value):
+                transcript = os.path.join(self.tmp, "run", "session",
+                                          "pty.log")
+                launch = (
+                    "sleep %s; printf 'boot\\r\\n' >> '%s'; sleep 0.2"
+                    % (output_after, transcript)
+                )
+                proc, outdir = self._run_drive(
+                    launch, "--ready-seconds", value, "--boot-seconds", "0.1")
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertNotIn("value too great for base", proc.stderr)
+                events = self._events(outdir)
+                self.assertTrue(
+                    any(event[1] == "readiness" for event in events),
+                    (value, events),
+                )
+                self.assertFalse(
+                    any(event[1] == "readiness-timeout" for event in events),
+                    (value, events),
+                )
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
     def test_readiness_timeout_skips_the_title_checkpoint(self):
         proc, outdir = self._run_drive("sleep 3", "--ready-seconds", "1")
         self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -532,6 +560,33 @@ class TestDriveReadiness(unittest.TestCase):
         detail = dict(token.split("=", 1)
                       for token in readiness[2].split())
         self.assertGreater(int(detail["first_output_bytes"]), 0)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_a_stale_transcript_in_a_reused_outdir_is_truncated(self):
+        # A kept or crashed --outdir can hold a large transcript from an
+        # earlier run. The launchers' `script` truncates it at launch, after
+        # drive.sh used to read the baseline, so the new launch's output
+        # could never exceed the stale byte count and the row timed out even
+        # though the game painted.
+        transcript = os.path.join(self.tmp, "run", "session", "pty.log")
+        os.makedirs(os.path.dirname(transcript), exist_ok=True)
+        with open(transcript, "wb") as fh:
+            fh.write(b"stale" * 20000)
+        launch = "printf 'boot\\r\\n' >> '%s'; sleep 0.2" % transcript
+        proc, outdir = self._run_drive(
+            launch, "--ready-seconds", "2", "--boot-seconds", "0.1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        events = self._events(outdir)
+        self.assertFalse(
+            any(event[1] == "readiness-timeout" for event in events),
+            events,
+        )
+        readiness = next(event for event in events
+                         if event[1] == "readiness")
+        detail = dict(token.split("=", 1)
+                      for token in readiness[2].split())
+        self.assertEqual(detail["baseline_bytes"], "0")
+        self.assertEqual(detail["first_output_bytes"], "6")
 
 
 class TestRunnerEntrypoints(unittest.TestCase):
