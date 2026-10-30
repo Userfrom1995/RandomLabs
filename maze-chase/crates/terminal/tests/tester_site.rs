@@ -4,7 +4,8 @@
 //! - `index.html` is the playable game, with no distribution copy above it;
 //! - `play.html` is a query-preserving redirect to the game;
 //! - the dedicated subpages exist, share one navigation, and carry honest
-//!   release status (published unsigned rc.1, no stable tag claimed);
+//!   release status (published rc.2, ad-hoc-signed macOS app, no stable tag
+//!   claimed);
 //! - every `docs/*.md` has a current generated `docs/*.html` counterpart
 //!   (the source and output fingerprints are re-derived here without Node);
 //! - every internal href/src in the shipped pages resolves to a committed
@@ -196,10 +197,11 @@ fn downloads_status_reports_the_published_candidate_honestly() {
         "the status must report the Linux packages as built and smoke-tested: {status}"
     );
     for published in [
-        "maze-chase-v0.1.0-rc.1",
-        "40161835683",
+        "maze-chase-v0.1.0-rc.2",
+        "41080938033",
         "prerelease",
         "unsigned",
+        "ad-hoc signed",
     ] {
         assert!(
             status.contains(published),
@@ -226,9 +228,10 @@ fn downloads_status_reports_the_published_candidate_honestly() {
     );
     assert!(
         html.contains("Live now")
-            && html.matches("Published (unsigned)").count() == 4
+            && html.matches("Published (unsigned)").count() == 3
+            && html.matches("Published (ad-hoc signed)").count() == 1
             && !html.contains("Native release job"),
-        "downloads must label the browser as live and the four native rows as published and unsigned"
+        "downloads must label the browser as live, the unsigned native rows as published, and the macOS app as ad-hoc signed"
     );
     let native_rows = html.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
@@ -252,8 +255,8 @@ fn downloads_status_reports_the_published_candidate_honestly() {
     let releases = read("releases.html");
     for published in [
         "Release candidate published",
-        "maze-chase-v0.1.0-rc.1",
-        "40161835683",
+        "maze-chase-v0.1.0-rc.2",
+        "41080938033",
     ] {
         assert!(
             releases.contains(published),
@@ -274,7 +277,13 @@ fn downloads_status_reports_the_published_candidate_honestly() {
         readme.contains("Linux release packages (deb, rpm, tarballs) are built and smoke-tested"),
         "the README must report the Linux packages as built and smoke-tested"
     );
-    for fact in ["maze-chase-v0.1.0-rc.1", "40161835683", "unsigned", "#683"] {
+    for fact in [
+        "maze-chase-v0.1.0-rc.2",
+        "41080938033",
+        "unsigned",
+        "ad-hoc signed",
+        "#683",
+    ] {
         assert!(
             readme.contains(fact),
             "the README must report the published candidate ({fact})"
@@ -293,6 +302,7 @@ fn release_claim_checker_catches_paraphrases() {
         "Installers are signed.",
         "All artifacts have been signed.",
         "Signing is complete for this candidate.",
+        "The macOS app is notarized.",
         "We shipped the stable release.",
         "The stable release is here.",
         "The stable build is live.",
@@ -313,6 +323,9 @@ fn release_claim_checker_catches_paraphrases() {
         "SmartScreen warns because the binary is unsigned.",
         "This is an unsigned binary.",
         "This is an unsigned release.",
+        "The macOS app is not notarized.",
+        "It is not notarized and has no Apple Developer ID.",
+        "The app was never notarized.",
         "This is not now stable.",
         "The design pass signed off on the layout.",
         "The signed parity gate covers the engine rows.",
