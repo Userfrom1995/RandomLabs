@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       rc:
-        description: "Release-candidate number (default: the next unused rc)"
+        description: "Release-candidate number 1-999 (default: the next unused rc)"
         required: false
         type: string
 
@@ -336,7 +336,15 @@ jobs:
                   exit 1
                   ;;
               esac
-              RC=$((10#$RC_INPUT))
+              # Strip leading zeros before the bound so 007 stays 7, then
+              # cap the digits so bash arithmetic cannot wrap a huge value
+              # such as 18446744073709551617 back into a valid rc.
+              RC_DIGITS="${RC_INPUT#"${RC_INPUT%%[!0]*}"}"
+              if [ "${#RC_DIGITS}" -gt 3 ]; then
+                echo "error: the rc input must be between 1 and 999 (got: $RC_INPUT)" >&2
+                exit 1
+              fi
+              RC=$((10#${RC_DIGITS:-0}))
               if [ "$RC" -lt 1 ]; then
                 echo "error: the rc input must be a positive integer (got: $RC_INPUT)" >&2
                 exit 1
@@ -412,12 +420,18 @@ jobs:
           launch (More info, then Run anyway).
           EOF
           # A tag can exist without a release, so validate its commit
-          # before either the refresh or the create path. gh resolves
-          # annotated tags to their commit; if that lookup fails, use
-          # ls-remote to distinguish "no tag" from "tag but no answer"
-          # and fail closed on the latter.
+          # before either the refresh or the create path. The explicit
+          # refs/tags/ ref qualifier is load-bearing: /commits/{ref}
+          # resolves a branch that shares the tag name before it resolves
+          # the tag, so a branch named like rc.1 could otherwise pass the
+          # parity gate and refresh the published rc.1 release with
+          # branch-built assets. /commits/tags/{ref} handles lightweight
+          # tags only (GitHub returns 422 for an annotated tag), so
+          # refs/tags/ is the form that resolves both kinds to the commit.
+          # If that lookup fails, use ls-remote to distinguish "no tag"
+          # from "tag but no answer" and fail closed on the latter.
           TAG_SHA=""
-          if ! TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq .sha 2>/dev/null)"; then
+          if ! TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha 2>/dev/null)"; then
             rc=0
             git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1 || rc=$?
             if [ "$rc" -eq 0 ]; then
@@ -435,6 +449,14 @@ jobs:
             exit 1
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
+            # A release can outlive a deleted tag. Refreshing it without
+            # a resolved tag would upload branch-built assets with no
+            # commit binding and reopen the republish hole this gate
+            # exists to close.
+            if [ -z "$TAG_SHA" ]; then
+              echo "error: release $TAG exists but its tag cannot be resolved; refusing to refresh an unbound release" >&2
+              exit 1
+            fi
             # Remove assets that are not in this verified set; an
             # upload alone leaves a stale architecture's package
             # published forever.

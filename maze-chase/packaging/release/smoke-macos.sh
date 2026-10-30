@@ -50,6 +50,9 @@ check_app() {
   }
   # A bundle with no valid signature is reported by Gatekeeper as damaged
   # when downloaded, so the smoke refuses to pass one to the release.
+  # spctl assessment is deliberately not run: an ad-hoc, non-notarized
+  # bundle cannot pass it, so codesign's signature check is the meaningful
+  # gate for these artifacts.
   command -v codesign >/dev/null || {
     echo "smoke: codesign missing (Xcode command line tools required)" >&2
     exit 1
