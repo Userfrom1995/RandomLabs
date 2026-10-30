@@ -27,6 +27,12 @@
 # `--binary-sha256`, and `--sources-dirty` record the generating build
 # identity in the run metadata (run-linux.sh fills them in).
 #
+# Before the title checkpoint the driver waits (bounded by
+# `--ready-seconds`, default 30) for the first transcript output, so a
+# cold terminal cannot record an empty title phase. The wait is logged as
+# a `readiness` event (or `readiness-timeout`) and the collector refuses
+# a pass without the fixed session's non-empty, captured checkpoints.
+#
 # Window resizes are only exercised by the X11 driver (xdotool can set
 # exact window sizes). The macOS Aqua driver cannot resize Terminal.app
 # windows reliably, so its rows skip the resize checkpoints and record
@@ -49,6 +55,8 @@ RESIZE_SMALL_ROWS=24
 EXTRA_ENV=()
 TRANSCRIPT=""
 BOOT_SECONDS=2
+READY_SECONDS=30
+READY_POLL_SECONDS=0.25
 KEY_DELAY=0.16
 RESIZE_SETTLE=1.4
 STEP_SETTLE=0.8
@@ -74,6 +82,7 @@ while [ $# -gt 0 ]; do
     --game-pid-file) GAME_PID_FILE="$2"; shift 2 ;;
     --transcript) TRANSCRIPT="$2"; shift 2 ;;
     --boot-seconds) BOOT_SECONDS="$2"; shift 2 ;;
+    --ready-seconds) READY_SECONDS="$2"; shift 2 ;;
     --pause-select) PAUSE_SELECT="$2"; shift 2 ;;
     --build-commit) BUILD_COMMIT="$2"; shift 2 ;;
     --binary-sha256) BINARY_SHA256="$2"; shift 2 ;;
@@ -94,6 +103,13 @@ case "$SOURCES_DIRTY" in
   true|false|unknown) ;;
   *) echo "drive.sh: --sources-dirty must be true, false, or unknown" >&2; exit 2 ;;
 esac
+case "$READY_SECONDS" in
+  ''|*[!0-9]*) echo "drive.sh: --ready-seconds must be a positive integer" >&2; exit 2 ;;
+esac
+[ "$READY_SECONDS" -ge 1 ] || {
+  echo "drive.sh: --ready-seconds must be a positive integer" >&2
+  exit 2
+}
 
 # Resolve --outdir to an absolute path on entry: the transcript path is
 # recorded in meta.json for collect.py, which resolves relative transcript
@@ -338,6 +354,28 @@ wait_for_exit() { # pid seconds
   return 1
 }
 
+wait_for_first_output() { # baseline_bytes; bounded by READY_SECONDS from launch
+  local baseline="$1"
+  local deadline=$(( READY_START_MS / 1000 + READY_SECONDS ))
+  local first waited
+  while :; do
+    first="$(transcript_bytes)"
+    if [ "$first" -gt "$baseline" ]; then
+      waited=$(( $(now_ms) - READY_START_MS ))
+      log_event readiness "waited_ms=$waited baseline_bytes=$baseline first_output_bytes=$first" ""
+      echo "readiness: first transcript output after ${waited}ms (${first} bytes)"
+      return 0
+    fi
+    [ "$(date +%s)" -ge "$deadline" ] && break
+    sleep_s "$READY_POLL_SECONDS"
+  done
+  waited=$(( $(now_ms) - READY_START_MS ))
+  first="$(transcript_bytes)"
+  log_event readiness-timeout "waited_ms=$waited baseline_bytes=$baseline first_output_bytes=$first" ""
+  echo "drive.sh: no transcript output within ${READY_SECONDS}s of launch; refusing to drive a blank session" >&2
+  return 1
+}
+
 driver_ready
 
 # Launch the emulator (the launch command runs the game inside `script`
@@ -351,6 +389,11 @@ for kv in "${EXTRA_ENV[@]:-}"; do
   printf -v _q '%q' "$kv"
   ENV_PREFIX+="$_q "
 done
+# Baseline the transcript before launch and time the first output from the
+# same instant, so the readiness wait is measured from the launch, not from
+# whenever the window happened to appear.
+READY_BASELINE="$(transcript_bytes)"
+READY_START_MS="$(now_ms)"
 eval "${ENV_PREFIX}$LAUNCH" &
 LAUNCH_PID=$!
 
@@ -362,11 +405,23 @@ find_window
 # game stuck on the title screen in exactly that state).
 focus_window
 
-# Give the emulator a moment to paint its first frame, then capture boot.
-sleep_s "$BOOT_SECONDS"
-checkpoint title
+# A cold terminal can take longer than BOOT_SECONDS to start the game and
+# paint its first frame. Wait (bounded) for the transcript to carry output
+# before capturing the title checkpoint, so a cold start can never record
+# an empty title phase and still sign a pass. A timeout is recorded as an
+# event and the collector grades the row unverified; the session is not
+# driven into a blank screen.
+READINESS_OK="true"
+if ! wait_for_first_output "$READY_BASELINE"; then
+  READINESS_OK="false"
+fi
+if [ "$READINESS_OK" = "true" ]; then
+  # Give the emulator a moment to paint its first frame, then capture boot.
+  sleep_s "$BOOT_SECONDS"
+  checkpoint title
+fi
 
-if [ "$DRIVER" != "none" ]; then
+if [ "$DRIVER" != "none" ] && [ "$READINESS_OK" = "true" ]; then
   # Play: start, then steer so the session produces real movement frames.
   key Return
   sleep_s 2.2
