@@ -65,6 +65,17 @@ async function shot(ws, path) {
   const r = await send(ws, 'Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(path, Buffer.from(r.data, 'base64'));
 }
+async function waitForValue(ws, expr, ok, label, budgetMs = 2000, intervalMs = 25) {
+  const deadline = Date.now() + budgetMs;
+  let value;
+  do {
+    value = await evalJs(ws, expr);
+    if (ok(value)) return value;
+    await sleep(intervalMs);
+  } while (Date.now() < deadline);
+  console.log('waitForValue timed out:', label, JSON.stringify(value));
+  return value;
+}
 
 (async () => {
   const errors = [];
@@ -427,22 +438,31 @@ async function shot(ws, path) {
   const muteBefore = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
-  await sleep(80);
-  const muteCueGain = await evalJs(ws, `window.__mcMuteCueTarget`);
-  assert(muteCueGain === 0,
-    'muting settles the target gain before the confirmation cue, got: ' + muteCueGain);
-  await sleep(420);
-  const muteAfter = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  // The cue drains on a later frame and the HUD repaints on its own
+  // cadence, so a fixed 80 ms read races the toggle on a slow host:
+  // poll until both the button text changed and the target settled.
+  const muteState = await waitForValue(
+    ws,
+    `[window.__mcMuteCueTarget, document.getElementById('btn-mute').textContent]`,
+    (v) => Array.isArray(v) && v[1] !== muteBefore && v[0] === 0,
+    'mute cue target settles to 0',
+  );
+  assert(Array.isArray(muteState) && muteState[0] === 0,
+    'muting settles the target gain before the confirmation cue, got: ' + JSON.stringify(muteState && muteState[0]));
+  const muteAfter = Array.isArray(muteState) ? muteState[1] : null;
   assert(muteAfter !== muteBefore,
     'M toggles mute from the focused pause action, got: ' + muteBefore + ' -> ' + muteAfter);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
-  await sleep(80);
-  const unmuteCueGain = await evalJs(ws, `window.__mcMuteCueTarget`);
-  assert(unmuteCueGain > 0.01,
-    'unmuting settles the saved master before the confirmation cue, got: ' + unmuteCueGain);
-  await sleep(420);
-  const muteRestored = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  const unmuteState = await waitForValue(
+    ws,
+    `[window.__mcMuteCueTarget, document.getElementById('btn-mute').textContent]`,
+    (v) => Array.isArray(v) && v[1] === muteBefore && typeof v[0] === 'number' && v[0] > 0.01,
+    'unmute cue target settles to the saved master',
+  );
+  assert(Array.isArray(unmuteState) && unmuteState[0] > 0.01,
+    'unmuting settles the saved master before the confirmation cue, got: ' + JSON.stringify(unmuteState && unmuteState[0]));
+  const muteRestored = Array.isArray(unmuteState) ? unmuteState[1] : null;
   assert(muteRestored === muteBefore, 'M toggles mute back, got: ' + muteRestored);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
@@ -693,28 +713,60 @@ async function shot(ws, path) {
 
   // Fright HUD: the badge announces the active window for its whole
   // duration; the 30-segment meter joins only for the final 1.5 s tail.
-  // Drive the same deterministic route the node harness uses.
+  // Drive the same deterministic route the node harness uses, but on a
+  // controlled clock: the page loop steps the engine from
+  // performance.now(), so a wall-clock hold on a slow host advances fewer
+  // sim ticks than the route expects. Advancing a fake clock by 16 ms per
+  // rendered frame and holding each leg for the harness's 62.5 Hz frame
+  // count makes the route identical on every host.
   const fid = { up: 1, down: 2, left: 3, right: 4 };
-  const fkey = async (id, ms) => {
-    await evalJs(ws, `window.__mazeExports.mc_key(${id}, 1)`);
-    await sleep(ms);
-    await evalJs(ws, `window.__mazeExports.mc_key(${id}, 0)`);
-    await sleep(50);
-  };
   const hasExports = await evalJs(ws, `!!window.__mazeExports`);
   assert(hasExports === true, 'page wasm exports captured for the fright HUD drive');
   if (hasExports) {
+    await evalJs(ws, `(() => {
+      const realNow = performance.now.bind(performance);
+      let fake = realNow();
+      Object.defineProperty(performance, 'now', {
+        configurable: true,
+        writable: true,
+        value: () => { fake += 16; return fake; },
+      });
+      window.__mcRestoreNow = () => {
+        try { delete performance.now; } catch (e) {}
+        window.__mcRestoreNow = null;
+      };
+    })()`);
+    const frameNo = () => evalJs(ws, `window.__mazeExports.mc_frame_no() >>> 0`);
+    const waitFrames = async (frames) => {
+      const start = await frameNo();
+      const deadline = Date.now() + frames * 250 + 5000;
+      for (;;) {
+        const now = await frameNo();
+        if (now - start >= frames) return;
+        if (Date.now() > deadline) {
+          console.log('waitFrames timed out:', frames, 'advanced', now - start);
+          return;
+        }
+        await sleep(20);
+      }
+    };
+    const fkey = async (id, frames) => {
+      await evalJs(ws, `window.__mazeExports.mc_key(${id}, 1)`);
+      await waitFrames(frames);
+      await evalJs(ws, `window.__mazeExports.mc_key(${id}, 0)`);
+      await waitFrames(3);
+    };
+    const framesFor = (seconds) => Math.round(seconds * 62.5);
     await evalJs(ws, `window.__mazeExports.mc_reset(12345, 0, 1, 0)`);
-    await sleep(200);
+    await waitFrames(13);
     await evalJs(ws, `window.__mazeExports.mc_press(4)`);
-    await sleep(300);
-    for (const [dir, ms] of [['right', 200], ['down', 1200], ['left', 2000], ['up', 600], ['right', 200]]) {
-      await fkey(fid[dir], ms);
+    await waitFrames(19);
+    for (const [dir, seconds] of [
+      ['right', 0.2], ['down', 1.2], ['left', 2.0], ['up', 0.60], ['right', 0.2],
+    ]) {
+      await fkey(fid[dir], framesFor(seconds));
     }
-    // The HUD refreshes at 4 Hz; allow a tick to publish the fright that
-    // started during the route before sampling the panel.
-    await sleep(500);
-    const early = await evalJs(ws, `(() => {
+    const sampleFright = `(() => {
       const e = window.__mazeExports;
       return {
         active: e.mc_fright_active() >>> 0,
@@ -724,24 +776,34 @@ async function shot(ws, path) {
         segsVisible: document.getElementById('fright-segs').getClientRects().length > 0,
         text: document.getElementById('hud-fright').textContent,
       };
-    })()`);
+    })()`;
+    // The HUD repaints at 4 Hz; wait for that tick within a frame budget
+    // so a fast or slow rAF cadence cannot skip the early window.
+    const earlyStart = await frameNo();
+    let early = null;
+    for (;;) {
+      early = await evalJs(ws, sampleFright);
+      if (early.active === 1 && early.hidden === false) break;
+      if ((await frameNo()) - earlyStart >= 60) break;
+      await sleep(25);
+    }
     console.log('fright early:', JSON.stringify(early));
     assert(early.active === 1 && early.flash === 0 && early.segs === 0,
       'deterministic route reaches the early fright window');
     assert(early.hidden === false, 'fright badge is visible for the whole active window, not only its final tail');
     assert(early.segsVisible === false, 'the 30-segment meter stays out of the early fright window');
     assert(/FRIGHT/.test(early.text), 'active fright badge names the fright, got: ' + early.text);
-    await sleep(3700);
-    const late = await evalJs(ws, `(() => {
-      const e = window.__mazeExports;
-      return {
-        active: e.mc_fright_active() >>> 0,
-        segs: e.mc_fright_segments() >>> 0,
-        hidden: document.getElementById('fright-meter').hidden,
-        segsVisible: document.getElementById('fright-segs').getClientRects().length > 0,
-        text: document.getElementById('hud-fright').textContent,
-      };
-    })()`);
+    // 3.7 s of sim time, then wait for the 4 Hz HUD to publish the tail;
+    // the 1.5 s tail leaves slack for one repaint.
+    await waitFrames(231);
+    const tailStart = await frameNo();
+    let late = null;
+    for (;;) {
+      late = await evalJs(ws, sampleFright);
+      if (late.active === 1 && late.segs >= 1 && late.segsVisible) break;
+      if ((await frameNo()) - tailStart >= 90) break;
+      await sleep(25);
+    }
     console.log('fright tail:', JSON.stringify(late));
     assert(late.active === 1 && late.segs >= 1 && late.segs <= 30,
       'countdown reaches the final tail inside 1..30, got ' + late.segs);
@@ -749,6 +811,7 @@ async function shot(ws, path) {
     assert(late.segsVisible === true, 'the 30-segment meter joins for the final tail');
     assert(/FRIGHT ENDING|THE TURN ENDS/.test(late.text),
       'tail badge names the ending, got: ' + late.text);
+    await evalJs(ws, `window.__mcRestoreNow && window.__mcRestoreNow()`);
   }
 
   // Touch swipe on the canvas (up-right flick) must not error or leave play.
@@ -916,10 +979,13 @@ async function shot(ws, path) {
   await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
   await sleep(400);
   assert((await themeLabel()) === 'Moonwake (3/3)', 'theme choice persists across a reload');
-  // Leave the shipped default for any later pass.
+  // Leave the shipped default for any later pass, and prove the label
+  // settled before the accessibility checks key off it.
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
-  await sleep(400);
-  assert((await themeLabel()) === 'Dusk Pond (1/3)', 'theme returns to the default row');
+  const defaultLabel = await waitForValue(
+    ws, `document.getElementById('theme-label').textContent`,
+    (v) => v === 'Dusk Pond (1/3)', 'theme returns to the default row');
+  assert(defaultLabel === 'Dusk Pond (1/3)', 'theme returns to the default row');
 
   // Accessibility settings: both checkboxes exist, reachable, persist in
   // the Rust settings blob, and restore checked across a reload.
@@ -931,16 +997,21 @@ async function shot(ws, path) {
     m.checked = true; m.dispatchEvent(new Event('change', { bubbles: true }));
     c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await sleep(400);
-  assert((await themeLabel()) === 'Moonwake (high contrast)',
+  const hcLabel = await waitForValue(
+    ws, `document.getElementById('theme-label').textContent`,
+    (v) => v === 'Moonwake (high contrast)', 'high contrast label settles');
+  assert(hcLabel === 'Moonwake (high contrast)',
     'high contrast labels the effective Moonwake theme');
+  await sleep(150);
   const hcHash = await canvasHash();
   await evalJs(ws, `(() => {
     const c = document.getElementById('chk-contrast');
     c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await sleep(400);
-  assert((await themeLabel()) === 'Dusk Pond (1/3)',
+  const hcOffLabel = await waitForValue(
+    ws, `document.getElementById('theme-label').textContent`,
+    (v) => v === 'Dusk Pond (1/3)', 'clearing high contrast restores the stored theme');
+  assert(hcOffLabel === 'Dusk Pond (1/3)',
     'clearing high contrast restores the stored Dusk Pond theme');
   const duskMotionHash = await canvasHash();
   assert(hcHash !== duskMotionHash,
@@ -948,9 +1019,12 @@ async function shot(ws, path) {
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
   await sleep(300);
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
-  await sleep(400);
-  assert((await themeLabel()) === 'Moonwake (3/3)',
+  const moonLabel = await waitForValue(
+    ws, `document.getElementById('theme-label').textContent`,
+    (v) => v === 'Moonwake (3/3)', 'manual cycle reaches Moonwake');
+  assert(moonLabel === 'Moonwake (3/3)',
     'the manual cycle reaches Moonwake with reduced motion still on');
+  await sleep(150);
   const moonMotionHash = await canvasHash();
   assert(hcHash === moonMotionHash,
     'high contrast renders the effective Moonwake theme, not just a label');
@@ -977,8 +1051,10 @@ async function shot(ws, path) {
     m.checked = false; m.dispatchEvent(new Event('change', { bubbles: true }));
     c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await sleep(300);
-  assert((await themeLabel()) === 'Dusk Pond (1/3)',
+  const restoredLabel = await waitForValue(
+    ws, `document.getElementById('theme-label').textContent`,
+    (v) => v === 'Dusk Pond (1/3)', 'clearing high contrast restores the stored label');
+  assert(restoredLabel === 'Dusk Pond (1/3)',
     'clearing high contrast restores the stored theme label');
 
   // Every screen panel is a viewport overlay with a pinned action row:
