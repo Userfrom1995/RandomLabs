@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 18955; source-fnv: 31de3db55974c95c; output-fnv: 9accaf641e1d191e -->
+<!-- generated from docs/release.md; source-bytes: 18982; source-fnv: 622f8d7329dd45d3; output-fnv: 03084c4da351c8ae -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -137,7 +137,7 @@ sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop</c
 <h3 id="macos-desktop">macOS, desktop</h3>
 <p>Open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball and copy <code>Maze Chase.app</code> there. The rc.2 app bundle is ad-hoc signed and passes <code>codesign --verify --deep --strict</code>, so a quarantined download shows the unidentified-developer dialog, not the damaged-app dialog. It is not notarized and has no Apple Developer ID. On macOS 15 and later, approve it in System Settings &gt; Privacy &amp; Security &gt; Security</p>
 <blockquote>Open Anyway; a right-click Open can still end at the Not Opened dialog</blockquote>
-<p>with <code>Done</code>. The earlier rc.1 app is unchanged at tag commit <code>11a0037b</code>; it fails code-signature verification and opens as damaged, so install rc.2 instead. This guide is copied into the dmg and tarball as <code>README-desktop.md</code>; the published rc.2 asset is immutable, so the corrected text ships in the next candidate. Upgrade by replacing the app; uninstall by moving it to the Bin. Letting macOS keep its settings is normal; remove <code>~/.maze-chase</code> to clear progress and settings.</p>
+<p>with <code>Done</code>. The earlier rc.1 app is unchanged at tag commit <code>11a0037b</code>; it fails code-signature verification and opens as damaged, so install rc.2 instead. The desktop guide (<code>docs/desktop.md</code>) is copied into the dmg and tarball as <code>README-desktop.md</code>; the published rc.2 asset is immutable, so the corrected text ships in the next candidate. Upgrade by replacing the app; uninstall by moving it to the Bin. Letting macOS keep its settings is normal; remove <code>~/.maze-chase</code> to clear progress and settings.</p>
 <h3 id="macos-terminal">macOS, terminal</h3>
 <p>Extract the terminal tarball and run its <code>install-linux.sh</code> (the script is portable to macOS) or run the binary in place. Remove the installed binary and launch doc with <code>uninstall-linux.sh</code>, adding <code>--purge-config</code> to remove saved settings.</p>
 <h3 id="windows-desktop">Windows, desktop</h3>

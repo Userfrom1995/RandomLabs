@@ -237,11 +237,12 @@ and later, approve it in System Settings > Privacy & Security > Security
 > Open Anyway; a right-click Open can still end at the Not Opened dialog
 with `Done`. The earlier rc.1 app is unchanged at tag commit
 `11a0037b`; it fails code-signature verification and opens as damaged,
-so install rc.2 instead. This guide is copied into the dmg and tarball
-as `README-desktop.md`; the published rc.2 asset is immutable, so the
-corrected text ships in the next candidate. Upgrade by replacing the
-app; uninstall by moving it to the Bin. Letting macOS keep its settings
-is normal; remove `~/.maze-chase` to clear progress and settings.
+so install rc.2 instead. The desktop guide (`docs/desktop.md`) is copied
+into the dmg and tarball as `README-desktop.md`; the published rc.2 asset
+is immutable, so the corrected text ships in the next candidate. Upgrade
+by replacing the app; uninstall by moving it to the Bin. Letting macOS
+keep its settings is normal; remove `~/.maze-chase` to clear progress
+and settings.
 
 ### macOS, terminal
 
