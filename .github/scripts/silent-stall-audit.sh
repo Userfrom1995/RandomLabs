@@ -6394,7 +6394,7 @@ fi
 # branch and the two forward steps are statically pinned, not executed.
 r19_bad=""
 R19_SCRIPT=".github/scripts/review-comment-published.sh"
-R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true'"
+R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true'"
 # Issue #743 retry-lane predicates (duplicate #744 finding). A posted
 # auto-retry is a successful handoff, so the verify step must mark the run
 # (`retry=true` written immediately before the retry POST) and both
@@ -6796,10 +6796,10 @@ else
     r19_seq=$(awk '/^  review:$/ { f=1; next } f && /^  [A-Za-z_]+:/ { exit } f && /^      - name: / { sub(/^      - name: /, ""); print }' "$REVIEW_WF")
     r19_seq_want=$(cat <<'R19_SEQ'
 Get PR info
+Guard - target must be an OPEN pull request
 Checkout repository (PR head)
 Stage the reviewer system prompt from the workflow commit
 "Actor write gate (issue #428)"
-Guard - target must be an OPEN pull request
 Skip review for non-PR issue
 Record checked-out PR head
 Configure git identity
@@ -6986,6 +6986,7 @@ elif [ -f "$REVIEW_WF" ]; then
       | sed -e 's/\${{ github\.event\.issue\.number }}/614/g' \
             -e 's/\${{ github\.repository_owner }}/mockowner/g' \
             -e 's/\${{ github\.repository }}/mockrepo/g' \
+            -e 's/\${{ steps\.pr-info\.outputs\.pr_number }}/614/g' \
             -e 's/\${{ steps\.review\.outcome }}/\${R19P_OUTCOME}/g' \
             -e 's#/tmp/random-lab-decision\.json#${R19P_DECISION}#g' > "$r19p_block"
     if [ -z "$r19p_run" ] || grep -q '\${{' "$r19p_block" 2>/dev/null \
@@ -7061,6 +7062,9 @@ case "$*" in
     fi
     printf '%s\n' "$*" >> "$R19P_POSTS"
     ;;
+  *"pr view"*"--json state"*)
+    printf '%s\n' "${R19P_PR_STATE:-OPEN}"
+    ;;
   *)
     echo "mock gh: unexpected call: $*" >&2
     exit 1
@@ -7090,7 +7094,7 @@ R19P_GH
             "$r19p_tmp/bin/gh" api "repos/mockrepo/issues/614/comments" -f body="/oc review (auto-retry 1)" > /dev/null 2>&1 || true
           grep -qF -- "/oc review (auto-retry 1)" "$r19p_tmp/posts" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(mock-probe-failed)"
           r19p_case() {
-            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}" post_fail="${12:-}" want_retry="${13:-0}"
+            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}" post_fail="${12:-}" want_retry="${13:-0}" pr_state="${14:-OPEN}" want_skip="${15:-0}"
             : > "$r19p_tmp/posts"
             : > "$r19p_tmp/run/github_output"
             if [ "$dec_before" = "1" ]; then
@@ -7109,7 +7113,7 @@ R19P_GH
                 RUNNER_TEMP="$r19p_tmp/run" GITHUB_SHA="$r19p_sha" GITHUB_OUTPUT="$r19p_tmp/run/github_output" \
                 AGENT_GATE="$gate" R19P_OUTCOME="$outcome" R19P_DECISION="$r19p_tmp/decision.json" \
                 R19P_EVIDENCE_RC="$ev_rc" R19P_PAYLOAD="$payload" R19P_ENUM_FAIL="$enum_fail" R19P_POSTS="$r19p_tmp/posts" \
-                R19P_POST_FAIL="$post_fail" \
+                R19P_POST_FAIL="$post_fail" R19P_PR_STATE="$pr_state" \
                 "$r19p_bash_bin" -e "$r19p_block"
             ) > "$r19p_tmp/out" 2>&1
             r19p_rc=$?
@@ -7140,6 +7144,14 @@ R19P_GH
             else
               grep -qxF 'retry=true' "$r19p_tmp/run/github_output" 2>/dev/null && r19_bad="${r19_bad} verify-behavioral(${name}:unexpected-retry-marker)"
             fi
+            # Issue #781 F4: the verify step must refuse to forward or retry
+            # after a mid-run close and mark skip_forward for the two forward
+            # steps; a live-state re-read that silently passes must fail here.
+            if [ "$want_skip" = "1" ]; then
+              grep -qxF 'skip_forward=true' "$r19p_tmp/run/github_output" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(${name}:missing-skip-forward-marker)"
+            else
+              grep -qxF 'skip_forward=true' "$r19p_tmp/run/github_output" 2>/dev/null && r19_bad="${r19_bad} verify-behavioral(${name}:unexpected-skip-forward-marker)"
+            fi
           }
           r19p_case published-verdict 0 0 success 1 1 "$r19p_tmp/p0.json" 0 "" true "gate produced a verdict"
           # F12 (review round 3): the outcome quadrants. The #616 incident
@@ -7164,6 +7176,10 @@ R19P_GH
           r19p_case unverifiable 1 2 success 1 0 "$r19p_tmp/p0.json" 0 "" true "Could not verify"
           r19p_case success-no-decision 1 1 success 0 0 "$r19p_tmp/p0.json" 0 "" true "silent no-op"
           r19p_case gate-denial 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "" false "denial is not a crash"
+          # Issue #781 F4: a PR that closes after the guard (state MERGED) must
+          # take the clean skip: no retry, no verdict post, decision retained,
+          # skip_forward published for the gated force-lab/forward steps.
+          r19p_case mid-run-close 0 0 success 1 1 "$r19p_tmp/p0.json" 0 "" true "no longer OPEN" "" 0 MERGED 1
         fi
       fi
     fi
@@ -15372,7 +15388,12 @@ for job_name, steps in found.items():
         raise SystemExit("strip-step-key-surface:%s:%r" % (job_name, sorted(step)))
     expected_strip_if = "always() && steps.actor_gate.outputs.run == 'true'"
     if job_name == "fix":
-        expected_strip_if += " && steps.fix_guard.outputs.open == 'true'"
+        # Issue #781 F4: a mid-run close sets verify.skip_forward, so the fix
+        # side effects stay down even though the guard snapshot said OPEN.
+        expected_strip_if += (
+            " && steps.fix_guard.outputs.open == 'true'"
+            " && steps.verify.outputs.skip_forward != 'true'"
+        )
     if step.get("if") != expected_strip_if:
         raise SystemExit("strip-step-if:%s" % job_name)
     if step.get("env") != {"GH_TOKEN": "${{ github.token }}"}:
@@ -16228,7 +16249,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "07029772f2e7eac500280ee4a5f7850f10153d9c23bacd911a20a224c10c379b"
+EXPECTED_TEST_PROMPT_SHA256 = "a11204469c4dde9b62c7fd812d012fb948a2854ac6ffea72bcb8cbd59bff15a5"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -16274,7 +16295,11 @@ EXPECTED_REVIEW_ACTOR_ENV = {
 }
 EXPECTED_TEST_RESTORE_KEYS = {"name", "run"}
 EXPECTED_REVIEW_RESTORE_KEYS = {"name", "if", "run"}
-EXPECTED_REVIEW_RESTORE_IF = "steps.pr-info.outputs.is_pr == 'true'"
+EXPECTED_REVIEW_RESTORE_IF = "steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'"
+# Issue #781 F3: the review guard runs before checkout, so checkout, prompt
+# staging, and the actor gate are gated on the guard's OPEN decision (a non-PR
+# issue still runs them because it needs the actor gate for its notice).
+EXPECTED_REVIEW_OPEN_OR_NON_PR_IF = "steps.pr-info.outputs.is_pr != 'true' || steps.review_guard.outputs.open == 'true'"
 # Issue #713 Tester finding: the review arm's post-agent "restore" step carried
 # the owner PAT with no pinned PATH, so the reviewer agent could plant a
 # gh/git shim in the runner-writable .opencode/bin directory and exfiltrate the
@@ -16437,7 +16462,7 @@ def file_sha256(path):
         return ""
 
 
-def check_prompt_stage_step(step, label, expected_sha, output_name, sink):
+def check_prompt_stage_step(step, label, expected_sha, output_name, sink, expected_if=None):
     if step is None:
         return
     # Issue #713 review round 8: the agent's real system prompt is a file in
@@ -16445,8 +16470,13 @@ def check_prompt_stage_step(step, label, expected_sha, output_name, sink):
     # while every other pin stayed green. The staging step must be exactly the
     # name+run shape (no env/uses/if override) and its parsed run body must
     # match the reviewed SHA-256, with the source content pinned separately.
-    if set(step) != {"name", "run"}:
+    # Issue #781 F3: the review arm stages only after the open-PR guard; the
+    # one allowed `if` is pinned exactly (test/eval pin no `if` at all).
+    expected_keys = {"name", "run"} | ({"if"} if expected_if is not None else set())
+    if set(step) != expected_keys:
         sink.append("%s-keys-not-exact)" % label)
+    if expected_if is not None and step.get("if") != expected_if:
+        sink.append("%s-if-not-exact)" % label)
     run = step.get("run")
     if not isinstance(run, str) or not run.strip():
         sink.append("%s-run-missing)" % label)
@@ -17028,6 +17058,7 @@ def validate_arm(
     restore_if,
     agent_id,
     sink,
+    actor_if=None,
 ):
     if not isinstance(doc, dict):
         sink.append("%s(yaml-not-mapping)" % label)
@@ -17049,8 +17080,13 @@ def validate_arm(
         sink.append("%s(actor-gate-step-not-unique)" % label)
     else:
         actor = actor_hits[0]
-        if set(actor) != EXPECTED_ARM_ACTOR_KEYS:
+        expected_actor_keys = EXPECTED_ARM_ACTOR_KEYS | (
+            {"if"} if actor_if is not None else set()
+        )
+        if set(actor) != expected_actor_keys:
             sink.append("%s(actor-gate-keys-not-exact)" % label)
+        if actor_if is not None and actor.get("if") != actor_if:
+            sink.append("%s(actor-gate-if-not-exact)" % label)
         if actor.get("id") != "actor_gate":
             sink.append("%s(actor-gate-id-not-exact)" % label)
         if actor.get("shell") != "bash":
@@ -17253,6 +17289,7 @@ def validate_test(doc, sink):
         None,
         "test",
         sink,
+        None,
     )
     hits = [
         (index, step)
@@ -17318,6 +17355,7 @@ def validate_review(doc, sink):
         EXPECTED_REVIEW_RESTORE_IF,
         "review",
         sink,
+        EXPECTED_REVIEW_OPEN_OR_NON_PR_IF,
     )
     # Issue #713 Tester finding: reviewer.md is PR-controlled, so the review
     # arm now stages it from this run's workflow commit and the agent reads
@@ -17434,6 +17472,7 @@ def validate_review(doc, sink):
             EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256,
             "",
             sink,
+            EXPECTED_REVIEW_OPEN_OR_NON_PR_IF,
         )
         agents = [
             index
@@ -18455,6 +18494,32 @@ if review_doc is not None:
             for p in review_actor_keys_local
         ):
             problems.append("review.yml(structural-self-test-actor-keys-override)")
+        # Issue #781 F3: the checkout/staging/actor-gate OPEN gates are
+        # load-bearing. Removing either `if` must fail the audit alone.
+        review_actor_if_revert = copy.deepcopy(review_doc)
+        for step in review_actor_if_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME:
+                step.pop("if", None)
+        review_actor_if_local = []
+        validate_review(review_actor_if_revert, review_actor_if_local)
+        if not any(
+            "review.yml(actor-gate-if-not-exact" in p
+            or "review.yml(actor-gate-keys-not-exact" in p
+            for p in review_actor_if_local
+        ):
+            problems.append("review.yml(structural-self-test-actor-if-removed)")
+        review_stage_if_revert = copy.deepcopy(review_doc)
+        for step in review_stage_if_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_STAGE_PROMPT_NAME:
+                step.pop("if", None)
+        review_stage_if_local = []
+        validate_review(review_stage_if_revert, review_stage_if_local)
+        if not any(
+            "review.yml(prompt-stage-if-not-exact" in p
+            or "review.yml(prompt-stage-keys-not-exact" in p
+            for p in review_stage_if_local
+        ):
+            problems.append("review.yml(structural-self-test-stage-if-removed)")
         # Issue #713 review round 24: reverting the non-PR notice to the owner
         # PAT (which re-triggers this workflow) or opening its body with a
         # trigger must each fail the audit alone.
@@ -21400,17 +21465,25 @@ esac
 # the per-OS forwarders could post /oc fix on a PR that was no longer open.
 # This rule pins the guard id and output contract, the gating of every
 # downstream fix step, the fail-closed skip output in the verify hard stop,
-# the review-arm guard plus its agent/publish/verify gates, and the per-OS
-# live-state pre-check. It then executes the extracted guard bodies against
-# a mocked gh for OPEN, CLOSED, MERGED, and unknown states, executes the fix
-# verify hard stop under a race (guard passed, state now MERGED) and
-# requires skip_forward=true with no retry and no comment, executes each
-# per-OS forwarder against every state shape, and simulates the step gates
-# to prove a non-OPEN target runs zero agent steps and posts zero comments
-# while an OPEN target still runs and forwards. Mutation self-tests remove
-# each gate, output, and pre-check one at a time and require this rule to
-# fail alone.
+# the review guard's resolved-PR binding (it must never query the event issue
+# number) and its position before checkout, the live re-reads in the review
+# publisher and verify, the skip_forward gates on both review handoffs, and
+# the per-OS live-state pre-check (the stale job-start PR_STATE snapshot is
+# gone). It then executes the extracted guard bodies against a mocked gh for
+# OPEN, CLOSED, MERGED, and unknown states; the mock enforces the exact
+# `pr view <resolved-pr> --repo <repo> --json state --jq .state` argv, so a
+# linked-issue trigger that queries the issue number fails as a wrong-target
+# read. It executes the fix verify hard stop under a race (guard passed, state
+# now MERGED) and the review verify under the same race, requires
+# skip_forward=true with no retry, handoff, or comment, executes each per-OS
+# forwarder against every state shape including a stale snapshot (PR_STATE
+# says OPEN, live state says MERGED), and simulates the step gates to prove a
+# non-OPEN target runs zero agent steps and posts zero comments while an OPEN
+# target still runs and forwards. Mutation self-tests remove or relocate each
+# gate, output, pre-check, and target binding one at a time and require this
+# rule to fail alone.
 r32_out=$(python3 -I - <<'PY'
+import copy
 import os
 import shutil
 import subprocess
@@ -21432,10 +21505,12 @@ FIX_APPROVE = "Approve held CI runs on the PR"
 FIX_SIDE_IF = (
     "always() && steps.actor_gate.outputs.run == 'true'"
     " && steps.fix_guard.outputs.open == 'true'"
+    " && steps.verify.outputs.skip_forward != 'true'"
 )
 REVIEW_VERIFY = "Verify review decided, else auto-retry"
 REVIEW_PUBLISH = "Publish reviewer decision report (owner PAT)"
 REVIEW_FORWARD = "Forward reviewer decision"
+REVIEW_FORCE_LAB = "Force lab routing for infrastructure PRs"
 REVIEW_SKIP = "Skip review for non-PR issue"
 ARM_TAGS = {"test-linux": "Linux", "test-macos": "macOS", "test-windows": "Windows"}
 PEROS_REPO = "RandomLabs/RandomLabs"
@@ -21469,14 +21544,28 @@ REVIEW_FORWARD_PREFIX = (
     " && steps.actor_gate.outputs.run == 'true'"
     " && steps.verify-review.outcome == 'success'"
     " && steps.verify-review.outputs.retry != 'true'"
+    " && steps.verify-review.outputs.skip_forward != 'true'"
 )
+REVIEW_OPEN_OR_NON_PR_IF = (
+    "steps.pr-info.outputs.is_pr != 'true'"
+    " || steps.review_guard.outputs.open == 'true'"
+)
+REVIEW_GUARD_PR_BINDING = 'pr="${{ steps.pr-info.outputs.pr_number }}"'
+REVIEW_LIVE_QUERY = (
+    'live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}"'
+    " --json state --jq '.state' 2>/dev/null || echo \"\")"
+)
+REVIEW_LIVE_CLOSE_CHECK = 'if [ "$live_state" != "OPEN" ]; then'
 PEROS_GATE = (
     "always() && steps.actor_gate.outputs.run == 'true'"
     " && steps.verify-test.outcome == 'success'"
     " && steps.findings.outcome == 'success'"
 )
-PR_STATE_ENV = "${{ steps.pr-info.outputs.pr_state }}"
-PR_STATE_CHECK = 'if [ "$is_pr" = "true" ] && [ "${PR_STATE:-}" != "OPEN" ]; then'
+PEROS_LIVE_STATE_CHECK = 'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then'
+PEROS_LIVE_STATE_QUERY = (
+    'live_state=$(gh pr view "$target" --repo "${{ github.repository }}"'
+    " --json state --jq '.state' 2>/dev/null || echo \"\")"
+)
 STATE_OUTPUT = 'echo "pr_state=$pr_state" >> "$GITHUB_OUTPUT"'
 STATE_QUERY = (
     'pr_state=$(gh pr view "$num" --repo "${{ github.repository }}"'
@@ -21486,6 +21575,21 @@ STATE_QUERY = (
 MOCK_GH = """#!/usr/bin/env bash
 set -u
 if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
+  # Issue #781 review F1: token-for-token state-query contract. A guard that
+  # asks about the event issue instead of the resolved PR is a wrong-target
+  # read, not a valid OPEN read, so the mock refuses it and the executing
+  # body's `|| echo ""` turns it into the unknown state (open=false).
+  if [ "$#" -ne 9 ] || [ "${4:-}" != "--repo" ] \
+     || [ "${5:-}" != "${GITHUB_REPOSITORY:-}" ] \
+     || [ "${6:-}" != "--json" ] || [ "${7:-}" != "state" ] \
+     || [ "${8:-}" != "--jq" ] || [ "${9:-}" != ".state" ]; then
+    echo "mock gh: unexpected pr view shape: $*" >&2
+    exit 1
+  fi
+  if [ -n "${MOCK_EXPECTED_PR:-}" ] && [ "${3:-}" != "$MOCK_EXPECTED_PR" ]; then
+    echo "mock gh: unexpected PR target ${3:-<none>} (want $MOCK_EXPECTED_PR)" >&2
+    exit 1
+  fi
   printf '%s\\n' "${MOCK_PR_STATE:-}"
   exit 0
 fi
@@ -21587,9 +21691,10 @@ def outputs_of(path):
     return values
 
 
-def expand(body):
+def expand(body, issue="781", pr_number="781"):
     replacements = (
-        ("${{ github.event.issue.number }}", "781"),
+        ("${{ github.event.issue.number }}", issue),
+        ("${{ steps.pr-info.outputs.pr_number }}", pr_number),
         ("${{ github.repository_owner }}", "RandomLabs"),
         ("${{ github.repository }}", PEROS_REPO),
         ("${{ github.event.issue.pull_request.html_url }}", PEROS_PR_URL),
@@ -21662,6 +21767,7 @@ CLAUSES = {
     "steps.pr-info.outputs.is_pr != 'true'": lambda values: values.get("is_pr") != "true",
     "steps.verify-review.outcome == 'success'": lambda values: values.get("verify_success") == "true",
     "steps.verify-review.outputs.retry != 'true'": lambda values: values.get("retry") != "true",
+    "steps.verify-review.outputs.skip_forward != 'true'": lambda values: values.get("skip_forward") != "true",
 }
 
 
@@ -21711,6 +21817,7 @@ def behavioral_fix(doc, problems):
                         "GITHUB_OUTPUT": out,
                         "MOCK_PR_STATE": state,
                         "MOCK_BODY_LOG": log,
+                        "MOCK_EXPECTED_PR": "781",
                     },
                 ),
                 root,
@@ -21776,7 +21883,7 @@ def simulate_fix(doc, problems):
         ),
         "race": (
             {"actor": "true", "open": "true", "retry": "false", "skip_forward": "true"},
-            (True, True, True, False, True, True),
+            (True, True, True, False, False, False),
         ),
     }
     for name, (values, expected) in scenarios.items():
@@ -21808,12 +21915,24 @@ def simulate_review(doc, problems):
     skip = exactly_one(steps, REVIEW_SKIP, "review-skip-notice", problems)
     if None in (verify, publish, forward, skip):
         return
-    for name, open_value in (("closed", "false"), ("open", "true")):
+    force_lab = exactly_one(steps, REVIEW_FORCE_LAB, "review-force-lab", problems)
+    if force_lab is not None and if_of(force_lab) != REVIEW_FORWARD_PREFIX:
+        problems.append("review-force-lab(if=%r)" % if_of(force_lab))
+    scenarios = (
+        ("closed", "false", "false", (False, False, False, False, False)),
+        ("open", "true", "false", (True, True, True, True, False)),
+        # Issue #781 F4: the guard saw OPEN but the PR closed before verify.
+        # The verify step still runs (open snapshot), publishes skip_forward,
+        # and the two handoff steps plus the skip notice must stay down.
+        ("race", "true", "true", (True, True, True, False, False)),
+    )
+    for name, open_value, skip_value, expected in scenarios:
         values = {
             "actor": "true",
             "is_pr": "true",
             "open": open_value,
             "retry": "false",
+            "skip_forward": skip_value,
         }
         try:
             agent_runs = eval_expr(if_of(agents[0]), values)
@@ -21825,20 +21944,64 @@ def simulate_review(doc, problems):
         except ValueError as exc:
             problems.append("review-gates-%s(unsupported-clause=%s)" % (name, exc))
             continue
-        if open_value == "false":
-            if agent_runs or verify_runs or publish_runs or forward_runs or skip_runs:
-                problems.append(
-                    "review-closed(agent=%r,verify=%r,publish=%r,forward=%r,skip=%r)"
-                    % (agent_runs, verify_runs, publish_runs, forward_runs, skip_runs)
-                )
-        else:
-            if not (agent_runs and verify_runs and publish_runs and forward_runs):
-                problems.append(
-                    "review-open(agent=%r,verify=%r,publish=%r,forward=%r)"
-                    % (agent_runs, verify_runs, publish_runs, forward_runs)
-                )
-            if skip_runs:
-                problems.append("review-open(skip-notice-ran)")
+        got = (agent_runs, verify_runs, publish_runs, forward_runs, skip_runs)
+        if got != expected:
+            problems.append(
+                "review-gates-%s(got=%r,want=%r)" % (name, got, expected)
+            )
+
+
+def behavioral_review_guard(doc, problems):
+    steps = steps_in(doc, "review")
+    guard = exactly_one(steps, GUARD_NAME, "review-guard", problems)
+    if guard is None:
+        return
+    try:
+        root, mock_dir = make_sandbox()
+    except OSError:
+        problems.append("sandbox-unavailable")
+        return
+    try:
+        # Issue #781 review F1: the guard must ask about the resolved PR, never
+        # the event issue. The mock enforces the PR target, so a body that uses
+        # github.event.issue.number reads as unknown and must publish false.
+        body = expand(run_of(guard), issue="900", pr_number="781")
+        if "${{" in body:
+            problems.append("review-guard(unexpanded-expression)")
+            return
+        for name, state, expected in (
+            ("merged", "MERGED", "false"),
+            ("closed", "CLOSED", "false"),
+            ("unknown", "", "false"),
+            ("open", "OPEN", "true"),
+        ):
+            out = os.path.join(root, "out-%s" % name)
+            log = body_log(root, "guard-%s" % name)
+            result = run_script(
+                body,
+                sandbox_env(
+                    mock_dir,
+                    {
+                        "GITHUB_OUTPUT": out,
+                        "MOCK_PR_STATE": state,
+                        "MOCK_BODY_LOG": log,
+                        "MOCK_EXPECTED_PR": "781",
+                    },
+                ),
+                root,
+            )
+            if result.returncode != 0:
+                problems.append("review-guard-%s(rc=%d)" % (name, result.returncode))
+                continue
+            values = outputs_of(out)
+            if values.get("open") != expected:
+                problems.append("review-guard-%s(open=%r)" % (name, values.get("open")))
+            if comment_bodies(log):
+                problems.append("review-guard-%s(posted-comment)" % name)
+    except (OSError, subprocess.TimeoutExpired):
+        problems.append("review-guard-behavioral-harness-failure")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def validate_opencode(doc, problems):
@@ -21895,6 +22058,25 @@ def validate_opencode(doc, problems):
         step = exactly_one(steps, name, label, problems)
         if step is not None and if_of(step) != FIX_SIDE_IF:
             problems.append("%s(if=%r)" % (label, if_of(step)))
+    # Issue #781 F3/F4: the guard must decide before any baseline/agent work,
+    # and the verify must decide before any side effect runs.
+    order = (
+        (GUARD_NAME, FIX_BASELINE),
+        (GUARD_NAME, FIX_AGENT),
+        (FIX_BASELINE, FIX_AGENT),
+        (FIX_AGENT, FIX_VERIFY),
+        (FIX_VERIFY, FIX_FORWARD),
+        (FIX_VERIFY, FIX_STRIP),
+        (FIX_VERIFY, FIX_APPROVE),
+    )
+    index_of = {}
+    for index, step in enumerate(steps):
+        name = step.get("name") if isinstance(step, dict) else None
+        if name in (GUARD_NAME, FIX_BASELINE, FIX_AGENT, FIX_VERIFY, FIX_FORWARD, FIX_STRIP, FIX_APPROVE):
+            index_of.setdefault(name, index)
+    for before, after in order:
+        if before in index_of and after in index_of and index_of[before] >= index_of[after]:
+            problems.append("fix-order(%s-not-before-%s)" % (before, after))
     behavioral_fix(doc, problems)
     simulate_fix(doc, problems)
 
@@ -21904,6 +22086,13 @@ def validate_review(doc, problems):
     if not steps:
         problems.append("review.yml(review-job-or-steps-missing)")
         return
+    info = exactly_one(steps, "Get PR info", "review-pr-info", problems)
+    if info is not None:
+        lines = norm_lines(run_of(info))
+        if 'echo "pr_number=$pr" >> "$GITHUB_OUTPUT"' not in lines:
+            problems.append("review-pr-info(no-pr-thread-pr-number)")
+        if 'echo "pr_number=$linked_pr" >> "$GITHUB_OUTPUT"' not in lines:
+            problems.append("review-pr-info(no-linked-pr-pr-number)")
     guard = exactly_one(steps, GUARD_NAME, "review-guard", problems)
     if guard is not None:
         if guard.get("id") != "review_guard":
@@ -21915,6 +22104,13 @@ def validate_review(doc, problems):
             problems.append("review-guard(no-open-false-output)")
         if 'echo "open=true" >> "$GITHUB_OUTPUT"' not in lines:
             problems.append("review-guard(no-open-true-output)")
+        # Issue #781 F1: the query target is the resolved PR number. A guard
+        # that queries the event issue reviews the wrong object entirely.
+        body = run_of(guard)
+        if REVIEW_GUARD_PR_BINDING not in lines:
+            problems.append("review-guard(no-resolved-pr-binding)")
+        if "github.event.issue.number" in body:
+            problems.append("review-guard(queries-event-issue)")
         try:
             false_at = lines.index('echo "open=false" >> "$GITHUB_OUTPUT"')
             exit_at = lines.index("exit 0", false_at)
@@ -21923,24 +22119,109 @@ def validate_review(doc, problems):
                 problems.append("review-guard(refusal-exit-order)")
         except ValueError:
             problems.append("review-guard(refusal-exit-missing)")
-        body = run_of(guard)
         if "gh issue comment" in body or "gh pr comment" in body or " gh api " in body:
             problems.append("review-guard(posts-comment)")
+    # Issue #781 F3: the guard runs before checkout, so every PR-head step is
+    # gated on the guard's OPEN decision (the non-PR issue path still stages
+    # and gates so its notice can post).
+    checkout = exactly_one(
+        steps, "Checkout repository (PR head)", "review-checkout", problems
+    )
+    if checkout is not None and if_of(checkout) != REVIEW_OPEN_OR_NON_PR_IF:
+        problems.append("review-checkout(if=%r)" % if_of(checkout))
+    stage = exactly_one(
+        steps,
+        "Stage the reviewer system prompt from the workflow commit",
+        "review-stage-prompt",
+        problems,
+    )
+    if stage is not None and if_of(stage) != REVIEW_OPEN_OR_NON_PR_IF:
+        problems.append("review-stage-prompt(if=%r)" % if_of(stage))
+    actors = [step for step in steps if isinstance(step, dict) and step.get("id") == "actor_gate"]
+    if len(actors) != 1:
+        problems.append("review-actor-gate(id-count=%d,want=1)" % len(actors))
+    elif if_of(actors[0]) != REVIEW_OPEN_OR_NON_PR_IF:
+        problems.append("review-actor-gate(if=%r)" % if_of(actors[0]))
+    restore = exactly_one(
+        steps,
+        "Restore the vendored runner when the checked-out head predates it",
+        "review-restore",
+        problems,
+    )
+    if restore is not None:
+        expected_restore_if = (
+            "steps.pr-info.outputs.is_pr == 'true'"
+            " && steps.review_guard.outputs.open == 'true'"
+        )
+        if if_of(restore) != expected_restore_if:
+            problems.append("review-restore(if=%r)" % if_of(restore))
     agents = identified(steps, "review")
     if len(agents) != 1:
         problems.append("review-agent(id-count=%d,want=1)" % len(agents))
     elif if_of(agents[0]) != REVIEW_AGENT_IF:
         problems.append("review-agent(if=%r)" % if_of(agents[0]))
-    verify = exactly_one(steps, REVIEW_VERIFY, "review-verify", problems)
-    if verify is not None and if_of(verify) != REVIEW_VERIFY_IF:
-        problems.append("review-verify(if=%r)" % if_of(verify))
     publish = exactly_one(steps, REVIEW_PUBLISH, "review-publish", problems)
-    if publish is not None and if_of(publish) != REVIEW_PUBLISH_IF:
-        problems.append("review-publish(if=%r)" % if_of(publish))
+    if publish is not None:
+        if if_of(publish) != REVIEW_PUBLISH_IF:
+            problems.append("review-publish(if=%r)" % if_of(publish))
+        # Issue #781 F4: the publisher re-reads state because the guard
+        # snapshot can be minutes stale by the time the agent finishes.
+        body = run_of(publish)
+        if 'live_pr="${{ steps.pr-info.outputs.pr_number }}"' not in norm_lines(body):
+            problems.append("review-publish(no-live-pr-binding)")
+        if REVIEW_LIVE_QUERY not in norm_lines(body):
+            problems.append("review-publish(no-live-state-query)")
+        if REVIEW_LIVE_CLOSE_CHECK not in norm_lines(body):
+            problems.append("review-publish(no-live-close-check)")
+    verify = exactly_one(steps, REVIEW_VERIFY, "review-verify", problems)
+    if verify is not None:
+        if if_of(verify) != REVIEW_VERIFY_IF:
+            problems.append("review-verify(if=%r)" % if_of(verify))
+        lines = norm_lines(run_of(verify))
+        if 'live_pr="${{ steps.pr-info.outputs.pr_number }}"' not in lines:
+            problems.append("review-verify(no-live-pr-binding)")
+        if REVIEW_LIVE_QUERY not in lines:
+            problems.append("review-verify(no-live-state-query)")
+        if REVIEW_LIVE_CLOSE_CHECK not in lines:
+            problems.append("review-verify(no-live-close-check)")
+        try:
+            close_at = lines.index(REVIEW_LIVE_CLOSE_CHECK)
+            skip_at = lines.index(
+                'echo "skip_forward=true" >> "$GITHUB_OUTPUT"', close_at
+            )
+            exit_at = lines.index("exit 0", skip_at)
+            if skip_at > exit_at:
+                problems.append("review-verify(skip-output-after-exit)")
+        except ValueError:
+            problems.append("review-verify(no-skip-forward-output)")
     forward = exactly_one(steps, REVIEW_FORWARD, "review-forward", problems)
     if forward is not None and if_of(forward) != REVIEW_FORWARD_PREFIX:
         problems.append("review-forward(if=%r)" % if_of(forward))
+    force_lab = exactly_one(steps, REVIEW_FORCE_LAB, "review-force-lab", problems)
+    if force_lab is not None and if_of(force_lab) != REVIEW_FORWARD_PREFIX:
+        problems.append("review-force-lab(if=%r)" % if_of(force_lab))
+    # Issue #781 F3/F4: no PR-head or post-agent step may run before the guard
+    # decided, and both handoffs must sit after the verify hard stop.
+    order = (
+        ("Get PR info", GUARD_NAME),
+        (GUARD_NAME, "Checkout repository (PR head)"),
+        ("Checkout repository (PR head)", "Stage the reviewer system prompt from the workflow commit"),
+        ("Stage the reviewer system prompt from the workflow commit", "Actor write gate (issue #428)"),
+        (GUARD_NAME, REVIEW_VERIFY),
+        (GUARD_NAME, REVIEW_PUBLISH),
+        (REVIEW_VERIFY, REVIEW_FORWARD),
+        (REVIEW_VERIFY, REVIEW_FORCE_LAB),
+    )
+    index_of = {}
+    for index, step in enumerate(steps):
+        name = step.get("name") if isinstance(step, dict) else None
+        if name in {pair[0] for pair in order} | {pair[1] for pair in order}:
+            index_of.setdefault(name, index)
+    for before, after in order:
+        if before in index_of and after in index_of and index_of[before] >= index_of[after]:
+            problems.append("review-order(%s-not-before-%s)" % (before, after))
     simulate_review(doc, problems)
+    behavioral_review_guard(doc, problems)
 
 
 def behavioral_peros(arm, tag, forward_body, problems):
@@ -21960,21 +22241,25 @@ def behavioral_peros(arm, tag, forward_body, problems):
             problems.append("peros-%s(unexpanded-expression)" % arm)
             return
         scenarios = (
-            ("merged", "MERGED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("closed", "CLOSED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("unknown", "", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
-            ("closed-lab", "CLOSED", PEROS_PR_URL, "opencode/lab-781-x", "/oc maintainer"),
-            ("open-lab", "OPEN", PEROS_PR_URL, "opencode/lab-781-x", "/oc lab"),
+            ("merged", "MERGED", "MERGED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("closed", "CLOSED", "CLOSED", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("unknown", "", "", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("closed-lab", "CLOSED", "CLOSED", PEROS_PR_URL, "opencode/lab-781-x", "/oc maintainer"),
+            ("open-lab", "OPEN", "OPEN", PEROS_PR_URL, "opencode/lab-781-x", "/oc lab"),
             (
                 "open-fix",
+                "OPEN",
                 "OPEN",
                 PEROS_PR_URL,
                 "opencode/issue781-x",
                 "/oc fix: %s tester findings (see report)" % tag,
             ),
-            ("non-pr", "", "", "opencode/issue781-x", "/oc maintainer"),
+            # Issue #781 F2: the job-start snapshot said OPEN, but the PR was
+            # merged while the arm ran. Only the live re-query catches this.
+            ("stale-snapshot", "MERGED", "OPEN", PEROS_PR_URL, "opencode/issue781-x", "/oc maintainer"),
+            ("non-pr", "", "", "", "opencode/issue781-x", "/oc maintainer"),
         )
-        for name, state, pr_url, head_ref, expected in scenarios:
+        for name, state, snapshot, pr_url, head_ref, expected in scenarios:
             log = body_log(root, "%s-%s" % (arm, name))
             script = body.replace(PEROS_PR_URL, pr_url).replace(
                 "https://github.com/RandomLabs/RandomLabs/pull/781", pr_url
@@ -21986,7 +22271,8 @@ def behavioral_peros(arm, tag, forward_body, problems):
                     {
                         "MOCK_PR_STATE": state,
                         "MOCK_BODY_LOG": log,
-                        "PR_STATE": state,
+                        "MOCK_EXPECTED_PR": "781",
+                        "PR_STATE": snapshot,
                         "HEAD_REF": head_ref,
                     },
                 ),
@@ -22030,16 +22316,20 @@ def validate_peros(doc, problems):
         if if_of(forward) != PEROS_GATE:
             problems.append("peros-%s(forward-if=%r)" % (arm, if_of(forward)))
         env = forward.get("env") if isinstance(forward.get("env"), dict) else {}
-        if env.get("PR_STATE") != PR_STATE_ENV:
-            problems.append("peros-%s(no-pr-state-env)" % arm)
+        # Issue #781 F2: the env snapshot is gone; a forwarder that goes back
+        # to trusting it would route a mid-run-merged PR to /oc fix.
+        if "PR_STATE" in env:
+            problems.append("peros-%s(stale-pr-state-env)" % arm)
         if env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}":
             problems.append("peros-%s(no-owner-pat-env)" % arm)
         body = run_of(forward)
         lines = norm_lines(body)
-        if PR_STATE_CHECK not in lines:
+        if PEROS_LIVE_STATE_QUERY not in lines:
+            problems.append("peros-%s(no-live-state-query)" % arm)
+        if PEROS_LIVE_STATE_CHECK not in lines:
             problems.append("peros-%s(no-live-state-check)" % arm)
         else:
-            check_at = lines.index(PR_STATE_CHECK)
+            check_at = lines.index(PEROS_LIVE_STATE_CHECK)
             window = lines[check_at + 1:check_at + 5]
             if 'post_trigger "/oc maintainer"' not in window:
                 problems.append("peros-%s(non-open-not-routed-to-maintainer)" % arm)
@@ -22155,16 +22445,82 @@ MUTANTS = (
         "        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'\n",
     ),
     (
-        "peros-state-check",
-        PEROS,
-        PR_STATE_CHECK,
+        "fix-guard-open-true",
+        OPENCODE,
+        'echo "open=true" >> "$GITHUB_OUTPUT"\n',
+        "",
+    ),
+    (
+        "review-guard-target",
+        REVIEW,
+        REVIEW_GUARD_PR_BINDING,
+        'pr="${{ github.event.issue.number }}"',
+    ),
+    (
+        "review-guard-open-true",
+        REVIEW,
+        'echo "open=true" >> "$GITHUB_OUTPUT"\n',
+        "",
+    ),
+    (
+        "review-open-gate",
+        REVIEW,
+        "        if: " + REVIEW_OPEN_OR_NON_PR_IF + "\n",
+        "",
+    ),
+    (
+        "review-restore-gate",
+        REVIEW,
+        "        if: steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'\n",
+        "        if: steps.pr-info.outputs.is_pr == 'true'\n",
+    ),
+    (
+        "review-live-query",
+        REVIEW,
+        REVIEW_LIVE_QUERY + "\n",
+        'live_state="OPEN"\n',
+    ),
+    (
+        "review-live-close-check",
+        REVIEW,
+        REVIEW_LIVE_CLOSE_CHECK,
         "if false; then",
     ),
     (
-        "peros-pr-state-env",
-        PEROS,
-        "          PR_STATE: " + PR_STATE_ENV + "\n",
+        "review-forward-skip-gate",
+        REVIEW,
+        " && steps.verify-review.outputs.skip_forward != 'true'",
         "",
+    ),
+    (
+        "review-force-lab-gate",
+        REVIEW,
+        "      - name: Force lab routing for infrastructure PRs\n        if: " + REVIEW_FORWARD_PREFIX + "\n",
+        "      - name: Force lab routing for infrastructure PRs\n",
+    ),
+    (
+        "peros-live-query",
+        PEROS,
+        PEROS_LIVE_STATE_QUERY,
+        'live_state="OPEN"',
+    ),
+    (
+        "peros-live-check",
+        PEROS,
+        PEROS_LIVE_STATE_CHECK,
+        "if false; then",
+    ),
+    (
+        "peros-forward-gate",
+        PEROS,
+        " && steps.findings.outcome == 'success'",
+        "",
+    ),
+    (
+        "peros-owner-pat",
+        PEROS,
+        "          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n",
+        "          GH_TOKEN: ${{ github.token }}\n",
     ),
     (
         "peros-pr-state-output",
@@ -22199,6 +22555,40 @@ if not load_problems:
         if not collect(docs):
             problems.append("mutant-%s(not-caught)" % label)
 
+# Issue #781 F3/F4: order is load-bearing, and text substitution cannot express
+# a move. Relocate each guard below a step it must precede and require the
+# structural order pins to fail alone.
+def move_step_after(doc, job_name, step_name, anchor_name):
+    steps = doc["jobs"][job_name]["steps"]
+    index = next(
+        i for i, candidate in enumerate(steps)
+        if isinstance(candidate, dict) and candidate.get("name") == step_name
+    )
+    step = steps.pop(index)
+    anchor = next(
+        i for i, candidate in enumerate(steps)
+        if isinstance(candidate, dict) and candidate.get("name") == anchor_name
+    )
+    steps.insert(anchor + 1, step)
+
+
+for label, path, job_name, step_name, anchor_name in (
+    ("fix-guard-order", OPENCODE, "fix", GUARD_NAME, FIX_APPROVE),
+    (
+        "review-guard-order",
+        REVIEW,
+        "review",
+        GUARD_NAME,
+        "Checkout repository (PR head)",
+    ),
+):
+    doc = copy.deepcopy(base_docs[path])
+    move_step_after(doc, job_name, step_name, anchor_name)
+    docs = dict(base_docs)
+    docs[path] = doc
+    if not collect(docs):
+        problems.append("mutant-%s(not-caught)" % label)
+
 if problems:
     print("BAD:" + " ".join(problems))
 else:
@@ -22207,7 +22597,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, the review arm carries the same guard gating its agent, report publisher, and verify step, and every per-OS forwarder resolves the live PR state first and routes a non-OPEN or unknown target to the Maintainer instead of posting /oc fix; the guard bodies are executed against a mock gh for OPEN, CLOSED, MERGED, and unknown states, the verify hard stop is executed under a close race, every per-OS forwarder is executed across OPEN, closed, unknown, and non-PR targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate (issue #781)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR), gating checkout, prompt staging, the actor gate, the agent, report publisher, and verify step, while the publisher and verify each re-read live state and a mid-run close sets skip_forward=true gating both handoffs; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot and routes a non-OPEN or unknown target to the Maintainer instead of posting /oc fix; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, both verify hard stops are executed under close races, every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, and non-PR targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate plus guard order and target binding (issue #781)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, and the per-OS forwarders could post /oc fix on a closed PR; the pre-fix unguarded shapes are the regression)" "bad"
