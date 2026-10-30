@@ -137,7 +137,8 @@ the HUD previews that state until you press Start.
   `node web/e2e/wasm-smoke.js` for the instantiation suite and
   `web/e2e/run-browser-e2e.sh` for the five Chrome/CDP suites (a fresh
   browser, profile, and debug port per suite; it starts its own static
-  server and prints the exact commands, see `web/e2e/README.md`). The
+  server and prints the server URL plus each suite's CDP port and
+  profile, see `web/e2e/README.md`). The
   site harness also runs unchanged against the deployed Pages preview
   base URL, where it crawls every subpage and rendered doc for broken
   links and verifies the game-first boot at 390 by 844.
