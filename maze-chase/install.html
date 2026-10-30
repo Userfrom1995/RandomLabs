@@ -108,13 +108,18 @@ sudo apt-get remove maze-chase-desktop
 
   <h3 id="desktop-macos">macOS</h3>
   <p>Open the dmg and drag <code>Maze Chase.app</code> to Applications, or
-  extract the tarball and copy the app there. The app bundle is ad-hoc signed,
-  so the first launch shows the standard unidentified-developer dialog: choose
-  Open Anyway (or System Settings, Privacy &amp; Security, Open Anyway, or a
-  right-click Open). The published rc.1 app predates the ad-hoc signing step,
-  so a quarantined rc.1 download may be refused as damaged; use a build from
-  the current tree until the next candidate is published. Upgrade by replacing
-  the app; uninstall by moving it to the Bin.</p>
+  extract the tarball and copy the app there. The rc.2 app bundle is ad-hoc
+  signed and passes <code>codesign --verify --deep --strict</code>, so a
+  quarantined download shows the unidentified-developer dialog, not the
+  damaged-app dialog. It is not notarized and has no Apple Developer ID. On
+  macOS 15 and later, approve it in System Settings &gt; Privacy &amp; Security
+  &gt; Security &gt; Open Anyway; a right-click Open can still end at the Not
+  Opened dialog with <code>Done</code>. The earlier rc.1 app is unchanged at
+  tag commit <code>11a0037b</code>; it fails code-signature verification and
+  opens as damaged, so install rc.2 instead. The dmg and tarball embed this
+  guide as <code>README-desktop.md</code> from the rc.2 tag, and that published
+  copy is immutable; the corrected text ships in the next candidate. Upgrade
+  by replacing the app; uninstall by moving it to the Bin.</p>
 
   <h2 id="launch">Launch and options</h2>
 <pre><code>maze-chase-terminal [OPTIONS]

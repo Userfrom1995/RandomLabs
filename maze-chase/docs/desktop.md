@@ -22,9 +22,18 @@ upgrading, uninstalling, and clearing saved settings.
   installs per-user with no administrator prompt (Start Menu and optional
   desktop shortcut, standard uninstaller). The zip is portable.
 - **macOS**: open the dmg and drag `Maze Chase.app` to Applications, or
-  extract the tarball. The published rc.1 app predates the ad-hoc signing
-  step, so a quarantined rc.1 download may be refused as damaged; use a
-  build from the current tree until the next candidate is published.
+  extract the tarball. The rc.2 app is ad-hoc signed and passes
+  `codesign --verify --deep --strict`, so a quarantined download shows the
+  unidentified-developer dialog, not the damaged-app dialog. It is not
+  notarized and has no Apple Developer ID. On macOS 15 and later, approve it
+  in System Settings > Privacy & Security > Security > Open Anyway; a
+  right-click Open can still end at the Not Opened dialog with `Done`. The
+  earlier rc.1 app is unchanged at tag commit `11a0037b`; it fails
+  code-signature verification and opens as damaged, so install rc.2 instead.
+
+This guide is copied into the dmg and tarball as `README-desktop.md`. The
+published rc.2 asset is immutable, so the corrected text ships in the next
+candidate; the rc.2 dmg itself is unchanged.
 
 To build from source, use Rust 1.89+ with cargo. System needs:
 
@@ -40,9 +49,12 @@ To build from source, use Rust 1.89+ with cargo. System needs:
   your PC" prompt (choose More info, then Run anyway), and Windows
   remembers the choice after that.
 - **macOS**: nothing beyond the Rust toolchain (CoreAudio and AppKit
-  need no extra installs). The app bundle is ad-hoc signed, so first
-  launch shows the standard unidentified-developer dialog: choose Open
-  Anyway (or right-click Open), then Gatekeeper remembers it.
+  need no extra installs). The app bundle is ad-hoc signed and not
+  notarized. A quarantined download shows the unidentified-developer
+  dialog, not the damaged-app dialog. On macOS 15 and later, approve it in
+  System Settings > Privacy & Security > Security > Open Anyway; a
+  right-click Open can still end at the Not Opened dialog. Gatekeeper
+  remembers the approval.
 
 Build and install from the repo root (`RandomLabs/`):
 

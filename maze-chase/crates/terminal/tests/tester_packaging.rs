@@ -488,17 +488,11 @@ fn downloads_and_readme_claim_only_the_published_prerelease() {
             "the status must report the published candidate ({published}): {status}"
         );
     }
-    for overclaim in [
-        "built and signed",
-        "notarized",
-        "signed binaries",
-        "stable release is published",
-    ] {
-        assert!(
-            !status.contains(overclaim),
-            "the status must not claim signing or a stable release ({overclaim}): {status}"
-        );
-    }
+    assert_eq!(
+        common::signing_or_stable_claim(&status),
+        None,
+        "the status must not claim signing or a stable release: {status}"
+    );
     for qa_copy in [
         "passed",
         "assertions",

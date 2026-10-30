@@ -9,15 +9,18 @@ feel reference, never a code source. Clean-room rules live in
 
 Current status: **playable on Linux, macOS, and Windows. The Linux
 release packages (deb, rpm, tarballs) are built and smoke-tested, and the
-[`maze-chase-v0.1.0-rc.1` prerelease](https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1)
+[`maze-chase-v0.1.0-rc.2` prerelease](https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.2)
 ships the Linux, Windows, and macOS terminal and desktop artifacts. The
 Windows installer plus zip and the macOS app, dmg, and tarball are built and
 smoked by the native release jobs in
-[run 40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683).
-The terminal and Windows binaries and the published rc.1 macOS app are
-unsigned. Builds from the current tree ad-hoc sign the macOS app, so a
-quarantined rc.1 download may be refused as damaged; use a build from the
-current tree until the next candidate is published. The open tracking
+[run 41080938033](https://github.com/Userfrom1995/RandomLabs/actions/runs/41080938033).
+The terminal and Windows binaries are unsigned. The rc.2 macOS app is ad-hoc
+signed, passes `codesign --verify --deep --strict`, and is not notarized; a
+quarantined download shows the unidentified-developer dialog, not the
+damaged-app dialog. On macOS 15 and later, approve it in System Settings >
+Privacy & Security > Security > Open Anyway. The earlier rc.1 candidate is
+unchanged at tag commit `11a0037b`; its macOS app fails code-signature
+verification and opens as damaged. The open tracking
 issue #582 carries the final
 re-verification of every claim, with the release-claims sweep and terminal
 matrix sign-off tracked in #683.** The terminal layer's

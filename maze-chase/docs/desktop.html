@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/desktop.md; source-bytes: 10392; source-fnv: 481d907184391ce1; output-fnv: 7764ea9565dff306 -->
+<!-- generated from docs/desktop.md; source-bytes: 11120; source-fnv: 663fe95e1936d170; output-fnv: 63c8e3582b58ed80 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -57,13 +57,14 @@
 <ul>
 <li><strong>Linux</strong>: <code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>, <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>, or the portable tarball. <code>sudo dpkg -i &lt;deb&gt;</code> or <code>sudo rpm -i &lt;rpm&gt;</code> installs the game, menu entry, and icon system-wide; the tarball's <code>install-linux.sh</code> installs per-user.</li>
 <li><strong>Windows</strong>: <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code> installs per-user with no administrator prompt (Start Menu and optional desktop shortcut, standard uninstaller). The zip is portable.</li>
-<li><strong>macOS</strong>: open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball. The published rc.1 app predates the ad-hoc signing step, so a quarantined rc.1 download may be refused as damaged; use a build from the current tree until the next candidate is published.</li>
+<li><strong>macOS</strong>: open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball. The rc.2 app is ad-hoc signed and passes <code>codesign --verify --deep --strict</code>, so a quarantined download shows the unidentified-developer dialog, not the damaged-app dialog. It is not notarized and has no Apple Developer ID. On macOS 15 and later, approve it in System Settings &gt; Privacy &amp; Security &gt; Security &gt; Open Anyway; a right-click Open can still end at the Not Opened dialog with <code>Done</code>. The earlier rc.1 app is unchanged at tag commit <code>11a0037b</code>; it fails code-signature verification and opens as damaged, so install rc.2 instead.</li>
 </ul>
+<p>This guide is copied into the dmg and tarball as <code>README-desktop.md</code>. The published rc.2 asset is immutable, so the corrected text ships in the next candidate; the rc.2 dmg itself is unchanged.</p>
 <p>To build from source, use Rust 1.89+ with cargo. System needs:</p>
 <ul>
 <li><strong>Linux</strong>: <code>sudo apt-get install libasound2-dev libudev-dev</code> (build-time ALSA headers for audio, udev headers for gamepad input) plus <code>libxkbcommon0 libxkbcommon-x11-0</code> (winit runtime for window creation and keyboard handling). Most desktop distributions already ship the xkbcommon pair; the ALSA and udev headers are the packages a fresh build machine is likely missing.</li>
 <li><strong>Windows</strong>: nothing beyond the Rust toolchain (WASAPI audio and Win32 windowing need no extra installs). The zip ships an unsigned <code>.exe</code>: the first launch shows the SmartScreen &quot;Windows protected your PC&quot; prompt (choose More info, then Run anyway), and Windows remembers the choice after that.</li>
-<li><strong>macOS</strong>: nothing beyond the Rust toolchain (CoreAudio and AppKit need no extra installs). The app bundle is ad-hoc signed, so first launch shows the standard unidentified-developer dialog: choose Open Anyway (or right-click Open), then Gatekeeper remembers it.</li>
+<li><strong>macOS</strong>: nothing beyond the Rust toolchain (CoreAudio and AppKit need no extra installs). The app bundle is ad-hoc signed and not notarized. A quarantined download shows the unidentified-developer dialog, not the damaged-app dialog. On macOS 15 and later, approve it in System Settings &gt; Privacy &amp; Security &gt; Security &gt; Open Anyway; a right-click Open can still end at the Not Opened dialog. Gatekeeper remembers the approval.</li>
 </ul>
 <p>Build and install from the repo root (<code>RandomLabs/</code>):</p>
 <pre><code class="language-sh"># Linux: release tarball plus install into $HOME/.local
