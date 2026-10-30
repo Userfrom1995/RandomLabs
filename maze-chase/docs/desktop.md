@@ -22,7 +22,9 @@ upgrading, uninstalling, and clearing saved settings.
   installs per-user with no administrator prompt (Start Menu and optional
   desktop shortcut, standard uninstaller). The zip is portable.
 - **macOS**: open the dmg and drag `Maze Chase.app` to Applications, or
-  extract the tarball.
+  extract the tarball. The published rc.1 app predates the ad-hoc signing
+  step, so a quarantined rc.1 download may be refused as damaged; use a
+  build from the current tree until the next candidate is published.
 
 To build from source, use Rust 1.89+ with cargo. System needs:
 

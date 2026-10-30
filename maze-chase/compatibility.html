@@ -151,9 +151,9 @@
     delivery. This is documented in the
     <a href="docs/terminal.html">terminal guide</a> and pinned by a regression
     test.</li>
-    <li>Native binaries are unsigned, and the macOS app bundle is ad-hoc
-    signed: SmartScreen and unidentified-developer warnings are expected on
-    first launch.</li>
+    <li>The published rc.1 binaries are unsigned; a build from the current
+    tree ad-hoc signs the macOS app bundle. SmartScreen and
+    unidentified-developer warnings are expected on first launch.</li>
     <li>The video watchdog watches the frame write path. A terminal that
     silently mis-composites cannot be detected; explicit stacking layers are
     used so overlapping sprites cannot depend on a terminal's tie-break.</li>

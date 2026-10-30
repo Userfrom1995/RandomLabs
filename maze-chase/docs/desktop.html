@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/desktop.md; source-bytes: 10200; source-fnv: 34377bcd13374bb5; output-fnv: 1b42e4175a48a152 -->
+<!-- generated from docs/desktop.md; source-bytes: 10392; source-fnv: 481d907184391ce1; output-fnv: 7764ea9565dff306 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -57,7 +57,7 @@
 <ul>
 <li><strong>Linux</strong>: <code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>, <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>, or the portable tarball. <code>sudo dpkg -i &lt;deb&gt;</code> or <code>sudo rpm -i &lt;rpm&gt;</code> installs the game, menu entry, and icon system-wide; the tarball's <code>install-linux.sh</code> installs per-user.</li>
 <li><strong>Windows</strong>: <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code> installs per-user with no administrator prompt (Start Menu and optional desktop shortcut, standard uninstaller). The zip is portable.</li>
-<li><strong>macOS</strong>: open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball.</li>
+<li><strong>macOS</strong>: open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball. The published rc.1 app predates the ad-hoc signing step, so a quarantined rc.1 download may be refused as damaged; use a build from the current tree until the next candidate is published.</li>
 </ul>
 <p>To build from source, use Rust 1.89+ with cargo. System needs:</p>
 <ul>
