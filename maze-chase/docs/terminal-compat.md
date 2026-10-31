@@ -5,7 +5,8 @@ emulators, measured by the harness in `../tools/compat/`. Every executed
 row names its committed evidence bundle (`../tools/compat/evidence/<row>.json`,
 that row's screenshots, and the row's `events.log`); every number quoted
 below re-derives from those files. `unverified` rows name their executor
-and why they have not run. Nothing in this table is estimated.
+and why they did not run or could not prove the session painted and ran.
+Nothing in this table is estimated.
 
 Session: a fixed choreography that boots the game, plays, steers,
 resizes wide, shrinks below the floor, re-fits, pauses, quits to title,
@@ -17,7 +18,8 @@ means the game process exited on its own and the captures rendered;
 too late for the process to exit before the harness timeout, or captures
 failed the render check) with the exact reason in the JSON
 (`exit.killed`, `light_background_captures`); `unverified` means the row
-did not execute. A transcript-driven `pass` also requires every fixed
+did not execute, or it executed without proving the session painted and
+ran. A transcript-driven `pass` also requires every fixed
 checkpoint (`title`, `playing`, `paused`, `title-return`, `help`,
 `scores`, `settings`, plus the resize checkpoints when the driver
 exercised resizes) to be present, non-empty, and captured; a driver that
