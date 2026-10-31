@@ -74,6 +74,23 @@ require_deb_dependency() {
     }
 }
 
+require_deb_alsa_provider() {
+  # require_deb_alsa_provider <Depends text> <package>
+  # Ubuntu 24.04 has no real libasound2 package: the bare name can resolve
+  # to the OSS4 compatibility shim, whose libasound.so.2 lacks the ALSA
+  # symbols the desktop binary needs. Require the real t64 provider, or a
+  # versioned libasound2 on hosts that still ship the real package.
+  local depends="$1" package="$2" entry
+  entry="$(printf '%s\n' "$depends" \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+    | grep -E '^libasound2t64( \||$)|^libasound2 \(>= ' || true)"
+  [ -n "$entry" ] || {
+    echo "smoke: $package Depends does not declare a real ALSA provider" >&2
+    exit 1
+  }
+}
+
 require_rpm_requirement() {
   # require_rpm_requirement <Requires text> <requirement> <package>
   # Exact line match: a substring probe lets libXi pass on libXinerama.
@@ -92,6 +109,9 @@ check_deb_metadata() {
   # resolve its GLIBC symbols.
   require_deb_dependency "$depends" "libc6 (>= $GLIBC_FLOOR)" "$deb"
   if [ "$name" = desktop ]; then
+    # Ubuntu 24.04 exposes libasound2 only as a virtual package, so a
+    # bare dependency can select the OSS4 shim; pin a real provider.
+    require_deb_alsa_provider "$depends" "$deb"
     # winit's backends dlopen these libraries; installing the deb
     # through apt must pull them in on a minimal desktop.
     for library in \
