@@ -230,6 +230,64 @@ test('a green suite survives a Chrome descendant writing the profile', () => {
   }
 });
 
+test('a failing suite still removes the scratch tree and profile writers', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-fail-cleanup-'));
+  const tmpRoot = path.join(dir, 'tmp');
+  fs.mkdirSync(tmpRoot);
+  const writerPidFile = path.join(dir, 'writer-pid');
+  const nodeStub = path.join(dir, 'node');
+  fs.writeFileSync(nodeStub, [
+    '#!/usr/bin/env bash',
+    'if [ "$1" = "-e" ]; then exit 0; fi',
+    'exit 7',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const chromeStub = path.join(dir, 'chrome');
+  fs.writeFileSync(chromeStub, [
+    '#!/usr/bin/env bash',
+    'profile=""',
+    'for arg in "$@"; do',
+    '  case "$arg" in',
+    '    --user-data-dir=*) profile="${arg#--user-data-dir=}" ;;',
+    '  esac',
+    'done',
+    'bash -c \'profile="$1"; while :; do : > "$profile/writer"; done\' _ "$profile" &',
+    'printf "%s\\n" "$!" > "$WRITER_PID_FILE"',
+    'exec sleep 60',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  let writerPid = 0;
+  try {
+    const proc = spawnSync('bash', [RUNNER, 'site-e2e.js',
+      '--base-url', 'http://127.0.0.1:1/',
+      '--chrome', chromeStub], {
+      encoding: 'utf8',
+      timeout: 15000,
+      env: {
+        ...process.env,
+        TMPDIR: tmpRoot,
+        PATH: `${dir}:${process.env.PATH}`,
+        WRITER_PID_FILE: writerPidFile,
+      },
+    });
+    if (fs.existsSync(writerPidFile)) {
+      writerPid = Number(fs.readFileSync(writerPidFile, 'utf8').trim());
+    }
+    assert.equal(proc.status, 1, `${proc.stderr}\n${proc.stdout}`);
+    assert.match(proc.stderr, /FAILED: site-e2e\.js \(exit 7\)/);
+    const leftover = fs.readdirSync(tmpRoot)
+      .filter((name) => name.startsWith('maze-chase-e2e.'));
+    assert.deepEqual(leftover, [], 'the runner leaked its scratch directory');
+    if (writerPid > 0) {
+      assert.throws(() => process.kill(writerPid, 0), /ESRCH/,
+        'the runner left a Chrome profile writer running after a failed suite');
+    }
+  } finally {
+    killQuietly(writerPid);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function planRows(args) {
   const proc = run(args);
   assert.equal(proc.status, 0, proc.stderr);
