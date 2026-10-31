@@ -874,15 +874,16 @@ fn release_workflow_cuts_a_fresh_candidate_and_states_the_signing_status() {
     );
     assert!(
         body.contains("The terminal and Windows binaries are unsigned. The macOS app bundle")
-            && body.contains("ad-hoc signed")
-            && body.contains("not notarized")
+            && body.contains("is ad-hoc signed, not notarized")
+            && body.contains("on macOS 13 and later")
             && body.contains("System Settings > Privacy & Security > Security > Open Anyway")
-            && body.contains("damaged-app refusal"),
-        "the release notes must describe the ad-hoc-signed macOS bundle and the macOS 15+ approval step"
+            && body.contains("macOS 11-12")
+            && body.contains("is not a damaged-app refusal"),
+        "the release notes must describe the ad-hoc-signed macOS bundle and the version-scoped approval step"
     );
     assert!(
-        !body.contains("right-click Open") && !body.contains("Gatekeeper needs a right-click Open"),
-        "the release notes must not promise the macOS 14 right-click workaround"
+        !body.contains("right-click Open"),
+        "the release notes must not promise the retired macOS right-click workaround"
     );
     assert!(
         body.contains("\n  group: maze-chase-release\n")
