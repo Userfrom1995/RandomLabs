@@ -3,7 +3,7 @@
 Status: complete
 Issue: #793 (Refs #657, #582, #683; closes only #793)
 Branch: opencode/issue657-20261031025903
-Base: `main` `ef2e5503`
+Base: `main` `c28215a1` (rebased from `ef2e5503` after review)
 
 ## Scope
 
@@ -58,3 +58,23 @@ lane.
 - `cargo run --release --locked --bin maze-chase-verify`: 19/19 checks.
 - `cargo fmt --check`, `node tools/site/render-docs.mjs --check`
   (15 docs, 424 links), and `bash -n` on all touched scripts pass.
+
+## Agent log
+
+- 2026-10-31 (fixer): delegation ledger for the round-2 verification,
+  which re-ran the above-threshold gate set on the rebased tree:
+  - general: packaging regression suite; returned 34/34 passed including
+    the floor, docs, and built-metadata tests, `cargo fmt --check` clean,
+    and 8/8 `bash -n` plus `shellcheck -S warning` clean.
+  - general: hermetic package build and smoke; returned both desktop
+    packages built with an interception-proven cargo shim and
+    `smoke-linux.sh` OK on both, metadata carrying `libc6 (>= 2.39)`,
+    `glibc >= 2.39`, and the four X11 runtime libraries.
+  - general: Linux floor doc consistency; returned CONSISTENT with no
+    weak-symbol claim remaining and `render-docs --check` green
+    (15 docs, 424 links).
+  - Primary context: applied the forced-install correction in
+    `docs/release.md`, regenerated `docs/release.html`, verified the
+    rendered source hash matches, and rebased onto `origin/main`
+    (`c28215a1`) before rerunning the gates.
+  - Skills: no registry skill matched; `AGENTS.md` conventions applied.
