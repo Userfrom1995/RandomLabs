@@ -10,24 +10,42 @@ scores, settings with key rebinding, and launch docs (this file).
 Every release ships `maze-chase-terminal` as a Debian package, an RPM,
 a portable tarball on Linux and macOS, and a zip on Windows. Once a
 release is published, pick the artifact for your OS from its page;
-`SHA256SUMS.txt` verifies the download. [release.md](release.md) covers
-upgrading, uninstalling, and clearing saved settings.
+`SHA256SUMS.txt` verifies the download. The Linux binaries are built
+against glibc 2.39, so the supported floor is Ubuntu 24.04+, Debian 13+,
+Fedora 40+, and RHEL 10+; RHEL/Rocky 9 and older Debian/Ubuntu releases
+are below the floor and are not supported. [release.md](release.md)
+covers upgrading, uninstalling, and clearing saved settings.
 
 Debian/Ubuntu:
 
 ```sh
-sudo dpkg -i maze-chase-terminal_<version>_<arch>.deb
+sudo apt install ./maze-chase-terminal_<version>_<arch>.deb
 maze-chase-terminal
-sudo apt-get remove maze-chase-terminal
+sudo apt remove maze-chase-terminal
 ```
+
+`apt` resolves the package's declared runtime dependencies from the
+configured repositories. If you already ran `dpkg -i` and it reported
+missing dependencies, finish with `sudo apt-get -f install`.
 
 Fedora/RHEL:
 
 ```sh
-sudo rpm -i maze-chase-terminal-<version>-1.<arch>.rpm
+sudo dnf install ./maze-chase-terminal-<version>-1.<arch>.rpm
 maze-chase-terminal
-sudo rpm -e maze-chase-terminal
+sudo dnf remove maze-chase-terminal
 ```
+
+`dnf` resolves the RPM's required libraries. The RPM keeps
+`Release: 1` for every candidate of the same workspace version, so
+candidate-to-candidate replacement needs `sudo dnf reinstall
+./maze-chase-terminal-<version>-1.<arch>.rpm` (or `sudo rpm -U
+--replacepkgs <rpm>`); a bare `sudo rpm -U` refuses an identical NEVRA.
+A newer workspace version upgrades normally with `sudo dnf install
+./<newer rpm>`.
+
+Upgrade a Debian package with `sudo apt install ./<newer deb>` (add
+`--reinstall` when apt already considers the same version current).
 
 Portable tarball, no root:
 
