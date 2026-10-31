@@ -1953,10 +1953,17 @@ fn linux_packages_declare_the_glibc_floor_and_display_libraries() {
             .join("build-deb.sh"),
     )
     .unwrap();
-    for library in ["libxcursor1", "libxrandr2", "libxi6", "libxinerama1"] {
+    for library in [
+        "libxcursor1",
+        "libxrandr2",
+        "libxi6",
+        "libxinerama1",
+        "libx11-xcb1",
+        "libwayland-client0",
+    ] {
         assert!(
             desktop_deb.contains(library),
-            "the desktop deb must declare the X11 runtime library {library}"
+            "the desktop deb must declare the display runtime library {library}"
         );
     }
     let desktop_rpm = std::fs::read_to_string(
@@ -1966,10 +1973,19 @@ fn linux_packages_declare_the_glibc_floor_and_display_libraries() {
             .join("build-rpm.sh"),
     )
     .unwrap();
-    for library in ["libXcursor", "libXrandr", "libXi", "libXinerama"] {
+    for library in [
+        "libXcursor",
+        "libXrandr",
+        "libXi",
+        "libXinerama",
+        "libX11-xcb",
+        "libwayland-client",
+    ] {
         assert!(
-            desktop_rpm.contains(library),
-            "the desktop rpm must declare the X11 runtime library {library}"
+            desktop_rpm
+                .lines()
+                .any(|line| line.split_whitespace().last() == Some(library)),
+            "the desktop rpm must declare the display runtime library {library}"
         );
     }
 
@@ -1985,16 +2001,23 @@ fn linux_packages_declare_the_glibc_floor_and_display_libraries() {
     for needle in [
         "check_deb_metadata",
         "check_rpm_metadata",
+        "require_deb_dependency",
+        "require_rpm_requirement",
+        "grep -Fxq",
         "libc6 (>= $GLIBC_FLOOR)",
         "glibc >= $GLIBC_FLOOR",
         "libxcursor1",
         "libxrandr2",
         "libxi6",
         "libxinerama1",
+        "libx11-xcb1",
+        "libwayland-client0",
         "libXcursor",
         "libXrandr",
         "libXi",
         "libXinerama",
+        "libX11-xcb",
+        "libwayland-client",
     ] {
         assert!(
             smoke.contains(needle),
@@ -2056,12 +2079,30 @@ fn linux_install_docs_use_resolving_commands_and_state_the_floor() {
         ("docs/desktop.md", &desktop),
         ("install.html", &install),
     ] {
-        for library in ["libxcursor1", "libxrandr2", "libxi6", "libxinerama1"] {
+        for library in [
+            "libxcursor1",
+            "libxrandr2",
+            "libxi6",
+            "libxinerama1",
+            "libx11-xcb1",
+            "libwayland-client0",
+        ] {
             assert!(
                 text.contains(library),
-                "{surface} must name the desktop X11 runtime library {library}"
+                "{surface} must name the desktop display runtime library {library}"
             );
         }
+    }
+
+    for (surface, text) in [("docs/release.md", &release), ("docs/desktop.md", &desktop)] {
+        assert!(
+            text.contains("GLIBC_2.35"),
+            "{surface} must name the strongest real symbol requirement (GLIBC_2.35)"
+        );
+        assert!(
+            text.contains("weak-version `GLIBC_2.39` warning"),
+            "{surface} must describe the weak 2.39 warning on glibc 2.35-2.38 hosts"
+        );
     }
 
     assert!(
@@ -2246,9 +2287,18 @@ chmod 0755 "$root/target/release/maze-chase-desktop"
         depends.contains("libc6 (>= 2.39)"),
         "the built deb must carry the glibc floor: {depends}"
     );
-    for library in ["libxcursor1", "libxrandr2", "libxi6", "libxinerama1"] {
+    for library in [
+        "libxcursor1",
+        "libxrandr2",
+        "libxi6",
+        "libxinerama1",
+        "libx11-xcb1",
+        "libwayland-client0",
+    ] {
         assert!(
-            depends.contains(library),
+            depends
+                .split(',')
+                .any(|dependency| dependency.trim() == library),
             "the built deb must depend on {library}: {depends}"
         );
     }
@@ -2267,7 +2317,14 @@ chmod 0755 "$root/target/release/maze-chase-desktop"
         requires.lines().any(|line| line.trim() == "glibc >= 2.39"),
         "the built rpm must require the glibc floor: {requires}"
     );
-    for library in ["libXcursor", "libXrandr", "libXi", "libXinerama"] {
+    for library in [
+        "libXcursor",
+        "libXrandr",
+        "libXi",
+        "libXinerama",
+        "libX11-xcb",
+        "libwayland-client",
+    ] {
         assert!(
             requires.lines().any(|line| line.trim() == library),
             "the built rpm must require {library}: {requires}"

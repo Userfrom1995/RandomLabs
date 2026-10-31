@@ -62,11 +62,24 @@ package_name() {
   esac
 }
 
-require_metadata() {
-  # require_metadata <field text> <literal> <package> <field>
-  local text="$1" literal="$2" package="$3" field="$4"
-  printf '%s\n' "$text" | grep -Fq -- "$literal" || {
-    echo "smoke: $package $field does not declare '$literal'" >&2
+require_deb_dependency() {
+  # require_deb_dependency <Depends text> <dependency> <package>
+  local depends="$1" dependency="$2" package="$3"
+  printf '%s\n' "$depends" \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+    | grep -Fxq -- "$dependency" || {
+      echo "smoke: $package Depends does not declare '$dependency'" >&2
+      exit 1
+    }
+}
+
+require_rpm_requirement() {
+  # require_rpm_requirement <Requires text> <requirement> <package>
+  # Exact line match: a substring probe lets libXi pass on libXinerama.
+  local requires="$1" requirement="$2" package="$3"
+  printf '%s\n' "$requires" | grep -Fxq -- "$requirement" || {
+    echo "smoke: $package Requires does not declare '$requirement'" >&2
     exit 1
   }
 }
@@ -77,12 +90,14 @@ check_deb_metadata() {
   # The build host is Ubuntu 24.04 (glibc 2.39); a package that does
   # not carry the floor would install on a host where the binary cannot
   # resolve its GLIBC symbols.
-  require_metadata "$depends" "libc6 (>= $GLIBC_FLOOR)" "$deb" "Depends"
+  require_deb_dependency "$depends" "libc6 (>= $GLIBC_FLOOR)" "$deb"
   if [ "$name" = desktop ]; then
-    # winit's X11 backend dlopens these four libraries; installing the
-    # deb through apt must pull them in on a minimal desktop.
-    for library in libxcursor1 libxrandr2 libxi6 libxinerama1; do
-      require_metadata "$depends" "$library" "$deb" "Depends"
+    # winit's backends dlopen these libraries; installing the deb
+    # through apt must pull them in on a minimal desktop.
+    for library in \
+      libxcursor1 libxrandr2 libxi6 libxinerama1 libx11-xcb1 libwayland-client0
+    do
+      require_deb_dependency "$depends" "$library" "$deb"
     done
   fi
 }
@@ -90,10 +105,12 @@ check_deb_metadata() {
 check_rpm_metadata() {
   local rpm="$1" name="$2" requires
   requires="$(rpm -qp --requires "$rpm")"
-  require_metadata "$requires" "glibc >= $GLIBC_FLOOR" "$rpm" "Requires"
+  require_rpm_requirement "$requires" "glibc >= $GLIBC_FLOOR" "$rpm"
   if [ "$name" = desktop ]; then
-    for library in libXcursor libXrandr libXi libXinerama; do
-      require_metadata "$requires" "$library" "$rpm" "Requires"
+    for library in \
+      libXcursor libXrandr libXi libXinerama libX11-xcb libwayland-client
+    do
+      require_rpm_requirement "$requires" "$library" "$rpm"
     done
   fi
 }

@@ -44,13 +44,16 @@ To build from source, use Rust 1.89+ with cargo. System needs:
 - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
   (build-time ALSA headers for audio, udev headers for gamepad
   input) plus the winit runtime libraries: `libxkbcommon0`,
-  `libxkbcommon-x11-0`, `libxcursor1`, `libxrandr2`, `libxi6`, and
-  `libxinerama1` on Debian/Ubuntu (the RPM names are `libxkbcommon`,
-  `libxkbcommon-x11`, `libXcursor`, `libXrandr`, `libXi`, and
-  `libXinerama`). The packaged deb/rpm declare these runtime
-  dependencies, so installing through apt/dnf pulls them in. The
-  binaries are built against glibc 2.39; older hosts fail with a missing
-  `GLIBC_2.39` symbol and are not supported.
+  `libxkbcommon-x11-0`, `libxcursor1`, `libxrandr2`, `libxi6`,
+  `libxinerama1`, `libx11-xcb1`, and `libwayland-client0` on
+  Debian/Ubuntu (the RPM names are `libxkbcommon`,
+  `libxkbcommon-x11`, `libXcursor`, `libXrandr`, `libXi`,
+  `libXinerama`, `libX11-xcb`, and `libwayland-client`). The packaged
+  deb/rpm declare these runtime dependencies, so installing through
+  apt/dnf pulls them in. The binaries are built against glibc 2.39;
+  hosts below glibc 2.35 fail with a missing `GLIBC_2.35` symbol, and
+  glibc 2.35-2.38 hosts start with a weak-version `GLIBC_2.39` warning
+  but are outside the verified floor.
 - **Windows**: nothing beyond the Rust toolchain (WASAPI audio and
   Win32 windowing need no extra installs). The zip ships an unsigned
   `.exe`: the first launch shows the SmartScreen "Windows protected
@@ -223,11 +226,15 @@ scripted run and asserts pixel-identical output across seeds.
 - `libxkbcommon-x11.so could not be loaded` (Linux): install
   `libxkbcommon0 libxkbcommon-x11-0`.
 - `cannot open a display (no windowing backend)` on a minimal Linux
-  system: install the X11 runtime libraries the desktop package declares,
-  `libxcursor1 libxrandr2 libxi6 libxinerama1` on Debian/Ubuntu (or
-  `libXcursor libXrandr libXi libXinerama` on Fedora/RHEL), then retry.
-- `GLIBC_2.39 not found` (Linux): the host is below the build floor.
-  Upgrade to Ubuntu 24.04+, Debian 13+, Fedora 40+, or RHEL 10+.
+  system: install the X11 and Wayland runtime libraries the desktop
+  package declares, `libxcursor1 libxrandr2 libxi6 libxinerama1
+  libx11-xcb1 libwayland-client0` on Debian/Ubuntu (or `libXcursor
+  libXrandr libXi libXinerama libX11-xcb libwayland-client` on
+  Fedora/RHEL), then retry.
+- `GLIBC_2.35 not found` (Linux): the host is below the build floor.
+  Upgrade to Ubuntu 24.04+, Debian 13+, Fedora 40+, or RHEL 10+. A
+  glibc 2.35-2.38 host starts with a weak-version `GLIBC_2.39` warning
+  instead of aborting, but it is still outside the verified floor.
 - ALSA `cannot find card` spew on voiceless machines: harmless stderr
   from the audio backend while it falls back to silence.
 - `alsa-sys build failed` at compile time (Linux): install

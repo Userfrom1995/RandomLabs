@@ -59,6 +59,8 @@ Requires:       libXcursor
 Requires:       libXrandr
 Requires:       libXi
 Requires:       libXinerama
+Requires:       libX11-xcb
+Requires:       libwayland-client
 Requires:       systemd-libs
 Requires:       glibc >= $GLIBC_FLOOR
 
