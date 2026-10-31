@@ -17,7 +17,7 @@ upgrading, uninstalling, and clearing saved settings.
   `maze-chase-desktop-<version>-1.<arch>.rpm`, or the portable tarball.
   Install the deb with `sudo apt install ./<deb>` or the rpm with
   `sudo dnf install ./<rpm>` so the package manager resolves the declared
-  ALSA, udev, xkbcommon, and X11 runtime libraries; the tarball's
+  ALSA, udev, xkbcommon, and X11 and Wayland runtime libraries; the tarball's
   `install-linux.sh` installs per-user. The Linux binaries require glibc
   2.39 or newer (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+);
   RHEL/Rocky 9 and older Debian/Ubuntu releases are below the floor and

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/desktop.md; source-bytes: 12456; source-fnv: 3bf53be9b02b0519; output-fnv: d34886eca53a4edd -->
+<!-- generated from docs/desktop.md; source-bytes: 12468; source-fnv: 8ca45d882e73f356; output-fnv: 072ea894ec01e20e -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -55,7 +55,7 @@
 <h2 id="install">Install</h2>
 <p>Pick the artifact for your OS from the release page once a release is published (or build one with the commands below). Every download is checksummed with <code>SHA256SUMS.txt</code>; <a href="release.html">release.md</a> covers upgrading, uninstalling, and clearing saved settings.</p>
 <ul>
-<li><strong>Linux</strong>: <code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>, <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>, or the portable tarball. Install the deb with <code>sudo apt install ./&lt;deb&gt;</code> or the rpm with <code>sudo dnf install ./&lt;rpm&gt;</code> so the package manager resolves the declared ALSA, udev, xkbcommon, and X11 runtime libraries; the tarball's <code>install-linux.sh</code> installs per-user. The Linux binaries require glibc 2.39 or newer (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+); RHEL/Rocky 9 and older Debian/Ubuntu releases are below the floor and are not supported.</li>
+<li><strong>Linux</strong>: <code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>, <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>, or the portable tarball. Install the deb with <code>sudo apt install ./&lt;deb&gt;</code> or the rpm with <code>sudo dnf install ./&lt;rpm&gt;</code> so the package manager resolves the declared ALSA, udev, xkbcommon, and X11 and Wayland runtime libraries; the tarball's <code>install-linux.sh</code> installs per-user. The Linux binaries require glibc 2.39 or newer (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+); RHEL/Rocky 9 and older Debian/Ubuntu releases are below the floor and are not supported.</li>
 <li><strong>Windows</strong>: <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code> installs per-user with no administrator prompt (Start Menu and optional desktop shortcut, standard uninstaller). The zip is portable.</li>
 <li><strong>macOS</strong>: open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball. The rc.2 app is ad-hoc signed and passes <code>codesign --verify --deep --strict</code>, so a quarantined download shows the unidentified-developer dialog, not the damaged-app dialog. It is not notarized and has no Apple Developer ID. On macOS 15 and later, approve it in System Settings &gt; Privacy &amp; Security &gt; Security &gt; Open Anyway; a right-click Open can still end at the Not Opened dialog with <code>Done</code>. The earlier rc.1 app is unchanged at tag commit <code>11a0037b</code>; it fails code-signature verification and opens as damaged, so install rc.2 instead.</li>
 </ul>
