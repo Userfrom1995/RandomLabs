@@ -3,14 +3,16 @@
 Status: complete
 Issue: #793 (Refs #657, #582, #683; closes only #793)
 Branch: opencode/issue657-20261031025903
-Base: `main` `ffe54275` (rebased from `ef2e5503` through review rounds)
+Base: `main` `f3e28d3d` (rebased from `ef2e5503` through review rounds)
 
 ## Scope
 
 - Declare the glibc 2.39 build floor in every Linux package and document
   the supported distribution floor.
 - Declare the desktop display runtime libraries winit dlopens (X11,
-  X11-xcb, and Wayland) in the DEB and RPM metadata.
+  X11-xcb, and Wayland) in the DEB and RPM metadata, plus the real ALSA
+  provider (`libasound2t64 | libasound2`) so Ubuntu 24.04 cannot resolve
+  the bare name to the OSS4 compatibility shim.
 - Replace bare `dpkg -i` / `rpm -i` install copy with dependency-resolving
   `apt install ./...` / `dnf install ./...` commands.
 - Document the same-NEVRA candidate replacement path (`dnf reinstall` /
@@ -52,6 +54,10 @@ lane.
   `rpm -qp --requires` shows the X11 libraries and `glibc >= 2.39`.
 - `packaging/release/smoke-linux.sh --deb <deb> --rpm <rpm>` passes
   against those artifacts.
+- The smoke rejects a desktop deb whose control line keeps a bare
+  `libasound2` (`Depends does not declare a real ALSA provider`) and
+  accepts both `libasound2t64 | libasound2` and
+  `libasound2 (>= 1.0.16)`.
 - `cargo test --workspace --locked --no-fail-fast` passes after installing
   the host's ALSA/udev headers and `libxkbcommon-x11-0` (the same runtime
   libraries this change declares).
@@ -89,4 +95,17 @@ lane.
   - Primary context: applied the dependency, exact-match, and GLIBC 2.35
     corrections across the scripts, docs, rendered pages, and tests, then
     rebased onto current `origin/main` before rerunning the gates.
+  - Skills: no registry skill matched; `AGENTS.md` conventions applied.
+- 2026-10-31 (fixer, review round 4): delegation ledger:
+  - general: package metadata and smoke; returned both fixture packages
+    carrying `libasound2t64 | libasound2`, smoke OK, bare `libasound2`
+    rejected with the real-provider message, versioned form accepted.
+  - general: docs/site consistency; returned all four summaries naming
+    X11 and Wayland, render check green, no stale X11-only claim.
+  - general: packaging suite and shell hygiene; returned 35/35 tests
+    including the static and built ALSA assertions, fmt clean, and 8/8
+    `bash -n` plus `shellcheck -S warning` clean.
+  - Primary context: applied the deb dependency, smoke provider check,
+    static-test `Depends:` prefix fix, summary wording, and regenerated
+    pages, then rebased onto `origin/main` (`f3e28d3d`).
   - Skills: no registry skill matched; `AGENTS.md` conventions applied.
