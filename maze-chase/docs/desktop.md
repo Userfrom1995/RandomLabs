@@ -15,9 +15,13 @@ upgrading, uninstalling, and clearing saved settings.
 
 - **Linux**: `maze-chase-desktop_<version>_<arch>.deb`,
   `maze-chase-desktop-<version>-1.<arch>.rpm`, or the portable tarball.
-  `sudo dpkg -i <deb>` or `sudo rpm -i <rpm>` installs the game, menu
-  entry, and icon system-wide; the tarball's `install-linux.sh` installs
-  per-user.
+  Install the deb with `sudo apt install ./<deb>` or the rpm with
+  `sudo dnf install ./<rpm>` so the package manager resolves the declared
+  ALSA, udev, xkbcommon, and X11 runtime libraries; the tarball's
+  `install-linux.sh` installs per-user. The Linux binaries require glibc
+  2.39 or newer (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+);
+  RHEL/Rocky 9 and older Debian/Ubuntu releases are below the floor and
+  are not supported.
 - **Windows**: `maze-chase-desktop-<version>-windows-x86_64-setup.exe`
   installs per-user with no administrator prompt (Start Menu and optional
   desktop shortcut, standard uninstaller). The zip is portable.
@@ -39,10 +43,14 @@ To build from source, use Rust 1.89+ with cargo. System needs:
 
 - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
   (build-time ALSA headers for audio, udev headers for gamepad
-  input) plus `libxkbcommon0 libxkbcommon-x11-0` (winit
-  runtime for window creation and keyboard handling). Most desktop
-  distributions already ship the xkbcommon pair; the ALSA and udev
-  headers are the packages a fresh build machine is likely missing.
+  input) plus the winit runtime libraries: `libxkbcommon0`,
+  `libxkbcommon-x11-0`, `libxcursor1`, `libxrandr2`, `libxi6`, and
+  `libxinerama1` on Debian/Ubuntu (the RPM names are `libxkbcommon`,
+  `libxkbcommon-x11`, `libXcursor`, `libXrandr`, `libXi`, and
+  `libXinerama`). The packaged deb/rpm declare these runtime
+  dependencies, so installing through apt/dnf pulls them in. The
+  binaries are built against glibc 2.39; older hosts fail with a missing
+  `GLIBC_2.39` symbol and are not supported.
 - **Windows**: nothing beyond the Rust toolchain (WASAPI audio and
   Win32 windowing need no extra installs). The zip ships an unsigned
   `.exe`: the first launch shows the SmartScreen "Windows protected
@@ -214,6 +222,12 @@ scripted run and asserts pixel-identical output across seeds.
   fullscreen probes (see above).
 - `libxkbcommon-x11.so could not be loaded` (Linux): install
   `libxkbcommon0 libxkbcommon-x11-0`.
+- `cannot open a display (no windowing backend)` on a minimal Linux
+  system: install the X11 runtime libraries the desktop package declares,
+  `libxcursor1 libxrandr2 libxi6 libxinerama1` on Debian/Ubuntu (or
+  `libXcursor libXrandr libXi libXinerama` on Fedora/RHEL), then retry.
+- `GLIBC_2.39 not found` (Linux): the host is below the build floor.
+  Upgrade to Ubuntu 24.04+, Debian 13+, Fedora 40+, or RHEL 10+.
 - ALSA `cannot find card` spew on voiceless machines: harmless stderr
   from the audio backend while it falls back to silence.
 - `alsa-sys build failed` at compile time (Linux): install

@@ -54,13 +54,24 @@ cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 
   <h3 id="terminal-linux">Linux</h3>
   <p>Debian or Ubuntu, from a staged deb:</p>
-<pre><code>sudo dpkg -i maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb
+<pre><code>sudo apt install ./maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb
 maze-chase-terminal --version
-sudo apt-get remove maze-chase-terminal</code></pre>
+sudo apt remove maze-chase-terminal</code></pre>
   <p>Fedora or RHEL, from a staged rpm:</p>
-<pre><code>sudo rpm -i maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm
+<pre><code>sudo dnf install ./maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm
 maze-chase-terminal --version
-sudo rpm -e maze-chase-terminal</code></pre>
+sudo dnf remove maze-chase-terminal</code></pre>
+  <p>The Linux binaries are built against glibc 2.39. Supported hosts are
+  Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+; RHEL/Rocky 9 and
+  older Debian/Ubuntu releases are below the floor and are not supported.
+  Use <code>apt</code>/<code>dnf</code> so the declared dependencies resolve;
+  if an earlier <code>dpkg -i</code> reported missing dependencies, run
+  <code>sudo apt-get -f install</code>. The RPM keeps
+  <code>Release: 1</code> for every candidate of the same workspace version,
+  so replacing one candidate with another needs
+  <code>sudo dnf reinstall ./&lt;newer rpm&gt;</code> or
+  <code>sudo rpm -U --replacepkgs &lt;newer rpm&gt;</code>; a bare
+  <code>sudo rpm -U</code> refuses the identical NEVRA.</p>
   <p>The tarball installs per-user without root by default:</p>
 <pre><code>mkdir maze-chase-terminal
 tar -xzf maze-chase-terminal-&lt;version&gt;-linux-&lt;arch&gt;.tar.gz -C maze-chase-terminal
@@ -88,15 +99,21 @@ sudo ./uninstall-linux.sh --prefix /opt/maze-chase  # removes the /opt install</
   terminal layer.</p>
 
   <h3 id="desktop-linux">Linux</h3>
-<pre><code>sudo dpkg -i maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb
-# or: sudo rpm -i maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm
+<pre><code>sudo apt install ./maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb
+# or: sudo dnf install ./maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm
 maze-chase-desktop --version
-sudo apt-get remove maze-chase-desktop
-# or: sudo rpm -e maze-chase-desktop</code></pre>
-  <p>The package installs <code>/usr/bin/maze-chase-desktop</code>, the desktop
-  entry, and the icon. The tarball uses the same
-  <code>install-linux.sh</code> / <code>uninstall-linux.sh</code> pair as the
-  terminal layer.</p>
+sudo apt remove maze-chase-desktop
+# or: sudo dnf remove maze-chase-desktop</code></pre>
+  <p>The deb and rpm declare the desktop runtime dependencies and install
+  them through apt/dnf: ALSA, udev, xkbcommon including the X11 backend, and
+  the X11 libraries winit loads
+  (<code>libxcursor1 libxrandr2 libxi6 libxinerama1</code> on
+  Debian/Ubuntu; <code>libXcursor libXrandr libXi libXinerama</code> on
+  Fedora/RHEL). The same glibc 2.39 floor applies. The package installs
+  <code>/usr/bin/maze-chase-desktop</code>, the desktop entry, and the icon.
+  The tarball uses the same <code>install-linux.sh</code> /
+  <code>uninstall-linux.sh</code> pair as the terminal layer and needs the
+  same runtime libraries installed.</p>
 
   <h3 id="desktop-windows">Windows</h3>
   <p>Run
@@ -137,10 +154,16 @@ maze-chase-desktop [OPTIONS]
   board.</p>
 
   <h2 id="upgrade">Upgrade and remove</h2>
-  <p>Upgrade a deb with <code>sudo dpkg -i &lt;newer deb&gt;</code> and an rpm
-  with <code>sudo rpm -U &lt;newer rpm&gt;</code>. On Windows, run the newer
-  setup over the old install; the zip is replaced by extracting the new
-  version. Replace the macOS app with the new one.</p>
+  <p>Upgrade a deb with <code>sudo apt install ./&lt;newer deb&gt;</code>
+  (add <code>--reinstall</code> when apt already considers the same version
+  current) and an rpm with <code>sudo dnf install ./&lt;newer rpm&gt;</code>.
+  Candidate RPMs of the same workspace version share the
+  <code>0.1.0-1</code> NEVRA, so replacing one candidate with another needs
+  <code>sudo dnf reinstall ./&lt;newer rpm&gt;</code> or
+  <code>sudo rpm -U --replacepkgs &lt;newer rpm&gt;</code>; a bare
+  <code>sudo rpm -U</code> refuses an identical NEVRA. On Windows, run the
+  newer setup over the old install; the zip is replaced by extracting the
+  new version. Replace the macOS app with the new one.</p>
   <p>Uninstalling keeps settings and scores by default. Both layers store them
   in <code>~/.maze-chase</code> (<code>%USERPROFILE%\.maze-chase</code> on
   Windows); pass <code>--purge-config</code> to the install scripts, or remove
@@ -149,8 +172,10 @@ maze-chase-desktop [OPTIONS]
 
   <h2 id="source">Build from source</h2>
   <p>Stable Rust 1.89 or newer is required. Linux desktop builds also need
-  ALSA and udev headers plus the xkbcommon runtime:</p>
-<pre><code>sudo apt-get install libasound2-dev libudev-dev libxkbcommon0 libxkbcommon-x11-0</code></pre>
+  ALSA and udev headers plus the xkbcommon and X11 runtime libraries. The
+  packaged deb/rpm declare these runtime dependencies; a source or tarball
+  install needs them present:</p>
+<pre><code>sudo apt-get install libasound2-dev libudev-dev libxkbcommon0 libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1</code></pre>
 <pre><code>cd maze-chase
 cargo test --workspace --locked
 cargo run --release --locked --bin maze-chase-verify
