@@ -136,10 +136,17 @@ Public Surface / Web Track:                                              │
   LF-normalized copy is posted (issue #612 follow-up: Git Bash on Windows
   translates command-substituted output, and the CRLF-translated re-fetch
   tripped the gate on run 39068849150 after the report had already posted);
-  a real content mismatch still fails closed. Audit rule R17
-  regression-guards the contract across all three arms and their prompt
-  files. Round 13 also pins each per-OS agent step's `with.prompt` scalar by
-  exact SHA-256 and each arm's exact ordered step sequence, and a staging
+  a real content mismatch still fails closed. The decision handoff follows
+  the same rule (issue #791): every per-OS verify and forward feeds the
+  decision file to `jq` on stdin and strips CR from the decoded nonce (and
+  the forward's action), because the process-wide MSYS opt-out that protects
+  the `/oc` body also makes a native Windows `jq` unable to open a `/tmp`
+  path argument. Audit rule R17 regression-guards the contract across all
+  three arms and their prompt files, pins the stdin and CR-normalized
+  decision reads, bans the path-argument shape, and runs the CR and
+  path-reject fixtures. Round 13 also pins each per-OS agent step's
+  `with.prompt` scalar by exact SHA-256 and each arm's exact ordered step
+  sequence, and a staging
   validator crash now fails closed instead of silently passing. Each arm also
   captures the trusted PATH before the agent starts: `$HOME` entries are
   dropped and only root-owned directories without group or world write
@@ -1702,7 +1709,16 @@ remote tip).
   handoff no strict-prefix consumer would accept. The three per-OS decision
   forwarders now carry `MSYS_NO_PATHCONV: "1"` and deliver the trigger body
   through stdin (`--body-file -`), so no "/oc" string is ever an argv element
-  of a native process. Statically enforced by R18 in
+  of a native process. The opt-out is process-wide, so it also stopped Git
+  Bash converting the `/tmp` decision-file path for a native Windows
+  `jq.exe`; every per-OS verify and forward now feeds the decision file to
+  `jq` on stdin (`< /tmp/random-lab-decision.json`) and strips CR from the
+  decoded nonce (and the forward's action) as defense in depth for native
+  jq text mode (issue #791, run 41115849156 on #657: the verify without the
+  opt-out passed, the poster's stdin-only jq passed, and the opt-out
+  forward's path-argument jq failed closed). Statically enforced by R18
+  (body transport) and R17 (stdin and CR decision reads, the banned
+  path-argument shape, and the CR and path-reject fixtures) in
   `.github/scripts/silent-stall-audit.sh`.
 - The review gate only forwards a verdict that was actually published (issues
   #616, #637): a reviewer death between the decision-file write and the
