@@ -41,14 +41,38 @@ DEFAULT_SCRIPTS=(
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base-url) BASE_URL="$2"; shift 2 ;;
-    --chrome) CHROME_BIN="$2"; shift 2 ;;
+    --base-url|--chrome)
+      if [ "$#" -lt 2 ] || [ "${2#-}" != "$2" ]; then
+        echo "run-browser-e2e.sh: $1 requires a value" >&2
+        exit 2
+      fi
+      if [ "$1" = "--base-url" ]; then BASE_URL="$2"; else CHROME_BIN="$2"; fi
+      shift 2 ;;
     --plan|--dry-run) PLAN=1; shift ;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     -*) echo "run-browser-e2e.sh: unknown option: $1" >&2; exit 2 ;;
     *) SCRIPTS+=("$1"); shift ;;
   esac
 done
+
+# A duplicated suite argument would reuse the same profile and Chrome log,
+# violating the fresh-profile contract, so keep only the first occurrence.
+if [ "${#SCRIPTS[@]}" -gt 0 ]; then
+  DEDUPED_SCRIPTS=()
+  for script in "${SCRIPTS[@]}"; do
+    duplicate=0
+    for seen in "${DEDUPED_SCRIPTS[@]:-}"; do
+      if [ "$seen" = "$script" ]; then
+        duplicate=1
+        break
+      fi
+    done
+    if [ "$duplicate" -eq 0 ]; then
+      DEDUPED_SCRIPTS+=("$script")
+    fi
+  done
+  SCRIPTS=("${DEDUPED_SCRIPTS[@]}")
+fi
 
 if [ "${#SCRIPTS[@]}" -eq 0 ]; then
   SCRIPTS=("${DEFAULT_SCRIPTS[@]}")
@@ -156,23 +180,54 @@ CHROME_BIN="$(find_chrome)" || exit 3
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/maze-chase-e2e.XXXXXX")"
 SERVER_PID=""
 CHROME_PID=""
+NODE_PID=""
 
 cleanup() {
+  local status=$?
+  set +e
+  if [ -n "$NODE_PID" ]; then
+    kill "$NODE_PID" 2>/dev/null
+    wait "$NODE_PID" 2>/dev/null
+    NODE_PID=""
+  fi
   if [ -n "$CHROME_PID" ]; then
-    kill "$CHROME_PID" 2>/dev/null || true
-    wait "$CHROME_PID" 2>/dev/null || true
+    kill "$CHROME_PID" 2>/dev/null
+    wait "$CHROME_PID" 2>/dev/null
     CHROME_PID=""
   fi
+  # Chrome descendants can outlive the browser process and keep writing
+  # the profile, so kill any survivor before removing the scratch tree.
+  pkill -TERM -f -- "--user-data-dir=$SCRATCH/" 2>/dev/null
+  pkill -TERM -f -- "$SCRATCH/" 2>/dev/null
   if [ -n "$SERVER_PID" ]; then
-    kill "$SERVER_PID" 2>/dev/null || true
-    wait "$SERVER_PID" 2>/dev/null || true
+    kill "$SERVER_PID" 2>/dev/null
+    wait "$SERVER_PID" 2>/dev/null
     SERVER_PID=""
   fi
-  rm -rf "$SCRATCH"
+  # Retry the removal: a surviving writer can make a single rm fail with
+  # "Directory not empty", and a failing EXIT trap overrides the script's
+  # exit status (turning a green run into exit 1) and leaks the profile.
+  local attempt=0
+  while [ "$attempt" -lt 20 ]; do
+    rm -rf "$SCRATCH" 2>/dev/null && break
+    sleep 0.1
+    attempt=$((attempt + 1))
+  done
+  return "$status"
+}
+
+stop() { # signal status
+  if [ -n "$NODE_PID" ]; then
+    kill -s "$1" "$NODE_PID" 2>/dev/null || true
+  fi
+  if [ -n "$CHROME_PID" ]; then
+    kill -s "$1" "$CHROME_PID" 2>/dev/null || true
+  fi
+  exit "$2"
 }
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'stop INT 130' INT
+trap 'stop TERM 143' TERM
 
 start_server() {
   local url_file="$SCRATCH/server-url"
@@ -264,7 +319,17 @@ run_suite() { # script
   fi
   url="$(suite_url "$script" "$BASE_URL")"
   echo "== $script (fresh Chrome, CDP port $port, profile $profile)"
-  node "$SCRIPT_DIR/$script" "$url" "$port" || rc=$?
+  # Background the suite so the INT/TERM traps can run immediately and
+  # forward the signal; a foreground child defers the trap until the suite
+  # exits, which leaves a hung CDP run uncancellable.
+  node "$SCRIPT_DIR/$script" "$url" "$port" &
+  NODE_PID=$!
+  if wait "$NODE_PID"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  NODE_PID=""
   kill "$CHROME_PID" 2>/dev/null || true
   wait "$CHROME_PID" 2>/dev/null || true
   CHROME_PID=""
