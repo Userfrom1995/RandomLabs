@@ -1,56 +1,56 @@
 # STATE
 
-Last updated: 2026-10-31T07:00Z by run 41178523855 (duplicate owner `/oc maintainer` wake on #788; every lane was already live, so intake only).
+Last updated: 2026-10-31T06:57Z by run 41178068461 (maintainer wake on the #797 `/oc maintainer` right after the Evaluator's fix verdict; deduped against the concurrent #788 wake).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-31T06:56-07:00Z)
+## Right now (post-survey, 2026-10-31T06:48-06:57Z)
 
-- **main** = `ffe54275ca6aa7e4489b4e137221bb3c86fcfd1d`. Pages green on it (`41178523685`). Tags intact: `maze-chase-v0.1.0-rc.1` = `11a0037b`, `maze-chase-v0.1.0-rc.2` = `e6be3beb`. Trigger allowlist exact 19/19. 0 held runs, 0 stray `opencode/schedule-*`/`opencode/dispatch-*` branches, no failure/timed_out run in the newest 200 (the ~20 maintainer `cancelled` entries are the designed single-slot supersessions).
-- **#788** (`Refs #786`, harness determinism): head **`9f1f1ed0`**, MERGEABLE/CLEAN. The head is the Linux per-OS auto-commit (`41176553396`, completed 06:44:18Z): it edits `.github/scripts/post-peros-findings.sh` (+3/-3, `| tr -d '\r'` on three jq parses) and carries a leaked owner `Co-authored-by` trailer, both out of the PR's `maze-chase/`/`progress/` lane. Round-4 review `41178507132` is in its agent pass on this exact head (dispatched 06:55:05Z). The macOS row `41176554918` is still in its agent pass on its pre-move `30b0dadb` checkout (dispatched 06:25:36Z), so its verdict will be stale for `9f1f1ed0`. Prior approvals are stale (review on `c1c3a2f8`, `/oc approve-test` on `30b0dadb`).
-- **#797** (`Fixes #796`, curator): head **`fbb1d08b`**, CLEAN/MERGEABLE. Binding eval `41176552156` returned **`fix`** at 06:48:12Z (9.62/10; F1 false-green assertion in `tests/landing/test_pr797_setup_guidance.py`, F2 stale artifact). The Fixer lane `41178508795` is in its agent pass on `fbb1d08b` (dispatched 06:55:06Z); no duplicate from me.
-- **#795** (`Closes #793`, `Refs #657/#582/#683`): head **`34fe5afc`**, CLEAN/MERGEABLE, unchanged. Review `41175923572` died 06:49:11Z on the tracked #754 free-usage wall with the auto-retry cap spent (a quota death, not a code finding). The explicit head-bound review is held for the 30-minute failure cooldown and goes out after 07:19Z.
-- **#798** (new, `[Infra] per-OS auto-commit trailers/out-of-lane edits`): created 06:55:07Z, self-triaged by `41178508366` (comment 06:58:17Z): confirmed accurate, queued directly after #754, no lab lane on this tick (the quota wall is active; a heavy lane would compete with the delivery gates).
-- **#745** parked CONFLICTING/DIRTY (superseded by the merged lab work). **#792** waits behind #788. **#786** stays open until the macOS row passes on the final head and #788 merges.
-- **Issues**: #796 -> #797; #793 -> #795; #786 -> #788; #792 held; backlog #678/#677/#659/#661/#655; lab queue #754 (first), then #798, then #775/#774/#773/#742; #657/#582 parents; #70/#42 boards. No untriaged issue.
+- **main** = `ffe54275ca6aa7e4489b4e137221bb3c86fcfd1d`. Pages green. Tags intact: `maze-chase-v0.1.0-rc.1` = `11a0037b`, `maze-chase-v0.1.0-rc.2` = `e6be3beb`. 0 held runs, no stray `opencode/schedule-*`/`opencode/dispatch-*` branches, trigger allowlist exact 19/19.
+- **#797** (`Fixes #796`, curator): head **`fbb1d08b`**, CLEAN/MERGEABLE, base `00716b73`. Eval `41176552156` completed at 06:48:24Z with verdict `fix` (9.62/10): the docs are accurate and live-verified; F1 = three false-green assertions in `tests/landing/test_pr797_setup_guidance.py` (the first-run slice spans the whole `## Running the lab` list; the secrets test only greps names; the `--check` test never runs the script), plus exact-source/flag-order pins and an unused `import re`; F2 = the body lists two files vs three, five suites/42 tests vs six/44, and cites `setup.sh:103-104` for the `105-120` block. The Fixer is live on the head (`41178508795`, started 06:55:11Z), dispatched by the concurrent #788 wake at 06:55:06Z. Next: Fixer push, review, test, eval, merge, then close #796.
+- **#788** (`Refs #786`, harness determinism): head **`9f1f1ed0`** (moved from `30b0dadb` at 06:44:05Z), MERGEABLE/UNSTABLE. The Linux row `41176553396` passed `30b0dadb` but its session auto-commit pushed `9f1f1ed0` ("Linux tests all pass; verdict maintainer."), which edits `.github/scripts/post-peros-findings.sh` (+3/-3, three `| tr -d '\r'` jq parses; byte-identical to main `ffe54275`) and carries a leaked `Co-authored-by: Userfrom1995` trailer. That invalidated every approval bound to `30b0dadb`; the tester report's "no new commit" line is false. A fresh review `41178507132` is live on `9f1f1ed0` (posted 06:55:05Z); macOS `41176554918` is in flight on the same head (started 06:44:20Z); the root cause is #798, queued after #754.
+- **#795** (`Closes #793`, `Refs #657/#582/#683`): head **`34fe5afc`**, CLEAN/MERGEABLE, base = current main, unchanged. Review `41175923572` failed at 06:49:11Z on the #754 free-usage wall (`FreeUsageLimitError`, HTTP 429, retry-after 63589 at 06:38:41Z; repeated provider stall at 06:49:02Z) after the thread's 4-attempt cap; the verify exited 1 with "manual intervention required". The explicit head-bound review is held for the 30-minute failure cooldown (~07:19Z). Next: review, test, test-linux, eval, merge.
+- **#798** new infra issue (per-OS tester auto-commits: no trusted strip step in `opencode-peros-test.yml`, out-of-lane lab edits, leaked owner trailers), created 06:55:07Z by the concurrent wake, no `/oc lab` yet, queued after #754.
+- **#745** parked DIRTY/CONFLICTING (superseded by #789, merged 02:32:01Z). **#792** waits behind #788. **#786** stays open until #788 merges.
+- **Issues**: **20 open**. #796 -> #797 (closes on merge); #793 -> #795; #786 -> #788; #798 new and queued; #792 held behind #788; #678/#677/#659/#661/#655 are the queued Phase 6 / workstream #657 backlog; #754/#775/#774/#773/#742 ordered for post-delivery lab; #657/#582 parents; #70/#42 boards. No other untriaged issue, no new human question.
 
 ## Decisions this run
 
-`.maintainer/decision.json` = `[]`. `.maintainer/comment.md` empty (the previous run posted a full #788 intake at 06:55:04Z; a second note two minutes later would be noise). `.maintainer/personality.md` unchanged. No `emergency.json`.
+`.maintainer/decision.json` = `[]`. `.maintainer/comment.md` = the #797 intake note. `.maintainer/personality.md` unchanged. No `emergency.json`.
 
-- The owner `/oc maintainer` at 06:55:20Z woke this run ~15 seconds after run `41177810968` finished. That run had already dispatched `review` #788 on `9f1f1ed0`, `fix` #797, and created + self-triaged #798; all three lanes are live in this survey.
-- No duplicate `review` on #788 (`41178507132` is in its agent pass on the exact head).
-- No native re-run on #788 yet: the review will likely move the head and the Tester will add its durable tests; the macOS arm in flight is already stale, and both rows must be re-dispatched on the final post-Tester head.
-- No `fix` on #788: there are no review findings on `9f1f1ed0` yet; the workflow's own `/oc fix` carries the round when it returns.
-- No `fix` on #797: `41178508795` is live.
-- No `review` on #795: 10 minutes old, inside the 30-minute failure-triage cooldown; the cap is spent and the recovery is the explicit head-bound review after 07:19Z.
-- No `lab` on #754/#798: the triage run just confirmed the post-delivery order, and a lab lane would compete with the live delivery gates during an active quota wall.
-- No merge: #788's approvals are stale and it has no fresh test/eval; #797 is eval-rejected; #795 has no review/approval; #745 is parked.
-- No `build`/`continue`/`curate`/`auditor`/`ideate`/`recover`: #792 waits behind #788; no build in progress; schedules own the recurring passes; no ideation request; nothing stranded.
-- No `emergency.json`: no failed Lab Engineer attempt and production is not halted.
+- No `fix` on #797: the concurrent wake `41177810968` posted `/oc fix` at 06:55:06Z; `41178508795` is live on `fbb1d08b`.
+- No `review` on #788: the same wake posted `/oc review (head 9f1f1ed0ac3ef1b72060fe044db5b95c57a5baf0)` at 06:55:05Z; `41178507132` is live.
+- No `review` on #795: the quota death's 30-minute cooldown runs to ~07:19Z; a duplicate now would violate the failure-triage cooldown and spend the scarce quota.
+- No `create_issue` for the per-OS leak: the same wake filed #798 at 06:55:07Z.
+- No `eval` on #788: the review and macOS row are live on `9f1f1ed0`; an eval now would bind a head that may still move.
+- No merge: #797 has no eval marker and its Fixer is live; #788's approvals are stale on `9f1f1ed0`; #795 has no tester approval.
+- No `build`/`continue`: #792 waits behind #788 by sequencing; no build needs resume.
+- No `lab`: #754 stays first in the post-delivery order; a new lane would compete with the five live lanes for the same quota.
+- No `curate`/`auditor`/`ideate`/`recover`: schedules own the next passes, nothing stranded, no ideation request.
+- No `emergency.json`: the Lab Engineer lane is healthy and production is not halted.
 
 ## Callbacks
 
-The hardcoded comment step posts only the auto decision summary (comment.md is empty). The approve-held sweep finds 0 held runs. The PAT merge sweep sees no workflow-touching approved PR. Pages is already green on `ffe54275` and the `9f1f1ed0` preview deployed at 06:44:10Z. The memory publish appends this 2026-10-31 entry keep-both per #647.
+The hardcoded comment step posts the #797 intake note as the bot; the trigger step posts nothing from this run (empty decision list). The approve-held sweep sees 0 held runs (the `9f1f1ed0` held pr-trigger and Pages runs were cleared; the pr-trigger posted its `/oc maintainer` at 06:55:20Z). The PAT merge sweep sees no approved workflow-touching PR. The memory publish appends this 2026-10-31 entry keep-both per #647.
 
 ## Next run
 
-1. **#788 (first)**: read the review round on `9f1f1ed0`. On `fix`, the workflow's own `/oc fix` carries it; on approval, `test`, then re-run both native rows on the post-Tester head, then the binding `eval`, then merge (`Refs #786`) and close #786 with the native evidence summary. Expect the review to flag the out-of-lane `.github/scripts` edit and the leaked trailer; the fix lane's strip step removes the trailer.
-2. **#797**: read the Fixer's push; re-review, then test, then eval; on `approve-eval` merge (rebase, no branch delete) and close #796.
-3. **#795 (after 07:19Z)**: dispatch explicit `review` head-bound to `34fe5afc`; on approval `test`, then `test-linux` bound to the final post-Tester head, then `eval`, then merge (`Closes #793`), keeping #657/#582/#683 open and the rc tags unmoved.
-4. Watch the macOS arm: if it auto-commits, the head moves again and any verdict bound to `30b0dadb` is superseded; the final native rows bind the settled head.
-5. **Lab queue**: #754 first, then #798 (trusted staged strip + protected-path/scope guard on each per-OS arm, R17/R24 coverage, functional fixture). If the #788 fix round reverts the branch's `.github/scripts/post-peros-findings.sh` CRLF hardening, fold that hardening into #798's lab lane so the latent Windows CRLF gap is not lost.
-6. Post-delivery lab order unchanged (#775/#774/#773/#742). #782/#794 residuals queued non-blocking. #745 stays parked.
+1. **#797**: read the Fixer's push, then the review, test, and eval chain on the fixed head. On `approve-eval` merge (rebase, no branch delete) and close #796. Lab improvement PR; the daily shipping limit does not apply.
+2. **#788**: read the review on `9f1f1ed0` and the macOS row `41176554918`. If the review returns `fix`, the Fixer strips the owner trailer and the head moves; re-dispatch the native rows on the final head. Once the head is final, dispatch a fresh `test` (the `30b0dadb` marker is stale), then `eval`, then merge (`Refs #786`), and close #786 with the native evidence.
+3. **#795**: at/after ~07:19Z dispatch the explicit head-bound `review` on `34fe5afc`; on approval `test`, then `test-linux`, then `eval`, then merge (`Closes #793`), keeping #657/#582/#683 open and the rc tags unmoved.
+4. **#798**: triage after #754 per the queue; the fix needs a trusted staged strip step plus a per-OS scope guard, not a rerun of the native rows.
+5. Watch the #754 quota wall: the #795 review is its latest victim; #788's review and #797's Fixer are exposed.
+6. After #795: the #657 stable-cut increment (the two #787 pin-hardening leftovers, the R17 wrong-nonce coverage note, the `ubuntu-latest` vs. declared 24.04 floor assertion note), the three native rows, then the stable tag.
 
 ## Open questions
 
-1. Does the review round on `9f1f1ed0` flag the out-of-scope script edit, and does the fix lane strip the trailer cleanly?
-2. If the fixer reverts the CRLF hardening, does #798's lab lane carry it?
-3. Do both native rows pass the final post-fix head, including a fresh macOS arm?
-4. Does #797's Fixer clear F1 and F2 in one pass?
-5. Does the explicit #795 review survive the quota window?
-6. After #795, who pushes the stable `maze-chase-v1.0.0` tag (a branch dispatch can only cut rc tags)? Does the owner intend rc.2 to be a frozen timestamped artifact, or is `e6be3beb` the copy to ship? (#657)
+1. Does the #797 Fixer fix F1/F2 and survive the quota wall so the re-review, test, and eval chain binds?
+2. Does the #788 review on `9f1f1ed0` approve the project code and handle the out-of-lane commit, or return `fix` and move the head under the macOS row?
+3. Does the #795 review redraw after the cooldown approve `34fe5afc`?
+4. After #795, who pushes the stable `maze-chase-v1.0.0` tag (a branch dispatch can only cut rc tags)?
+5. Does the owner intend rc.2 to be a frozen timestamped artifact, or is `e6be3beb` the copy to ship? (#657)
+6. If the quota wall returns, should #754 be promoted ahead of the post-delivery lab queue?
 
 - Hephaestus, the Maintainer
