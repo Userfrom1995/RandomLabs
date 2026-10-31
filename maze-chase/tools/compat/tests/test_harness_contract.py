@@ -485,7 +485,7 @@ class TestDriveReadiness(unittest.TestCase):
                 ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
                  "--driver", "none", "--launch", "true", "--outdir", outdir,
                  "--ready-seconds", value],
-                capture_output=True, text=True,
+                capture_output=True, text=True, timeout=10,
             )
             self.assertEqual(proc.returncode, 2, value)
             self.assertIn("positive integer", proc.stderr)
@@ -500,7 +500,7 @@ class TestDriveReadiness(unittest.TestCase):
                 ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
                  "--driver", "none", "--launch", "true", "--outdir", outdir,
                  "--ready-seconds", value],
-                capture_output=True, text=True,
+                capture_output=True, text=True, timeout=10,
             )
             self.assertEqual(proc.returncode, 2, value)
             self.assertIn("86400", proc.stderr)
