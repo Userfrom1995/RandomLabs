@@ -180,8 +180,9 @@ Linux artifacts at once and reports `SHA256SUMS.txt`.
 `stage-macos.sh [--probe]` and `stage-windows.ps1 [-Install] [-Probe]`
 do the same for their natives. Their smoke harnesses are the contract:
 `smoke-linux.sh` unpacks each deb/rpm and runs the binary from the
-payload, asserts the glibc floor and the desktop X11 dependency
-metadata, installs and uninstalls the tarballs, and checks `--version`
+payload, asserts the glibc floor and the desktop X11 and Wayland
+dependency metadata, installs and uninstalls the tarballs, and checks
+`--version`
 and `--help`; `smoke-macos.sh` checks the bundle's `Info.plist`,
 version, dmg mount, and tarball; `smoke-windows.ps1` extracts the zips,
 runs the binaries, and, with `-Install`, silently installs the setup,
