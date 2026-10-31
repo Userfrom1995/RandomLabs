@@ -104,16 +104,20 @@ case "$SOURCES_DIRTY" in
   *) echo "drive.sh: --sources-dirty must be true, false, or unknown" >&2; exit 2 ;;
 esac
 case "$READY_SECONDS" in
-  ''|*[!0-9]*) echo "drive.sh: --ready-seconds must be a positive integer" >&2; exit 2 ;;
+  ''|*[!0-9]*) echo "drive.sh: --ready-seconds must be a positive integer no greater than 86400" >&2; exit 2 ;;
 esac
-[ "$READY_SECONDS" -ge 1 ] || {
-  echo "drive.sh: --ready-seconds must be a positive integer" >&2
+# Strip leading zeros textually before any arithmetic context: bash reads
+# a leading zero as octal (`08` is an arithmetic error and `010` means 8
+# seconds), and a long digit string would overflow the 64-bit arithmetic
+# before the bound check could reject it. After stripping, the value is
+# plain decimal and the length check keeps the comparison itself safe.
+while [ "${#READY_SECONDS}" -gt 1 ] && [ "${READY_SECONDS#0}" != "$READY_SECONDS" ]; do
+  READY_SECONDS="${READY_SECONDS#0}"
+done
+if [ "${#READY_SECONDS}" -gt 5 ] || [ "$READY_SECONDS" -lt 1 ] || [ "$READY_SECONDS" -gt 86400 ]; then
+  echo "drive.sh: --ready-seconds must be a positive integer no greater than 86400" >&2
   exit 2
-}
-# Bash arithmetic reads a leading zero as octal, so `--ready-seconds 08`
-# is an arithmetic error and `010` means 8 seconds. Normalize the validated
-# decimal string before it reaches any arithmetic context.
-READY_SECONDS=$((10#$READY_SECONDS))
+fi
 
 # Resolve --outdir to an absolute path on entry: the transcript path is
 # recorded in meta.json for collect.py, which resolves relative transcript
@@ -130,7 +134,23 @@ mkdir -p "$SHOTS"
 EVENTS="$SESSION/events.log"
 META="$SESSION/meta.json"
 : > "$EVENTS"
-[ -n "$TRANSCRIPT" ] || TRANSCRIPT="$SESSION/pty.log"
+if [ -n "$TRANSCRIPT" ]; then
+  # collect.py resolves a relative transcript path against the run
+  # directory, so resolve it here the same way (the recorded path must
+  # name the file this run wrote) and create the parent before the
+  # pre-launch truncation, so a bad transcript path is a clean usage
+  # error instead of a bare shell failure with no metadata.
+  case "$TRANSCRIPT" in
+    /*) ;;
+    *) TRANSCRIPT="$OUTDIR/$TRANSCRIPT" ;;
+  esac
+else
+  TRANSCRIPT="$SESSION/pty.log"
+fi
+mkdir -p "$(dirname "$TRANSCRIPT")" || {
+  echo "drive.sh: cannot create transcript directory: $TRANSCRIPT" >&2
+  exit 2
+}
 
 now_ms() { python3 -c 'import time; print(int(time.time()*1000))'; }
 sleep_s() { sleep "$1" 2>/dev/null || sleep 1; }
@@ -360,7 +380,9 @@ wait_for_exit() { # pid seconds
 
 wait_for_first_output() { # baseline_bytes; bounded by READY_SECONDS from launch
   local baseline="$1"
-  local deadline=$(( READY_START_MS / 1000 + READY_SECONDS ))
+  # Millisecond arithmetic: READY_START_MS/1000 would truncate the launch
+  # instant to a whole second and expire the wait up to ~1s early.
+  local deadline=$(( READY_START_MS + READY_SECONDS * 1000 ))
   local first waited
   while :; do
     first="$(transcript_bytes)"
@@ -370,7 +392,7 @@ wait_for_first_output() { # baseline_bytes; bounded by READY_SECONDS from launch
       echo "readiness: first transcript output after ${waited}ms (${first} bytes)"
       return 0
     fi
-    [ "$(date +%s)" -ge "$deadline" ] && break
+    [ "$(now_ms)" -ge "$deadline" ] && break
     sleep_s "$READY_POLL_SECONDS"
   done
   waited=$(( $(now_ms) - READY_START_MS ))
@@ -407,6 +429,12 @@ eval "${ENV_PREFIX}$LAUNCH" &
 LAUNCH_PID=$!
 
 find_window
+if [ "$DRIVER" = "x11" ]; then
+  # Record the boot geometry even if the readiness wait later times out:
+  # without this the initial measurement would stay 0x0 on a row that did
+  # launch but never painted.
+  measure_geometry
+fi
 
 # Claim the X input focus before sending any key: GTK/Qt emulators grab
 # focus on map, but xterm does not, and with no window manager running
@@ -633,7 +661,7 @@ jq -n \
   --argjson measured "$MEASURED_JSON" \
   --argjson build "$BUILD_JSON" \
   --argjson pause_select "$PAUSE_SELECT" \
-  --argjson resize_exercised "$([ "$RESIZE_SUPPORTED" = true ] && echo true || echo false)" \
+  --argjson resize_exercised "$([ "${#MEASURED_RESIZES[@]}" -gt 0 ] && echo true || echo false)" \
   --argjson started_ms "$STARTED_MS" \
   --argjson ended_ms "$ENDED_MS" \
   --argjson exit_code "${EXIT_CODE:-null}" \
