@@ -415,10 +415,11 @@ jobs:
 
           The terminal and Windows binaries are unsigned. The macOS app bundle
           is ad-hoc signed, not notarized: the first launch shows the standard
-          unidentified-developer dialog; approve it under
-          System Settings > Privacy & Security > Security > Open Anyway. This
-          is not a damaged-app refusal. Windows SmartScreen may warn on first
-          launch (More info, then Run anyway).
+          Gatekeeper warning; on macOS 13 and later, approve it under
+          System Settings > Privacy & Security > Security > Open Anyway; on
+          macOS 11-12, use System Preferences > Security & Privacy > General
+          and click Open Anyway. This is not a damaged-app refusal. Windows
+          SmartScreen may warn on first launch (More info, then Run anyway).
           EOF
           # A tag can exist without a release, so validate its commit
           # before either the refresh or the create path. The explicit
