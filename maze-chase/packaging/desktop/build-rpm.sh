@@ -6,7 +6,13 @@
 #   bash maze-chase/packaging/desktop/build-rpm.sh
 #
 # Output: maze-chase/dist/maze-chase-desktop-<version>-1.<arch>.rpm
-# Removes cleanly with `sudo rpm -e maze-chase-desktop`.
+# Removes cleanly with `sudo dnf remove maze-chase-desktop`. Release stays
+# `1` so the installed release workflow's `-1.<arch>.rpm` artifact glob
+# keeps matching; every candidate of the same workspace version therefore
+# has the same NEVRA, and candidate-to-candidate replacement is documented
+# as `dnf reinstall ./<rpm>` (or `rpm -U --replacepkgs <rpm>`), never bare
+# `rpm -U`. The package declares the glibc build floor and the X11 runtime
+# libraries winit loads through its display backend.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +55,14 @@ BuildArch:      $ARCH
 Requires:       alsa-lib
 Requires:       libxkbcommon
 Requires:       libxkbcommon-x11
+Requires:       libXcursor
+Requires:       libXrandr
+Requires:       libXi
+Requires:       libXinerama
+Requires:       libX11-xcb
+Requires:       libwayland-client
 Requires:       systemd-libs
+Requires:       glibc >= $GLIBC_FLOOR
 
 %description
 Maze Chase is an original maze-chase game on a shared deterministic Rust

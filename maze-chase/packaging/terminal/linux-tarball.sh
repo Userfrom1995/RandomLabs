@@ -6,8 +6,10 @@
 #
 # Output: dist/maze-chase-terminal-<version>-<os>-<arch>.tar.gz with the
 # binary, the install/uninstall scripts, and the launch guide. No system
-# dependencies: the terminal
-# game only needs crossterm (pure Rust) and a real terminal at runtime.
+# dependencies beyond the host C library: the terminal game only needs
+# crossterm (pure Rust) and a real terminal at runtime. The Linux binary
+# is built against glibc 2.39, so the host floor is Ubuntu 24.04+,
+# Debian 13+, Fedora 40+, or RHEL 10+.
 # The tarball name records the release machine (linux-x86_64,
 # darwin-arm64, ...); cross-OS tarballs are never produced. On GNU tar
 # hosts the archive is byte-stable across rebuilds from the same commit.

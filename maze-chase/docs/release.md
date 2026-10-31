@@ -24,7 +24,10 @@ parity gate in [parity.md](parity.md).
   graph requires 1.89 for the desktop layer. The release pipeline pins
   Rust 1.99.0 for every native job (the toolchain that produced the
   committed WebAssembly bytes), and the release build, test, and
-  verifier commands use `--locked` so `Cargo.lock` is enforced.
+  verifier commands use `--locked` so `Cargo.lock` is enforced. The Linux
+  job runs on Ubuntu 24.04, so the deb/rpm binaries are built against
+  glibc 2.39 and declare that floor; the supported distribution list is
+  Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 22+ (the CDP harnesses use the built-in
   WebSocket; no npm packages) plus a headless chromium; serving uses
@@ -134,7 +137,13 @@ node web/e2e/tester-regression.js
 Every script runs from `maze-chase/` and stages into `dist/`
 (git-ignored scratch, never committed). The `<version>` in every name is
 the workspace version. The version segment in RPM names is `1.<arch>`
-because it is `<version>-1.<arch>.rpm` on disk.
+because it is `<version>-1.<arch>.rpm` on disk; the RPM `Release` field
+stays `1` for every candidate of the same workspace version, so the
+release workflow's `<version>-1.<arch>.rpm` glob keeps matching. The deb
+and rpm control metadata both declare the glibc 2.39 floor, and the
+desktop packages declare their display runtime libraries. Candidate RPMs
+of the same workspace version share the `0.1.0-1` NEVRA; see
+[Install, upgrade, uninstall](#install-upgrade-uninstall).
 
 | Layer | OS | Command (native host) | Artifact |
 |---|---|---|---|
@@ -171,7 +180,9 @@ Linux artifacts at once and reports `SHA256SUMS.txt`.
 `stage-macos.sh [--probe]` and `stage-windows.ps1 [-Install] [-Probe]`
 do the same for their natives. Their smoke harnesses are the contract:
 `smoke-linux.sh` unpacks each deb/rpm and runs the binary from the
-payload, installs and uninstalls the tarballs, and checks `--version`
+payload, asserts the glibc floor and the desktop X11 and Wayland
+dependency metadata, installs and uninstalls the tarballs, and checks
+`--version`
 and `--help`; `smoke-macos.sh` checks the bundle's `Info.plist`,
 version, dmg mount, and tarball; `smoke-windows.ps1` extracts the zips,
 runs the binaries, and, with `-Install`, silently installs the setup,
@@ -181,25 +192,56 @@ where the runner provides a display.
 
 ## Install, upgrade, uninstall
 
+### Linux distribution floor
+
+The Linux binaries are built on Ubuntu 24.04 against glibc 2.39, and
+every package declares that floor. Supported hosts are Ubuntu 24.04+,
+Debian 13+, Fedora 40+, and RHEL 10+. RHEL/Rocky 9 (glibc 2.34) and
+Debian 12 / Ubuntu 22.04 (glibc 2.36/2.35) are below the floor and are
+not supported: the RPM refuses to install, and the DEB declares
+`libc6 (>= 2.39)` so a resolving install refuses. Forcing the package
+past that check is not supported: on RHEL/Rocky 9 the binary aborts with
+a missing `GLIBC_2.35` symbol, and on Debian 12 / Ubuntu 22.04 it starts
+with a weak-version `GLIBC_2.39` warning but is still outside the
+verified floor. Install the
+deb with `apt` and the rpm with `dnf` so their declared dependencies
+resolve:
+
+```sh
+sudo apt install ./maze-chase-terminal_<version>_<debarch>.deb    # Debian/Ubuntu
+sudo dnf install ./maze-chase-terminal-<version>-1.<rpmarch>.rpm  # Fedora/RHEL
+```
+
 ### Linux, terminal
 
 Debian/Ubuntu:
 
 ```sh
-sudo dpkg -i maze-chase-terminal_<version>_<debarch>.deb
+sudo apt install ./maze-chase-terminal_<version>_<debarch>.deb
 maze-chase-terminal --version
-sudo apt-get remove maze-chase-terminal
+sudo apt remove maze-chase-terminal
 ```
+
+If a previous `sudo dpkg -i` reported missing dependencies, complete it
+with `sudo apt-get -f install` instead of forcing the package.
 
 Fedora/RHEL:
 
 ```sh
-sudo rpm -i maze-chase-terminal-<version>-1.<rpmarch>.rpm
+sudo dnf install ./maze-chase-terminal-<version>-1.<rpmarch>.rpm
 maze-chase-terminal --version
-sudo rpm -e maze-chase-terminal
+sudo dnf remove maze-chase-terminal
 ```
 
-Upgrade with `sudo dpkg -i <newer deb>` or `sudo rpm -U <newer rpm>`.
+Upgrade a deb with `sudo apt install ./<newer deb>` (add `--reinstall`
+when apt already considers the same version current) and an rpm with
+`sudo dnf install ./<newer rpm>`. The RPM keeps `Release: 1`, so every
+candidate of the same workspace version shares the `0.1.0-1` NEVRA:
+replacing one candidate with another needs `sudo dnf reinstall
+./<newer rpm>` or `sudo rpm -U --replacepkgs <newer rpm>`. A bare
+`sudo rpm -U` refuses an identical NEVRA and leaves the old binary in
+place. A newer workspace version (the stable cut) upgrades normally.
+
 The tarball path needs no root for the default per-user install; the
 system-wide option is explicit about `sudo`:
 
@@ -215,16 +257,25 @@ sudo ./uninstall-linux.sh --prefix /opt/maze-chase  # removes the /opt install
 ### Linux, desktop
 
 ```sh
-sudo dpkg -i maze-chase-desktop_<version>_<debarch>.deb
-# or: sudo rpm -i maze-chase-desktop-<version>-1.<rpmarch>.rpm
+sudo apt install ./maze-chase-desktop_<version>_<debarch>.deb
+# or: sudo dnf install ./maze-chase-desktop-<version>-1.<rpmarch>.rpm
 maze-chase-desktop --version
-sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop
+sudo apt remove maze-chase-desktop   # or: sudo dnf remove maze-chase-desktop
 ```
 
-The desktop package installs `/usr/bin/maze-chase-desktop`, the desktop
-entry, and the icon, and its removal scripts refresh the desktop and
-icon caches. The tarball installs per-user with the same
-`install-linux.sh` / `uninstall-linux.sh` pair.
+`apt`/`dnf` resolve the declared runtime dependencies: ALSA, udev,
+xkbcommon including the X11 backend, and the X11 and Wayland libraries
+winit loads (`libxcursor1 libxrandr2 libxi6 libxinerama1 libx11-xcb1
+libwayland-client0` on Debian/Ubuntu; `libXcursor libXrandr libXi
+libXinerama libX11-xcb libwayland-client` on Fedora/RHEL). Install with
+the resolving command so a minimal system gets them; `dpkg -i` and
+`rpm -i` do not pull dependencies. The desktop package installs
+`/usr/bin/maze-chase-desktop`, the desktop entry, and the icon, and its
+removal scripts refresh the desktop and icon caches. The tarball installs
+per-user with the same `install-linux.sh` / `uninstall-linux.sh` pair;
+its runtime needs are the same list, and the glibc 2.39 floor above
+applies. Candidate-to-candidate RPM replacement follows the same
+`dnf reinstall` / `rpm -U --replacepkgs` rule as the terminal package.
 
 ### macOS, desktop
 

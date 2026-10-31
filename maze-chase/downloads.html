@@ -173,14 +173,20 @@ Get-FileHash -Algorithm SHA256 .\maze-chase-terminal-0.1.0-windows-x86_64.zip</c
       <p>A host matching the artifact architecture: Linux x86_64 packages are
       staged for this tree, Windows artifacts are x86_64, and macOS artifacts
       name their architecture. Builds for other architectures use the same
-      scripts on a matching host. At least 62 columns by 35 rows; Kitty
-      graphics, Sixel, and truecolor or legacy cell terminals are supported.
+      scripts on a matching host. The Linux binaries require glibc 2.39 or
+      newer: Ubuntu 24.04+, Debian 13+, Fedora 40+, or RHEL 10+ (RHEL/Rocky 9
+      and older Debian/Ubuntu releases are below the floor). Install the
+      deb/rpm through <code>apt</code>/<code>dnf</code> so dependencies
+      resolve. At least 62 columns by 35 rows; Kitty graphics, Sixel, and
+      truecolor or legacy cell terminals are supported.
       See <a href="compatibility.html">Compatibility</a>.</p>
     </div>
     <div class="card">
       <h3>Desktop</h3>
-      <p>A windowing session, audio output, and a keyboard. Linux builds need
-      ALSA and udev at build time; Windows and macOS use the system audio and
+      <p>A windowing session, audio output, and a keyboard. The Linux deb and
+      rpm declare and pull in ALSA, udev, xkbcommon, and the X11 and Wayland
+      runtime libraries when installed through <code>apt</code>/<code>dnf</code>, and
+      require glibc 2.39 or newer. Windows and macOS use the system audio and
       window APIs. Gamepads are optional.</p>
     </div>
     <div class="card">
