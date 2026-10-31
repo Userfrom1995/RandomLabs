@@ -198,8 +198,9 @@ every package declares that floor. Supported hosts are Ubuntu 24.04+,
 Debian 13+, Fedora 40+, and RHEL 10+. RHEL/Rocky 9 (glibc 2.34) and
 Debian 12 / Ubuntu 22.04 (glibc 2.36/2.35) are below the floor and are
 not supported: the RPM refuses to install, and the DEB declares
-`libc6 (>= 2.39)` so a resolving install refuses; a forced install runs
-only with weak-symbol warnings and is not a supported row. Install the
+`libc6 (>= 2.39)` so a resolving install refuses; forcing the package
+past that check still fails at startup with a missing `GLIBC_2.39`
+symbol, so it is not a supported row. Install the
 deb with `apt` and the rpm with `dnf` so their declared dependencies
 resolve:
 
