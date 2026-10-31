@@ -44,6 +44,12 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
+# The native binaries are built on Ubuntu 24.04, whose glibc is 2.39.
+# Every Linux package declares that build floor so a host below it is
+# refused instead of failing later on a missing GLIBC symbol.
+GLIBC_FLOOR="2.39"
+export GLIBC_FLOOR
+
 host_os() {
   uname -s | tr '[:upper:]' '[:lower:]'
 }

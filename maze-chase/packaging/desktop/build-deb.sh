@@ -6,7 +6,10 @@
 #
 # Output: maze-chase/dist/maze-chase-desktop_<version>_<arch>.deb
 # Installs the binary, desktop entry, icon, and launch guide under /usr;
-# removes cleanly with `sudo apt remove maze-chase-desktop`.
+# removes cleanly with `sudo apt remove maze-chase-desktop`. The control
+# file declares the glibc build floor plus the ALSA, udev, xkbcommon, and
+# X11 runtime libraries the desktop binary loads, so `sudo apt install
+# ./<deb>` resolves them instead of failing at first launch.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,7 +53,7 @@ Section: games
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $SIZE
-Depends: libasound2, libudev1, libxkbcommon0, libxkbcommon-x11-0
+Depends: libasound2, libudev1, libxkbcommon0, libxkbcommon-x11-0, libxcursor1, libxrandr2, libxi6, libxinerama1, libc6 (>= $GLIBC_FLOOR)
 Maintainer: RandomLabs <github-actions[bot]@users.noreply.github.com>
 Homepage: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
 Description: original desktop maze-chase game

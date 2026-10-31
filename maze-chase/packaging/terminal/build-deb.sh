@@ -6,7 +6,10 @@
 #
 # Output: maze-chase/dist/maze-chase-terminal_<version>_<arch>.deb
 # Installs /usr/bin/maze-chase-terminal plus the launch guide; removes
-# cleanly with `sudo apt remove maze-chase-terminal`.
+# cleanly with `sudo apt remove maze-chase-terminal`. The control file
+# declares the glibc build floor so a host below it is refused, and the
+# documented install command is `sudo apt install ./<deb>` so runtime
+# dependencies are resolved by apt.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +49,7 @@ Section: games
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $SIZE
+Depends: libc6 (>= $GLIBC_FLOOR)
 Maintainer: RandomLabs <github-actions[bot]@users.noreply.github.com>
 Homepage: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
 Description: original fullscreen terminal maze-chase game

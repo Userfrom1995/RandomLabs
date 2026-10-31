@@ -62,6 +62,42 @@ package_name() {
   esac
 }
 
+require_metadata() {
+  # require_metadata <field text> <literal> <package> <field>
+  local text="$1" literal="$2" package="$3" field="$4"
+  printf '%s\n' "$text" | grep -Fq -- "$literal" || {
+    echo "smoke: $package $field does not declare '$literal'" >&2
+    exit 1
+  }
+}
+
+check_deb_metadata() {
+  local deb="$1" name="$2" depends
+  depends="$(dpkg-deb --field "$deb" Depends)"
+  # The build host is Ubuntu 24.04 (glibc 2.39); a package that does
+  # not carry the floor would install on a host where the binary cannot
+  # resolve its GLIBC symbols.
+  require_metadata "$depends" "libc6 (>= $GLIBC_FLOOR)" "$deb" "Depends"
+  if [ "$name" = desktop ]; then
+    # winit's X11 backend dlopens these four libraries; installing the
+    # deb through apt must pull them in on a minimal desktop.
+    for library in libxcursor1 libxrandr2 libxi6 libxinerama1; do
+      require_metadata "$depends" "$library" "$deb" "Depends"
+    done
+  fi
+}
+
+check_rpm_metadata() {
+  local rpm="$1" name="$2" requires
+  requires="$(rpm -qp --requires "$rpm")"
+  require_metadata "$requires" "glibc >= $GLIBC_FLOOR" "$rpm" "Requires"
+  if [ "$name" = desktop ]; then
+    for library in libXcursor libXrandr libXi libXinerama; do
+      require_metadata "$requires" "$library" "$rpm" "Requires"
+    done
+  fi
+}
+
 for deb in "${DEBS[@]+"${DEBS[@]}"}"; do
   require_command dpkg-deb "install dpkg-dev"
   [ -f "$deb" ] || {
@@ -77,6 +113,7 @@ for deb in "${DEBS[@]+"${DEBS[@]}"}"; do
     echo "smoke: $deb does not carry version $VERSION" >&2
     exit 1
   }
+  check_deb_metadata "$deb" "$name"
   root="$WORK/deb-$name"
   dpkg-deb -x "$deb" "$root"
   check_version "$root/usr/bin/maze-chase-$name" "$deb"
@@ -111,6 +148,7 @@ for rpm in "${RPMS[@]+"${RPMS[@]}"}"; do
     echo "smoke: $rpm does not carry version $VERSION" >&2
     exit 1
   }
+  check_rpm_metadata "$rpm" "$name"
   root="$WORK/rpm-$name"
   mkdir -p "$root"
   (
