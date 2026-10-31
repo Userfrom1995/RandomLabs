@@ -2303,6 +2303,11 @@ chmod 0755 "$root/target/release/maze-chase-desktop"
         );
     }
 
+    assert!(
+        alsa_dependency_resolves_to_real_alsa(&depends),
+        "the built deb must declare a real ALSA provider: {depends}"
+    );
+
     let rpm = find("rpm");
     let out = Command::new("rpm")
         .args(["-qp", "--requires", rpm.to_str().unwrap()])
@@ -2332,4 +2337,53 @@ chmod 0755 "$root/target/release/maze-chase-desktop"
     }
 
     let _ = std::fs::remove_dir_all(&repo);
+}
+
+/// Whether a `Depends` entry names an ALSA implementation that actually
+/// provides the real ALSA symbols.
+///
+/// Ubuntu 24.04 (`noble`) has no real `libasound2` package: it is a
+/// virtual package provided by both `libasound2t64` (versioned
+/// `Provides: libasound2 (= ...)`) and `liboss4-salsa-asound2` (bare
+/// `Provides: libasound2`). apt may select the OSS4 compatibility shim,
+/// whose `libasound.so.2` lacks `snd_pcm_get_params`; the desktop binary
+/// then aborts at startup with
+/// `undefined symbol: snd_pcm_get_params, version ALSA_0.9` (exit 127).
+/// A bare `libasound2` dependency therefore does not resolve to a
+/// working ALSA runtime on the supported Ubuntu 24.04 floor.
+fn alsa_dependency_resolves_to_real_alsa(depends: &str) -> bool {
+    let entry = depends.split(',').map(str::trim).find(|entry| {
+        entry
+            .split('|')
+            .any(|alt| alt.trim().starts_with("libasound2"))
+    });
+    let Some(entry) = entry else {
+        return false;
+    };
+    let preferred = entry.split('|').next().unwrap().trim();
+    preferred.starts_with("libasound2t64")
+        || (preferred.starts_with("libasound2") && preferred.contains("(>="))
+}
+
+#[test]
+fn desktop_deb_declares_a_real_alsa_provider() {
+    let deb = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("desktop")
+            .join("build-deb.sh"),
+    )
+    .unwrap();
+    let depends = deb
+        .lines()
+        .find(|line| line.starts_with("Depends:"))
+        .expect("the desktop deb control must carry a Depends line");
+    assert!(
+        alsa_dependency_resolves_to_real_alsa(depends),
+        "the desktop deb must name a real ALSA provider: a bare `libasound2` \
+         resolves to the OSS4 shim on Ubuntu 24.04 and the binary aborts with \
+         `undefined symbol: snd_pcm_get_params, version ALSA_0.9`; declare \
+         `libasound2t64` (optionally `| libasound2`) or a versioned \
+         `libasound2 (>= ...)`: {depends}"
+    );
 }
