@@ -34,8 +34,10 @@ reason. There are no guessed rows.
   code and at least one valid PNG capture; a row whose game process never
   started is `unverified` with the reason.
 - `drive.sh` - shared scripted-session driver. Launches one emulator
-  command, waits for the window, waits (bounded by `--ready-seconds`,
-  default 30) for the first transcript output, walks the game's real
+  command, waits up to 30 seconds for the X11 window (the macOS driver
+  has no window lookup and relies on the readiness wait instead), waits
+  (bounded by `--ready-seconds`, default 30) for the first transcript
+  output, walks the game's real
   state machine with named checkpoints, captures screenshots, and logs
   every event with the transcript byte offset and the measured window
   size at that moment. The wait is logged as a `readiness` event (or a
