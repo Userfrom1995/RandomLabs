@@ -7,8 +7,11 @@
 #
 # System needs (Debian/Ubuntu): sudo apt-get install libasound2-dev
 # libudev-dev (build-time ALSA headers for rodio, udev headers for
-# gamepad input) plus libxkbcommon0 and
-# libxkbcommon-x11-0 (winit runtime). No other system packages.
+# gamepad input) plus the winit runtime libraries libxkbcommon0,
+# libxkbcommon-x11-0, libxcursor1, libxrandr2, libxi6, and libxinerama1.
+# The binary is built against glibc 2.39, so the host floor is Ubuntu
+# 24.04+, Debian 13+, Fedora 40+, or RHEL 10+ (older releases fail with a
+# missing GLIBC_2.39 symbol).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

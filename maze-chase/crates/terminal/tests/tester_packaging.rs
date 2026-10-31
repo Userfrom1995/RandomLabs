@@ -1904,3 +1904,372 @@ fn release_workflow_pins_the_toolchain_and_locked_dependencies() {
         );
     }
 }
+
+#[test]
+fn linux_packages_declare_the_glibc_floor_and_display_libraries() {
+    // The native binaries are built on Ubuntu 24.04 (glibc 2.39). The
+    // package metadata must carry that floor so a host below it is
+    // refused, and the desktop packages must declare the X11 libraries
+    // winit dlopens so a resolving install works on a minimal system.
+    let common = std::fs::read_to_string(maze_root().join("packaging").join("common.sh"))
+        .expect("the shared packaging contract must be readable");
+    assert!(
+        common.contains("GLIBC_FLOOR=\"2.39\""),
+        "common.sh must own the single glibc floor value"
+    );
+
+    for layer in ["terminal", "desktop"] {
+        let deb = std::fs::read_to_string(
+            maze_root()
+                .join("packaging")
+                .join(layer)
+                .join("build-deb.sh"),
+        )
+        .unwrap();
+        assert!(
+            deb.contains("libc6 (>= $GLIBC_FLOOR)"),
+            "{layer} deb must declare the glibc floor in Depends"
+        );
+        let rpm = std::fs::read_to_string(
+            maze_root()
+                .join("packaging")
+                .join(layer)
+                .join("build-rpm.sh"),
+        )
+        .unwrap();
+        assert!(
+            rpm.contains("Requires:       glibc >= $GLIBC_FLOOR"),
+            "{layer} rpm must declare the glibc floor in Requires"
+        );
+    }
+
+    let desktop_deb = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("desktop")
+            .join("build-deb.sh"),
+    )
+    .unwrap();
+    for library in ["libxcursor1", "libxrandr2", "libxi6", "libxinerama1"] {
+        assert!(
+            desktop_deb.contains(library),
+            "the desktop deb must declare the X11 runtime library {library}"
+        );
+    }
+    let desktop_rpm = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("desktop")
+            .join("build-rpm.sh"),
+    )
+    .unwrap();
+    for library in ["libXcursor", "libXrandr", "libXi", "libXinerama"] {
+        assert!(
+            desktop_rpm.contains(library),
+            "the desktop rpm must declare the X11 runtime library {library}"
+        );
+    }
+
+    // The release smoke inspects the built artifacts, so a metadata
+    // regression fails the release lane even when a static pin drifts.
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-linux.sh"),
+    )
+    .unwrap();
+    for needle in [
+        "check_deb_metadata",
+        "check_rpm_metadata",
+        "libc6 (>= $GLIBC_FLOOR)",
+        "glibc >= $GLIBC_FLOOR",
+        "libxcursor1",
+        "libxrandr2",
+        "libxi6",
+        "libxinerama1",
+        "libXcursor",
+        "libXrandr",
+        "libXi",
+        "libXinerama",
+    ] {
+        assert!(
+            smoke.contains(needle),
+            "smoke-linux.sh must assert the Linux package metadata ({needle})"
+        );
+    }
+}
+
+#[test]
+fn linux_install_docs_use_resolving_commands_and_state_the_floor() {
+    // Users must not be told to run dependency-blind `dpkg -i` / `rpm -i`
+    // as the install path. The docs teach apt/dnf resolution, the glibc
+    // floor, the unsupported older hosts, and the same-NEVRA candidate
+    // replacement path.
+    let release = std::fs::read_to_string(maze_root().join("docs").join("release.md")).unwrap();
+    let terminal = std::fs::read_to_string(maze_root().join("docs").join("terminal.md")).unwrap();
+    let desktop = std::fs::read_to_string(maze_root().join("docs").join("desktop.md")).unwrap();
+    let install = std::fs::read_to_string(maze_root().join("install.html")).unwrap();
+    let downloads = std::fs::read_to_string(maze_root().join("downloads.html")).unwrap();
+    let compatibility = std::fs::read_to_string(maze_root().join("compatibility.html")).unwrap();
+
+    for (surface, text) in [
+        ("docs/release.md", &release),
+        ("docs/terminal.md", &terminal),
+        ("docs/desktop.md", &desktop),
+        ("install.html", &install),
+    ] {
+        assert!(
+            text.contains("apt install ./"),
+            "{surface} must use a dependency-resolving apt install"
+        );
+        assert!(
+            text.contains("dnf install ./"),
+            "{surface} must use a dependency-resolving dnf install"
+        );
+        assert!(
+            text.contains("glibc 2.39"),
+            "{surface} must state the glibc 2.39 floor"
+        );
+        assert!(
+            text.contains("RHEL/Rocky 9") || text.contains("RHEL 10+"),
+            "{surface} must name the supported distribution floor"
+        );
+    }
+
+    for (surface, text) in [
+        ("docs/release.md", &release),
+        ("docs/terminal.md", &terminal),
+        ("install.html", &install),
+    ] {
+        assert!(
+            text.contains("reinstall") && text.contains("replacepkgs"),
+            "{surface} must document the same-NEVRA candidate replacement path"
+        );
+    }
+
+    for (surface, text) in [
+        ("docs/release.md", &release),
+        ("docs/desktop.md", &desktop),
+        ("install.html", &install),
+    ] {
+        for library in ["libxcursor1", "libxrandr2", "libxi6", "libxinerama1"] {
+            assert!(
+                text.contains(library),
+                "{surface} must name the desktop X11 runtime library {library}"
+            );
+        }
+    }
+
+    assert!(
+        downloads.contains("glibc 2.39") && downloads.contains("apt") && downloads.contains("dnf"),
+        "the downloads requirements must state the floor and the resolving installers"
+    );
+    assert!(
+        compatibility.contains("glibc 2.39") && compatibility.contains("RHEL 10+"),
+        "the compatibility page must state the Linux distribution floor"
+    );
+
+    for (surface, text) in [
+        ("docs/release.md", &release),
+        ("docs/terminal.md", &terminal),
+        ("docs/desktop.md", &desktop),
+        ("install.html", &install),
+    ] {
+        for forbidden in [
+            "sudo dpkg -i maze-chase-terminal_",
+            "sudo rpm -i maze-chase-terminal-",
+            "sudo dpkg -i maze-chase-desktop_",
+            "sudo rpm -i maze-chase-desktop-",
+        ] {
+            assert!(
+                !text.contains(forbidden),
+                "{surface} must not teach dependency-blind '{forbidden}' as the install command"
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn built_linux_desktop_packages_carry_the_declared_metadata() {
+    // Execute the real packaging scripts against a hermetic fixture tree
+    // with a cargo shim, then inspect the produced control metadata. This
+    // proves the heredocs, not just their source text.
+    let tools_available = ["dpkg-deb", "rpm", "rpmbuild"].iter().all(|tool| {
+        Command::new(tool)
+            .arg("--version")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    });
+    if !tools_available {
+        return;
+    }
+
+    let repo = scratch_dir("linux-metadata-packages");
+    let root = repo.join("maze-chase");
+    let packaging = root.join("packaging");
+    let desktop = packaging.join("desktop");
+    std::fs::create_dir_all(&desktop).unwrap();
+    std::fs::create_dir_all(root.join("docs")).unwrap();
+
+    for (source, target) in [
+        (
+            maze_root().join("packaging").join("common.sh"),
+            packaging.join("common.sh"),
+        ),
+        (
+            maze_root()
+                .join("packaging")
+                .join("desktop")
+                .join("build-deb.sh"),
+            desktop.join("build-deb.sh"),
+        ),
+        (
+            maze_root()
+                .join("packaging")
+                .join("desktop")
+                .join("build-rpm.sh"),
+            desktop.join("build-rpm.sh"),
+        ),
+        (
+            maze_root()
+                .join("packaging")
+                .join("desktop")
+                .join("maze-chase.desktop"),
+            desktop.join("maze-chase.desktop"),
+        ),
+        (
+            maze_root()
+                .join("packaging")
+                .join("desktop")
+                .join("maze-chase.xpm"),
+            desktop.join("maze-chase.xpm"),
+        ),
+        (
+            maze_root().join("docs").join("desktop.md"),
+            root.join("docs").join("desktop.md"),
+        ),
+    ] {
+        std::fs::copy(source, target).unwrap();
+    }
+    std::fs::copy(
+        maze_root().parent().unwrap().join("LICENSE"),
+        repo.join("LICENSE"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = []\n\n[workspace.package]\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\n",
+    )
+    .unwrap();
+
+    let bin = repo.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let cargo = bin.join("cargo");
+    std::fs::write(
+        &cargo,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+manifest=""
+previous=""
+for argument in "$@"; do
+  if [ "$previous" = "--manifest-path" ]; then manifest="$argument"; fi
+  previous="$argument"
+done
+root="$(cd "$(dirname "$manifest")" && pwd)"
+mkdir -p "$root/target/release"
+printf '#!/bin/sh\necho "maze-chase-desktop 0.1.0"\n' > "$root/target/release/maze-chase-desktop"
+chmod 0755 "$root/target/release/maze-chase-desktop"
+"#,
+    )
+    .unwrap();
+    let mut permissions = std::fs::metadata(&cargo).unwrap().permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&cargo, permissions).unwrap();
+
+    let path = format!(
+        "{}:{}",
+        bin.to_string_lossy(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    for script in ["build-deb.sh", "build-rpm.sh"] {
+        let out = Command::new("bash")
+            .arg(desktop.join(script))
+            .env("PATH", &path)
+            .env("SOURCE_DATE_EPOCH", "0")
+            .current_dir(&root)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap_or_else(|e| panic!("spawn {script}: {e}"));
+        assert!(
+            out.status.success(),
+            "{script} must build in the fixture tree:\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let dist = root.join("dist");
+    let find = |extension: &str| {
+        std::fs::read_dir(&dist)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.extension()
+                    .map(|value| value == extension)
+                    .unwrap_or(false)
+            })
+            .unwrap_or_else(|| panic!("no .{extension} artifact was staged in {}", dist.display()))
+    };
+
+    let deb = find("deb");
+    let out = Command::new("dpkg-deb")
+        .args(["--field", deb.to_str().unwrap(), "Depends"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("inspect the built deb");
+    assert!(out.status.success());
+    let depends = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        depends.contains("libc6 (>= 2.39)"),
+        "the built deb must carry the glibc floor: {depends}"
+    );
+    for library in ["libxcursor1", "libxrandr2", "libxi6", "libxinerama1"] {
+        assert!(
+            depends.contains(library),
+            "the built deb must depend on {library}: {depends}"
+        );
+    }
+
+    let rpm = find("rpm");
+    let out = Command::new("rpm")
+        .args(["-qp", "--requires", rpm.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("inspect the built rpm");
+    assert!(out.status.success());
+    let requires = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        requires.lines().any(|line| line.trim() == "glibc >= 2.39"),
+        "the built rpm must require the glibc floor: {requires}"
+    );
+    for library in ["libXcursor", "libXrandr", "libXi", "libXinerama"] {
+        assert!(
+            requires.lines().any(|line| line.trim() == library),
+            "the built rpm must require {library}: {requires}"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(&repo);
+}
