@@ -53,7 +53,7 @@ Section: games
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $SIZE
-Depends: libasound2, libudev1, libxkbcommon0, libxkbcommon-x11-0, libxcursor1, libxrandr2, libxi6, libxinerama1, libc6 (>= $GLIBC_FLOOR)
+Depends: libasound2, libudev1, libxkbcommon0, libxkbcommon-x11-0, libxcursor1, libxrandr2, libxi6, libxinerama1, libx11-xcb1, libwayland-client0, libc6 (>= $GLIBC_FLOOR)
 Maintainer: RandomLabs <github-actions[bot]@users.noreply.github.com>
 Homepage: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
 Description: original desktop maze-chase game

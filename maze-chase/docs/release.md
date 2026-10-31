@@ -198,9 +198,11 @@ every package declares that floor. Supported hosts are Ubuntu 24.04+,
 Debian 13+, Fedora 40+, and RHEL 10+. RHEL/Rocky 9 (glibc 2.34) and
 Debian 12 / Ubuntu 22.04 (glibc 2.36/2.35) are below the floor and are
 not supported: the RPM refuses to install, and the DEB declares
-`libc6 (>= 2.39)` so a resolving install refuses; forcing the package
-past that check still fails at startup with a missing `GLIBC_2.39`
-symbol, so it is not a supported row. Install the
+`libc6 (>= 2.39)` so a resolving install refuses. Forcing the package
+past that check is not supported: on RHEL/Rocky 9 the binary aborts with
+a missing `GLIBC_2.35` symbol, and on Debian 12 / Ubuntu 22.04 it starts
+with a weak-version `GLIBC_2.39` warning but is still outside the
+verified floor. Install the
 deb with `apt` and the rpm with `dnf` so their declared dependencies
 resolve:
 
@@ -261,9 +263,10 @@ sudo apt remove maze-chase-desktop   # or: sudo dnf remove maze-chase-desktop
 ```
 
 `apt`/`dnf` resolve the declared runtime dependencies: ALSA, udev,
-xkbcommon including the X11 backend, and the X11 libraries winit loads
-(`libxcursor1 libxrandr2 libxi6 libxinerama1` on Debian/Ubuntu;
-`libXcursor libXrandr libXi libXinerama` on Fedora/RHEL). Install with
+xkbcommon including the X11 backend, and the X11 and Wayland libraries
+winit loads (`libxcursor1 libxrandr2 libxi6 libxinerama1 libx11-xcb1
+libwayland-client0` on Debian/Ubuntu; `libXcursor libXrandr libXi
+libXinerama libX11-xcb libwayland-client` on Fedora/RHEL). Install with
 the resolving command so a minimal system gets them; `dpkg -i` and
 `rpm -i` do not pull dependencies. The desktop package installs
 `/usr/bin/maze-chase-desktop`, the desktop entry, and the icon, and its

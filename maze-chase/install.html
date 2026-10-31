@@ -106,10 +106,11 @@ sudo apt remove maze-chase-desktop
 # or: sudo dnf remove maze-chase-desktop</code></pre>
   <p>The deb and rpm declare the desktop runtime dependencies and install
   them through apt/dnf: ALSA, udev, xkbcommon including the X11 backend, and
-  the X11 libraries winit loads
-  (<code>libxcursor1 libxrandr2 libxi6 libxinerama1</code> on
-  Debian/Ubuntu; <code>libXcursor libXrandr libXi libXinerama</code> on
-  Fedora/RHEL). The same glibc 2.39 floor applies. The package installs
+  the X11 and Wayland libraries winit loads
+  (<code>libxcursor1 libxrandr2 libxi6 libxinerama1 libx11-xcb1
+  libwayland-client0</code> on Debian/Ubuntu; <code>libXcursor libXrandr
+  libXi libXinerama libX11-xcb libwayland-client</code> on Fedora/RHEL).
+  The same glibc 2.39 floor applies. The package installs
   <code>/usr/bin/maze-chase-desktop</code>, the desktop entry, and the icon.
   The tarball uses the same <code>install-linux.sh</code> /
   <code>uninstall-linux.sh</code> pair as the terminal layer and needs the
@@ -175,7 +176,7 @@ maze-chase-desktop [OPTIONS]
   ALSA and udev headers plus the xkbcommon and X11 runtime libraries. The
   packaged deb/rpm declare these runtime dependencies; a source or tarball
   install needs them present:</p>
-<pre><code>sudo apt-get install libasound2-dev libudev-dev libxkbcommon0 libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1</code></pre>
+<pre><code>sudo apt-get install libasound2-dev libudev-dev libxkbcommon0 libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1 libx11-xcb1 libwayland-client0</code></pre>
 <pre><code>cd maze-chase
 cargo test --workspace --locked
 cargo run --release --locked --bin maze-chase-verify
