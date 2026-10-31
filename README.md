@@ -28,8 +28,8 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Design Council**: Permanent product design team: orchestrator (`/oc design`) plus UX (`/oc design-ux`), visual and character (`/oc design-visual`), and motion (`/oc design-motion`) specialists. Deliberates in four rounds with recorded dissent and ships `<project>/docs/design.md` plus tokens the Builder implements.
 - **General**: Answers plain `/oc` questions and housekeeping.
 
-- **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
-  `bash setup.sh --dispatch`.
+- **First run:** write the required repo secrets and dispatch the Maintainer
+  once (Actions -> `maintainer`) or `bash setup.sh --secrets --dispatch`.
 - **Reset:** `bash shutdown.sh` (backs up and removes the lab).
 - Full architecture: [LAB.md](LAB.md) · [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) · [Agent prompts](.github/agents/REGISTRY.md)
 

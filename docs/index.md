@@ -68,15 +68,18 @@ the human to apply; the bot never pushes to forks (guidance only).
 
 ## Running the lab
 
-- **First run**: dispatch the Maintainer once from the Actions tab
-  (`maintainer` → Run workflow) - or `bash setup.sh --dispatch`.
+- **First run**: write the required repo secrets and dispatch the Maintainer
+  once from the Actions tab (`maintainer` → Run workflow) - or
+  `bash setup.sh --secrets --dispatch`.
 - **Approval duty**: GitHub may hold workflow runs on the bot's PRs;
   `opencode.yml` auto-approves held runs after every push. If it cannot, a
   comment asks for one manual click - approve it and the loop resumes.
 - **Talk to it** with `/oc` comments on issues/PRs:
   `/oc build …`, `/oc continue`, `/oc fix`, `/oc review`, `/oc test`,
   `/oc eval`, `/oc help` - see AGENTS.md for the exact modes.
-- **One-command setup**: `bash setup.sh` (validate/setup/secrets/dispatch).
+- **Setup**: `bash setup.sh` (check status and guided prompts), `--secrets`
+  (write the required repo secrets), `--dispatch` (first-run dispatch), or
+  `--check` (read-only status, exit 0/1).
 - **Undo everything**: `bash shutdown.sh` (backs up, removes the lab,
   restores human control).
 
