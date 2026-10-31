@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/terminal.md; source-bytes: 13192; source-fnv: d2870b8ce85806dc; output-fnv: b154511b6d0ad7a3 -->
+<!-- generated from docs/terminal.md; source-bytes: 14165; source-fnv: f2ee5c7659e08d90; output-fnv: ec603129445b6ad0 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -53,15 +53,18 @@
 <h1 id="terminal-game">Terminal Game</h1>
 <p>The fullscreen terminal publication layer for Maze Chase: the <code>maze-chase-terminal</code> game running the shared deterministic engine with a fullscreen canvas, four render tiers, live resize, menus, help, high scores, settings with key rebinding, and launch docs (this file).</p>
 <h2 id="install-and-launch">Install and launch</h2>
-<p>Every release ships <code>maze-chase-terminal</code> as a Debian package, an RPM, a portable tarball on Linux and macOS, and a zip on Windows. Once a release is published, pick the artifact for your OS from its page; <code>SHA256SUMS.txt</code> verifies the download. <a href="release.html">release.md</a> covers upgrading, uninstalling, and clearing saved settings.</p>
+<p>Every release ships <code>maze-chase-terminal</code> as a Debian package, an RPM, a portable tarball on Linux and macOS, and a zip on Windows. Once a release is published, pick the artifact for your OS from its page; <code>SHA256SUMS.txt</code> verifies the download. The Linux binaries are built against glibc 2.39, so the supported floor is Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+; RHEL/Rocky 9 and older Debian/Ubuntu releases are below the floor and are not supported. <a href="release.html">release.md</a> covers upgrading, uninstalling, and clearing saved settings.</p>
 <p>Debian/Ubuntu:</p>
-<pre><code class="language-sh">sudo dpkg -i maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb
+<pre><code class="language-sh">sudo apt install ./maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb
 maze-chase-terminal
-sudo apt-get remove maze-chase-terminal</code></pre>
+sudo apt remove maze-chase-terminal</code></pre>
+<p><code>apt</code> resolves the package's declared runtime dependencies from the configured repositories. If you already ran <code>dpkg -i</code> and it reported missing dependencies, finish with <code>sudo apt-get -f install</code>.</p>
 <p>Fedora/RHEL:</p>
-<pre><code class="language-sh">sudo rpm -i maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm
+<pre><code class="language-sh">sudo dnf install ./maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm
 maze-chase-terminal
-sudo rpm -e maze-chase-terminal</code></pre>
+sudo dnf remove maze-chase-terminal</code></pre>
+<p><code>dnf</code> resolves the RPM's required libraries. The RPM keeps <code>Release: 1</code> for every candidate of the same workspace version, so candidate-to-candidate replacement needs <code>sudo dnf reinstall ./maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm</code> (or <code>sudo rpm -U --replacepkgs &lt;rpm&gt;</code>); a bare <code>sudo rpm -U</code> refuses an identical NEVRA. A newer workspace version upgrades normally with <code>sudo dnf install ./&lt;newer rpm&gt;</code>.</p>
+<p>Upgrade a Debian package with <code>sudo apt install ./&lt;newer deb&gt;</code> (add <code>--reinstall</code> when apt already considers the same version current).</p>
 <p>Portable tarball, no root:</p>
 <pre><code class="language-sh">mkdir maze-chase-terminal &amp;&amp; tar -xzf maze-chase-terminal-&lt;version&gt;-&lt;os&gt;-&lt;arch&gt;.tar.gz -C maze-chase-terminal
 cd maze-chase-terminal
