@@ -385,9 +385,21 @@ jobs:
           missing=""
           [ -f /tmp/random-lab-decision.json ] || missing="${missing} decision-file"
           [ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"
-          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
-            echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
-            exit 1
+          # Issue #791: feed the decision file on stdin (the shell opens it),
+          # never as a jq path argument. This per-OS lane's forwarders carry
+          # MSYS_NO_PATHCONV=1 (issue #612), which also stops Git Bash
+          # converting the /tmp path for a native Windows jq.exe, so a path
+          # argument made jq fail silently and rejected a valid handoff after
+          # the findings post (run 41115849156 on #657). Strip CR from `-r`
+          # output as defense in depth for native jq text mode, and keep the
+          # comparison fail-closed.
+          decision_nonce=""
+          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ]; then
+            decision_nonce=$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || true)
+            if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
+              exit 1
+            fi
           fi
           if [ -z "$missing" ]; then
             echo "Linux tester decision and findings report present."
@@ -442,11 +454,22 @@ jobs:
           # construction, and audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
         run: |
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
-            echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
-            exit 1
+          # Issue #791: feed the decision file on stdin, never as a jq path
+          # argument. This step carries MSYS_NO_PATHCONV=1 (issue #612), which
+          # also stops Git Bash converting the /tmp path for the native
+          # Windows jq.exe, so a path argument made jq fail silently and
+          # rejected a valid handoff after the findings post (run 41115849156
+          # on #657). Strip CR from `-r` output as defense in depth for native
+          # jq text mode, and route on the normalized action.
+          decision_nonce=""
+          if [ -n "${LAB_RUN_NONCE:-}" ]; then
+            decision_nonce=$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || true)
+            if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
+              exit 1
+            fi
           fi
-          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
@@ -849,9 +872,21 @@ jobs:
           missing=""
           [ -f /tmp/random-lab-decision.json ] || missing="${missing} decision-file"
           [ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"
-          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
-            echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
-            exit 1
+          # Issue #791: feed the decision file on stdin (the shell opens it),
+          # never as a jq path argument. This per-OS lane's forwarders carry
+          # MSYS_NO_PATHCONV=1 (issue #612), which also stops Git Bash
+          # converting the /tmp path for a native Windows jq.exe, so a path
+          # argument made jq fail silently and rejected a valid handoff after
+          # the findings post (run 41115849156 on #657). Strip CR from `-r`
+          # output as defense in depth for native jq text mode, and keep the
+          # comparison fail-closed.
+          decision_nonce=""
+          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ]; then
+            decision_nonce=$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || true)
+            if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
+              exit 1
+            fi
           fi
           if [ -z "$missing" ]; then
             echo "macOS tester decision and findings report present."
@@ -962,11 +997,22 @@ jobs:
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
         run: |
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
-            echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
-            exit 1
+          # Issue #791: feed the decision file on stdin, never as a jq path
+          # argument. This step carries MSYS_NO_PATHCONV=1 (issue #612), which
+          # also stops Git Bash converting the /tmp path for the native
+          # Windows jq.exe, so a path argument made jq fail silently and
+          # rejected a valid handoff after the findings post (run 41115849156
+          # on #657). Strip CR from `-r` output as defense in depth for native
+          # jq text mode, and route on the normalized action.
+          decision_nonce=""
+          if [ -n "${LAB_RUN_NONCE:-}" ]; then
+            decision_nonce=$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || true)
+            if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
+              exit 1
+            fi
           fi
-          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
@@ -1366,9 +1412,21 @@ jobs:
           missing=""
           [ -f /tmp/random-lab-decision.json ] || missing="${missing} decision-file"
           [ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"
-          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
-            echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
-            exit 1
+          # Issue #791: feed the decision file on stdin (the shell opens it),
+          # never as a jq path argument. This per-OS lane's forwarders carry
+          # MSYS_NO_PATHCONV=1 (issue #612), which also stops Git Bash
+          # converting the /tmp path for a native Windows jq.exe, so a path
+          # argument made jq fail silently and rejected a valid handoff after
+          # the findings post (run 41115849156 on #657). Strip CR from `-r`
+          # output as defense in depth for native jq text mode, and keep the
+          # comparison fail-closed.
+          decision_nonce=""
+          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ]; then
+            decision_nonce=$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || true)
+            if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
+              exit 1
+            fi
           fi
           if [ -z "$missing" ]; then
             echo "Windows tester decision and findings report present."
@@ -1476,11 +1534,22 @@ jobs:
           # conversion-proof fix. Audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
         run: |
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
-            echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
-            exit 1
+          # Issue #791: feed the decision file on stdin, never as a jq path
+          # argument. This step carries MSYS_NO_PATHCONV=1 (issue #612), which
+          # also stops Git Bash converting the /tmp path for the native
+          # Windows jq.exe, so a path argument made jq fail silently and
+          # rejected a valid handoff after the findings post (run 41115849156
+          # on #657). Strip CR from `-r` output as defense in depth for native
+          # jq text mode, and route on the normalized action.
+          decision_nonce=""
+          if [ -n "${LAB_RUN_NONCE:-}" ]; then
+            decision_nonce=$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || true)
+            if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
+              exit 1
+            fi
           fi
-          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi

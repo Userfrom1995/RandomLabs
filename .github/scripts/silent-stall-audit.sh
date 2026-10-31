@@ -4725,7 +4725,146 @@ else
     printf '%s\n' "$r17_block" | sed -n '/- name: Clear runtime decision and findings/,/^      - name: /p' | grep -qF 'LAB_RUN_NONCE=$nonce' || r17_bad="${r17_bad} arm-${r17_os}(clear-no-nonce-export)"
     printf '%s\n' "$r17_block" | sed -n '/- name: Verify test decided, else fail closed/,/^      - name: /p' | grep -qF 'run_nonce' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-nonce-check)"
     [ "$(printf '%s\n' "$r17_block" | grep -cF 'run_nonce' || true)" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(forward-no-nonce-check)"
+    # Issue #791: the forwarders carry MSYS_NO_PATHCONV=1 (issue #612), and
+    # that opt-out also stops Git Bash converting /tmp paths for every native
+    # program, not just the gh body. A native jq.exe given the decision file
+    # as a path argument therefore cannot open it, `2>/dev/null || true`
+    # yields an empty value, and the nonce comparison rejects a valid handoff
+    # (run 41115849156 on #657: the verify without the opt-out passed, the
+    # poster's stdin-only jq passed, the opt-out forward failed). Every per-OS
+    # verify and forward must feed the decision file on stdin (the shell opens
+    # the fd; no argv conversion) and strip CR from `-r` output as defense in
+    # depth for native jq text mode. The fixtures after the loop execute the
+    # shipped read against a CR-emitting jq and against a jq that refuses path
+    # arguments like the native Windows binary under the opt-out.
+    r17_verify_step=$(printf '%s\n' "$r17_block" | sed -n '/- name: Verify test decided, else fail closed/,/^      - name: /p')
+    r17_forward_step=$(printf '%s\n' "$r17_block" | sed -n "/- name: Forward ${r17_os_tag} tester decision/,/^      - name: /p")
+    if printf '%s\n' "$r17_verify_step" "$r17_forward_step" | grep -qF -- "jq -r '.run_nonce // empty' /tmp/random-lab-decision.json"; then
+      r17_bad="${r17_bad} arm-${r17_os}(nonce-check-not-stdin)"
+    fi
+    if printf '%s\n' "$r17_verify_step" "$r17_forward_step" | grep -qF -- "jq -r '.action // empty' /tmp/random-lab-decision.json"; then
+      r17_bad="${r17_bad} arm-${r17_os}(action-check-not-stdin)"
+    fi
+    r17_norm_nonce="decision_nonce=\$(jq -r '.run_nonce // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\\r' || true)"
+    printf '%s\n' "$r17_verify_step" | sed 's/^[[:space:]]*//' | grep -qxF -- "$r17_norm_nonce" || r17_bad="${r17_bad} arm-${r17_os}(verify-nonce-not-stdin-cr-normalized)"
+    printf '%s\n' "$r17_forward_step" | sed 's/^[[:space:]]*//' | grep -qxF -- "$r17_norm_nonce" || r17_bad="${r17_bad} arm-${r17_os}(forward-nonce-not-stdin-cr-normalized)"
+    r17_norm_action="action=\$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\\r' || echo \"\")"
+    printf '%s\n' "$r17_forward_step" | sed 's/^[[:space:]]*//' | grep -qxF -- "$r17_norm_action" || r17_bad="${r17_bad} arm-${r17_os}(forward-action-not-stdin-cr-normalized)"
   done
+  # Issue #791 functional fixtures: execute the shipped forward read (never a
+  # hand-copied variant). Fixture A: a native-Windows-like jq that emits CRLF
+  # (the shipped read must strip it; a raw read must fail). Fixture B: a jq
+  # that refuses path arguments like the native binary under
+  # MSYS_NO_PATHCONV=1 (the shipped stdin read must pass; a path-argument read
+  # must fail). The controls keep either fixture from greening vacuously.
+  r17_cr_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r17_cr_tmp" ] || [ ! -d "$r17_cr_tmp" ]; then
+    r17_bad="${r17_bad} nonce-cr-fixture(sandbox-unavailable)"
+  else
+    r17_cr_block=$(peros_arm_block test-windows)
+    r17_cr_check=$(printf '%s\n' "$r17_cr_block" | awk '
+      $0 == "          if [ -n \"${LAB_RUN_NONCE:-}\" ]; then" { s=1 }
+      s { print }
+      s && $0 == "          fi" { exit }')
+    r17_cr_action=$(printf '%s\n' "$r17_cr_block" | sed 's/^[[:space:]]*//' | grep -xF -- "action=\$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo \"\")" | head -n1)
+    if [ -z "$r17_cr_check" ] || [ -z "$r17_cr_action" ]; then
+      r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-not-found)"
+    else
+      r17_decision_had=0
+      if [ -e /tmp/random-lab-decision.json ]; then
+        r17_decision_had=1
+        cp /tmp/random-lab-decision.json "$r17_cr_tmp/decision.backup"
+      fi
+      printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > /tmp/random-lab-decision.json
+
+      mkdir -p "$r17_cr_tmp/cr-bin"
+      cat > "$r17_cr_tmp/cr-bin/jq" <<'R17_CR_JQ'
+#!/usr/bin/env bash
+case "$*" in
+  *".run_nonce"*) printf '%s\r\n' "a1b2c3d4" ;;
+  *".action"*) printf '%s\r\n' "fix" ;;
+  *) printf '\r\n' ;;
+esac
+R17_CR_JQ
+      chmod +x "$r17_cr_tmp/cr-bin/jq"
+      if [ "$(PATH="$r17_cr_tmp/cr-bin:$PATH" command -v jq)" != "$r17_cr_tmp/cr-bin/jq" ]; then
+        r17_bad="${r17_bad} nonce-cr-fixture(mock-not-intercepted)"
+      else
+        {
+          printf '%s\n' '#!/usr/bin/env bash' 'set -u'
+          printf '%s\n' "$r17_cr_check"
+          printf '%s\n' "$r17_cr_action"
+          printf '%s\n' 'if [ "$action" != "fix" ]; then'
+          printf '%s\n' '  exit 1'
+          printf '%s\n' 'fi'
+          printf '%s\n' 'echo checks-ok'
+        } > "$r17_cr_tmp/check.sh"
+        r17_cr_out=$(PATH="$r17_cr_tmp/cr-bin:$PATH" LAB_RUN_NONCE="a1b2c3d4" bash "$r17_cr_tmp/check.sh" 2>&1)
+        r17_cr_rc=$?
+        if [ "$r17_cr_rc" -ne 0 ] || ! printf '%s\n' "$r17_cr_out" | grep -qxF 'checks-ok'; then
+          r17_bad="${r17_bad} nonce-cr-fixture(normalized-read-failed:rc=${r17_cr_rc})"
+        fi
+        {
+          printf '%s\n' '#!/usr/bin/env bash' 'set -u'
+          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' < /tmp/random-lab-decision.json 2>/dev/null || true)'
+          printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
+          printf '%s\n' '  exit 1'
+          printf '%s\n' 'fi'
+          printf '%s\n' 'exit 0'
+        } > "$r17_cr_tmp/raw-control.sh"
+        PATH="$r17_cr_tmp/cr-bin:$PATH" LAB_RUN_NONCE="a1b2c3d4" bash "$r17_cr_tmp/raw-control.sh" >/dev/null 2>&1
+        r17_cr_control_rc=$?
+        if [ "$r17_cr_control_rc" -eq 0 ]; then
+          r17_bad="${r17_bad} nonce-cr-fixture(raw-control-did-not-fail)"
+        fi
+      fi
+
+      mkdir -p "$r17_cr_tmp/msys-bin"
+      cat > "$r17_cr_tmp/msys-bin/jq" <<'R17_MSYS_JQ'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  case "$arg" in
+    *"/tmp/"*) echo "jq: error: Could not open $arg" >&2; exit 2 ;;
+  esac
+done
+case "$*" in
+  *".run_nonce"*) printf '%s\n' "a1b2c3d4" ;;
+  *".action"*) printf '%s\n' "fix" ;;
+  *) printf '\n' ;;
+esac
+R17_MSYS_JQ
+      chmod +x "$r17_cr_tmp/msys-bin/jq"
+      if [ "$(PATH="$r17_cr_tmp/msys-bin:$PATH" command -v jq)" != "$r17_cr_tmp/msys-bin/jq" ]; then
+        r17_bad="${r17_bad} nonce-msys-fixture(mock-not-intercepted)"
+      elif [ -f "$r17_cr_tmp/check.sh" ]; then
+        r17_msys_out=$(PATH="$r17_cr_tmp/msys-bin:$PATH" LAB_RUN_NONCE="a1b2c3d4" MSYS_NO_PATHCONV="1" bash "$r17_cr_tmp/check.sh" 2>&1)
+        r17_msys_rc=$?
+        if [ "$r17_msys_rc" -ne 0 ] || ! printf '%s\n' "$r17_msys_out" | grep -qxF 'checks-ok'; then
+          r17_bad="${r17_bad} nonce-msys-fixture(stdin-read-failed:rc=${r17_msys_rc})"
+        fi
+        {
+          printf '%s\n' '#!/usr/bin/env bash' 'set -u'
+          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' /tmp/random-lab-decision.json 2>/dev/null || true)'
+          printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
+          printf '%s\n' '  exit 1'
+          printf '%s\n' 'fi'
+          printf '%s\n' 'exit 0'
+        } > "$r17_cr_tmp/path-control.sh"
+        PATH="$r17_cr_tmp/msys-bin:$PATH" LAB_RUN_NONCE="a1b2c3d4" MSYS_NO_PATHCONV="1" bash "$r17_cr_tmp/path-control.sh" >/dev/null 2>&1
+        r17_path_control_rc=$?
+        if [ "$r17_path_control_rc" -eq 0 ]; then
+          r17_bad="${r17_bad} nonce-msys-fixture(path-control-did-not-fail)"
+        fi
+      fi
+
+      if [ "$r17_decision_had" -eq 1 ]; then
+        cp "$r17_cr_tmp/decision.backup" /tmp/random-lab-decision.json
+      else
+        rm -f /tmp/random-lab-decision.json
+      fi
+    fi
+    rm -rf "$r17_cr_tmp"
+  fi
 fi
 if [ ! -f "$R17_SCRIPT" ]; then
   r17_bad="${r17_bad} post-peros-findings.sh(missing)"
@@ -5715,9 +5854,9 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs (issues #608, #713, #763)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post (issues #608, #713, #763, #791)" "ok"
 else
-  check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
+  check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce)" "bad"
 fi
 
 # [R18] Windows MSYS argv conversion guard (issue #612): the per-OS decision

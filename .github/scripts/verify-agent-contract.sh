@@ -62,10 +62,14 @@ fi
 
 if [ ! -f "$decision" ]; then
   problem "decision file '$decision' does not exist"
-elif ! jq -e 'type == "object"' "$decision" >/dev/null 2>&1; then
+elif ! jq -e 'type == "object"' < "$decision" >/dev/null 2>&1; then
   problem "decision file '$decision' is not a JSON object"
 else
-  action=$(jq -r '.action // empty' "$decision" 2>/dev/null)
+  # Issue #791: read the decision file through stdin, never as a jq path
+  # argument, so an MSYS lane with MSYS_NO_PATHCONV=1 (issue #612) cannot stop
+  # Git Bash converting the /tmp path for a native Windows jq.exe. Native jq
+  # can also append a CR to `-r` output, so strip CR before comparing.
+  action=$(jq -r '.action // empty' < "$decision" 2>/dev/null | tr -d '\r')
   if [ -z "$action" ]; then
     problem "decision file has no non-empty .action"
   else
@@ -75,7 +79,7 @@ else
     esac
   fi
   if [ -n "$nonce" ]; then
-    got=$(jq -r '.run_nonce // empty' "$decision" 2>/dev/null)
+    got=$(jq -r '.run_nonce // empty' < "$decision" 2>/dev/null | tr -d '\r')
     if [ "$got" != "$nonce" ]; then
       problem "decision file run_nonce is '${got:-<missing>}', not this run's $nonce_env"
     fi
