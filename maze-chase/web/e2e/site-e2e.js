@@ -23,6 +23,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { navPillScrollState } = require('./nav-pill.js');
 
 const BASE = (process.argv[2] || 'http://localhost:8931/').replace(/\/?$/, '/');
 const DEBUG_PORT = Number(process.argv[3] || 9331);
@@ -416,11 +417,15 @@ async function collectLinks(ws) {
           const pill = active.getBoundingClientRect();
           return {
             scrollLeft: nav.scrollLeft,
-            overflows: nav.scrollWidth > nav.clientWidth + 1,
             left: pill.left,
             right: pill.right,
             boxLeft: box.left,
             boxRight: box.right,
+            // Where the pill sits before the nav scroll is applied, so
+            // the harness can tell a genuinely clipped pill from one
+            // that fits in an overflowing nav.
+            unscrolledLeft: pill.left + nav.scrollLeft,
+            unscrolledRight: pill.right + nav.scrollLeft,
           };
         })(),
       };
@@ -445,17 +450,24 @@ async function collectLinks(ws) {
       );
       if (path === 'releases.html') {
         // Whether the pill needs a scroll depends on the platform's
-        // fallback font metrics. Assert the honest state either way: an
-        // overflowing nav must be scrolled, a fitting one must not be.
-        if (mobile.navPill && mobile.navPill.overflows) {
+        // fallback font metrics, not on whether the nav overflows: macOS
+        // Chrome at 390x844 overflows the nav (411 vs 362) while the
+        // Releases pill still fits fully inside it, so scrollLeft 0 is
+        // the correct state. Assert the honest invariant either way: a
+        // pill that is clipped without a scroll must have been scrolled
+        // into view, while a fully visible pill is valid at any scroll
+        // offset (site-nav.js returns early and never resets a stale one).
+        const pill = mobile.navPill;
+        const scrollState = navPillScrollState(pill);
+        if (scrollState.clippedWithoutScroll) {
           assert(
-            mobile.navPill.scrollLeft > 0,
-            `releases.html actually scrolls its overflowing current pill into view at 390x844 (scrollLeft ${mobile.navPill.scrollLeft.toFixed(1)})`,
+            scrollState.ok,
+            `releases.html scrolls its clipped current pill into view at 390x844 (scrollLeft ${pill.scrollLeft.toFixed(1)}, unscrolled ${pill.unscrolledLeft.toFixed(1)}..${pill.unscrolledRight.toFixed(1)} in ${pill.boxLeft.toFixed(1)}..${pill.boxRight.toFixed(1)})`,
           );
         } else {
           assert(
-            mobile.navPill && mobile.navPill.scrollLeft === 0,
-            `releases.html leaves a fitting nav unscrolled at 390x844 (scrollLeft ${mobile.navPill ? mobile.navPill.scrollLeft.toFixed(1) : 'missing'})`,
+            scrollState.ok,
+            `releases.html keeps a fitting current pill fully visible at 390x844 (scrollLeft ${pill ? pill.scrollLeft.toFixed(1) : 'missing'})`,
           );
         }
       }
@@ -538,12 +550,55 @@ async function collectLinks(ws) {
       : 'missing'})`,
   );
 
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 430, height: 900, deviceScaleFactor: 2, mobile: true,
+  });
+  let grownNav = null;
+  let grownState = navPillScrollState(null);
+  for (let settle = 0; settle < 30; settle++) {
+    await sleep(100);
+    grownNav = await evalJs(ws, `(() => {
+      const nav = document.querySelector('.site-nav');
+      const active = nav && nav.querySelector('[aria-current="page"]');
+      if (!nav || !active) return null;
+      const box = nav.getBoundingClientRect();
+      const pill = active.getBoundingClientRect();
+      return {
+        scrollLeft: nav.scrollLeft,
+        overflows: nav.scrollWidth > nav.clientWidth + 1,
+        left: pill.left,
+        right: pill.right,
+        boxLeft: box.left,
+        boxRight: box.right,
+        unscrolledLeft: pill.left + nav.scrollLeft,
+        unscrolledRight: pill.right + nav.scrollLeft,
+        viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
+      };
+    })()`);
+    if (grownNav && grownNav.viewport[0] === 430) {
+      grownState = navPillScrollState(grownNav);
+      if (grownState.visible) break;
+    }
+  }
+  assert(
+    grownNav
+      && grownNav.viewport[0] === 430
+      && grownState.visible
+      && grownState.ok,
+    `releases.html keeps the current nav pill valid after a resize back to 430x900 (${grownNav
+      ? `viewport ${grownNav.viewport[0]}x${grownNav.viewport[1]}, ${grownNav.left.toFixed(1)}..${grownNav.right.toFixed(1)} in ${grownNav.boxLeft.toFixed(1)}..${grownNav.boxRight.toFixed(1)}, overflows ${grownNav.overflows}, scrollLeft ${grownNav.scrollLeft.toFixed(1)}, scrollRequired ${grownState.scrollRequired}`
+      : 'missing'})`,
+  );
+
   // Crawl every internal link once, over HTTP, and verify fragments.
   while (linkQueue.length > 0) {
     const url = linkQueue.shift();
     const response = await fetch(url.href, { redirect: 'follow' });
     assert(response.ok, `link ${url.pathname} responds ${response.status}`);
-    if (!response.ok) continue;
+    if (!response.ok) {
+      await response.arrayBuffer();
+      continue;
+    }
     if (url.hash && /\.(html|htm)?$/.test(url.pathname)) {
       const body = await response.text();
       const wanted = `id="${url.hash.slice(1)}"`;
@@ -555,11 +610,14 @@ async function collectLinks(ws) {
         at = body.indexOf(wanted, at + 1);
       }
       assert(found, `link ${url.pathname}${url.hash} names a real id`);
+    } else {
+      await response.arrayBuffer();
     }
   }
   for (const asset of ['site.css', 'web/maze-chase.js', 'web/maze-chase.wasm', 'web/favicon.svg']) {
     const response = await fetch(BASE + asset);
     assert(response.ok, `asset ${asset} responds ${response.status}`);
+    await response.arrayBuffer();
   }
 
   await navigate(ws, gameUrl);

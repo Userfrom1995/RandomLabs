@@ -34,12 +34,18 @@ reason. There are no guessed rows.
   code and at least one valid PNG capture; a row whose game process never
   started is `unverified` with the reason.
 - `drive.sh` - shared scripted-session driver. Launches one emulator
-  command, waits for the window, walks the game's real state machine with
-  named checkpoints, captures screenshots, and logs every event with the
-  transcript byte offset and the measured window size at that moment.
-  Window resizes are only exercised by the X11 driver (xdotool sets
-  exact sizes); the macOS driver skips the resize checkpoints and records
-  the skip as an event instead of capturing resize-named images.
+  command, waits up to 30 seconds for the X11 window (the macOS driver
+  has no window lookup and relies on the readiness wait instead), waits
+  (bounded by `--ready-seconds`, default 30) for the first transcript
+  output, walks the game's real
+  state machine with named checkpoints, captures screenshots, and logs
+  every event with the transcript byte offset and the measured window
+  size at that moment. The wait is logged as a `readiness` event (or a
+  `readiness-timeout` event, after which the driver never captures a
+  blank title checkpoint or sends the session keys). Window resizes are
+  only exercised by the X11 driver (xdotool sets exact sizes); the macOS
+  driver skips the resize checkpoints and records the skip as an event
+  instead of capturing resize-named images.
 - `probe-graphics.py` - live graphics-probe experiment for one
   emulator: sends the game's exact kitty probe request on the terminal's
   pty, records the raw reply bytes for a bounded window, and cleans up.
@@ -66,9 +72,16 @@ committed bundle.
 ## The session
 
 `drive.sh` runs the same key choreography on Linux and macOS, and
-`run-windows.ps1` follows the same state-machine path. It follows
+`run-windows.ps1` follows the same key state-machine path but has no pty
+transcript (Windows records no transcript by design), so it does not run
+the transcript readiness wait. It follows
 `../../crates/terminal/src/{app,screens}.rs` exactly:
 
+0. on Linux and macOS the driver waits for the first transcript output
+   before sending any key (a cold terminal that has not painted yet is a
+   timeout, not a blank session to drive); `run-windows.ps1` instead
+   sleeps a fixed boot window and captures the title checkpoint without
+   a transcript wait;
 1. title screen captured on boot;
 2. Confirm starts a run, arrow keys steer for a bounded window;
 3. on Linux only: the window resizes wide, then below the 62x35 floor
@@ -160,6 +173,18 @@ Honesty rules the harness enforces mechanically:
   and the capture set: a pass requires a zero exit code and at least one
   valid PNG capture, and a row whose game process never started is
   `unverified` with the reason.
+- A transcript-driven (`x11` or `macos`) `pass` must prove the fixed
+  session rendered. Every fixed checkpoint (`title`, `playing`,
+  `paused`, `title-return`, `help`, `scores`, `settings`, plus
+  `resized-wide`, `too-small`, and `refit` when
+  `geometry.resize_exercised` is true) must be present, carry transcript
+  output, and have a decodable capture; a missing, zero-byte, or
+  uncaptured checkpoint is downgraded to `partial` with the reason. A
+  `readiness-timeout` event is graded `unverified` (the terminal never
+  painted its first frame, so there are no rendered checkpoints). Windows
+  rows carry no transcript by design and are graded from the process
+  record plus the capture set, so the fixed-session gate does not apply
+  there.
 - `build` copies the run metadata (`commit`, `binary_sha256`,
   `sources_dirty`): `commit` is the checkout when the row ran, and a
   `--skip-build` run can reuse a binary built at an earlier commit, so

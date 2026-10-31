@@ -3,7 +3,9 @@
 Eight durable, dependency-free harnesses (Node 22+ for the CDP harnesses, which
 use the built-in WebSocket; no npm packages) that
 prove the browser layer against the real artifacts. All exit nonzero
-on failure and print `ALL GREEN` on success.
+on failure and print an `ALL GREEN` (or `PASS`) banner on success.
+`run-browser-e2e.sh` runs the CDP suites with a fresh browser per suite,
+and `tests/` pins the runner and nav-pill contracts with `node --test`.
 
 - `wasm-smoke.js [path-to-wasm]`: instantiates the release `.wasm`
   with zero imports and drives a session through the C ABI (boot,
@@ -46,7 +48,11 @@ on failure and print `ALL GREEN` on success.
 - `site-e2e.js [base-url] [debug-port]`: crawls the shipped site over
   HTTP and in chromium (every page's title, one h1, shared navigation,
   active item, no raw markdown links, no horizontal overflow at desktop
-  and 390x844, every internal link and fragment resolving), checks the
+  and 390x844, every internal link and fragment resolving), proves the
+  current nav pill is fully visible and that a clipped pill is scrolled
+  into view (a fully visible fitting pill is valid at any scroll offset;
+  platform font metrics, not nav overflow, decide whether a scroll is
+  needed), checks the
   game page's opened Site menu at 390x844 and the two short landscape
   sizes (480x320, 568x320), proves a wheel over the uncapped open menu
   still scrolls the page, boots the game-first `index.html`, starts a
@@ -59,17 +65,49 @@ on failure and print `ALL GREEN` on success.
   so a link that opens on the default case-insensitive APFS volume cannot
   404 on the case-sensitive Pages host. No server required.
 
-Setup for the browser run (two shells, from `maze-chase/`):
+## Fresh-browser runner (recommended)
+
+The CDP suites each expect their own browser. Reusing one Chrome across
+suites leaks storage, service workers, and pending CDP sessions between
+them, which produced boot-gate/rebind failures and a Node undici
+assertion on a second site-e2e run. `web/e2e/run-browser-e2e.sh` isolates
+every suite: one Chrome process, one profile, one debug port, and one
+Node process per script, with a static server on an ephemeral port.
+
+From `maze-chase/`:
+
+```
+web/e2e/run-browser-e2e.sh                     # all five CDP suites
+web/e2e/run-browser-e2e.sh site-e2e.js         # selected suites
+web/e2e/run-browser-e2e.sh --base-url URL      # external static server
+web/e2e/run-browser-e2e.sh --chrome PATH       # explicit Chrome binary
+web/e2e/run-browser-e2e.sh --plan              # per-suite URL/port/profile
+```
+
+It needs node 22+ and python3 (for the static server and a free debug
+port); Chrome is found through `CHROME` or the usual platform names. The
+runner prints the server URL and each suite's CDP port and profile;
+`--plan` prints `script<TAB>url<TAB>port<TAB>profile` for every suite
+without launching a browser or a server. The Node-only suites
+(`wasm-smoke.js`, `tester-regression.js`, `macos-case-audit.js`) run
+directly with `node`.
+
+Manual two-shell setup (one suite at a time; prefer the runner). Launch a
+fresh Chrome with its own profile for each suite and stop it before
+starting the next one:
 
 ```
 python3 -m http.server 8931   # Windows: python -m http.server 8931
 chromium --headless=new --disable-gpu --no-sandbox \
+  --user-data-dir="$(mktemp -d)" \
   --remote-debugging-port=9331 --window-size=1280,900 \
   http://localhost:8931/index.html
 node web/e2e/boot-gate-e2e.js
-node web/e2e/browser-e2e.js
-node web/e2e/site-e2e.js
 ```
+
+Stop Chrome and remove its profile, then relaunch with a fresh
+`--user-data-dir` before running another suite. Reusing one browser
+across suites is the contamination this runner avoids.
 
 The site harness also accepts a deployed base URL, for example
 `node web/e2e/site-e2e.js https://<owner>.github.io/<repo>/preview/pr-<N>/maze-chase/`

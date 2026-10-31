@@ -27,6 +27,12 @@
 # `--binary-sha256`, and `--sources-dirty` record the generating build
 # identity in the run metadata (run-linux.sh fills them in).
 #
+# Before the title checkpoint the driver waits (bounded by
+# `--ready-seconds`, default 30) for the first transcript output, so a
+# cold terminal cannot record an empty title phase. The wait is logged as
+# a `readiness` event (or `readiness-timeout`) and the collector refuses
+# a pass without the fixed session's non-empty, captured checkpoints.
+#
 # Window resizes are only exercised by the X11 driver (xdotool can set
 # exact window sizes). The macOS Aqua driver cannot resize Terminal.app
 # windows reliably, so its rows skip the resize checkpoints and record
@@ -49,6 +55,8 @@ RESIZE_SMALL_ROWS=24
 EXTRA_ENV=()
 TRANSCRIPT=""
 BOOT_SECONDS=2
+READY_SECONDS=30
+READY_POLL_SECONDS=0.25
 KEY_DELAY=0.16
 RESIZE_SETTLE=1.4
 STEP_SETTLE=0.8
@@ -74,6 +82,7 @@ while [ $# -gt 0 ]; do
     --game-pid-file) GAME_PID_FILE="$2"; shift 2 ;;
     --transcript) TRANSCRIPT="$2"; shift 2 ;;
     --boot-seconds) BOOT_SECONDS="$2"; shift 2 ;;
+    --ready-seconds) READY_SECONDS="$2"; shift 2 ;;
     --pause-select) PAUSE_SELECT="$2"; shift 2 ;;
     --build-commit) BUILD_COMMIT="$2"; shift 2 ;;
     --binary-sha256) BINARY_SHA256="$2"; shift 2 ;;
@@ -94,6 +103,21 @@ case "$SOURCES_DIRTY" in
   true|false|unknown) ;;
   *) echo "drive.sh: --sources-dirty must be true, false, or unknown" >&2; exit 2 ;;
 esac
+case "$READY_SECONDS" in
+  ''|*[!0-9]*) echo "drive.sh: --ready-seconds must be a positive integer no greater than 86400" >&2; exit 2 ;;
+esac
+# Strip leading zeros textually before any arithmetic context: bash reads
+# a leading zero as octal (`08` is an arithmetic error and `010` means 8
+# seconds), and a long digit string would overflow the 64-bit arithmetic
+# before the bound check could reject it. After stripping, the value is
+# plain decimal and the length check keeps the comparison itself safe.
+while [ "${#READY_SECONDS}" -gt 1 ] && [ "${READY_SECONDS#0}" != "$READY_SECONDS" ]; do
+  READY_SECONDS="${READY_SECONDS#0}"
+done
+if [ "${#READY_SECONDS}" -gt 5 ] || [ "$READY_SECONDS" -lt 1 ] || [ "$READY_SECONDS" -gt 86400 ]; then
+  echo "drive.sh: --ready-seconds must be a positive integer no greater than 86400" >&2
+  exit 2
+fi
 
 # Resolve --outdir to an absolute path on entry: the transcript path is
 # recorded in meta.json for collect.py, which resolves relative transcript
@@ -110,7 +134,23 @@ mkdir -p "$SHOTS"
 EVENTS="$SESSION/events.log"
 META="$SESSION/meta.json"
 : > "$EVENTS"
-[ -n "$TRANSCRIPT" ] || TRANSCRIPT="$SESSION/pty.log"
+if [ -n "$TRANSCRIPT" ]; then
+  # collect.py resolves a relative transcript path against the run
+  # directory, so resolve it here the same way (the recorded path must
+  # name the file this run wrote) and create the parent before the
+  # pre-launch truncation, so a bad transcript path is a clean usage
+  # error instead of a bare shell failure with no metadata.
+  case "$TRANSCRIPT" in
+    /*) ;;
+    *) TRANSCRIPT="$OUTDIR/$TRANSCRIPT" ;;
+  esac
+else
+  TRANSCRIPT="$SESSION/pty.log"
+fi
+mkdir -p "$(dirname "$TRANSCRIPT")" || {
+  echo "drive.sh: cannot create transcript directory: $TRANSCRIPT" >&2
+  exit 2
+}
 
 now_ms() { python3 -c 'import time; print(int(time.time()*1000))'; }
 sleep_s() { sleep "$1" 2>/dev/null || sleep 1; }
@@ -338,6 +378,30 @@ wait_for_exit() { # pid seconds
   return 1
 }
 
+wait_for_first_output() { # baseline_bytes; bounded by READY_SECONDS from launch
+  local baseline="$1"
+  # Millisecond arithmetic: READY_START_MS/1000 would truncate the launch
+  # instant to a whole second and expire the wait up to ~1s early.
+  local deadline=$(( READY_START_MS + READY_SECONDS * 1000 ))
+  local first waited
+  while :; do
+    first="$(transcript_bytes)"
+    if [ "$first" -gt "$baseline" ]; then
+      waited=$(( $(now_ms) - READY_START_MS ))
+      log_event readiness "waited_ms=$waited baseline_bytes=$baseline first_output_bytes=$first" ""
+      echo "readiness: first transcript output after ${waited}ms (${first} bytes)"
+      return 0
+    fi
+    [ "$(now_ms)" -ge "$deadline" ] && break
+    sleep_s "$READY_POLL_SECONDS"
+  done
+  waited=$(( $(now_ms) - READY_START_MS ))
+  first="$(transcript_bytes)"
+  log_event readiness-timeout "waited_ms=$waited baseline_bytes=$baseline first_output_bytes=$first" ""
+  echo "drive.sh: no transcript output within ${READY_SECONDS}s of launch; refusing to drive a blank session" >&2
+  return 1
+}
+
 driver_ready
 
 # Launch the emulator (the launch command runs the game inside `script`
@@ -351,10 +415,26 @@ for kv in "${EXTRA_ENV[@]:-}"; do
   printf -v _q '%q' "$kv"
   ENV_PREFIX+="$_q "
 done
+# Baseline the transcript before launch and time the first output from the
+# same instant, so the readiness wait is measured from the launch, not from
+# whenever the window happened to appear. A reused --outdir can still hold
+# a previous run's transcript (the launchers' `script` truncates it at
+# launch, but only after this point), so truncate first: the baseline must
+# be this run's starting point, never a stale byte count the new launch
+# can never exceed.
+: > "$TRANSCRIPT"
+READY_BASELINE="$(transcript_bytes)"
+READY_START_MS="$(now_ms)"
 eval "${ENV_PREFIX}$LAUNCH" &
 LAUNCH_PID=$!
 
 find_window
+if [ "$DRIVER" = "x11" ]; then
+  # Record the boot geometry even if the readiness wait later times out:
+  # without this the initial measurement would stay 0x0 on a row that did
+  # launch but never painted.
+  measure_geometry
+fi
 
 # Claim the X input focus before sending any key: GTK/Qt emulators grab
 # focus on map, but xterm does not, and with no window manager running
@@ -362,11 +442,23 @@ find_window
 # game stuck on the title screen in exactly that state).
 focus_window
 
-# Give the emulator a moment to paint its first frame, then capture boot.
-sleep_s "$BOOT_SECONDS"
-checkpoint title
+# A cold terminal can take longer than BOOT_SECONDS to start the game and
+# paint its first frame. Wait (bounded) for the transcript to carry output
+# before capturing the title checkpoint, so a cold start can never record
+# an empty title phase and still sign a pass. A timeout is recorded as an
+# event and the collector grades the row unverified; the session is not
+# driven into a blank screen.
+READINESS_OK="true"
+if ! wait_for_first_output "$READY_BASELINE"; then
+  READINESS_OK="false"
+fi
+if [ "$READINESS_OK" = "true" ]; then
+  # Give the emulator a moment to paint its first frame, then capture boot.
+  sleep_s "$BOOT_SECONDS"
+  checkpoint title
+fi
 
-if [ "$DRIVER" != "none" ]; then
+if [ "$DRIVER" != "none" ] && [ "$READINESS_OK" = "true" ]; then
   # Play: start, then steer so the session produces real movement frames.
   key Return
   sleep_s 2.2
@@ -569,7 +661,7 @@ jq -n \
   --argjson measured "$MEASURED_JSON" \
   --argjson build "$BUILD_JSON" \
   --argjson pause_select "$PAUSE_SELECT" \
-  --argjson resize_exercised "$([ "$RESIZE_SUPPORTED" = true ] && echo true || echo false)" \
+  --argjson resize_exercised "$([ "${#MEASURED_RESIZES[@]}" -gt 0 ] && echo true || echo false)" \
   --argjson started_ms "$STARTED_MS" \
   --argjson ended_ms "$ENDED_MS" \
   --argjson exit_code "${EXIT_CODE:-null}" \

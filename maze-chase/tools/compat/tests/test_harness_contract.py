@@ -105,6 +105,95 @@ def make_run_dir(root, *, screenshot_name="title.png", create_png=None,
     return root
 
 
+FIXED_SESSION_CHECKPOINTS = (
+    "title",
+    "playing",
+    "paused",
+    "title-return",
+    "help",
+    "scores",
+    "settings",
+)
+RESIZE_CHECKPOINTS = ("resized-wide", "too-small", "refit")
+
+
+def make_fixed_session_run_dir(root, *, driver="x11", resize=False,
+                               omit=(), empty=(), uncaptured=(),
+                               readiness="ready", waited_ms=1234):
+    """Build a run directory shaped like a complete drive.sh session.
+
+    Every checkpoint carries its own transcript bytes and a distinct
+    decodable capture unless the caller asks for it to be missing
+    (`omit`), zero-byte (`empty`), or capture-less (`uncaptured`).
+    `readiness` selects a successful first-output event, a timeout, or
+    no event at all.
+    """
+    session = os.path.join(root, "session")
+    shots = os.path.join(session, "screenshots")
+    os.makedirs(shots, exist_ok=True)
+    names = list(FIXED_SESSION_CHECKPOINTS)
+    if resize:
+        names.extend(RESIZE_CHECKPOINTS)
+    meta = {
+        "emulator_version": "test",
+        "arch": "arm64" if driver == "macos" else "x86_64",
+        "driver": driver,
+        "transcript": "session/pty.log",
+        "geometry": {"resize_exercised": bool(resize)},
+        "extra_env": [],
+        "runner": {"host": "test", "id": "compat-harness"},
+        "exit": {"code": 0, "killed": False, "game_exited": True,
+                 "process_exited": True},
+    }
+    with open(os.path.join(session, "meta.json"), "w", encoding="utf-8") as fh:
+        json.dump(meta, fh)
+    transcript = bytearray()
+    events = []
+    if readiness == "ready":
+        events.append(
+            f"10\treadiness\twaited_ms={waited_ms} baseline_bytes=0 "
+            f"first_output_bytes=1\t0\t"
+        )
+    elif readiness == "timeout":
+        events.append(
+            f"10\treadiness-timeout\twaited_ms={waited_ms} baseline_bytes=0 "
+            f"first_output_bytes=0\t0\t"
+        )
+    if readiness != "timeout":
+        for index, name in enumerate(names):
+            if name in omit:
+                continue
+            if name not in empty:
+                transcript.extend(f"{name} frame {index}\r\n".encode())
+            shot = (
+                None
+                if name in uncaptured
+                else f"session/screenshots/{name}.png"
+            )
+            events.append(
+                f"{100 + index}\tcheckpoint\t{name}\t{len(transcript)}\t"
+                f"{shot or ''}"
+            )
+            if shot:
+                base = 10 + index * 10
+                pixels = bytes(
+                    min(255, value + base)
+                    for value in (10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
+                                  110, 120)
+                )
+                with open(os.path.join(shots, f"{name}.png"), "wb") as fh:
+                    fh.write(make_rgb_png(2, 2, pixels))
+    transcript.extend(b"video tier: truecolor-cells\r\n")
+    events.append(
+        f"900\texit\texited=true killed=false\t{len(transcript)}\t"
+    )
+    with open(os.path.join(session, "events.log"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(events) + "\n")
+    with open(os.path.join(session, "pty.log"), "wb") as fh:
+        fh.write(bytes(transcript))
+    return root
+
+
 def make_rgb_png(width, height, pixels):
     """A minimal truecolor PNG from a flat RGB byte sequence (one
     filter-0 scanline per row), enough for the collector's decoder."""
@@ -224,6 +313,336 @@ def run_collect(run_dir, evidence_dir, *extra, os_name="linux"):
          *extra],
         capture_output=True, text=True,
     )
+
+
+class TestFixedSessionHonestyGates(unittest.TestCase):
+    """A transcript-driven pass must prove the fixed session rendered.
+
+    The macOS cold-start failure (issue #786) captured an empty title
+    phase and duplicate pre-render captures while still signing a pass.
+    These tests pin the required-checkpoint and first-paint gates that
+    make that shape partial or unverified.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="compat-contract-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _collect(self, **kwargs):
+        run_dir = make_fixed_session_run_dir(
+            os.path.join(self.tmp, "run"), **kwargs
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_complete_fixed_session_stays_pass(self):
+        row = self._collect()
+        self.assertEqual(row["disposition"], "pass")
+        self.assertEqual(row["readiness"]["timed_out"], False)
+        self.assertEqual(row["readiness"]["waited_ms"], 1234)
+        self.assertEqual(row["readiness"]["first_output_bytes"], 1)
+
+    def test_missing_checkpoint_is_partial(self):
+        row = self._collect(omit=("help",))
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("missing required checkpoint(s): help" in note
+                for note in row["notes"]),
+            f"missing required-checkpoint reason in {row['notes']}",
+        )
+
+    def test_zero_byte_checkpoint_is_partial(self):
+        row = self._collect(empty=("title",))
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("carried no transcript output: title" in note
+                for note in row["notes"]),
+            f"missing zero-byte reason in {row['notes']}",
+        )
+
+    def test_uncaptured_checkpoint_is_partial(self):
+        row = self._collect(uncaptured=("scores",))
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("produced no decodable capture: scores" in note
+                for note in row["notes"]),
+            f"missing uncaptured reason in {row['notes']}",
+        )
+
+    def test_resize_checkpoints_are_required_when_exercised(self):
+        row = self._collect(resize=True, omit=("refit",))
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("missing required checkpoint(s): refit" in note
+                for note in row["notes"]),
+            f"missing resize reason in {row['notes']}",
+        )
+
+    def test_complete_resized_session_stays_pass(self):
+        row = self._collect(resize=True)
+        self.assertEqual(row["disposition"], "pass")
+
+    def test_macos_session_does_not_require_resize_checkpoints(self):
+        row = self._collect(driver="macos", resize=False)
+        self.assertEqual(row["disposition"], "pass")
+
+    def test_readiness_timeout_is_unverified_not_partial(self):
+        row = self._collect(readiness="timeout", waited_ms=30000)
+        self.assertEqual(row["disposition"], "unverified")
+        self.assertEqual(row["readiness"]["timed_out"], True)
+        self.assertIn("never painted its first frame",
+                      row.get("unverified_reason", ""))
+
+    def test_required_checkpoints_follow_the_driver(self):
+        module = load_collect_module()
+        self.assertEqual(module.required_checkpoints({}), ())
+        self.assertEqual(
+            module.required_checkpoints({"driver": "windows"}), ()
+        )
+        self.assertEqual(
+            module.required_checkpoints({"driver": "none"}), ()
+        )
+        self.assertEqual(
+            module.required_checkpoints({"driver": "x11"}),
+            FIXED_SESSION_CHECKPOINTS,
+        )
+        self.assertEqual(
+            module.required_checkpoints({"driver": "macos"}),
+            FIXED_SESSION_CHECKPOINTS,
+        )
+        self.assertEqual(
+            module.required_checkpoints(
+                {"driver": "x11", "geometry": {"resize_exercised": True}}
+            ),
+            FIXED_SESSION_CHECKPOINTS + RESIZE_CHECKPOINTS,
+        )
+
+    def test_readiness_events_parse_into_ints(self):
+        module = load_collect_module()
+        events = [
+            {"type": "readiness",
+             "detail": "waited_ms=250 baseline_bytes=0 first_output_bytes=64"},
+            {"type": "exit", "detail": "exited=true"},
+        ]
+        self.assertEqual(
+            module.readiness_from_events(events),
+            {
+                "waited_ms": 250,
+                "baseline_bytes": 0,
+                "first_output_bytes": 64,
+                "timed_out": False,
+            },
+        )
+        timeout = [
+            {"type": "readiness-timeout",
+             "detail": "waited_ms=30000 baseline_bytes=0 first_output_bytes=0"},
+        ]
+        self.assertTrue(module.readiness_from_events(timeout)["timed_out"])
+        self.assertIsNone(module.readiness_from_events([]))
+
+
+class TestDriveReadiness(unittest.TestCase):
+    """The real drive.sh first-output wait, exercised with --driver none.
+
+    A cold macOS terminal accepted the session keys before the game had
+    painted, so the title phase was 0 bytes and the row still passed.
+    These tests run the shipped driver (no emulator needed) and prove the
+    bounded wait logs `readiness`, a timeout logs `readiness-timeout` and
+    skips the title checkpoint, and the collector grades a timed-out
+    session unverified.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="compat-drive-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _run_drive(self, launch, *extra):
+        outdir = os.path.join(self.tmp, "run")
+        transcript = os.path.join(outdir, "session", "pty.log")
+        proc = subprocess.run(
+            ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
+             "--driver", "none", "--launch", launch, "--outdir", outdir,
+             "--emulator", "unit-test", "--transcript", transcript,
+             *extra],
+            capture_output=True, text=True, timeout=60,
+        )
+        return proc, outdir
+
+    def _events(self, outdir):
+        path = os.path.join(outdir, "session", "events.log")
+        with open(path, encoding="utf-8") as fh:
+            return [line.rstrip("\n").split("\t")
+                    for line in fh if line.strip()]
+
+    def test_ready_seconds_must_be_positive(self):
+        for value in ("0", "-1", "abc", ""):
+            outdir = os.path.join(self.tmp, "bad")
+            proc = subprocess.run(
+                ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
+                 "--driver", "none", "--launch", "true", "--outdir", outdir,
+                 "--ready-seconds", value],
+                capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(proc.returncode, 2, value)
+            self.assertIn("positive integer", proc.stderr)
+
+    def test_ready_seconds_has_an_upper_bound(self):
+        # The wait is converted to milliseconds, so an unbounded value would
+        # overflow the arithmetic and time out immediately while still
+        # claiming an enormous budget.
+        for value in ("86401", "9223372036854775807", "9" * 40):
+            outdir = os.path.join(self.tmp, "huge")
+            proc = subprocess.run(
+                ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
+                 "--driver", "none", "--launch", "true", "--outdir", outdir,
+                 "--ready-seconds", value],
+                capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(proc.returncode, 2, value)
+            self.assertIn("86400", proc.stderr)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_the_readiness_deadline_keeps_sub_second_precision(self):
+        # The deadline used whole-second truncation, so a launch at a
+        # fractional second expired up to ~1s early: output at 0.8s under a
+        # 1-second budget was graded a timeout.
+        transcript = os.path.join(self.tmp, "run", "session", "pty.log")
+        launch = (
+            "sleep 0.8; printf 'boot\\r\\n' >> '%s'; sleep 0.2"
+            % transcript
+        )
+        proc, outdir = self._run_drive(
+            launch, "--ready-seconds", "1", "--boot-seconds", "0.1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        events = self._events(outdir)
+        self.assertTrue(
+            any(event[1] == "readiness" for event in events), events)
+        self.assertFalse(
+            any(event[1] == "readiness-timeout" for event in events), events)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_a_relative_transcript_resolves_against_the_run_directory(self):
+        # A relative --transcript used to be truncated as a CWD-relative
+        # path, so a missing parent aborted with a bare shell error before
+        # meta.json. Resolve it like collect.py does and create the parent.
+        outdir = os.path.join(self.tmp, "run")
+        proc = subprocess.run(
+            ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
+             "--driver", "none", "--launch", "sleep 0.1",
+             "--outdir", outdir, "--emulator", "unit-test",
+             "--transcript", "nested/dir/pty.log",
+             "--ready-seconds", "1"],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        transcript = os.path.join(outdir, "nested", "dir", "pty.log")
+        self.assertTrue(os.path.isfile(transcript), proc.stderr)
+        with open(os.path.join(outdir, "session", "meta.json"),
+                  encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(meta["transcript"], transcript)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_ready_seconds_with_a_leading_zero_is_decimal(self):
+        # Bash arithmetic reads a leading zero as octal: `08` used to be an
+        # arithmetic error that skipped the wait entirely (no readiness
+        # event at all) and `010` silently waited 8 seconds. Both must mean
+        # the decimal value the caller typed.
+        for value, output_after in (("08", "0"), ("010", "8.5")):
+            with self.subTest(value=value):
+                transcript = os.path.join(self.tmp, "run", "session",
+                                          "pty.log")
+                launch = (
+                    "sleep %s; printf 'boot\\r\\n' >> '%s'; sleep 0.2"
+                    % (output_after, transcript)
+                )
+                proc, outdir = self._run_drive(
+                    launch, "--ready-seconds", value, "--boot-seconds", "0.1")
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertNotIn("value too great for base", proc.stderr)
+                events = self._events(outdir)
+                self.assertTrue(
+                    any(event[1] == "readiness" for event in events),
+                    (value, events),
+                )
+                self.assertFalse(
+                    any(event[1] == "readiness-timeout" for event in events),
+                    (value, events),
+                )
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_readiness_timeout_skips_the_title_checkpoint(self):
+        proc, outdir = self._run_drive("sleep 3", "--ready-seconds", "1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("no transcript output", proc.stderr)
+        events = self._events(outdir)
+        self.assertTrue(
+            any(event[1] == "readiness-timeout" for event in events),
+            events,
+        )
+        self.assertFalse(
+            any(event[1] == "checkpoint" and event[2] == "title"
+                for event in events),
+            "a timed-out session must not capture a blank title checkpoint",
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        collected = run_collect(outdir, evidence, "--result", "pass")
+        self.assertEqual(collected.returncode, 0, collected.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "unverified")
+        self.assertEqual(row["readiness"]["timed_out"], True)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_first_output_is_logged_before_the_title_checkpoint(self):
+        transcript = os.path.join(self.tmp, "run", "session", "pty.log")
+        launch = "printf 'boot\\r\\n' >> '%s'; sleep 0.2" % transcript
+        proc, outdir = self._run_drive(launch, "--ready-seconds", "5")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        events = self._events(outdir)
+        types = [event[1] for event in events]
+        self.assertIn("readiness", types)
+        self.assertLess(
+            types.index("readiness"), types.index("checkpoint"),
+            "the readiness event must precede the title checkpoint",
+        )
+        readiness = next(event for event in events
+                         if event[1] == "readiness")
+        detail = dict(token.split("=", 1)
+                      for token in readiness[2].split())
+        self.assertGreater(int(detail["first_output_bytes"]), 0)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_a_stale_transcript_in_a_reused_outdir_is_truncated(self):
+        # A kept or crashed --outdir can hold a large transcript from an
+        # earlier run. The launchers' `script` truncates it at launch, after
+        # drive.sh used to read the baseline, so the new launch's output
+        # could never exceed the stale byte count and the row timed out even
+        # though the game painted.
+        transcript = os.path.join(self.tmp, "run", "session", "pty.log")
+        os.makedirs(os.path.dirname(transcript), exist_ok=True)
+        with open(transcript, "wb") as fh:
+            fh.write(b"stale" * 20000)
+        launch = "printf 'boot\\r\\n' >> '%s'; sleep 0.2" % transcript
+        proc, outdir = self._run_drive(
+            launch, "--ready-seconds", "2", "--boot-seconds", "0.1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        events = self._events(outdir)
+        self.assertFalse(
+            any(event[1] == "readiness-timeout" for event in events),
+            events,
+        )
+        readiness = next(event for event in events
+                         if event[1] == "readiness")
+        detail = dict(token.split("=", 1)
+                      for token in readiness[2].split())
+        self.assertEqual(detail["baseline_bytes"], "0")
+        self.assertEqual(detail["first_output_bytes"], "6")
 
 
 class TestRunnerEntrypoints(unittest.TestCase):
