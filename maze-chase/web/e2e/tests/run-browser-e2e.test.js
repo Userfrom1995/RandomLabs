@@ -16,7 +16,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 
 const E2E_DIR = path.join(__dirname, '..');
 const RUNNER = path.join(E2E_DIR, 'run-browser-e2e.sh');
@@ -70,12 +70,164 @@ test('each suite gets its own profile and debug port', () => {
   assert.match(source, /mktemp -d/);
 });
 
-test('the runner exits on INT and TERM instead of continuing', () => {
-  const source = fs.readFileSync(RUNNER, 'utf8');
-  assert.match(source, /^trap cleanup EXIT$/m);
-  assert.match(source, /^trap 'exit 130' INT$/m);
-  assert.match(source, /^trap 'exit 143' TERM$/m);
-  assert.doesNotMatch(source, /^trap cleanup EXIT INT TERM$/m);
+function waitForPidFile(file, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      try {
+        if (fs.existsSync(file) && fs.readFileSync(file, 'utf8').trim()) {
+          resolve();
+          return;
+        }
+      } catch {
+        // file is mid-write; retry
+      }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`timed out waiting for ${file}`));
+        return;
+      }
+      setTimeout(tick, 25);
+    };
+    tick();
+  });
+}
+
+async function waitGone(pid, timeoutMs = 5000) {
+  const started = Date.now();
+  while (Date.now() - started <= timeoutMs) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`process ${pid} is still alive`);
+}
+
+function killQuietly(pid) {
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch {
+    // already gone
+  }
+}
+
+test('INT/TERM cancel the active suite and its Chrome', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-signal-'));
+  const nodePidFile = path.join(dir, 'node-pid');
+  const chromePidFile = path.join(dir, 'chrome-pid');
+  const nodeStub = path.join(dir, 'node');
+  fs.writeFileSync(nodeStub, [
+    '#!/usr/bin/env bash',
+    'if [ "$1" = "-e" ]; then exit 0; fi',
+    'printf "%s\\n" "$$" > "$NODE_PID_FILE"',
+    'exec sleep 60',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const chromeStub = path.join(dir, 'chrome');
+  fs.writeFileSync(chromeStub, [
+    '#!/usr/bin/env bash',
+    'printf "%s\\n" "$$" > "$CHROME_PID_FILE"',
+    'exec sleep 60',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const child = spawn('bash', [RUNNER, 'site-e2e.js',
+    '--base-url', 'http://127.0.0.1:1/',
+    '--chrome', chromeStub], {
+    env: {
+      ...process.env,
+      PATH: `${dir}:${process.env.PATH}`,
+      NODE_PID_FILE: nodePidFile,
+      CHROME_PID_FILE: chromePidFile,
+    },
+    stdio: 'ignore',
+  });
+  let nodePid = 0;
+  let chromePid = 0;
+  try {
+    await waitForPidFile(nodePidFile);
+    await waitForPidFile(chromePidFile);
+    nodePid = Number(fs.readFileSync(nodePidFile, 'utf8').trim());
+    chromePid = Number(fs.readFileSync(chromePidFile, 'utf8').trim());
+    const exited = new Promise((resolve) => {
+      child.once('exit', (code, signal) => resolve({ code, signal }));
+    });
+    child.kill('SIGTERM');
+    const result = await exited;
+    assert.equal(result.code, 143, `runner did not exit on TERM: ${JSON.stringify(result)}`);
+    await waitGone(nodePid);
+    await waitGone(chromePid);
+  } finally {
+    killQuietly(child.pid);
+    for (const file of [nodePidFile, chromePidFile]) {
+      try {
+        const pid = Number(fs.readFileSync(file, 'utf8').trim());
+        if (pid > 0) killQuietly(pid);
+      } catch {
+        // pid file never appeared
+      }
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a green suite survives a Chrome descendant writing the profile', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-cleanup-'));
+  const tmpRoot = path.join(dir, 'tmp');
+  fs.mkdirSync(tmpRoot);
+  const writerPidFile = path.join(dir, 'writer-pid');
+  const nodeStub = path.join(dir, 'node');
+  fs.writeFileSync(nodeStub, [
+    '#!/usr/bin/env bash',
+    'if [ "$1" = "-e" ]; then exit 0; fi',
+    'exit 0',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const chromeStub = path.join(dir, 'chrome');
+  fs.writeFileSync(chromeStub, [
+    '#!/usr/bin/env bash',
+    'profile=""',
+    'for arg in "$@"; do',
+    '  case "$arg" in',
+    '    --user-data-dir=*) profile="${arg#--user-data-dir=}" ;;',
+    '  esac',
+    'done',
+    'bash -c \'profile="$1"; while :; do : > "$profile/writer"; done\' _ "$profile" &',
+    'printf "%s\\n" "$!" > "$WRITER_PID_FILE"',
+    'exec sleep 60',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  let writerPid = 0;
+  try {
+    const proc = spawnSync('bash', [RUNNER, 'site-e2e.js',
+      '--base-url', 'http://127.0.0.1:1/',
+      '--chrome', chromeStub], {
+      encoding: 'utf8',
+      timeout: 15000,
+      env: {
+        ...process.env,
+        TMPDIR: tmpRoot,
+        PATH: `${dir}:${process.env.PATH}`,
+        WRITER_PID_FILE: writerPidFile,
+      },
+    });
+    if (fs.existsSync(writerPidFile)) {
+      writerPid = Number(fs.readFileSync(writerPidFile, 'utf8').trim());
+    }
+    assert.equal(proc.status, 0, `${proc.stderr}\n${proc.stdout}`);
+    assert.doesNotMatch(proc.stderr, /cannot remove|Directory not empty/);
+    const leftover = fs.readdirSync(tmpRoot)
+      .filter((name) => name.startsWith('maze-chase-e2e.'));
+    assert.deepEqual(leftover, [], 'the runner leaked its scratch directory');
+    if (writerPid > 0) {
+      assert.throws(() => process.kill(writerPid, 0), /ESRCH/,
+        'the runner left a Chrome profile writer running');
+    }
+  } finally {
+    killQuietly(writerPid);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function planRows(args) {
@@ -122,6 +274,26 @@ test('--plan maps --base-url onto every suite URL', () => {
 test('--plan honors a selected suite', () => {
   const rows = planRows(['--plan', 'site-e2e.js']);
   assert.deepEqual(rows.map((row) => row[0]), ['site-e2e.js']);
+});
+
+test('--plan collapses a duplicated suite argument', () => {
+  const rows = planRows(['--plan', 'site-e2e.js', 'site-e2e.js']);
+  assert.deepEqual(rows.map((row) => row[0]), ['site-e2e.js']);
+});
+
+test('an option without a value is a usage error', () => {
+  for (const args of [['--base-url'], ['--chrome'], ['--base-url', '--plan'], ['--chrome', '--plan']]) {
+    const proc = run(args);
+    assert.equal(proc.status, 2, `${args.join(' ')}: ${proc.stderr}`);
+    assert.match(proc.stderr, /requires a value/);
+  }
+});
+
+test('--help stops before the shell options', () => {
+  const proc = run(['--help']);
+  assert.equal(proc.status, 0, proc.stderr);
+  assert.doesNotMatch(proc.stdout, /set -euo pipefail/);
+  assert.match(proc.stdout, /--plan/);
 });
 
 test('a failing suite propagates and the browser is cleaned up', () => {
