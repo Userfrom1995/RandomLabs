@@ -92,17 +92,22 @@ without launching a browser or a server. The Node-only suites
 (`wasm-smoke.js`, `tester-regression.js`, `macos-case-audit.js`) run
 directly with `node`.
 
-Manual two-shell setup (one suite at a time; prefer the runner):
+Manual two-shell setup (one suite at a time; prefer the runner). Launch a
+fresh Chrome with its own profile for each suite and stop it before
+starting the next one:
 
 ```
 python3 -m http.server 8931   # Windows: python -m http.server 8931
 chromium --headless=new --disable-gpu --no-sandbox \
+  --user-data-dir="$(mktemp -d)" \
   --remote-debugging-port=9331 --window-size=1280,900 \
   http://localhost:8931/index.html
 node web/e2e/boot-gate-e2e.js
-node web/e2e/browser-e2e.js
-node web/e2e/site-e2e.js
 ```
+
+Stop Chrome and remove its profile, then relaunch with a fresh
+`--user-data-dir` before running another suite. Reusing one browser
+across suites is the contamination this runner avoids.
 
 The site harness also accepts a deployed base URL, for example
 `node web/e2e/site-e2e.js https://<owner>.github.io/<repo>/preview/pr-<N>/maze-chase/`
