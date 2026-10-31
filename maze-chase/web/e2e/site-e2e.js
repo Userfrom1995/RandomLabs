@@ -550,6 +550,46 @@ async function collectLinks(ws) {
       : 'missing'})`,
   );
 
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 430, height: 900, deviceScaleFactor: 2, mobile: true,
+  });
+  let grownNav = null;
+  let grownState = navPillScrollState(null);
+  for (let settle = 0; settle < 30; settle++) {
+    await sleep(100);
+    grownNav = await evalJs(ws, `(() => {
+      const nav = document.querySelector('.site-nav');
+      const active = nav && nav.querySelector('[aria-current="page"]');
+      if (!nav || !active) return null;
+      const box = nav.getBoundingClientRect();
+      const pill = active.getBoundingClientRect();
+      return {
+        scrollLeft: nav.scrollLeft,
+        overflows: nav.scrollWidth > nav.clientWidth + 1,
+        left: pill.left,
+        right: pill.right,
+        boxLeft: box.left,
+        boxRight: box.right,
+        unscrolledLeft: pill.left + nav.scrollLeft,
+        unscrolledRight: pill.right + nav.scrollLeft,
+        viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
+      };
+    })()`);
+    if (grownNav && grownNav.viewport[0] === 430) {
+      grownState = navPillScrollState(grownNav);
+      if (grownState.visible) break;
+    }
+  }
+  assert(
+    grownNav
+      && grownNav.viewport[0] === 430
+      && grownState.visible
+      && grownState.ok,
+    `releases.html keeps the current nav pill valid after a resize back to 430x900 (${grownNav
+      ? `viewport ${grownNav.viewport[0]}x${grownNav.viewport[1]}, ${grownNav.left.toFixed(1)}..${grownNav.right.toFixed(1)} in ${grownNav.boxLeft.toFixed(1)}..${grownNav.boxRight.toFixed(1)}, overflows ${grownNav.overflows}, scrollLeft ${grownNav.scrollLeft.toFixed(1)}, scrollRequired ${grownState.scrollRequired}`
+      : 'missing'})`,
+  );
+
   // Crawl every internal link once, over HTTP, and verify fragments.
   while (linkQueue.length > 0) {
     const url = linkQueue.shift();
