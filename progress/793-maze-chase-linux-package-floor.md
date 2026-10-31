@@ -3,14 +3,14 @@
 Status: complete
 Issue: #793 (Refs #657, #582, #683; closes only #793)
 Branch: opencode/issue657-20261031025903
-Base: `main` `c28215a1` (rebased from `ef2e5503` after review)
+Base: `main` `ffe54275` (rebased from `ef2e5503` through review rounds)
 
 ## Scope
 
 - Declare the glibc 2.39 build floor in every Linux package and document
   the supported distribution floor.
-- Declare the desktop X11 runtime libraries winit dlopens in the DEB and
-  RPM metadata.
+- Declare the desktop display runtime libraries winit dlopens (X11,
+  X11-xcb, and Wayland) in the DEB and RPM metadata.
 - Replace bare `dpkg -i` / `rpm -i` install copy with dependency-resolving
   `apt install ./...` / `dnf install ./...` commands.
 - Document the same-NEVRA candidate replacement path (`dnf reinstall` /
@@ -77,4 +77,16 @@ lane.
     `docs/release.md`, regenerated `docs/release.html`, verified the
     rendered source hash matches, and rebased onto `origin/main`
     (`c28215a1`) before rerunning the gates.
+  - Skills: no registry skill matched; `AGENTS.md` conventions applied.
+- 2026-10-31 (fixer, review round 3): delegation ledger for the findings:
+  - general: package metadata verification; returned PASS on the X11-xcb
+    and Wayland declarations, exact smoke matching, and 34/34 packaging
+    tests with `dpkg-deb`/`rpm`/`rpmbuild` present.
+  - general: adversarial smoke probe; returned PASS with the control RPM
+    exiting 0 and a libXi-removed RPM exiting 1 naming `libXi`.
+  - general: docs consistency audit; returned PASS with no stale X11-only
+    list and no false `GLIBC_2.39` abort claim, `render-docs --check` green.
+  - Primary context: applied the dependency, exact-match, and GLIBC 2.35
+    corrections across the scripts, docs, rendered pages, and tests, then
+    rebased onto current `origin/main` before rerunning the gates.
   - Skills: no registry skill matched; `AGENTS.md` conventions applied.
