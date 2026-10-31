@@ -7,7 +7,12 @@
 #
 # Output: maze-chase/dist/maze-chase-terminal-<version>-1.<arch>.rpm
 # Installs /usr/bin/maze-chase-terminal plus the launch guide; removes
-# cleanly with `sudo rpm -e maze-chase-terminal`.
+# cleanly with `sudo dnf remove maze-chase-terminal`. Release stays `1`
+# so the installed release workflow's `-1.<arch>.rpm` artifact glob keeps
+# matching; every candidate of the same workspace version therefore has
+# the same NEVRA, and candidate-to-candidate replacement is documented as
+# `dnf reinstall ./<rpm>` (or `rpm -U --replacepkgs <rpm>`), never bare
+# `rpm -U`. The package declares the glibc build floor.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,6 +48,7 @@ Summary:        Original fullscreen terminal maze-chase game
 License:        MIT
 URL:            https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
 BuildArch:      $ARCH
+Requires:       glibc >= $GLIBC_FLOOR
 
 %description
 Maze Chase is an original maze-chase game on a shared deterministic Rust
