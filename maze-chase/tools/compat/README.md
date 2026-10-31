@@ -70,12 +70,16 @@ committed bundle.
 ## The session
 
 `drive.sh` runs the same key choreography on Linux and macOS, and
-`run-windows.ps1` follows the same state-machine path. It follows
+`run-windows.ps1` follows the same key state-machine path but has no pty
+transcript (Windows records no transcript by design), so it does not run
+the transcript readiness wait. It follows
 `../../crates/terminal/src/{app,screens}.rs` exactly:
 
-0. the driver waits for the first transcript output before sending any
-   key (a cold terminal that has not painted yet is a timeout, not a
-   blank session to drive);
+0. on Linux and macOS the driver waits for the first transcript output
+   before sending any key (a cold terminal that has not painted yet is a
+   timeout, not a blank session to drive); `run-windows.ps1` instead
+   sleeps a fixed boot window and captures the title checkpoint without
+   a transcript wait;
 1. title screen captured on boot;
 2. Confirm starts a run, arrow keys steer for a bounded window;
 3. on Linux only: the window resizes wide, then below the 62x35 floor
