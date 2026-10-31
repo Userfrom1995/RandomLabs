@@ -86,10 +86,28 @@ a cold compat run waiting for or failing on an empty title checkpoint)
 is delegated to the macOS tester arm; the collector's required-checkpoint
 and readiness gates are platform-independent and unit-tested.
 
+macOS tester round (2026-10-31, this runner):
+
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 25 tests, all pass.
+- `python3 -m unittest discover -s maze-chase/tools/compat/tests` -> 71
+  tests, OK.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh site-e2e.js`
+  -> `SITE-E2E ALL GREEN: 674 assertions` (the link crawl and the asset
+  probes now consume every response body, closing the intermittent Node
+  24 undici parser assertion the macOS arm reproduced).
+- `bash maze-chase/web/e2e/run-browser-e2e.sh`
+  -> all 5 CDP suites green with a fresh Chrome each.
+- `node tools/site/render-docs.mjs --check`
+  -> 15 docs current; 423 internal links verified.
+- The rebase onto `origin/main` dropped the stray per-OS commit that
+  touched `.github/scripts/post-peros-findings.sh` (its content was
+  already on main), so the diff is the 15 harness/docs/progress files
+  again.
+
 ## Current step
 
-Review round 2 findings applied and Linux verification is green. Awaiting
-re-review.
+macOS tester findings applied and Linux verification is green. Awaiting
+re-review and a re-bound macOS row on the final head.
 
 ## Next steps
 
@@ -150,4 +168,23 @@ re-review.
   `tester_site` and `tester_docs_language`, and shellcheck/bash -n on
   both shell harnesses.
 - Skills (fixer round 2): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-10-31 (fixer): applied the macOS tester round. `site-e2e.js` now
+  consumes every HTTP response body (the non-OK and non-fragment link
+  branches and the four asset probes), so the intermittent Node 24
+  undici `Parser.finish` assertion cannot fire when the static server
+  closes the connection. The rebase onto `origin/main` dropped the stray
+  per-OS commit that touched `.github/scripts/post-peros-findings.sh`
+  (its content was already on main), restoring the harness-only diff.
+  Scoped the compat README window wait to X11 and replaced the manual
+  shared-Chrome block with a per-suite fresh-profile launch.
+- Delegation (fixer round 3): general (site-e2e audit) -> enumerated
+  every fetch in the web harnesses and confirmed the link-crawl and
+  asset probes were the only unconsumed response bodies; general
+  (docs/provenance audit) -> confirmed the dropped infra commit is
+  byte-identical to main and checked the two docs claims.
+- Primary verified (fixer round 3): ran the 71-test compat suite, the
+  25-test node suite, the live 674-assertion site-e2e, all five CDP
+  suites, and `render-docs.mjs --check`.
+- Skills (fixer round 3): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).
