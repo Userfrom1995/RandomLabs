@@ -142,7 +142,7 @@ response=$(gh api "repos/${repo}/issues/${target}/comments" --raw-field body="$e
   exit 1
 }
 
-comment_id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+comment_id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null | tr -d '\r' || true)
 if [ -z "$comment_id" ]; then
   echo "::error::post-peros-findings.sh: the GitHub API accepted the comment but returned no id; cannot verify it persisted (response head: $(printf '%s' "$response" | head -c 300))."
   exit 1
@@ -152,8 +152,8 @@ fetched=$(gh api "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
   echo "::error::post-peros-findings.sh: could not re-fetch posted findings comment ${comment_id}: ${fetched}"
   exit 1
 }
-author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || true)
-html_url=$(printf '%s' "$fetched" | jq -r '.html_url // empty' 2>/dev/null || true)
+author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null | tr -d '\r' || true)
+html_url=$(printf '%s' "$fetched" | jq -r '.html_url // empty' 2>/dev/null | tr -d '\r' || true)
 fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
 fetched_last=$(printf '%s' "$fetched_body" | awk 'NF { line=$0 } END { print line }')
 
