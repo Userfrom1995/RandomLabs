@@ -49,16 +49,20 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
 
 ## Verification
 
-Linux (2026-10-30, this runner):
+Linux (2026-10-31, review round 2, this runner):
 
 - `python3 -m unittest discover -s maze-chase/tools/compat/tests -v`
-  -> 68 tests, OK (includes the real drive.sh readiness wait with
-  `--driver none`, the decimal `--ready-seconds` and stale-transcript
-  regressions, the fixed-session pass/partial/unverified matrix, and the
-  committed evidence bundle checks).
+  -> 71 tests, OK (includes the real drive.sh readiness wait with
+  `--driver none`, the decimal and bounded `--ready-seconds`
+  regressions, the sub-second deadline precision and relative-transcript
+  regressions, the stale-transcript regression, the fixed-session
+  pass/partial/unverified matrix, and the committed evidence bundle
+  checks).
 - `node --test maze-chase/web/e2e/tests/*.test.js`
-  -> 20 tests, all pass (includes the `--plan` isolation/URL mapping,
-  the terminating signal traps, and the failing-suite cleanup contract).
+  -> 24 tests, all pass (includes the `--plan` isolation/URL mapping and
+  duplicate collapsing, the behavioral INT/TERM cancellation and
+  profile-writer cleanup contracts, and the failing-suite cleanup
+  contract).
 - `bash maze-chase/web/e2e/run-browser-e2e.sh site-e2e.js`
   -> `SITE-E2E ALL GREEN: 673 assertions` (includes the 390x844 nav-pill
   invariant and the 320x568 re-reveal assertion).
@@ -66,6 +70,11 @@ Linux (2026-10-30, this runner):
   -> all 5 CDP suites green with a fresh Chrome each
   (`boot-gate-e2e.js`, `browser-e2e.js`, `tester-rebind-lifecycle.js`,
   `tester-audio-e2e.js`, `site-e2e.js`).
+- `node tools/site/render-docs.mjs --check`
+  -> 15 docs current; 423 internal links verified.
+- `cargo test -p maze-chase-terminal --test tester_site`
+  -> 8 tests, OK (includes
+  `rendered_docs_are_current_and_marked_with_their_source`).
 - `cargo test -p maze-chase-terminal --test tester_docs_language`
   -> 2 tests, OK.
 - `bash -n` and `shellcheck` on `drive.sh` and `run-browser-e2e.sh`
@@ -79,7 +88,7 @@ and readiness gates are platform-independent and unit-tested.
 
 ## Current step
 
-Review round 1 findings applied and Linux verification is green. Awaiting
+Review round 2 findings applied and Linux verification is green. Awaiting
 re-review.
 
 ## Next steps
@@ -116,4 +125,29 @@ re-review.
   compat suite, the 20-test node suite, the live 673-assertion
   site-e2e, and shellcheck/bash -n on both shell harnesses.
 - Skills (fixer): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-10-31 (fixer): applied review round 2. B1 regenerated the stale
+  rendered docs (`docs/web.html`, `docs/terminal-compat.html`) and added
+  `tester_site` plus `render-docs.mjs --check` to the verification list.
+  H1 makes the runner cleanup status-safe (kill surviving profile
+  writers, bounded removal retries, preserve the suite's exit status).
+  M1 backgrounds each suite and forwards INT/TERM to Node and Chrome so a
+  hung CDP run is cancellable. M2 uses millisecond readiness arithmetic
+  with an 86400-second bound. L1-L3 reject valueless options, collapse a
+  duplicated suite argument, and stop `--help` before the shell options.
+  L4-L5 scope the readiness claim to Linux/macOS, define `unverified`
+  honestly, resolve a relative transcript against the run directory
+  (creating its parent), and derive `resize_exercised` from the measured
+  resizes with boot geometry recorded before the readiness wait.
+- Delegation (fixer round 2): general (compat harness audit) -> traced
+  the drive.sh deadline, transcript, and geometry paths and reproduced
+  M2/L5; general (web harness audit) -> traced the runner traps, cleanup,
+  parsing, and plan paths and reproduced H1/M1/L1-L3; general
+  (process/docs audit) -> confirmed B1 and the L4 docs mismatches.
+- Primary verified (fixer round 2): read every changed line; ran the
+  71-test compat suite, the 24-test node suite, the live 673-assertion
+  site-e2e and all five CDP suites, `render-docs.mjs --check`,
+  `tester_site` and `tester_docs_language`, and shellcheck/bash -n on
+  both shell harnesses.
+- Skills (fixer round 2): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).
