@@ -595,7 +595,10 @@ async function collectLinks(ws) {
     const url = linkQueue.shift();
     const response = await fetch(url.href, { redirect: 'follow' });
     assert(response.ok, `link ${url.pathname} responds ${response.status}`);
-    if (!response.ok) continue;
+    if (!response.ok) {
+      await response.arrayBuffer();
+      continue;
+    }
     if (url.hash && /\.(html|htm)?$/.test(url.pathname)) {
       const body = await response.text();
       const wanted = `id="${url.hash.slice(1)}"`;
@@ -607,11 +610,14 @@ async function collectLinks(ws) {
         at = body.indexOf(wanted, at + 1);
       }
       assert(found, `link ${url.pathname}${url.hash} names a real id`);
+    } else {
+      await response.arrayBuffer();
     }
   }
   for (const asset of ['site.css', 'web/maze-chase.js', 'web/maze-chase.wasm', 'web/favicon.svg']) {
     const response = await fetch(BASE + asset);
     assert(response.ok, `asset ${asset} responds ${response.status}`);
+    await response.arrayBuffer();
   }
 
   await navigate(ws, gameUrl);
