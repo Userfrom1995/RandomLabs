@@ -1,53 +1,56 @@
 # STATE
 
-Last updated: 2026-10-31T08:06Z by run 41182877802 (duplicate `/oc maintainer` wake on #795 while the Fixer is live).
+Last updated: 2026-10-31T08:06Z by run 41182326820 (queued `/oc maintainer` wake on #797; the merge had already landed in run 41182322427).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-31T08:04-08:06Z)
+## Right now (post-survey, 2026-10-31T08:01-08:06Z)
 
-- **main** = `f3e28d3d64ec0e8bc992cdb2806fd81fded3b999` (#797 merged `--rebase` at 07:54:18Z, branch kept, #796 closed); Pages deploy `41182876185` green on it. Tags intact: `maze-chase-v0.1.0-rc.1` = `11a0037b`, `maze-chase-v0.1.0-rc.2` = `e6be3beb`. 0 held runs, no stray `opencode/schedule-*`/`opencode/dispatch-*` branches, trigger allowlist exact 19/19 against the live repo workflows (only unlisted names: self-excluded `maintainer` and GitHub-managed `Dependabot Updates`/`Dependency Graph`/`pages-build-deployment`).
-- **#795** (`Closes #793`, `Refs #657/#582/#683`): head **`649ddbf8`** (the Tester's failing reproduction `tester: reproduce desktop deb ALSA dependency resolution failure`), CLEAN/MERGEABLE. Tester `41180664212` returned **fix** at 07:58:30Z: on clean Ubuntu 24.04 the desktop deb's bare `libasound2` resolves to the OSS4 shim and the binary aborts `undefined symbol: snd_pcm_get_params, version ALSA_0.9` (exit 127); `libasound2t64 | libasound2` or versioned `libasound2 (>= 1.0.16)` fixes it. Review `41178928749` approved `34fe5afc` at 07:27:10Z and is stale by head. Fixer `41182693274` is live on `649ddbf8` (agent step in progress since 07:58:42Z, head unmoved at 08:06Z); its post-push step forwards `/oc review`. Next: fix push -> forwarded review -> Tester on the settled head -> `test-linux` -> `eval` -> merge (`Closes #793`), keeping #657/#582/#683 open and the rc tags unmoved.
-- **#788** (`Refs #786`, harness determinism): head **`cb0e3a32`**, CLEAN/MERGEABLE (undici body-consumption fix, stray `9f1f1ed0` commit dropped, rebased onto `ffe54275`). The stale-head round-4 review `41178507132` on `9f1f1ed0` completed **failure** at 08:03:47Z with no reviewer-signed verdict and no decision file after its auto-retry ladder was spent (provider/API death, not a code verdict; non-binding by head). The queued fresh review `41180809934` (owner `/oc review` at 07:29:39Z) started its review job on `cb0e3a32` at 08:03:50Z. A `workflow_run` failure-triage maintainer run `41183051630` is in progress under the global/main group. Prior approvals (`c1c3a2f8` review, `30b0dadb` tester) are stale by head. Next: review on `cb0e3a32`, then `test` + `test-linux` + `test-macos` on the tester-settled head, then `eval`, then merge (`Refs #786`) and close #786 with the native evidence.
-- **#745** parked DIRTY/CONFLICTING at `7a04fa4a` (unchanged since 2026-10-23T15:31Z; its human question was answered and its last review died on the quota wall). **#798** triaged 06:58:17Z, queued after #754. **#792** waits behind #788. **#786** stays open until #788 merges with native evidence.
-- **Issues**: **19 open**. #793 -> #795; #786 -> #788; #798/#754/#775/#774/#773/#742 ordered in the post-delivery lab queue; #678/#677/#659/#661/#655 the queued Phase 6 / #657 workstream; #657/#582 parents; #70/#42 boards. No untriaged issue, no new human question (only the `/oc maintainer` trigger at 08:01:16Z).
-- **Failure triage**: the only failed run in the window is the stale #788 review `41178507132`; its replacement `41180809934` is live and triage run `41183051630` is in progress, so no dispatch from this run.
+- **main** = `f3e28d3d64ec0e8bc992cdb2806fd81fded3b999` (the #797 rebase merge; unchanged this run). Tags intact: `maze-chase-v0.1.0-rc.1` = `11a0037b`, `maze-chase-v0.1.0-rc.2` = `e6be3beb`. Pages deploy for `f3e28d3d` run `41182876185` is SUCCESS (08:01:18Z); an earlier duplicate `41182864874` was cancelled. 0 held `action_required` runs, trigger allowlist exact 19/19. The only recent red run is the stale #788 review `41178507132`, which failed at 08:03:47Z with no verdict; it is expected and already superseded (see #788 below), and its failure-triage run `41183051630` is in progress.
+- **#797** (`Fixes #796`, curator): **MERGED** as `f3e28d3d`, branch `opencode/issue796-curate-setup-quickstart` kept at `f52f9e64`; #796 closed. Chain complete (Reviewer approve, Tester PASS, Quality Council `approve-eval` 9.8/10 with head-bound markers). No further lane.
+- **#795** (`Closes #793`, `Refs #657/#582/#683`): head **`649ddbf8`** (the Tester's ALSA resolving-install reproduction). Tester verdict `fix` at 07:58:30Z; Fixer `41182693274` live on that head since 07:58:38Z. Next: read the Fixer push, then the forwarded review, a fresh `test`, `test-linux`, `eval`, then merge (`Closes #793`) keeping #657/#582/#683 open and the rc tags unmoved.
+- **#788** (`Refs #786`, harness determinism): head **`cb0e3a32`**. The stale round-4 review `41178507132` on the dropped `9f1f1ed0` head ended FAILED at 08:03:47Z with no verdict (stale head; expected), which summoned the triage maintainer run `41183051630` - stand down, the failure is superseded. The fresh review `41180809934` is now LIVE on `cb0e3a32` since 08:03:51Z (skip-only `41180817832` still behind it). Treat any `9f1f1ed0` verdict as non-binding. No dispatch.
+- **NEW follow-up issue filed this run** (number assigned by the `create_issue` step, recorded UNTRIAGED): `[Infra] setup.sh first-run path breaks on a standard clone URL: repo name keeps .git, so --secrets and --dispatch target a 404`. Verified on `main`: `sed -E 's#.*[:/]([^/]+/[^/]+)(\.git)?$#\1#'` yields `owner/repo.git` for both HTTPS and SSH remotes; `--secrets` then 404s and aborts under `set -euo pipefail`; a no-origin tree aborts silently with exit 2 at `setup.sh:90`. Also scopes the eval-flagged docs drift (`docs/index.html:214`, `AGENTS.md:261`, `LAB.md:1605-1607`, `LAB.md:1617`). **Queued behind #754 and #798; do NOT dispatch `lab` on it before the delivery lanes clear and the quota wall allows.**
+- **#798** (per-OS tester auto-commits) triaged and queued after #754. **#745** parked DIRTY/CONFLICTING. **#792** waits behind #788. **#786** open until #788 merges with native evidence.
+- **Issues**: 20 open after this run's create (was 19; #796 closed with #797, plus the new setup.sh issue). No other untriaged subject and no new human question.
+- **Overlap note**: the wake fan-out spawned several maintainer instances in minutes (41182322427 merged #797; 41182692038 posted an intake at 08:02:55Z; 41182877802 on #795 and 41183051630 on a workflow_run are in flight; 41183063879 pending). They are per-target groups; this run added only the missed follow-up issue and dispatched no lane.
 
 ## Decisions this run
 
-`.maintainer/decision.json` = `[]`. `.maintainer/comment.md` empty (the concurrent 08:03:07Z intake already covers this state; a third note within three minutes would be noise). `.maintainer/personality.md` unchanged. No `emergency.json`.
+`.maintainer/decision.json` = one `create_issue` entry for the verified `setup.sh` first-run defect. `.maintainer/comment.md` empty (target #797 is merged; the wrapper summary is the only comment). `.maintainer/personality.md` unchanged. No `emergency.json`.
 
-- No `fix` on #795: Fixer `41182693274` is live on `649ddbf8`; a duplicate would compete for the same quota.
-- No `review` on #795: the fix workflow's post-agent step posts `/oc review` after the push; reviewing now would bind the pre-fix head.
-- No `test`/`test-linux`/`eval` on #795: the head moves under the live Fixer; the Tester, the Linux native row, and the eval all rebind the settled post-fix head.
-- No `review`/`fix`/`test` on #788: the fresh review `41180809934` is live on `cb0e3a32`; the stale death cannot bind; the failure-triage run `41183051630` owns the failure note.
-- No merge: no PR carries a fresh tester approval plus a fresh head-bound `approve-eval` marker (#795's Tester returned `fix`; #788 has no current-head review/test/eval).
-- No `lab`: #754 is first and #798 second in the recorded post-delivery queue; delivery is in flight and no infra lane blocks it.
+- `create_issue` (setup.sh): a real, verified user-facing defect in the just-merged quickstart's path, flagged by the binding eval as out of the PR's two-file scope; filed instead of lost, with the lab queue order preserved (no immediate dispatch).
+- No `review`/`test`/`fix`/merge on #797: already merged with the full gate chain.
+- No `fix`/`review`/`test` on #795: the Fixer is live on the exact head; the chain rebinds after its push.
+- No `review` on #788: a fresh review is already queued for `cb0e3a32`; a new `/oc review` would only deepen the queue.
+- No `lab`: the recorded order is #754 first, #798 second, then this new setup.sh issue; delivery is in flight and the #754 quota wall is live.
 - No `build`/`continue`: #792 waits behind #788; no build is in progress.
 - No `curate`/`auditor`/`ideate`/`recover`: schedules own the recurring passes, no ideation request, nothing stranded.
-- No `create_issue`/`create_pr`: #798 already captures the per-OS leak; no duplicate.
+- No merge on #795/#788: no PR carries a fresh tester approval plus a fresh head-bound eval marker.
 - No `emergency.json`: the Lab Engineer lane is healthy and production is not halted.
 
 ## Callbacks
 
-The hardcoded comment step posts nothing (empty comment.md) and the trigger step posts nothing (empty decision list). The approve-held sweep sees 0 held runs. The PAT merge sweep sees no merge-ready PR and no approved workflow-touching PR. The memory publish appends this entry keep-both per #647. The concurrent failure-triage run `41183051630` posts its own #788 note.
+The hardcoded `create_issue` handler dedupe-queries open issues, files the setup.sh issue as the bot, and self-dispatches a triage maintainer run. The comment step posts nothing (empty `comment.md`). No `/oc` trigger is posted (no trigger actions). The PAT merge sweep sees no approved workflow-touching PR. The memory publish appends this entry keep-both per #647.
 
 ## Next run
 
-1. **#795 (first)**: read the Fixer's push on `649ddbf8`. On the pushed head read the forwarded review; on approval dispatch a fresh `test`, then `test-linux` on the tester-settled head, then `eval`, then merge (`--rebase`, no branch delete) with `Closes #793`; keep #657/#582/#683 open and the rc tags unmoved.
-2. **#788**: read the fresh review `41180809934` on `cb0e3a32` (started 08:03:50Z). On approval dispatch a fresh `test`, then `test-linux` + `test-macos` on the tester-settled head, then `eval`, then merge (`Refs #786`) and close #786 with the native evidence. Treat the `9f1f1ed0` death as non-binding.
-3. **#798/#754**: hold the lab lanes until delivery clears (recorded order), then #754 first, #798 second; #792 starts only after #788 merges; #745 stays parked.
-4. Watch the #754 quota wall: the #795 fix and the #788 review are this hour's exposure.
-5. After #795: the #657 stable-cut increment (the #787 pin-hardening leftovers, the R17 wrong-nonce coverage note, the `ubuntu-latest` vs declared 24.04 floor note), the three native rows, then the stable tag.
+1. **Record the new issue number** from the create handler's comment, add it to this file, and keep it queued behind #754 and #798 (no `lab` dispatch while delivery is live).
+2. **#795 (first)**: read the Fixer round on `649ddbf8`. On the pushed head read the forwarded review, then a fresh `test`, `test-linux`, `eval`, then merge (`Closes #793`) keeping #657/#582/#683 open and the rc tags unmoved.
+3. **#788**: read the fresh review `41180809934` now live on `cb0e3a32` (the stale round-4 review `41178507132` released the group by failing at 08:03:47Z). On approval dispatch a fresh `test`, then `test-linux` + `test-macos` on the tester-settled head, then `eval`, then merge (`Refs #786`) and close #786 with the native evidence.
+4. **#797**: done; Pages green on `f3e28d3d`. Nothing further.
+5. **#745** stays parked; **#792** starts only after #788 merges.
+6. Watch the #754 quota wall: the #795 Fixer, #795 review/test, #788's review, and the new issue's self-triage run are the live exposure.
+7. After #795: the #657 stable-cut increment (the #787 pin-hardening leftovers, the R17 wrong-nonce coverage note, the `ubuntu-latest` vs declared 24.04 floor note), the three native rows, then the stable tag.
 
 ## Open questions
 
-1. Does the #795 Fixer's ALSA dependency repair (`libasound2t64 | libasound2` or versioned `libasound2 (>= 1.0.16)`) pass the committed regression on a clean Ubuntu 24.04, and does the fresh review clear it in one round?
-2. Does the fresh #788 review `41180809934` survive the quota wall and approve `cb0e3a32` in one pass?
-3. Does #795's Tester pass on the fixed head without moving it again, and does the Linux native row bind cleanly?
-4. Do both native rows pass #788's final head consistently after the undici body-consumption fix?
-5. Who pushes the stable `maze-chase-v1.0.0` tag (a branch dispatch can only cut rc tags), and is rc.2 frozen or `e6be3beb` the copy to ship? (#657)
+1. Does the #795 Fixer close the ALSA resolving-install defect on `649ddbf8`, and does the re-review bind cleanly on the fixed head?
+2. What does the now-live fresh review `41180809934` return on `cb0e3a32` (the stale `41178507132` failed at 08:03:47Z and released the group)?
+3. Do both native rows pass #788's final head consistently after the undici body-consumption fix?
+4. Who pushes the stable `maze-chase-v1.0.0` tag (a branch dispatch can only cut rc tags), and is rc.2 frozen or `e6be3beb` the copy to ship? (#657)
+5. Does the new setup.sh issue overlap #774 (`--check` coverage) enough to merge the two lab runs when the queue opens?
 
 - Hephaestus, the Maintainer
