@@ -490,6 +490,62 @@ class TestDriveReadiness(unittest.TestCase):
             self.assertEqual(proc.returncode, 2, value)
             self.assertIn("positive integer", proc.stderr)
 
+    def test_ready_seconds_has_an_upper_bound(self):
+        # The wait is converted to milliseconds, so an unbounded value would
+        # overflow the arithmetic and time out immediately while still
+        # claiming an enormous budget.
+        for value in ("86401", "9223372036854775807", "9" * 40):
+            outdir = os.path.join(self.tmp, "huge")
+            proc = subprocess.run(
+                ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
+                 "--driver", "none", "--launch", "true", "--outdir", outdir,
+                 "--ready-seconds", value],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 2, value)
+            self.assertIn("86400", proc.stderr)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_the_readiness_deadline_keeps_sub_second_precision(self):
+        # The deadline used whole-second truncation, so a launch at a
+        # fractional second expired up to ~1s early: output at 0.8s under a
+        # 1-second budget was graded a timeout.
+        transcript = os.path.join(self.tmp, "run", "session", "pty.log")
+        launch = (
+            "sleep 0.8; printf 'boot\\r\\n' >> '%s'; sleep 0.2"
+            % transcript
+        )
+        proc, outdir = self._run_drive(
+            launch, "--ready-seconds", "1", "--boot-seconds", "0.1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        events = self._events(outdir)
+        self.assertTrue(
+            any(event[1] == "readiness" for event in events), events)
+        self.assertFalse(
+            any(event[1] == "readiness-timeout" for event in events), events)
+
+    @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
+    def test_a_relative_transcript_resolves_against_the_run_directory(self):
+        # A relative --transcript used to be truncated as a CWD-relative
+        # path, so a missing parent aborted with a bare shell error before
+        # meta.json. Resolve it like collect.py does and create the parent.
+        outdir = os.path.join(self.tmp, "run")
+        proc = subprocess.run(
+            ["bash", os.path.join(COMPAT_DIR, "drive.sh"),
+             "--driver", "none", "--launch", "sleep 0.1",
+             "--outdir", outdir, "--emulator", "unit-test",
+             "--transcript", "nested/dir/pty.log",
+             "--ready-seconds", "1"],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        transcript = os.path.join(outdir, "nested", "dir", "pty.log")
+        self.assertTrue(os.path.isfile(transcript), proc.stderr)
+        with open(os.path.join(outdir, "session", "meta.json"),
+                  encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(meta["transcript"], transcript)
+
     @unittest.skipUnless(shutil.which("jq"), "drive.sh needs jq")
     def test_ready_seconds_with_a_leading_zero_is_decimal(self):
         # Bash arithmetic reads a leading zero as octal: `08` used to be an
