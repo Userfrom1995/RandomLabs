@@ -2376,8 +2376,9 @@ fn desktop_deb_declares_a_real_alsa_provider() {
     .unwrap();
     let depends = deb
         .lines()
-        .find(|line| line.starts_with("Depends:"))
-        .expect("the desktop deb control must carry a Depends line");
+        .find_map(|line| line.strip_prefix("Depends:"))
+        .expect("the desktop deb control must carry a Depends line")
+        .trim();
     assert!(
         alsa_dependency_resolves_to_real_alsa(depends),
         "the desktop deb must name a real ALSA provider: a bare `libasound2` \
