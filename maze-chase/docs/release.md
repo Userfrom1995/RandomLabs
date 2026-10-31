@@ -25,9 +25,9 @@ parity gate in [parity.md](parity.md).
   Rust 1.99.0 for every native job (the toolchain that produced the
   committed WebAssembly bytes), and the release build, test, and
   verifier commands use `--locked` so `Cargo.lock` is enforced. The Linux
-  job runs on Ubuntu 24.04, so the deb/rpm binaries require glibc 2.39;
-  the package metadata declares that floor and the supported distribution
-  list is Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+.
+  job runs on Ubuntu 24.04, so the deb/rpm binaries are built against
+  glibc 2.39 and declare that floor; the supported distribution list is
+  Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 22+ (the CDP harnesses use the built-in
   WebSocket; no npm packages) plus a headless chromium; serving uses
@@ -141,8 +141,8 @@ because it is `<version>-1.<arch>.rpm` on disk; the RPM `Release` field
 stays `1` for every candidate of the same workspace version, so the
 release workflow's `<version>-1.<arch>.rpm` glob keeps matching. The deb
 and rpm control metadata both declare the glibc 2.39 floor, and the
-desktop packages declare their X11 runtime libraries. Candidate RPMs of
-the same workspace version share the `0.1.0-1` NEVRA; see
+desktop packages declare their display runtime libraries. Candidate RPMs
+of the same workspace version share the `0.1.0-1` NEVRA; see
 [Install, upgrade, uninstall](#install-upgrade-uninstall).
 
 | Layer | OS | Command (native host) | Artifact |
