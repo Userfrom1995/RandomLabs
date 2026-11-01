@@ -2,12 +2,13 @@
 
 // Contract tests for the fresh-Chrome E2E runner (issue #786).
 //
-// The suites share a single Chrome in CI and leak state between them
-// (storage, service workers, pending CDP sessions), which produced the
-// boot-gate/rebind failures and a Node undici assertion on a second
-// site-e2e run. The runner must isolate every suite: its own browser, its
-// own profile, and its own debug port. These tests pin that contract
-// without launching a browser.
+// The suites share a single Chrome when run in sequence and leak state
+// between them (storage, service workers, pending CDP sessions), which
+// produced the boot-gate/rebind failures. A separate intermittent
+// site-e2e undici assertion came from unconsumed HTTP response bodies,
+// fixed in site-e2e.js, not from browser reuse. The runner must isolate
+// every suite: its own browser, its own profile, and its own debug port.
+// These tests pin that contract without launching a browser.
 //
 // Run: node --test web/e2e/tests/run-browser-e2e.test.js
 
@@ -355,9 +356,10 @@ test('--help stops before the shell options', () => {
 });
 
 test('--help prints the complete usage header', () => {
-  // The help slice is a fixed line range; adding a header line without
-  // moving the range truncated the final sentence mid-word ("...python3
-  // (for the"). Pin the whole sentence so a stale range fails loudly.
+  // The help output used to be a fixed line slice, so adding a header line
+  // truncated the final sentence ("...python3 (for the"). The runner now
+  // prints the whole comment header; pin the final sentence so a stale
+  // truncation fails loudly.
   const proc = run(['--help']);
   assert.equal(proc.status, 0, proc.stderr);
   assert.match(proc.stdout, /static server and a free debug port\)\./);

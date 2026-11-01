@@ -82,13 +82,14 @@ From `maze-chase/`:
 web/e2e/run-browser-e2e.sh                     # all five CDP suites
 web/e2e/run-browser-e2e.sh site-e2e.js         # selected suites
 web/e2e/run-browser-e2e.sh --base-url URL      # external static server
-web/e2e/run-browser-e2e.sh --chrome PATH       # explicit Chrome binary
+web/e2e/run-browser-e2e.sh --chrome PATH|NAME  # explicit Chrome binary or command
 web/e2e/run-browser-e2e.sh --plan              # per-suite URL/port/profile
 ```
 
 It needs node 22+ and python3 (for the static server and a free debug
-port); Chrome is found through `CHROME` or the usual platform names. The
-runner prints the server URL and each suite's CDP port and profile;
+port); Chrome is found through `CHROME` (a path or command name) or the
+usual platform names. The runner prints the server URL and each suite's
+CDP port and profile;
 `--plan` prints `script<TAB>url<TAB>port<TAB>profile` for every suite
 without launching a browser or a server. The Node-only suites
 (`wasm-smoke.js`, `tester-regression.js`, `macos-case-audit.js`) run

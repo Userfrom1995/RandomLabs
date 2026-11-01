@@ -14,15 +14,15 @@
 #   web/e2e/run-browser-e2e.sh                     # all CDP suites
 #   web/e2e/run-browser-e2e.sh site-e2e.js         # selected suites
 #   web/e2e/run-browser-e2e.sh --base-url URL      # external static server
-#   web/e2e/run-browser-e2e.sh --chrome PATH       # explicit Chrome binary
+#   web/e2e/run-browser-e2e.sh --chrome PATH|NAME  # explicit Chrome binary or command
 #   web/e2e/run-browser-e2e.sh --plan              # print the per-suite plan
 #
 # Defaults: starts a static server on 127.0.0.1:<ephemeral> rooted at the
-# maze-chase/ directory, finds Chrome (the CHROME environment variable or
-# a platform candidate), and runs boot-gate-e2e.js, browser-e2e.js,
-# tester-rebind-lifecycle.js, tester-audio-e2e.js, and site-e2e.js in
-# that order. Requires node 22+ (built-in WebSocket) and python3
-# (for the static server and a free debug port).
+# maze-chase/ directory, finds Chrome (the CHROME environment variable as a
+# path or command name, or a platform candidate), and runs
+# boot-gate-e2e.js, browser-e2e.js, tester-rebind-lifecycle.js,
+# tester-audio-e2e.js, and site-e2e.js in that order. Requires node 22+
+# (built-in WebSocket) and python3 (for the static server and a free debug port).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -151,6 +151,15 @@ command -v python3 >/dev/null 2>&1 || {
 find_chrome() {
   local candidate
   if [ -n "$CHROME_BIN" ]; then
+    case "$CHROME_BIN" in
+      */*) ;;
+      *)
+        if command -v "$CHROME_BIN" >/dev/null 2>&1; then
+          command -v "$CHROME_BIN"
+          return 0
+        fi
+        ;;
+    esac
     if [ -x "$CHROME_BIN" ]; then
       printf '%s\n' "$CHROME_BIN"
       return 0
@@ -172,7 +181,7 @@ find_chrome() {
       return 0
     fi
   done
-  echo "run-browser-e2e.sh: no Chrome/Chromium found; pass --chrome PATH or set CHROME" >&2
+  echo "run-browser-e2e.sh: no Chrome/Chromium found; pass --chrome PATH or NAME, or set CHROME" >&2
   return 1
 }
 
