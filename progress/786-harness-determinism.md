@@ -14,8 +14,9 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
   2-second boot wait, so a cold Terminal can record a 0-byte title phase
   (and duplicate pre-render captures) and still sign a pass.
 - F4: the documented web E2E flow shares one Chrome across suites, so
-  sequential runs contaminate each other and a second `site-e2e` run can
-  hit a Node undici assertion.
+  sequential runs contaminate each other (boot-gate/rebind failures). A
+  separate intermittent `site-e2e` undici assertion came from unconsumed
+  HTTP response bodies, now fixed in `site-e2e.js`.
 
 ## Checklist
 
@@ -104,10 +105,27 @@ macOS tester round (2026-10-31, this runner):
   already on main), so the diff is the 15 harness/docs/progress files
   again.
 
+macOS tester round 2 (2026-11-01, this runner):
+
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 25 tests, all pass.
+- `python3 -m unittest discover -s maze-chase/tools/compat/tests` -> 71
+  tests, OK.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh browser-e2e.js` -> green
+  in three consecutive runs; the high-contrast canvas check now waits
+  for the requestAnimationFrame repaint instead of sampling the frame
+  the HUD label described a tick earlier.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh` -> all 5 CDP suites green
+  with a fresh Chrome each; `SITE-E2E ALL GREEN: 680 assertions` with
+  the 320x568 re-reveal pinned at its real width and height (the crawl
+  grew with main's new doc links).
+- `node tools/site/render-docs.mjs --check` -> 15 docs current; 424
+  internal links verified.
+- `bash -n` on `run-browser-e2e.sh` and `git diff --check` -> clean.
+
 ## Current step
 
-macOS tester findings applied and Linux verification is green. Awaiting
-re-review and a re-bound macOS row on the final head.
+macOS tester round-2 findings applied and Linux verification is green.
+Awaiting the re-review and a re-bound macOS row on the final head.
 
 ## Next steps
 
@@ -187,4 +205,21 @@ re-review and a re-bound macOS row on the final head.
   25-test node suite, the live 674-assertion site-e2e, all five CDP
   suites, and `render-docs.mjs --check`.
 - Skills (fixer round 3): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-11-01 (fixer): applied the macOS tester round-2 finding. The
+  `browser-e2e.js` high-contrast check now waits on animation frames for
+  the board to repaint (bounded at 1.5s) instead of sampling the previous
+  frame right after the HUD label settles, and the sibling Moonwake
+  equality check waits for the expected render the same way. Pinned the
+  320x568 height in the site-e2e re-reveal assertion, and corrected the
+  undici attribution in the runner header, the web E2E README, and the
+  F4 defect note (that assertion came from unconsumed response bodies,
+  not shared Chrome).
+- Delegation (fixer round 4): no subagents were needed for this narrow
+  round; the primary traced the high-contrast block and the docs claims.
+- Primary verified (fixer round 4): read every changed line; ran the
+  25-test node suite, the 71-test compat suite, three standalone
+  browser-e2e runs, the full five-suite runner, the 678-assertion
+  site-e2e, and `render-docs.mjs --check`.
+- Skills (fixer round 4): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).
