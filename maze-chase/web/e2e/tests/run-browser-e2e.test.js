@@ -354,6 +354,16 @@ test('--help stops before the shell options', () => {
   assert.match(proc.stdout, /--plan/);
 });
 
+test('--help prints the complete usage header', () => {
+  // The help slice is a fixed line range; adding a header line without
+  // moving the range truncated the final sentence mid-word ("...python3
+  // (for the"). Pin the whole sentence so a stale range fails loudly.
+  const proc = run(['--help']);
+  assert.equal(proc.status, 0, proc.stderr);
+  assert.match(proc.stdout, /static server and a free debug port\)\./);
+  assert.doesNotMatch(proc.stdout, /\(for the\s*$/m);
+});
+
 test('a failing suite propagates and the browser is cleaned up', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-contract-'));
   const nodeArgv = path.join(dir, 'node-argv.log');
