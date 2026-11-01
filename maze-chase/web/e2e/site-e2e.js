@@ -541,23 +541,29 @@ async function collectLinks(ws) {
         right: pill.right,
         boxLeft: box.left,
         boxRight: box.right,
+        unscrolledLeft: pill.left + nav.scrollLeft,
+        unscrolledRight: pill.right + nav.scrollLeft,
         viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
       };
     })()`);
-    if (resizedNav && resizedNav.viewport[0] === 320 && resizedNav.viewport[1] === 568 && resizedNav.scrollLeft > 0) break;
+    if (resizedNav && resizedNav.viewport[0] === 320 && resizedNav.viewport[1] === 568) {
+      const state = navPillScrollState(resizedNav);
+      if (state.ok) break;
+    }
   }
+  const resizedState = navPillScrollState(resizedNav);
   assert(
     resizedNav
       && resizedNav.viewport[0] === 320
       && resizedNav.viewport[1] === 568
       && resizedNav.overflows
-      && resizedNav.scrollLeft > 0
+      && resizedState.ok
       && resizedNav.boxLeft >= 0
       && resizedNav.boxRight <= resizedNav.viewport[0]
       && resizedNav.left >= resizedNav.boxLeft - 1
       && resizedNav.right <= resizedNav.boxRight + 1,
     `releases.html re-reveals the current nav pill after a resize to 320x568 (${resizedNav
-      ? `viewport ${resizedNav.viewport[0]}x${resizedNav.viewport[1]}, ${resizedNav.left.toFixed(1)}..${resizedNav.right.toFixed(1)} in ${resizedNav.boxLeft.toFixed(1)}..${resizedNav.boxRight.toFixed(1)}, overflows ${resizedNav.overflows}, scrollLeft ${resizedNav.scrollLeft.toFixed(1)}`
+      ? `viewport ${resizedNav.viewport[0]}x${resizedNav.viewport[1]}, ${resizedNav.left.toFixed(1)}..${resizedNav.right.toFixed(1)} in ${resizedNav.boxLeft.toFixed(1)}..${resizedNav.boxRight.toFixed(1)}, overflows ${resizedNav.overflows}, scrollLeft ${resizedNav.scrollLeft.toFixed(1)}, scrollRequired ${resizedState.scrollRequired}`
       : 'missing'})`,
   );
 
