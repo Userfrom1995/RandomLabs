@@ -269,10 +269,17 @@ runs:
     # fresh-run re-dispatch, which is this class's recovery.
     # Account-level funds rejection detector (issue #754): the provider's
     # `Upstream request failed: Insufficient account funds` line is
-    # account-level, not a transient 5xx. It is excluded from the transient
-    # family below (whose bounded `Upstream request failed: ` phrase would
-    # otherwise match it) so it can never consume the shared HTTP retry,
-    # and both runner paths fast-fail it by name.
+    # account-level, not a transient 5xx. It uses the same wider bounded
+    # 600-line window as the quota class because the line can sit far above
+    # the end of a long provider dump, and the classification is checked
+    # ahead of the stall flag so an account line followed by silence is
+    # fast-failed instead of consuming the one same-model stall retry. It is
+    # excluded from the transient family below (whose bounded
+    # `Upstream request failed: ` phrase would otherwise match it) so it can
+    # never consume the shared HTTP retry. It is a fresh-run dead end, not a
+    # recovery: the rejection is account-level, so a new runner uses the same
+    # account. Both runner paths fast-fail it by name and the recovery is to
+    # fund the provider plan or escalate to the Owner, then re-dispatch.
     # Transient HTTP-error detector (issues #653, #717), same tail +
     # column-0 terminal anchoring as the #591/#620 detectors: the observed
     # terminal forms are `AI_APICallError: Rate limit exceeded. Please try
@@ -384,7 +391,7 @@ runs:
           ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
         }
         account_funds_terminal() {
-          ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+          ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
         }
         transient_http_error_terminal() {
           if account_funds_terminal "$1"; then
@@ -500,6 +507,18 @@ runs:
               echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
               exit 1
             fi
+            # Account-level funds rejection fast-fail (issue #754): checked
+            # ahead of the stall flag so a terminal account line followed by
+            # silence is classified here instead of consuming the one
+            # same-model stall retry. It is also checked before the transient
+            # HTTP class (which structurally excludes it) so it can never
+            # consume the shared HTTP retry, and it exits 1 unconditionally
+            # for both exit shapes.
+            if account_funds_terminal "$log"; then
+              rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+              echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
+              exit 1
+            fi
             if [ -s "$hang_flag" ]; then
               rm -f "$log" "$fifo" "$hang_flag"
               if [ "$hang_retry_used" -lt 1 ]; then
@@ -526,15 +545,6 @@ runs:
             if free_usage_limit_terminal "$log"; then
               echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
               rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-              exit 1
-            fi
-            # Account-level funds rejection fast-fail (issue #754): checked
-            # before the transient HTTP class (which structurally excludes it)
-            # so it can never consume the shared HTTP retry, and exits 1
-            # unconditionally for both exit shapes.
-            if account_funds_terminal "$log"; then
-              rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-              echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
               exit 1
             fi
             # Blocked-egress-IP fast-fail (issue #669): checked before the
