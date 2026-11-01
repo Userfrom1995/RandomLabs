@@ -2388,3 +2388,111 @@ fn desktop_deb_declares_a_real_alsa_provider() {
          `libasound2 (>= ...)`: {depends}"
     );
 }
+
+fn extract_smoke_function(source: &str, name: &str) -> String {
+    let marker = format!("{name}() {{");
+    let start = source
+        .find(&marker)
+        .unwrap_or_else(|| panic!("smoke-linux.sh must define {name}"));
+    let body = &source[start..];
+    let end = body
+        .find("\n}\n")
+        .unwrap_or_else(|| panic!("{name} must close with a top-level brace"))
+        + 3;
+    body[..end].to_string()
+}
+
+#[test]
+fn smoke_metadata_guards_accept_only_the_deployed_dependency_forms() {
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-linux.sh"),
+    )
+    .unwrap();
+    let mut harness = String::from("set -u\nGLIBC_FLOOR=2.39\n");
+    for name in [
+        "require_deb_dependency",
+        "require_deb_alsa_provider",
+        "require_rpm_requirement",
+    ] {
+        harness.push_str(&extract_smoke_function(&smoke, name));
+        harness.push('\n');
+    }
+    let run = |call: &str| {
+        Command::new("bash")
+            .arg("-c")
+            .arg(format!("{harness}\n{call}"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .expect("run the extracted smoke guards")
+    };
+
+    let out = run(
+        "require_deb_dependency ' libc6 (>= 2.39),libx11-xcb1 , libwayland-client0 ' libx11-xcb1 pkg",
+    );
+    assert!(
+        out.status.success(),
+        "an exact comma-separated token must pass: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let out = run("require_deb_dependency 'libxcursor1-extra, libc6 (>= 2.39)' libxcursor1 pkg");
+    assert!(
+        !out.status.success()
+            && String::from_utf8_lossy(&out.stderr).contains("does not declare 'libxcursor1'"),
+        "a substring sibling must not satisfy an exact dependency: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    for provider in [
+        "libasound2t64 | libasound2",
+        "libasound2 (>= 1.0.16)",
+        "libc6 (>= 2.39), libasound2t64 | libasound2",
+    ] {
+        let out = run(&format!(
+            "require_deb_alsa_provider '{provider}, libc6 (>= 2.39)' pkg"
+        ));
+        assert!(
+            out.status.success(),
+            "'{provider}' must be accepted: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    for provider in [
+        "libasound2",
+        "libasound2t64-extra",
+        "libasound2 (<< 2.0)",
+        "libasound2-nooss",
+    ] {
+        let out = run(&format!(
+            "require_deb_alsa_provider '{provider}, libc6 (>= 2.39)' pkg"
+        ));
+        assert!(
+            !out.status.success()
+                && String::from_utf8_lossy(&out.stderr)
+                    .contains("does not declare a real ALSA provider"),
+            "'{provider}' must be rejected: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let out = run("require_rpm_requirement 'libXi' 'libXi' pkg");
+    assert!(
+        out.status.success(),
+        "an exact RPM requirement must pass: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let out = run("require_rpm_requirement $'libXinerama\\nlibX11-xcb' libXi pkg");
+    assert!(
+        !out.status.success()
+            && String::from_utf8_lossy(&out.stderr).contains("does not declare 'libXi'"),
+        "libXi must not false-pass against libXinerama: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
