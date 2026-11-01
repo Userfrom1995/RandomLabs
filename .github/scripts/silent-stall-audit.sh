@@ -2407,7 +2407,7 @@ free_usage_limit_terminal() {
 ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
 }
 account_funds_terminal() {
-( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
 transient_http_error_terminal() {
 if account_funds_terminal "$1"; then
@@ -2497,6 +2497,11 @@ rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 exit 1
 fi
+if account_funds_terminal "$log"; then
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
+exit 1
+fi
 if [ -s "$hang_flag" ]; then
 rm -f "$log" "$fifo" "$hang_flag"
 if [ "$hang_retry_used" -lt 1 ]; then
@@ -2516,11 +2521,6 @@ fi
 if free_usage_limit_terminal "$log"; then
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-exit 1
-fi
-if account_funds_terminal "$log"; then
-rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
 exit 1
 fi
 if ip_block_error_terminal "$log"; then
@@ -2619,7 +2619,7 @@ free_usage_limit_terminal() {
 ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
 }
 account_funds_terminal() {
-( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
 transient_http_error_terminal() {
 if account_funds_terminal "$1"; then
@@ -2709,6 +2709,11 @@ rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 exit 1
 fi
+if account_funds_terminal "$log"; then
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
+exit 1
+fi
 if [ -s "$hang_flag" ]; then
 rm -f "$log" "$fifo" "$hang_flag"
 if [ "$hang_retry_used" -lt 1 ]; then
@@ -2727,11 +2732,6 @@ exit 1
 fi
 if free_usage_limit_terminal "$log"; then
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
-rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-exit 1
-fi
-if account_funds_terminal "$log"; then
-echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 exit 1
 fi
@@ -2842,11 +2842,12 @@ r15_freetier_pins() {
   [ "$(grep -cE '^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(tee-guard-decoyed-or-missing)"
   # The live detectors must carry the pipefail-safe wrap (issue #653 review
   # F1): the exact `( set +o pipefail; tail -n 40 "$1" | grep -qE` shape,
-  # five times (model/freetier/transient-http/account-funds/ip-block, issues
-  # #669 and #754). The quota detector uses the wider tail-600 window and is
-  # pinned separately below. The functional big-window fixtures prove the
-  # semantics; this pin catches a shape drift or a partial unwrap cheaply.
-  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "5" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
+  # four times (model/freetier/transient-http/ip-block, issues #653 and
+  # #669). The quota and account-funds detectors use the wider tail-600
+  # window (issue #754 review finding 2) and are pinned separately below.
+  # The functional big-window fixtures prove the semantics; this pin catches
+  # a shape drift or a partial unwrap cheaply.
+  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "4" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
   # Loud persistence, exact-form and branch-tied: each persistent-rejection
   # branch must end in the nonzero exit matching its own message, so a
   # compensated swap (one branch's loud exit moved to the other, with the
@@ -2921,15 +2922,30 @@ r15_freetier_pins() {
   [ "$(grep -cF 'printf '"'"'quota\n'"'"' > "$quota_flag"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag-write)"
   n=$(grep -A2 -F 'provider daily free-usage limit reached' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
   [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(free-usage-limit-fast-fail-not-unconditional-exit-1)"
+  # Review finding 2: the account detector matches a line that can sit far
+  # above the end of a long provider dump, so it uses the same wider bounded
+  # 600-line window as the quota detector. A 40-line window made the class
+  # miss mid-session lines and could conclude an exit-0 provider death green.
   grep -qF 'account_funds_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-account-funds-detector)"
   fn=$(sed -n '/account_funds_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
-  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(account-funds-detector-not-pipefail-safe-tail-scoped)"
+  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 600 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(account-funds-detector-not-pipefail-safe-tail-600)"
   printf '%s\n' "$fn" | grep -qF 'Upstream request failed: Insufficient account funds\.?$' || r15_bad="${r15_bad} ${label}(no-anchored-account-funds-terminal-form)"
   [ "$(grep -cE '^[[:space:]]*if account_funds_terminal "\$log"; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(account-funds-detector-not-wired-once)"
   [ "$(grep -cF 'insufficient account funds' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-canonical-account-funds-message)"
   n=$(grep -A2 -F 'insufficient account funds' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(account-funds-fast-fail-not-unconditional-exit-1)"
-  grep -qF 'if account_funds_terminal "$1"; then' "$f" || r15_bad="${r15_bad} ${label}(transient-http-detector-does-not-exclude-account-funds)"
+  # Review finding 4 defense in depth: the exclusion inside the transient
+  # detector must be the exact guard-plus-return shape immediately ahead of
+  # the pipeline, not merely the guarded call somewhere in the function.
+  r15_excl=$(sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//' | sed -n '1,4p')
+  r15_excl_expect=$(cat <<'R15EXCLEOF'
+transient_http_error_terminal() {
+if account_funds_terminal "$1"; then
+return 1
+fi
+R15EXCLEOF
+  )
+  [ "$r15_excl" = "$r15_excl_expect" ] || r15_bad="${r15_bad} ${label}(transient-http-detector-does-not-exclude-account-funds)"
   grep -qF 'mkfifo "$fifo"' "$f" || r15_bad="${r15_bad} ${label}(no-fifo-capture-shape)"
   grep -qF 'mkfifo is unavailable on this runner' "$f" || r15_bad="${r15_bad} ${label}(no-loud-mkfifo-fallback)"
   grep -qF 'HANG_IDLE_SECONDS' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-knob)"
@@ -3653,10 +3669,12 @@ for i in $(seq 1 600); do
 done
 # Issue #754 account-funds fixtures: every prefix and both period forms must
 # match; an indented echo, the envelope, a suffix, a within-family variant,
-# an uppercase line, and a stale line must not. The last pair binds the
-# mutual exclusion: the account line must not match the transient detector
-# (which would otherwise consume the shared HTTP retry), and the transient
-# gateway line must not match the account detector.
+# an uppercase line, and a line stale beyond the 600-line window must not.
+# The 599/600 pair pins the widened window to exactly 600 lines (review
+# finding 2). The mutual-exclusion pair runs both ways across the detector
+# loops: the account line must not match the transient detector (which would
+# otherwise consume the shared HTTP retry) nor the quota detector, and the
+# transient gateway and quota lines must not match the account detector.
 cat > "$r15_fn_dir/account-terminal-ai.txt" <<'R15EOF'
 AI_APICallError: Upstream request failed: Insufficient account funds.
 AI_APICallError: Upstream request failed: Insufficient account funds
@@ -3692,20 +3710,20 @@ R15EOF
 cat > "$r15_fn_dir/account-stale.txt" <<'R15EOF'
 AI_APICallError: Upstream request failed: Insufficient account funds.
 R15EOF
-for i in $(seq 1 45); do
+for i in $(seq 1 601); do
   printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-stale.txt"
 done
-cat > "$r15_fn_dir/account-window39.txt" <<'R15EOF'
+cat > "$r15_fn_dir/account-window599.txt" <<'R15EOF'
 AI_APICallError: Upstream request failed: Insufficient account funds.
 R15EOF
-for i in $(seq 1 39); do
-  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-window39.txt"
+for i in $(seq 1 599); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-window599.txt"
 done
-cat > "$r15_fn_dir/account-window40.txt" <<'R15EOF'
+cat > "$r15_fn_dir/account-window600.txt" <<'R15EOF'
 AI_APICallError: Upstream request failed: Insufficient account funds.
 R15EOF
-for i in $(seq 1 40); do
-  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-window40.txt"
+for i in $(seq 1 600); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-window600.txt"
 done
 # Review F2: pipe-buffer-sized tail windows. Every `shell: bash` step runs as
 # `bash --noprofile --norc -eo pipefail` (production), and `grep -q` exits at
@@ -3883,6 +3901,8 @@ for r15_fn in "$r15_fn_dir/action-quota.fn" "$r15_fn_dir/maint-quota.fn"; do
   r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-window600.txt"
   r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-bigwindow.txt"
   r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/account-terminal-ai.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/account-terminal-api.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/account-terminal-error.txt"
 done
 for r15_fn in "$r15_fn_dir/action-account.fn" "$r15_fn_dir/maint-account.fn"; do
   if [ ! -s "$r15_fn" ]; then
@@ -3899,10 +3919,12 @@ for r15_fn in "$r15_fn_dir/action-account.fn" "$r15_fn_dir/maint-account.fn"; do
   r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-phrase-variant.txt"
   r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-upper.txt"
   r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-stale.txt"
-  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-window39.txt"
-  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-window40.txt"
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-window599.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-window600.txt"
   r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-bigwindow.txt"
   r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/http-upstream-ai.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-terminal-old-ai.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-terminal-new-ai.txt"
 done
 rm -rf "$r15_fn_dir"
 # Issue #620 loop-level behavioral test (review F5): static pins and a
@@ -4103,6 +4125,12 @@ case "${R15_SCENARIO}:${n}" in
   account-funds-after-http:1) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
   account-funds-after-http:2) echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exit 0 ;;
   account-funds-after-http:*) echo "healthy success"; exit 0 ;;
+  # Review finding 1: a terminal account line followed by silence used to be
+  # caught by the stall branch first, consuming the one same-model stall
+  # retry. The account classification now sits ahead of the stall flag, so
+  # this shape must fast-fail after exactly one attempt with no 10s retry.
+  account-funds-hang:1) echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exec "$R15_REAL_SLEEP" 30 ;;
+  account-funds-hang:*) echo "healthy success"; exit 0 ;;
   # Issue #653 scenarios: transient 429/5xx recovery on both exit shapes,
   # persistent loudness on both shapes, provider stalls (write nothing, keep
   # the process alive through the real sleep so the watchdog must kill it),
@@ -4275,6 +4303,13 @@ case "${R15_SCENARIO}:${n}" in
   nofifo-unclassified:*) echo "some unrelated provider failure"; exit 5 ;;
   nofifo-stderr-ft:1) echo "AI_APICallError: ${ft}" >&2; exit 1 ;;
   nofifo-stderr-ft:*) echo "healthy success"; exit 0 ;;
+  # Review finding 5: bind the post-attempt quota and account checks in the
+  # degraded no-mkfifo capture shape too, so "both capture shapes" is tested
+  # rather than inferred from the code sitting outside the mkfifo branch.
+  nofifo-quota:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  nofifo-quota:*) echo "healthy success"; exit 0 ;;
+  nofifo-account:1) echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exit 0 ;;
+  nofifo-account:*) echo "healthy success"; exit 0 ;;
   # Tester round 5 (FIFO-shape stderr merge): the FIFO capture shape is the
   # primary shape, and its `2>&1` merge is the counterpart of the degraded
   # nofifo-stderr-ft probe. A terminal line written to stderr must reach the
@@ -4593,7 +4628,11 @@ R15MKFIFO
   # the class spends no other budget; the deep scenario proves no rung
   # advance. The account-level funds rejection is fast-failed exactly once
   # and never retried as a transient HTTP error (a broken exclusion would
-  # retry the exit-0 shape, show two attempts, and conclude green).
+  # retry the exit-0 shape, show two attempts, and conclude green). Review
+  # findings 1 and 5: the account line followed by silence is classified
+  # ahead of the stall flag (exactly one attempt, no 10s stall retry), and
+  # both post-attempt classes are exercised in the degraded no-mkfifo capture
+  # shape as well as the FIFO shape.
   R15_HANG_IDLE=1 r15_behavioral_case quota 1 "a-free" "provider daily free-usage limit reached" ""
   r15_behavioral_case quota-zero 1 "a-free" "provider daily free-usage limit reached" ""
   r15_behavioral_case quota-nz7 1 "a-free" "provider daily free-usage limit reached" ""
@@ -4611,6 +4650,15 @@ R15MKFIFO
   r15_behavioral_case account-funds-nz 1 "a-free" "insufficient account funds" ""
   r15_behavioral_case account-funds-stderr 1 "a-free" "insufficient account funds" ""
   r15_behavioral_case account-funds-after-http 1 "a-free a-free" "insufficient account funds" "30:1"
+  # Review finding 1: an account line followed by silence must be classified
+  # before the stall branch, so exactly one attempt runs and no 10s stall
+  # retry is spent. The watchdog fires (HANG_IDLE=1), then the account check
+  # ahead of the hang flag wins.
+  R15_HANG_IDLE=1 r15_behavioral_case account-funds-hang 1 "a-free" "insufficient account funds" ""
+  # Review finding 5: both post-attempt classes in the degraded no-mkfifo
+  # capture shape, so the "both capture shapes" claim is exercised end to end.
+  r15_behavioral_case nofifo-quota 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case nofifo-account 1 "a-free" "insufficient account funds" ""
   # Issue #653 behavioral matrix: transient 429/5xx recovery on BOTH exit
   # shapes (nonzero and exit-0 terminal), the incident's exact 429 wording,
   # persistent loudness on both shapes with the provider's own status
@@ -11181,7 +11229,7 @@ free_usage_limit_terminal() {
   ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
 }
 account_funds_terminal() {
-  ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+  ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
 transient_http_error_terminal() {
   if account_funds_terminal "$1"; then
@@ -11297,6 +11345,18 @@ for model in $candidates; do
       echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
       exit 1
     fi
+    # Account-level funds rejection fast-fail (issue #754): checked
+    # ahead of the stall flag so a terminal account line followed by
+    # silence is classified here instead of consuming the one
+    # same-model stall retry. It is also checked before the transient
+    # HTTP class (which structurally excludes it) so it can never
+    # consume the shared HTTP retry, and it exits 1 unconditionally
+    # for both exit shapes.
+    if account_funds_terminal "$log"; then
+      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+      echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
+      exit 1
+    fi
     if [ -s "$hang_flag" ]; then
       rm -f "$log" "$fifo" "$hang_flag"
       if [ "$hang_retry_used" -lt 1 ]; then
@@ -11322,15 +11382,6 @@ for model in $candidates; do
     # allowance, so a fresh run is the recovery lane.
     if free_usage_limit_terminal "$log"; then
       echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
-      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-      exit 1
-    fi
-    # Account-level funds rejection fast-fail (issue #754): checked
-    # before the transient HTTP class (which structurally excludes it)
-    # so it can never consume the shared HTTP retry, and exits 1
-    # unconditionally for both exit shapes.
-    if account_funds_terminal "$log"; then
-      echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
       rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
       exit 1
     fi
