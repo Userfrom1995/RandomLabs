@@ -24084,8 +24084,8 @@ esac
 # duplicate-key-rejecting YAML parse (GitHub rejects such files too), fails
 # closed on a parse error or a missing sandbox, and is self-tested against
 # padded, renamed, duplicated, and malformed fixtures plus a third workflow
-# and a `.yaml` extension fixture so the ceiling, the named-step identity, and
-# the uniform tree-wide sweep cannot silently weaken.
+# and workflow/action `.yaml` extension fixtures so the ceiling, the named-step
+# identity, and the uniform tree-wide sweep cannot silently weaken.
 r33_ceiling=20000
 r33_dir=$(mktemp -d 2>/dev/null || true)
 r33_out=""
@@ -24232,6 +24232,7 @@ R33APPEND
     # production predicate walks the whole tree and both extensions.
     cp .github/workflows/auditor.yml "$r33_fixture/.github/workflows/auditor.yml"
     cp .github/workflows/auditor.yml "$r33_fixture/.github/workflows/auditor.yaml"
+    cp .github/actions/opencode-run/action.yml "$r33_fixture/.github/actions/opencode-run/action.yaml"
   }
   r33_scan() { python3 -I "$r33_dir/budget.py" "$1" "$r33_ceiling"; }
   r33_got() { r33_scan "$r33_fixture" 2>/dev/null || true; }
@@ -24265,6 +24266,9 @@ R33APPEND
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R33)" 6 20001
   r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R33)"
   r33_prepare
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yaml" "Run opencode" 4 20001
+  r33_expect_bad pad-yaml-action-extension "Run opencode"
+  r33_prepare
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run /oc triggers as owner" 6 20001
   r33_expect_bad pad-no-expression "Run /oc triggers as owner"
   r33_prepare
@@ -24293,10 +24297,10 @@ broken: [
 fi
 case "$r33_out" in
   OK)
-    check "R33" "every run scalar in every workflow and composite action is at most 20,000 UTF-8 bytes, 1,000 bytes under GitHub's 21,000-character expression template cap, whether or not the script carries an expression; the two incident steps (maintainer.yml Run Maintainer agent and the vendored opencode-run action Run opencode) each exist exactly once, measured from a strict duplicate-key-rejecting YAML parse with a fail-closed sandbox/parse state and self-tested padded, renamed, duplicated, and malformed fixtures plus a third workflow and a .yaml extension fixture so the ceiling, the named-step identity, and the uniform tree-wide sweep cannot silently weaken (issue #754: the quota-wall prose took the Maintainer scalar to 22,200 bytes and every push validation rejected the workflow while the composite sat 723 bytes under the cap and the audit stayed green)" "ok"
+    check "R33" "every run scalar in every workflow and composite action is at most 20,000 UTF-8 bytes, 1,000 bytes under GitHub's 21,000-character expression template cap, whether or not the script carries an expression; the two incident steps (maintainer.yml Run Maintainer agent and the vendored opencode-run action Run opencode) each exist exactly once, measured from a strict duplicate-key-rejecting YAML parse with a fail-closed sandbox/parse state and self-tested padded, renamed, duplicated, and malformed fixtures plus a third workflow and workflow/action .yaml extension fixtures so the ceiling, the named-step identity, and the uniform tree-wide sweep cannot silently weaken (issue #754: the quota-wall prose took the Maintainer scalar to 22,200 bytes and every push validation rejected the workflow while the composite sat 723 bytes under the cap and the audit stayed green)" "ok"
     ;;
   *)
-    check "R33" "run-scalar size budget missing or bypassable: ${r33_out} (issue #754: no rule measured script size, so a 22,200-byte Maintainer scalar failed GitHub push validation run 41311839234 with 'Exceeded max expression length 21000' while the 20,277-byte composite scalar sat 723 bytes under the cap; every run scalar must stay at or below 20,000 bytes and the two incident steps must exist exactly once, verified by a strict duplicate-key-rejecting parse with self-tested padded, renamed, duplicated, and malformed fixtures plus a third workflow and a .yaml extension fixture)" "bad"
+    check "R33" "run-scalar size budget missing or bypassable: ${r33_out} (issue #754: no rule measured script size, so a 22,200-byte Maintainer scalar failed GitHub push validation run 41311839234 with 'Exceeded max expression length 21000' while the 20,277-byte composite scalar sat 723 bytes under the cap; every run scalar must stay at or below 20,000 bytes and the two incident steps must exist exactly once, verified by a strict duplicate-key-rejecting parse with self-tested padded, renamed, duplicated, and malformed fixtures plus a third workflow and workflow/action .yaml extension fixtures)" "bad"
     ;;
 esac
 
