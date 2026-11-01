@@ -10,7 +10,8 @@
 # Drivers:
 #   x11     xdotool keys + ImageMagick import screenshots (Linux, X11)
 #   macos   System Events keystrokes + screencapture (macOS Aqua)
-#   none    no window driving; boot capture only (deterministic env replays)
+#   none    no window driving; boot capture only, still bounded by the
+#           first-output readiness wait (deterministic env replays)
 #
 # The session (keys as sent, checkpoints as named) is deliberately fixed
 # so the same script runs on every OS and every emulator. It follows the
@@ -381,7 +382,10 @@ wait_for_exit() { # pid seconds
 wait_for_first_output() { # baseline_bytes; bounded by READY_SECONDS from launch
   local baseline="$1"
   # Millisecond arithmetic: READY_START_MS/1000 would truncate the launch
-  # instant to a whole second and expire the wait up to ~1s early.
+  # instant to a whole second and expire the wait up to ~1s early. The
+  # window lookup runs before the first poll, so waited_ms includes that
+  # setup time and may exceed the budget while the loop still observes real
+  # output the launch produced within it.
   local deadline=$(( READY_START_MS + READY_SECONDS * 1000 ))
   local first waited
   while :; do
