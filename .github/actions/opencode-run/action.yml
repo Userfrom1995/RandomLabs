@@ -311,6 +311,32 @@ runs:
         freetier_error_terminal() {
           ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
         }
+        # Daily free-usage wall detector (issue #754), same column-0 terminal
+        # anchoring as the other detectors but with a wider bounded window:
+        # the CLI prints the terminal line, then a long error dump, then goes
+        # silent. In review run 40048604834 the line sat about 345 lines above
+        # the kill point, so the calibrated window is 600 lines (the 40-line
+        # window of the other classes cannot see it). The phrase family covers
+        # the older literal and the current `Free models work in OpenCode
+        # (https://opencode.ai); ` variant; the `AI_RetryError: Failed after 3
+        # attempts...` summary, the responseBody envelope, an indented echo, a
+        # suffixed line, and a stale line beyond the window cannot match the
+        # anchored whole-line form. Accepted residual (same as the other
+        # detectors): a healthy session that prints the exact provider line at
+        # column 0 in its last 600 log lines is fast-failed; the cost is one
+        # fresh-run re-dispatch, which is this class's recovery.
+        free_usage_limit_terminal() {
+          ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
+        }
+        # Account-level funds rejection detector (issue #754): the provider's
+        # `Upstream request failed: Insufficient account funds` line is
+        # account-level, not a transient 5xx. It is excluded from the transient
+        # family below (whose bounded `Upstream request failed: ` phrase would
+        # otherwise match it) so it can never consume the shared HTTP retry,
+        # and both runner paths fast-fail it by name.
+        account_funds_terminal() {
+          ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+        }
         # Transient HTTP-error detector (issues #653, #717), same tail +
         # column-0 terminal anchoring as the #591/#620 detectors: the observed
         # terminal forms are `AI_APICallError: Rate limit exceeded. Please try
@@ -325,8 +351,13 @@ runs:
         # anchored whole-line form. A persistent occurrence after the one
         # bounded same-model retry fails loudly on that model and does NOT
         # advance the ladder: every rung shares this gateway, so a fresh-run
-        # re-dispatch (crash parity) is the recovery lane.
+        # re-dispatch (crash parity) is the recovery lane. The account-funds
+        # rejection is structurally excluded (issue #754) so it can never
+        # spend this budget.
         transient_http_error_terminal() {
+          if account_funds_terminal "$1"; then
+            return 1
+          fi
           ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [A-Za-z0-9_.',-]+( [A-Za-z0-9_.',-]+)*)\.?$" )
         }
         # Blocked-egress-IP detector (issue #669), same tail + column-0
@@ -380,7 +411,8 @@ runs:
             log="$(mktemp)"
             fifo="${log}.fifo"
             hang_flag="${log}.hang"
-            rm -f "$fifo" "$hang_flag"
+            quota_flag="${log}.quota"
+            rm -f "$fifo" "$hang_flag" "$quota_flag"
             echo "::notice::opencode run with model '$model'"
             if mkfifo "$fifo" 2>/dev/null; then
               # FIFO capture shape (issue #653): tee and opencode run as
@@ -399,6 +431,24 @@ runs:
                 while kill -0 "$oc_pid" 2>/dev/null; do
                   sleep "$hang_poll_seconds"
                   kill -0 "$oc_pid" 2>/dev/null || exit 0
+                  # Daily free-usage wall (issue #754): the terminal quota
+                  # line is the last provider output and the session then
+                  # hangs, so cut on the line itself at the next poll instead
+                  # of waiting out the full stall threshold (about 21 minutes
+                  # across two attempts in review run 40048604834). The
+                  # dedicated flag takes precedence over the stall flag below,
+                  # so this class is fast-failed without consuming the one
+                  # same-model stall retry.
+                  if free_usage_limit_terminal "$log"; then
+                    echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
+                    printf 'quota\n' > "$quota_flag"
+                    kill -TERM "$oc_pid" 2>/dev/null
+                    kill -TERM "$tee_pid" 2>/dev/null
+                    sleep 5
+                    kill -KILL "$oc_pid" 2>/dev/null
+                    kill -KILL "$tee_pid" 2>/dev/null
+                    exit 0
+                  fi
                   size=$(wc -c < "$log" 2>/dev/null || echo 0)
                   if [ "$size" -eq "$last_size" ]; then
                     idle=$((idle + hang_poll_seconds))
@@ -440,6 +490,16 @@ runs:
               set -e
               status="${st[0]}"; tee_status="${st[1]}"
             fi
+            # Daily free-usage wall fast-fail (issue #754): the watchdog sets
+            # the quota flag when it cuts on the terminal line, so this class
+            # never reaches the stall retry below and consumes no budget. The
+            # branch sits ahead of the tee guard because the watchdog's TERM
+            # can make tee exit nonzero after a deliberate abort.
+            if [ -s "$quota_flag" ]; then
+              rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+              echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+              exit 1
+            fi
             if [ -s "$hang_flag" ]; then
               rm -f "$log" "$fifo" "$hang_flag"
               if [ "$hang_retry_used" -lt 1 ]; then
@@ -453,7 +513,28 @@ runs:
             fi
             if [ "$tee_status" -ne 0 ]; then
               echo "::error::could not capture the opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
-              rm -f "$log" "$fifo" "$hang_flag"
+              rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+              exit 1
+            fi
+            # Daily free-usage wall fast-fail (issue #754) for an attempt that
+            # ended on its own (including the degraded no-mkfifo shape): the
+            # terminal line is matched in the wider bounded window, and the
+            # class exits 1 unconditionally so an exit-0 provider death can
+            # never conclude green. No retry budget is consumed and the ladder
+            # is never advanced: every free rung shares the same per-egress
+            # allowance, so a fresh run is the recovery lane.
+            if free_usage_limit_terminal "$log"; then
+              echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+              rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+              exit 1
+            fi
+            # Account-level funds rejection fast-fail (issue #754): checked
+            # before the transient HTTP class (which structurally excludes it)
+            # so it can never consume the shared HTTP retry, and exits 1
+            # unconditionally for both exit shapes.
+            if account_funds_terminal "$log"; then
+              rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+              echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
               exit 1
             fi
             # Blocked-egress-IP fast-fail (issue #669): checked before the
