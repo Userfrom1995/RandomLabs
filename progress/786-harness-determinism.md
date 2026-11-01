@@ -24,7 +24,8 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
       active pill is actually clipped, keeping both overflow shapes covered
       (`web/e2e/nav-pill.js` classifies the measured pill; the 390x844
       assertion branches on `clippedWithoutScroll`, and the 320x568
-      re-reveal assertion is unchanged)
+      re-reveal pins the full 320x568 viewport and the nav box
+      containment in `site-e2e.js:547-560`)
 - [x] Add a bounded first-output readiness wait to `tools/compat/drive.sh`
       and record it as an event and in the evidence row
       (`--ready-seconds`, default 30; `readiness` / `readiness-timeout`
@@ -105,7 +106,10 @@ macOS tester round (2026-10-31, this runner):
   already on main), so the diff is the 15 harness/docs/progress files
   again.
 
-macOS tester round 2 (2026-11-01, this runner):
+Fixer round 4 verification of the macOS tester round-2 finding
+(Linux, 2026-11-01, this runner). These are the fixer's post-fix Linux
+runs at `8fbfea38`, not a macOS tester row; the macOS acceptance must be
+re-bound to the fixed head.
 
 - `node --test maze-chase/web/e2e/tests/*.test.js` -> 25 tests, all pass.
 - `python3 -m unittest discover -s maze-chase/tools/compat/tests` -> 71
@@ -122,16 +126,40 @@ macOS tester round 2 (2026-11-01, this runner):
   internal links verified.
 - `bash -n` on `run-browser-e2e.sh` and `git diff --check` -> clean.
 
+Fixer round 5 (2026-11-01, this runner):
+
+- `python3 -m unittest discover -s maze-chase/tools/compat/tests`
+  -> 72 tests, OK (includes the relative `--outdir` transcript-path
+  regression).
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 26 tests, all
+  pass (includes the complete `--help` header regression).
+- `bash maze-chase/web/e2e/run-browser-e2e.sh --help` -> prints the
+  complete header through "static server and a free debug port)." and
+  no `set -euo pipefail`.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh site-e2e.js`
+  -> `SITE-E2E ALL GREEN: 680 assertions` with a fresh Chrome.
+- `bash -n` on `run-linux.sh`, `run-browser-e2e.sh`, and `drive.sh`
+  -> clean; `shellcheck -x` on `run-browser-e2e.sh` -> clean
+  (`run-linux.sh` keeps its pre-existing SC2015 info at `:99`).
+- `git diff --check` -> clean.
+
 ## Current step
 
-macOS tester round-2 findings applied and Linux verification is green.
-Awaiting the re-review and a re-bound macOS row on the final head.
+The Tester returned fix on `a9130b0d`: F1 (a relative `--outdir`
+doubled the transcript path), F2 (`--help` truncated mid-sentence), and
+F3 (stale record claims). The Fixer round applied F1 and F2 and
+corrected this file. The 72-test compat suite, the 26-test node suite,
+and the live 680-assertion site-e2e are green locally. Awaiting the
+re-review and a re-bound macOS row on the fixed head.
 
 ## Next steps
 
-1. Reviewer re-verification, then the Tester (including the macOS arm)
-   validates the live acceptance on macOS Chrome and a cold compat run.
-2. Keep `Refs #786` until the macOS acceptance is proven.
+1. Reviewer re-verification of the fixed head.
+2. The Tester (Linux) and the macOS tester arm re-validate the fixed
+   head, including the live macOS Chrome acceptance and a cold compat
+   run; the binding Evaluator re-evaluates afterwards.
+3. Keep `Refs #786` until the macOS acceptance is re-bound to the fixed
+   head and the Evaluator approves.
 
 ## Agent log
 
@@ -194,8 +222,9 @@ Awaiting the re-review and a re-bound macOS row on the final head.
   closes the connection. The rebase onto `origin/main` dropped the stray
   per-OS commit that touched `.github/scripts/post-peros-findings.sh`
   (its content was already on main), restoring the harness-only diff.
-  Scoped the compat README window wait to X11 and replaced the manual
-  shared-Chrome block with a per-suite fresh-profile launch.
+  Scoped the compat README window wait to X11 and rewrote the manual
+  two-shell block to launch a fresh profile per suite instead of one
+  shared browser; the fallback block remains and points at the runner.
 - Delegation (fixer round 3): general (site-e2e audit) -> enumerated
   every fetch in the web harnesses and confirmed the link-crawl and
   asset probes were the only unconsumed response bodies; general
@@ -219,7 +248,32 @@ Awaiting the re-review and a re-bound macOS row on the final head.
   round; the primary traced the high-contrast block and the docs claims.
 - Primary verified (fixer round 4): read every changed line; ran the
   25-test node suite, the 71-test compat suite, three standalone
-  browser-e2e runs, the full five-suite runner, the 678-assertion
+  browser-e2e runs, the full five-suite runner, the 680-assertion
   site-e2e, and `render-docs.mjs --check`.
 - Skills (fixer round 4): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-11-01 (tester): returned fix on `a9130b0d`. Pushed
+  `TestRunLinuxTranscriptPaths` (a relative `--outdir` makes drive.sh
+  watch a doubled transcript path) and the `--help` complete-header
+  regression; 72 compat / 26 node tests with exactly those two failing.
+  F3 flags the stale 678-assertion count and the "unchanged" 320x568
+  claim.
+- 2026-11-01 (fixer): applied the Tester round. `run-linux.sh`
+  canonicalizes a relative `--outdir` before building any run path, so
+  drive.sh resolves the same transcript the launch writes.
+  `run-browser-e2e.sh` prints its complete comment header up to the
+  first non-comment line, removing the fixed line-slice truncation.
+  Corrected the round-4 assertion count, the 320x568 checklist claim,
+  the round-4 verification label, and the manual-setup wording.
+- Delegation (fixer round 5): general (compat relative-outdir) ->
+  reproduced the doubled path and returned the canonicalization fix;
+  general (web help header) -> replaced the fixed slice, verified the
+  complete header; general (progress audit) -> found the round-4 count
+  contradiction, the stale "unchanged" claim, and the mislabelled
+  verification block.
+- Primary verified (fixer round 5): read the full diff; ran the 72-test
+  compat suite, the 26-test node suite, the complete `--help` output,
+  the live 680-assertion site-e2e, `bash -n`, and `shellcheck` on the
+  changed runner.
+- Skills (fixer round 5): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).
