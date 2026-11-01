@@ -954,7 +954,25 @@ async function waitForValue(ws, expr, ok, label, budgetMs = 2000, intervalMs = 2
   await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
   await sleep(400);
   const themeLabel = () => evalJs(ws, `document.getElementById('theme-label').textContent`);
-  const canvasHash = () => evalJs(ws, `(() => { const d = document.getElementById('game-canvas').toDataURL(); let h = 0; for (let i = 0; i < d.length; i++) h = (h * 31 + d.charCodeAt(i)) | 0; return h; })()`);
+  const canvasHashJs = `(() => { const d = document.getElementById('game-canvas').toDataURL(); let h = 0; for (let i = 0; i < d.length; i++) h = (h * 31 + d.charCodeAt(i)) | 0; return h; })()`;
+  const canvasHash = () => evalJs(ws, canvasHashJs);
+  // The HUD label refreshes on a 250 ms timer while the board repaints on
+  // the requestAnimationFrame loop, so a settled label can still precede
+  // the frame it describes (headless Chrome can lag by a tick). Sample on
+  // animation frames and wait for the requested render instead of reading
+  // the previous frame, with a wall-clock bound so a stalled page fails.
+  const waitForCanvas = (predicate, label, budgetMs = 1500) => evalJs(ws, `new Promise((resolve, reject) => {
+    const hash = () => (${canvasHashJs});
+    const deadline = performance.now() + ${budgetMs};
+    const timer = setTimeout(() => reject(new Error('canvas did not settle: ${label}')), ${budgetMs} + 500);
+    const tick = () => {
+      const h = hash();
+      if (${predicate}) { clearTimeout(timer); resolve(h); return; }
+      if (performance.now() >= deadline) { clearTimeout(timer); reject(new Error('canvas did not settle: ${label}')); return; }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  })`);
   let label = await themeLabel();
   for (let i = 0; i < 3 && !String(label).startsWith('Dusk Pond'); i++) {
     await evalJs(ws, `document.getElementById('btn-theme').click()`);
@@ -1013,7 +1031,8 @@ async function waitForValue(ws, expr, ok, label, budgetMs = 2000, intervalMs = 2
     (v) => v === 'Dusk Pond (1/3)', 'clearing high contrast restores the stored theme');
   assert(hcOffLabel === 'Dusk Pond (1/3)',
     'clearing high contrast restores the stored Dusk Pond theme');
-  const duskMotionHash = await canvasHash();
+  const duskMotionHash = await waitForCanvas(
+    `h !== (${hcHash})`, 'clearing high contrast repaints the board');
   assert(hcHash !== duskMotionHash,
     'high contrast really repaints the canvas to the Moonwake theme');
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
@@ -1024,8 +1043,8 @@ async function waitForValue(ws, expr, ok, label, budgetMs = 2000, intervalMs = 2
     (v) => v === 'Moonwake (3/3)', 'manual cycle reaches Moonwake');
   assert(moonLabel === 'Moonwake (3/3)',
     'the manual cycle reaches Moonwake with reduced motion still on');
-  await sleep(150);
-  const moonMotionHash = await canvasHash();
+  const moonMotionHash = await waitForCanvas(
+    `h === (${hcHash})`, 'the manual Moonwake cycle repaints the board');
   assert(hcHash === moonMotionHash,
     'high contrast renders the effective Moonwake theme, not just a label');
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
