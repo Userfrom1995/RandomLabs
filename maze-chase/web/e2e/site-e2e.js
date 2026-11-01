@@ -575,7 +575,7 @@ async function collectLinks(ws) {
         viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
       };
     })()`);
-    if (grownNav && grownNav.viewport[0] === 430) {
+    if (grownNav && grownNav.viewport[0] === 430 && grownNav.viewport[1] === 900) {
       grownState = navPillScrollState(grownNav);
       if (grownState.visible) break;
     }
@@ -583,12 +583,18 @@ async function collectLinks(ws) {
   assert(
     grownNav
       && grownNav.viewport[0] === 430
+      && grownNav.viewport[1] === 900
       && grownState.visible
       && grownState.ok,
     `releases.html keeps the current nav pill valid after a resize back to 430x900 (${grownNav
       ? `viewport ${grownNav.viewport[0]}x${grownNav.viewport[1]}, ${grownNav.left.toFixed(1)}..${grownNav.right.toFixed(1)} in ${grownNav.boxLeft.toFixed(1)}..${grownNav.boxRight.toFixed(1)}, overflows ${grownNav.overflows}, scrollLeft ${grownNav.scrollLeft.toFixed(1)}, scrollRequired ${grownState.scrollRequired}`
       : 'missing'})`,
   );
+  // Restore the 320x568 mobile metrics so the later mobile screenshot is
+  // the same evidence the pre-resize flow captured.
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 320, height: 568, deviceScaleFactor: 2, mobile: true,
+  });
 
   // Crawl every internal link once, over HTTP, and verify fragments.
   while (linkQueue.length > 0) {

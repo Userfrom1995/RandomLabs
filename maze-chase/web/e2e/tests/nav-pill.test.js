@@ -38,11 +38,22 @@ test('a fitting pill with no scroll is ok', () => {
 });
 
 test('a visible fitting pill left at a stale scroll position is ok', () => {
-  // A 320-to-430 resize clamps scrollLeft while the Releases pill is
-  // fully visible; site-nav.js returns early and leaves the stale offset.
-  const state = navPillScrollState(pill({ scrollLeft: 36 }));
+  // The live 320-to-430 resize measurement: Chrome clamps scrollLeft to
+  // 36 while the Releases pill (unscrolled 317.7..401.1) is fully visible
+  // inside the nav (14..416). site-nav.js returns early when the pill
+  // fits and never resets the stale offset.
+  const state = navPillScrollState(pill({
+    left: 281.7,
+    right: 365.1,
+    boxLeft: 14,
+    boxRight: 416,
+    scrollLeft: 36,
+    unscrolledLeft: 317.7,
+    unscrolledRight: 401.1,
+  }));
   assert.equal(state.visible, true);
   assert.equal(state.clippedWithoutScroll, false);
+  assert.equal(state.scrollRequired, false);
   assert.equal(state.ok, true);
 });
 
