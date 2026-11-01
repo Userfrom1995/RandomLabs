@@ -24066,7 +24066,10 @@ R33PY
   cat > "$r33_dir/pad.py" <<'R33PAD'
 import sys
 
+import yaml
+
 path, name, indent = sys.argv[1], sys.argv[2], int(sys.argv[3])
+target = int(sys.argv[4])
 lines = open(path, encoding="utf-8").read().split("\n")
 header = " " * indent + "- name: " + name
 run_key = " " * (indent + 2) + "run: |"
@@ -24074,7 +24077,18 @@ if lines.count(header) != 1:
     raise SystemExit("step-header-count:%s:%s" % (name, lines.count(header)))
 index = lines.index(header)
 run_index = next(i for i in range(index + 1, len(lines)) if lines[i] == run_key)
-lines.insert(run_index + 1, " " * (indent + 4) + "# " + ("x" * 20000))
+doc = yaml.safe_load(open(path, encoding="utf-8"))
+steps = doc["runs"]["steps"] if isinstance(doc.get("runs"), dict) else [
+    step
+    for job in (doc.get("jobs") or {}).values() if isinstance(job, dict)
+    for step in (job.get("steps") or [])
+]
+run = next(step["run"] for step in steps if isinstance(step, dict) and step.get("name") == name)
+prefix = " " * (indent + 4) + "# "
+needed = target - len(run.encode("utf-8")) - len("# ") - 1
+if needed < 1:
+    raise SystemExit("pad-target-too-small:%s:%d" % (name, needed))
+lines.insert(run_index + 1, prefix + ("x" * needed))
 open(path, "w", encoding="utf-8").write("\n".join(lines))
 R33PAD
   cat > "$r33_dir/replace.py" <<'R33REPL'
@@ -24119,16 +24133,16 @@ R33APPEND
   }
   r33_prepare
   r33_expect_ok control
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run Maintainer agent" 6
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run Maintainer agent" 6 20001
   r33_expect_bad pad-maintainer "Run Maintainer agent"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4 20001
   r33_expect_bad pad-composite "Run opencode"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Trigger pages deployment if main advanced" 6
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Trigger pages deployment if main advanced" 6 20001
   r33_expect_bad pad-tree-wide "Trigger pages deployment if main advanced"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run /oc triggers as owner" 6
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run /oc triggers as owner" 6 20001
   r33_expect_bad pad-no-expression "Run /oc triggers as owner"
   r33_prepare
   python3 -I "$r33_dir/replace.py" "$r33_fixture/.github/workflows/maintainer.yml" "      - name: Run Maintainer agent" "      - name: Run Maintainer agent renamed"
