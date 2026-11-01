@@ -21,8 +21,8 @@
 # maze-chase/ directory, finds Chrome (the CHROME environment variable or
 # a platform candidate), and runs boot-gate-e2e.js, browser-e2e.js,
 # tester-rebind-lifecycle.js, tester-audio-e2e.js, and site-e2e.js in
-# that order. Requires node 22+ (built-in WebSocket) and python3 (for the
-# static server and a free debug port).
+# that order. Requires node 22+ (built-in WebSocket) and python3
+# (for the static server and a free debug port).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
       if [ "$1" = "--base-url" ]; then BASE_URL="$2"; else CHROME_BIN="$2"; fi
       shift 2 ;;
     --plan|--dry-run) PLAN=1; shift ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR == 1 { next } /^#/ { print; next } { exit }' "$0"; exit 0 ;;
     -*) echo "run-browser-e2e.sh: unknown option: $1" >&2; exit 2 ;;
     *) SCRIPTS+=("$1"); shift ;;
   esac
