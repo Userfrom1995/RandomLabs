@@ -442,6 +442,14 @@ async function collectLinks(ws) {
       assert(mobile.navPill, `${path} uses the horizontal site nav at 390x844`);
       assert(
         mobile.navPill
+          && mobile.navPill.boxLeft >= 0
+          && mobile.navPill.boxRight <= mobile.viewportWidth,
+        `${path} keeps the horizontal nav inside the 390px viewport (${mobile.navPill
+          ? `${mobile.navPill.boxLeft.toFixed(1)}..${mobile.navPill.boxRight.toFixed(1)} of ${mobile.viewportWidth}`
+          : 'missing'})`,
+      );
+      assert(
+        mobile.navPill
           && mobile.navPill.left >= mobile.navPill.boxLeft - 1
           && mobile.navPill.right <= mobile.navPill.boxRight + 1,
         `${path} scrolls the current nav pill fully into view (${mobile.navPill
@@ -543,6 +551,8 @@ async function collectLinks(ws) {
       && resizedNav.viewport[0] === 320
       && resizedNav.overflows
       && resizedNav.scrollLeft > 0
+      && resizedNav.boxLeft >= 0
+      && resizedNav.boxRight <= resizedNav.viewport[0]
       && resizedNav.left >= resizedNav.boxLeft - 1
       && resizedNav.right <= resizedNav.boxRight + 1,
     `releases.html re-reveals the current nav pill after a resize to 320x568 (${resizedNav
@@ -584,6 +594,8 @@ async function collectLinks(ws) {
     grownNav
       && grownNav.viewport[0] === 430
       && grownNav.viewport[1] === 900
+      && grownNav.boxLeft >= 0
+      && grownNav.boxRight <= grownNav.viewport[0]
       && grownState.visible
       && grownState.ok,
     `releases.html keeps the current nav pill valid after a resize back to 430x900 (${grownNav
