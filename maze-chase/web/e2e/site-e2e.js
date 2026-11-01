@@ -544,11 +544,12 @@ async function collectLinks(ws) {
         viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
       };
     })()`);
-    if (resizedNav && resizedNav.viewport[0] === 320 && resizedNav.scrollLeft > 0) break;
+    if (resizedNav && resizedNav.viewport[0] === 320 && resizedNav.viewport[1] === 568 && resizedNav.scrollLeft > 0) break;
   }
   assert(
     resizedNav
       && resizedNav.viewport[0] === 320
+      && resizedNav.viewport[1] === 568
       && resizedNav.overflows
       && resizedNav.scrollLeft > 0
       && resizedNav.boxLeft >= 0
