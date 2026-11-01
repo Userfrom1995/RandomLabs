@@ -1283,10 +1283,10 @@ resetting at midnight UTC) is diagnostic only, never a park horizon. The
 account-level `Upstream request failed: Insufficient account funds` rejection
 is a separate named fast-fail (`account_funds_terminal()`, same anchoring),
 and the transient HTTP detector structurally excludes it ahead of its own
-pipeline so it can never consume the shared 429/5xx retry. Unlike the
-per-egress quota wall, a fresh run cannot recover the account rejection
-(it uses the same account): fund the provider plan or escalate to the Owner
-after a re-dispatch. R15 executes both
+pipeline so it can never consume the shared 429/5xx retry. The line can be a
+non-fatal per-call paid-title-path 402 (issue #754 addendum), so a fresh run
+is the first recovery; fund the provider plan or escalate to the Owner only
+if the rejection persists. R15 executes both
 detectors functionally over both wordings, every prefix and period form, the
 bare form, the echo/envelope/suffix/phrase-variant/retry-summary/uppercase/
 stale no-match matrix, the 599/600 window boundary for both classes, and the
@@ -1295,7 +1295,7 @@ account detector, and the account line must not match the quota or transient
 detector), and the behavioral matrix adds `quota` (watchdog cut), both exit
 shapes, the older wording, stderr, the 599/600 window boundary end-to-end, a
 ~160 KiB match-first window, the account line followed by silence
-classified ahead of the stall flag (one attempt, no stall retry), the quota
+classified inside the hang branch before the stall retry (one attempt, no stall retry), the quota
 and account post-attempt classes in both capture shapes including the
 degraded no-mkfifo shape, interleaves after the HTTP/free-tier/stall retries
 (each spends exactly its own backoff and no stall retry), a rung-deep
@@ -1730,8 +1730,9 @@ remote tip).
   neither class consumes a retry budget or advances the ladder (the account
   rejection is structurally excluded from the transient 429/5xx family).
   The quota wall recovers on a fresh run with a new egress IP; the account
-  rejection does not (the same account is charged), so the escalation is to
-  fund the provider plan or involve the Owner. The
+  line can be a non-fatal per-call paid-title-path 402 (issue #754 addendum),
+  so a fresh run is the first recovery and the provider-plan/Owner escalation
+  is for a persistent rejection. The
   resolver, the ladder, all retry paths (free-tier, stall, 429/5xx), the
   egress-IP fast-fail, the quota and account-funds fast-fails, and
   the watchdog are enforced by R15 in
@@ -1753,14 +1754,15 @@ remote tip).
   (run 41311839234), while the vendored runner scalar sat at 20,277 bytes and
   the audit stayed green because no rule measured script size. The prose now
   lives in YAML comments above the two steps (comments survive review but are
-  not part of the scalar; the scalars are 14,317 and 14,185 bytes), every
-  detector, retry path, and fail-closed exit is byte-identical, and R33 in
+  not part of the scalar; the scalars are 14,898 and 14,766 bytes), every
+  detector, retry path, and fail-closed exit is preserved, and R33 in
   `.github/scripts/silent-stall-audit.sh` measures every run scalar in every
   workflow and composite action against a documented 20,000-byte ceiling
   (1,000 bytes under the cap), requires the two incident steps to exist
   exactly once, parses with a strict duplicate-key-rejecting loader, fails
   closed on parse or sandbox errors, and self-tests padded, renamed,
-  duplicated, and malformed fixtures.
+  duplicated, and malformed fixtures plus a third workflow and a .yaml
+  extension fixture.
 - The PAT merge sweep never silently skips a linked workflow PR on a shallow
   workspace (issue #602): the opencode CLI session bootstrap re-shallows the
   Maintainer's full-depth checkout with depth-limited fetches, and

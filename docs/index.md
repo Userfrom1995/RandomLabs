@@ -123,8 +123,10 @@ the human to apply; the bot never pushes to forks (guidance only).
   is structurally excluded from the 429/5xx retry); both exit loudly, consume
   no retry budget, and never advance the ladder, and the provider's
   `retry-after` header is diagnostic only. The per-egress quota wall recovers
-  on a fresh run with a new IP; the account rejection does not, so it is
-  escalated to the Owner rather than re-dispatched onto the same account.
+  on a fresh run with a new IP; the account line can be a non-fatal
+  per-call paid-title-path 402 (issue #754 addendum), so a fresh run is the
+  first recovery and the provider-plan/Owner escalation is for a persistent
+  rejection.
   Every run script is also size-budgeted: R33 keeps every workflow and
   composite-action `run:` scalar at or below 20,000 bytes, 1,000 bytes under
   GitHub's 21,000-character expression cap, after a #754 prose addition took

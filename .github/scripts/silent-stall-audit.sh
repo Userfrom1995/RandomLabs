@@ -2409,6 +2409,11 @@ free_usage_limit_terminal() {
 account_funds_terminal() {
 ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
+account_funds_fail() {
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$1'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. The line can be a non-fatal per-call paid-title-path 402, so a fresh run is the first recovery; fund the provider plan or escalate to the Owner only if the rejection persists."
+exit 1
+}
 transient_http_error_terminal() {
 if account_funds_terminal "$1"; then
 return 1
@@ -2497,12 +2502,10 @@ rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 exit 1
 fi
-if account_funds_terminal "$log"; then
-rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
-exit 1
-fi
 if [ -s "$hang_flag" ]; then
+if account_funds_terminal "$log"; then
+account_funds_fail "$model"
+fi
 rm -f "$log" "$fifo" "$hang_flag"
 if [ "$hang_retry_used" -lt 1 ]; then
 hang_retry_used=1
@@ -2522,6 +2525,9 @@ if free_usage_limit_terminal "$log"; then
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 exit 1
+fi
+if account_funds_terminal "$log"; then
+account_funds_fail "$model"
 fi
 if ip_block_error_terminal "$log"; then
 echo "::error::provider blocked this runner's egress IP (HTTP 403 abusive-traffic classification, issue #669) on model '$model'; this is not retryable from the same runner. Fresh-run recovery: a re-dispatch lands on a new runner with a new egress IP (the crash-parity triage already re-dispatches review/test/lab, and the Maintainer schedule covers its own arm)."
@@ -2621,6 +2627,11 @@ free_usage_limit_terminal() {
 account_funds_terminal() {
 ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
+account_funds_fail() {
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$1'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. The line can be a non-fatal per-call paid-title-path 402, so a fresh run is the first recovery; fund the provider plan or escalate to the Owner only if the rejection persists."
+exit 1
+}
 transient_http_error_terminal() {
 if account_funds_terminal "$1"; then
 return 1
@@ -2709,12 +2720,10 @@ rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 exit 1
 fi
-if account_funds_terminal "$log"; then
-rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
-exit 1
-fi
 if [ -s "$hang_flag" ]; then
+if account_funds_terminal "$log"; then
+account_funds_fail "$model"
+fi
 rm -f "$log" "$fifo" "$hang_flag"
 if [ "$hang_retry_used" -lt 1 ]; then
 hang_retry_used=1
@@ -2734,6 +2743,9 @@ if free_usage_limit_terminal "$log"; then
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 exit 1
+fi
+if account_funds_terminal "$log"; then
+account_funds_fail "$model"
 fi
 if ip_block_error_terminal "$log"; then
 echo "::error::provider blocked this runner's egress IP (HTTP 403 abusive-traffic classification, issue #669) on model '$model'; this is not retryable from the same runner. Fresh-run recovery: a re-dispatch lands on a new runner with a new egress IP (the crash-parity triage already re-dispatches review/test/lab, and the Maintainer schedule covers its own arm)."
@@ -2905,12 +2917,18 @@ r15_freetier_pins() {
   # lines above the kill point; 40 lines cannot see it), the phrase family
   # must cover both observed wordings, and the classification must be wired
   # exactly twice (the watchdog cut and the post-attempt check) so BOTH exit
-  # shapes and both capture shapes are covered. The account detector must be
-  # wired exactly once, and the transient detector must structurally exclude
-  # it ahead of its own pipeline, so it can never consume the shared HTTP
-  # retry. The negative side (no retry budget, no rung advance) is bound
-  # behaviorally by the quota/account scenarios: exactly one attempt on the
-  # first rung.
+  # shapes and both capture shapes are covered. The account detector is wired
+  # twice: once inside the hang branch before the stall retry, and once for an
+  # attempt that ended on its own, after the post-attempt quota check. The
+  # ordering is load-bearing: an account check ahead of the post-attempt
+  # quota check classified a self-ended log carrying both terminal lines as
+  # account funds, and one ahead of the tee guard masked a capture failure. The
+  # canonical message and its single unconditional exit live in the shared
+  # account_funds_fail helper, and the transient detector must structurally
+  # exclude the account class ahead of its own pipeline, so it can never
+  # consume the shared HTTP retry. The negative side (no retry budget, no rung
+  # advance) is bound behaviorally by the quota/account scenarios: exactly one
+  # attempt on the first rung.
   grep -qF 'free_usage_limit_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-free-usage-limit-detector)"
   fn=$(sed -n '/free_usage_limit_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
   printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 600 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(free-usage-limit-detector-not-pipefail-safe-tail-600)"
@@ -2930,10 +2948,22 @@ r15_freetier_pins() {
   fn=$(sed -n '/account_funds_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
   printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 600 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(account-funds-detector-not-pipefail-safe-tail-600)"
   printf '%s\n' "$fn" | grep -qF 'Upstream request failed: Insufficient account funds\.?$' || r15_bad="${r15_bad} ${label}(no-anchored-account-funds-terminal-form)"
-  [ "$(grep -cE '^[[:space:]]*if account_funds_terminal "\$log"; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(account-funds-detector-not-wired-once)"
+  [ "$(grep -cE '^[[:space:]]*if account_funds_terminal "\$log"; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(account-funds-detector-not-wired-twice)"
+  grep -qF 'account_funds_fail() {' "$f" || r15_bad="${r15_bad} ${label}(no-account-funds-fail-helper)"
   [ "$(grep -cF 'insufficient account funds' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-canonical-account-funds-message)"
   n=$(grep -A2 -F 'insufficient account funds' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(account-funds-fast-fail-not-unconditional-exit-1)"
+  # The hang branch must check account funds before it consumes the one
+  # same-model stall retry; the self-ended check must sit after the
+  # post-attempt quota check so a log carrying both terminal lines is the
+  # quota wall.
+  r15_hang_to_tee=$(sed -n '/^[[:space:]]*if \[ -s "\$hang_flag" \]; then$/,/^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$/p' "$f")
+  printf '%s\n' "$r15_hang_to_tee" | grep -qF 'if account_funds_terminal "$log"; then' || r15_bad="${r15_bad} ${label}(account-funds-not-checked-before-stall-retry)"
+  r15_quota_line=$(grep -nE '^[[:space:]]*if free_usage_limit_terminal "\$log"; then$' "$f" | tail -n 1 | cut -d: -f1)
+  r15_account_line=$(grep -nE '^[[:space:]]*if account_funds_terminal "\$log"; then$' "$f" | tail -n 1 | cut -d: -f1)
+  if [ -z "$r15_quota_line" ] || [ -z "$r15_account_line" ] || [ "$r15_account_line" -le "$r15_quota_line" ]; then
+    r15_bad="${r15_bad} ${label}(account-funds-self-ended-check-before-quota)"
+  fi
   # Review finding 4 defense in depth: the exclusion inside the transient
   # detector must be the exact guard-plus-return shape immediately ahead of
   # the pipeline, not merely the guarded call somewhere in the function.
@@ -4039,6 +4069,13 @@ case "${R15_SCENARIO}:${n}" in
   ft-stale:*) echo "AI_APICallError: ${ft}"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do echo "healthy tail line $i"; done; exit 0 ;;
   ft-trailing:1) echo "AI_APICallError: ${ft}"; echo "healthy tail line 1"; echo "healthy tail line 2"; echo "healthy tail line 3"; exit 0 ;;
   ft-trailing:*) echo "healthy success"; exit 0 ;;
+  # Review finding: a failing tee must stay the capture failure even when the
+  # log also carries a terminal account or quota line (the tee guard sits
+  # ahead of both self-ended fast-fails).
+  failing-tee-account:1) echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exit 0 ;;
+  failing-tee-account:*) echo "healthy success"; exit 0 ;;
+  failing-tee-quota:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  failing-tee-quota:*) echo "healthy success"; exit 0 ;;
   failing-tee*) echo "healthy success"; exit 0 ;;
   budget-rungs:1) echo "AI_APICallError: ${ft}"; exit 0 ;;
   budget-rungs:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
@@ -4112,6 +4149,14 @@ case "${R15_SCENARIO}:${n}" in
   quota-window600:*) echo "healthy success"; exit 0 ;;
   quota-bigwindow:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; big=$(printf '%4088s' ''); big="${big// /x}"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do echo "healthy tail line $i $big"; done; exec "$R15_REAL_SLEEP" 30 ;;
   quota-bigwindow:*) echo "healthy success"; exit 0 ;;
+  # Review finding: a log carrying both terminal lines must classify as the
+  # quota wall (the post-attempt quota check runs before the self-ended
+  # account check), and a hang-flagged log carrying both must also be the
+  # quota wall (the watchdog's quota flag branch runs first).
+  quota-with-account:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exit 0 ;;
+  quota-with-account:*) echo "healthy success"; exit 0 ;;
+  quota-with-account-hang:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exec "$R15_REAL_SLEEP" 30 ;;
+  quota-with-account-hang:*) echo "healthy success"; exit 0 ;;
   # Account-level funds rejection: named fast-fail, never the transient HTTP
   # retry. If the transient detector failed to exclude it, the exit-0 shape
   # would spend a 30s retry and the second (healthy) attempt would conclude
@@ -4651,10 +4696,17 @@ R15MKFIFO
   r15_behavioral_case account-funds-stderr 1 "a-free" "insufficient account funds" ""
   r15_behavioral_case account-funds-after-http 1 "a-free a-free" "insufficient account funds" "30:1"
   # Review finding 1: an account line followed by silence must be classified
-  # before the stall branch, so exactly one attempt runs and no 10s stall
-  # retry is spent. The watchdog fires (HANG_IDLE=1), then the account check
-  # ahead of the hang flag wins.
+  # inside the hang branch before the stall retry, so exactly one attempt runs
+  # and no 10s stall retry is spent. The watchdog fires (HANG_IDLE=1), then
+  # the account check ahead of the stall retry wins.
   R15_HANG_IDLE=1 r15_behavioral_case account-funds-hang 1 "a-free" "insufficient account funds" ""
+  # Review finding: a log carrying both terminal lines is the quota wall on
+  # the self-ended and hang-flagged shapes, and a failing tee stays the
+  # capture failure even when an account or quota line is present.
+  r15_behavioral_case quota-with-account 1 "a-free" "provider daily free-usage limit reached" ""
+  R15_HANG_IDLE=1 r15_behavioral_case quota-with-account-hang 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case failing-tee-account 1 "a-free" "could not capture the (Maintainer )?opencode log" ""
+  r15_behavioral_case failing-tee-quota 1 "a-free" "could not capture the (Maintainer )?opencode log" ""
   # Review finding 5: both post-attempt classes in the degraded no-mkfifo
   # capture shape, so the "both capture shapes" claim is exercised end to end.
   r15_behavioral_case nofifo-quota 1 "a-free" "provider daily free-usage limit reached" ""
@@ -11231,6 +11283,11 @@ free_usage_limit_terminal() {
 account_funds_terminal() {
   ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
+account_funds_fail() {
+  rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+  echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$1'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. The line can be a non-fatal per-call paid-title-path 402, so a fresh run is the first recovery; fund the provider plan or escalate to the Owner only if the rejection persists."
+  exit 1
+}
 transient_http_error_terminal() {
   if account_funds_terminal "$1"; then
     return 1
@@ -11345,19 +11402,17 @@ for model in $candidates; do
       echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
       exit 1
     fi
-    # Account-level funds rejection fast-fail (issue #754): checked
-    # ahead of the stall flag so a terminal account line followed by
-    # silence is classified here instead of consuming the one
-    # same-model stall retry. It is also checked before the transient
-    # HTTP class (which structurally excludes it) so it can never
-    # consume the shared HTTP retry, and it exits 1 unconditionally
-    # for both exit shapes.
-    if account_funds_terminal "$log"; then
-      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
-      echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. A fresh run uses the same account and cannot recover it: fund the provider plan or escalate to the Owner, then re-dispatch."
-      exit 1
-    fi
     if [ -s "$hang_flag" ]; then
+      # Account-level funds rejection fast-fail (issue #754): checked
+      # before the stall retry so a terminal account line followed by
+      # silence is classified here instead of consuming the one
+      # same-model stall retry. It is also checked before the
+      # transient HTTP class (which structurally excludes it) so it
+      # can never consume the shared HTTP retry, and it exits 1
+      # unconditionally for both exit shapes.
+      if account_funds_terminal "$log"; then
+        account_funds_fail "$model"
+      fi
       rm -f "$log" "$fifo" "$hang_flag"
       if [ "$hang_retry_used" -lt 1 ]; then
         hang_retry_used=1
@@ -11384,6 +11439,15 @@ for model in $candidates; do
       echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
       rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
       exit 1
+    fi
+    # Account-level funds rejection fast-fail (issue #754) for an
+    # attempt that ended on its own (including the degraded no-mkfifo
+    # shape): checked after the quota class so a log carrying both
+    # terminal lines is classified as the quota wall, never as
+    # account funds. It exits 1 unconditionally for both exit shapes
+    # and never consumes the shared HTTP retry.
+    if account_funds_terminal "$log"; then
+      account_funds_fail "$model"
     fi
     # Blocked-egress-IP fast-fail (issue #669): checked before the
     # exit-shape split so BOTH shapes are classified, and exits 1
@@ -24019,9 +24083,9 @@ esac
 # incident steps must each exist exactly once. The predicate reads a strict
 # duplicate-key-rejecting YAML parse (GitHub rejects such files too), fails
 # closed on a parse error or a missing sandbox, and is self-tested against
-# padded, renamed, duplicated, and malformed fixtures so the ceiling, the
-# named-step identity, and the uniform tree-wide sweep cannot silently
-# weaken.
+# padded, renamed, duplicated, and malformed fixtures plus a third workflow
+# and a `.yaml` extension fixture so the ceiling, the named-step identity, and
+# the uniform tree-wide sweep cannot silently weaken.
 r33_ceiling=20000
 r33_dir=$(mktemp -d 2>/dev/null || true)
 r33_out=""
@@ -24163,6 +24227,11 @@ R33APPEND
     mkdir -p "$r33_fixture/.github/workflows" "$r33_fixture/.github/actions/opencode-run"
     cp .github/workflows/maintainer.yml "$r33_fixture/.github/workflows/maintainer.yml"
     cp .github/actions/opencode-run/action.yml "$r33_fixture/.github/actions/opencode-run/action.yml"
+    # A third workflow and a `.yaml` spelling: a scanner narrowed to the two
+    # incident files (or to `*.yml`) must fail the self-test, because the
+    # production predicate walks the whole tree and both extensions.
+    cp .github/workflows/auditor.yml "$r33_fixture/.github/workflows/auditor.yml"
+    cp .github/workflows/auditor.yml "$r33_fixture/.github/workflows/auditor.yaml"
   }
   r33_scan() { python3 -I "$r33_dir/budget.py" "$1" "$r33_ceiling"; }
   r33_got() { r33_scan "$r33_fixture" 2>/dev/null || true; }
@@ -24190,8 +24259,11 @@ R33APPEND
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4 20001
   r33_expect_bad pad-composite "Run opencode"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Trigger pages deployment if main advanced" 6 20001
-  r33_expect_bad pad-tree-wide "Trigger pages deployment if main advanced"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R33)" 6 20001
+  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R33)"
+  r33_prepare
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R33)" 6 20001
+  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R33)"
   r33_prepare
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run /oc triggers as owner" 6 20001
   r33_expect_bad pad-no-expression "Run /oc triggers as owner"
@@ -24221,10 +24293,10 @@ broken: [
 fi
 case "$r33_out" in
   OK)
-    check "R33" "every run scalar in every workflow and composite action is at most 20,000 UTF-8 bytes, 1,000 bytes under GitHub's 21,000-character expression template cap, whether or not the script carries an expression; the two incident steps (maintainer.yml Run Maintainer agent and the vendored opencode-run action Run opencode) each exist exactly once, measured from a strict duplicate-key-rejecting YAML parse with a fail-closed sandbox/parse state and self-tested padded, renamed, duplicated, and malformed fixtures so the ceiling, the named-step identity, and the uniform tree-wide sweep cannot silently weaken (issue #754: the quota-wall prose took the Maintainer scalar to 22,200 bytes and every push validation rejected the workflow while the composite sat 723 bytes under the cap and the audit stayed green)" "ok"
+    check "R33" "every run scalar in every workflow and composite action is at most 20,000 UTF-8 bytes, 1,000 bytes under GitHub's 21,000-character expression template cap, whether or not the script carries an expression; the two incident steps (maintainer.yml Run Maintainer agent and the vendored opencode-run action Run opencode) each exist exactly once, measured from a strict duplicate-key-rejecting YAML parse with a fail-closed sandbox/parse state and self-tested padded, renamed, duplicated, and malformed fixtures plus a third workflow and a .yaml extension fixture so the ceiling, the named-step identity, and the uniform tree-wide sweep cannot silently weaken (issue #754: the quota-wall prose took the Maintainer scalar to 22,200 bytes and every push validation rejected the workflow while the composite sat 723 bytes under the cap and the audit stayed green)" "ok"
     ;;
   *)
-    check "R33" "run-scalar size budget missing or bypassable: ${r33_out} (issue #754: no rule measured script size, so a 22,200-byte Maintainer scalar failed GitHub push validation run 41311839234 with 'Exceeded max expression length 21000' while the 20,277-byte composite scalar sat 723 bytes under the cap; every run scalar must stay at or below 20,000 bytes and the two incident steps must exist exactly once, verified by a strict duplicate-key-rejecting parse with self-tested padded, renamed, duplicated, and malformed fixtures)" "bad"
+    check "R33" "run-scalar size budget missing or bypassable: ${r33_out} (issue #754: no rule measured script size, so a 22,200-byte Maintainer scalar failed GitHub push validation run 41311839234 with 'Exceeded max expression length 21000' while the 20,277-byte composite scalar sat 723 bytes under the cap; every run scalar must stay at or below 20,000 bytes and the two incident steps must exist exactly once, verified by a strict duplicate-key-rejecting parse with self-tested padded, renamed, duplicated, and malformed fixtures plus a third workflow and a .yaml extension fixture)" "bad"
     ;;
 esac
 
