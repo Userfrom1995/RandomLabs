@@ -40,18 +40,23 @@ Both runner paths (`.github/actions/opencode-run/action.yml` and
    `Upstream request failed: Insufficient account funds` rejection through
    the same wider bounded 600-line window and is structurally excluded from
    the transient 429/5xx family ahead of its own pipeline, so it can never
-   consume the shared HTTP retry. Its post-attempt classification sits ahead
-   of the stall-flag branch, so an account line followed by silence is
+   consume the shared HTTP retry. It is a named fast-fail with the same
+   unconditional exit-1 contract. The classification order is load-bearing:
+   the quota flag branch runs first, the account check sits inside the hang
+   branch before the stall retry (so an account line followed by silence is
    fast-failed on the first attempt instead of spending the one same-model
-   stall retry and misreporting a provider stall. It is a named fast-fail
-   with the same unconditional exit-1 contract.
+   stall retry and misreporting a provider stall), the tee guard follows, and
+   the post-attempt quota check runs before the self-ended account check (so
+   a log carrying both terminal lines is the quota wall). The canonical
+   message and its single unconditional exit live in a shared
+   `account_funds_fail()` helper.
 
 The quota wall's recovery is a fresh run on a new runner (crash-parity
 triage re-dispatches review/test/lab; the Maintainer's recurring schedule
 covers its own arm), because every free rung shares the same per-egress
-allowance. The account rejection is account-level: a fresh run uses the same
-account and cannot recover it, so the escalation is to fund the provider plan
-or involve the Owner instead of re-dispatching.
+allowance. The account line can be a non-fatal per-call paid-title-path 402 (issue
+#754 addendum), so a fresh run is the first recovery; the provider-plan/Owner
+escalation is for a persistent rejection, not the first occurrence.
 
 ## Verification
 
@@ -65,12 +70,18 @@ or involve the Owner instead of re-dispatching.
 - R15 behavioral matrix: `quota` watchdog cut (one attempt, no stall retry),
   both exit shapes, older wording, stderr, the 599/600 boundary end-to-end, a
   ~160 KiB match-first window, the account line followed by silence
-  classified ahead of the stall flag (one attempt, no stall retry), the
-  quota and account post-attempt classes in both capture shapes including
+  classified inside the hang branch before the stall retry (one attempt, no
+  stall retry), `quota-with-account` and `quota-with-account-hang` proving a
+  log carrying both terminal lines is the quota wall, `failing-tee-account`
+  and `failing-tee-quota` proving the tee guard stays the capture failure,
+  the quota and account post-attempt classes in both capture shapes including
   the degraded no-mkfifo shape, interleaves after the HTTP/free-tier/stall
   retries, a rung-deep scenario with no ladder advance, and `account-funds`
   variants proving exactly one attempt and no HTTP retry, all under the
   production `bash --noprofile --norc -eo pipefail` shell form.
+- R33 self-test: a third workflow (`auditor.yml`) and a `.yaml` extension
+  fixture prove the tree-wide sweep and both extensions, so a scanner
+  narrowed to the two incident files cannot pass.
 - Full audit: `bash .github/scripts/silent-stall-audit.sh` reports 33 passed,
   0 failed, rc 0 (R15 and R33 included).
 
@@ -87,15 +98,16 @@ audit stayed green at 32 passed. The vendored `Run opencode` scalar sat at
 
 The fix moves the explanatory prose out of both block scalars into YAML
 comments above the steps (YAML comments survive review but are not part of
-the scalar), leaving the two scalars at 14,317 and 14,185 bytes with every
-detector, retry path, and fail-closed exit byte-identical. The touched R26
+the scalar), leaving the two scalars at 14,317 and 14,185 bytes at the time
+(14,898 and 14,766 after the review-finding reorder), with every detector,
+retry path, and fail-closed exit preserved. The touched R26
 pre-handler manifest was regenerated from the real extractor. A new audit
 rule, R33, measures every run scalar in every workflow and composite action
 against a documented 20,000-byte ceiling (1,000 bytes of headroom for future
 expression edits), requires both incident steps to exist exactly once,
 parses with a strict duplicate-key-rejecting loader, fails closed on parse or
 sandbox errors, and self-tests padded, renamed, duplicated, and malformed
-fixtures.
+fixtures plus a third workflow and a `.yaml` extension fixture.
 
 ## Residuals
 
@@ -103,7 +115,8 @@ fixtures.
   the exact provider line at column 0 in its last 600 log lines is
   fast-failed. For the quota wall the cost is one fresh-run re-dispatch,
   which is this class's recovery; for the account rejection it is one loud
-  red run and an Owner escalation.
+  red run; a fresh run is the first recovery, and the provider-plan/Owner
+  escalation is for a persistent rejection.
 - A quota or account line more than 600 lines above the kill point is not
   seen by the watchdog and falls back to the stall path; the post-attempt
   check uses the same 600-line window, so such a line is not classified by
