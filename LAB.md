@@ -1560,7 +1560,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R32), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R33), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -1735,6 +1735,21 @@ remote tip).
   advance a rung, issue
   #620 review rounds F5-F8 plus A1-A3, extended and matrix-widened for
   #653, with review round F1-F3 closing the pipefail/knob classes).
+- Every workflow and composite-action run script stays inside GitHub's
+  expression template budget (issue #754): the #754 explanatory prose took
+  `maintainer.yml`'s Maintainer runner scalar to 22,200 bytes, so every push
+  on the PR failed validation with `Exceeded max expression length 21000`
+  (run 41311839234), while the vendored runner scalar sat at 20,277 bytes and
+  the audit stayed green because no rule measured script size. The prose now
+  lives in YAML comments above the two steps (comments survive review but are
+  not part of the scalar; the scalars are 14,108 and 13,976 bytes), every
+  detector, retry path, and fail-closed exit is byte-identical, and R33 in
+  `.github/scripts/silent-stall-audit.sh` measures every run scalar in every
+  workflow and composite action against a documented 20,000-byte ceiling
+  (1,000 bytes under the cap), requires the two incident steps to exist
+  exactly once, parses with a strict duplicate-key-rejecting loader, fails
+  closed on parse or sandbox errors, and self-tests padded, renamed,
+  duplicated, and malformed fixtures.
 - The PAT merge sweep never silently skips a linked workflow PR on a shallow
   workspace (issue #602): the opencode CLI session bootstrap re-shallows the
   Maintainer's full-depth checkout with depth-limited fetches, and

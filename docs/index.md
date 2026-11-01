@@ -123,6 +123,11 @@ the human to apply; the bot never pushes to forks (guidance only).
   is structurally excluded from the 429/5xx retry); both exit loudly with
   the fresh-run recovery path, consume no retry budget, and never advance
   the ladder, and the provider's `retry-after` header is diagnostic only.
+  Every run script is also size-budgeted: R33 keeps every workflow and
+  composite-action `run:` scalar at or below 20,000 bytes, 1,000 bytes under
+  GitHub's 21,000-character expression cap, after a #754 prose addition took
+  the Maintainer runner scalar to 22,200 bytes and failed push validation
+  while the audit stayed green.
   When the
   whole ladder is dead the agent
   step fails loudly instead of a hollow green; the general arm
