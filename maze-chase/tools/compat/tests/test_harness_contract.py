@@ -31,6 +31,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -674,6 +675,91 @@ class TestRunnerEntrypoints(unittest.TestCase):
             body = fh.read()
         self.assertIn(r"=~ ^[0-9]+x[0-9]+$", body)
         self.assertNotIn("[0-9]*x[0-9]*", body)
+
+
+class TestRunLinuxTranscriptPaths(unittest.TestCase):
+    """run-linux.sh must hand drive.sh a transcript the launch will write.
+
+    drive.sh resolves a relative --transcript against the run directory.
+    With a relative --outdir, run-linux.sh used to build the transcript as
+    an outdir-prefixed path relative to the caller's CWD, so drive.sh
+    prefixed the run directory again: the readiness wait watched an empty
+    doubled path while the game wrote to the launch path, and a real
+    session was recorded unverified after a 30 second timeout.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="compat-run-linux-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        compat = os.path.join(self.tmp, "tools", "compat")
+        os.makedirs(compat)
+        shutil.copy2(os.path.join(COMPAT_DIR, "run-linux.sh"),
+                     os.path.join(compat, "run-linux.sh"))
+        self.record = os.path.join(self.tmp, "drive-argv.txt")
+        with open(os.path.join(compat, "drive.sh"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                'outdir=""; transcript=""; launch=""\n'
+                'while [ "$#" -gt 0 ]; do\n'
+                '  case "$1" in\n'
+                '    --outdir) outdir="$2"; shift 2 ;;\n'
+                '    --transcript) transcript="$2"; shift 2 ;;\n'
+                '    --launch) launch="$2"; shift 2 ;;\n'
+                '    *) shift ;;\n'
+                '  esac\n'
+                'done\n'
+                'printf "%s\\n" "$outdir" "$transcript" "$launch"'
+                ' > "$DRIVE_RECORD"\n'
+                'mkdir -p "$outdir/session"\n'
+                'printf "exited=true\\n" > "$outdir/session/events.log"\n'
+                '# Write the transcript where the launch command names it.\n'
+                'eval "set -- $launch"\n'
+                'for last; do :; done\n'
+                'printf "boot\\r\\n" > "$last"\n'
+                "exit 0\n"
+            )
+        os.chmod(os.path.join(compat, "drive.sh"), 0o755)
+        with open(os.path.join(compat, "collect.py"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n")
+        os.chmod(os.path.join(compat, "collect.py"), 0o755)
+        bindir = os.path.join(self.tmp, "bin")
+        os.makedirs(bindir)
+        with open(os.path.join(bindir, "xterm"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("#!/bin/sh\necho 'fake xterm 1.0'\n")
+        os.chmod(os.path.join(bindir, "xterm"), 0o755)
+        self.env = dict(
+            os.environ,
+            PATH=bindir + os.pathsep + os.environ.get("PATH", ""),
+            DISPLAY=os.environ.get("DISPLAY", ":98"),
+            DRIVE_RECORD=self.record,
+        )
+
+    @unittest.skipUnless(shutil.which("jq"), "run-linux.sh needs jq")
+    def test_a_relative_outdir_keeps_the_launched_transcript(self):
+        proc = subprocess.run(
+            ["bash",
+             os.path.join(self.tmp, "tools", "compat", "run-linux.sh"),
+             "--emulator", "xterm", "--tier", "auto", "--skip-build",
+             "--binary", "/bin/true", "--outdir", "rel-run"],
+            cwd=self.tmp, env=self.env, capture_output=True, text=True,
+            timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(self.record, encoding="utf-8") as fh:
+            outdir, transcript, launch = fh.read().splitlines()
+        launched = shlex.split(launch)[-1]
+        if not os.path.isabs(transcript):
+            transcript = os.path.join(self.tmp, outdir, transcript)
+        self.assertEqual(
+            os.path.realpath(transcript),
+            os.path.realpath(os.path.join(self.tmp, launched)),
+            f"drive.sh would watch {transcript!r} but the launch writes "
+            f"{launched!r}; a relative --outdir must not be prefixed twice",
+        )
 
 
 class TestCollectorHonestyGates(unittest.TestCase):
