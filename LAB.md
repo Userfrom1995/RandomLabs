@@ -1257,6 +1257,44 @@ first rung, no retry budget consumed, no rung advance, rc 1, and the canonical
 message for both exit shapes, a non-1 provider status, and a stderr-carried
 line.
 
+A fourth provider class is fast-failed by name (issue #754): the daily
+free-usage wall. The allowance is per egress IP and shared by every free
+rung, so neither a same-model retry nor a ladder advance can recover it. The
+CLI prints `AI_APICallError: Free usage limit reached. Subscribe to OpenCode
+Go to keep going: https://opencode.ai/go` (the current wording adds `Free
+models work in OpenCode (https://opencode.ai); `), then a long error dump,
+then goes silent; the #653 watchdog therefore killed both attempts after 600
+silent seconds each (about 21 minutes in review run 40048604834 and
+maintainer run 39964118698), consumed the one stall retry, and reported
+`repeated provider stall` for the wrong class. Both runner paths now carry a
+named `free_usage_limit_terminal()` detector with the same column-0 terminal
+anchoring and pipefail-safe wrap as the other classes, but a wider bounded
+600-line window: in the incident the terminal line sat about 345 lines above
+the kill point, so the 40-line window of the other classes cannot see it. The
+watchdog checks the detector at every poll and cuts the attempt immediately
+on the line through a dedicated flag (bounded TERM/KILL grace, precedence
+over the stall flag), and the post-attempt path checks it for attempts that
+end on their own, so both exit shapes and both capture shapes are covered.
+The class prints a canonical `::error::` naming the class and the fresh-run
+recovery, exits 1 unconditionally (so an exit-0 provider death can never
+conclude green), consumes no retry budget, and never advances the ladder.
+The provider's `retry-after` header (80,725-81,395 seconds in the incident,
+resetting at midnight UTC) is diagnostic only, never a park horizon. The
+account-level `Upstream request failed: Insufficient account funds` rejection
+is a separate named fast-fail (`account_funds_terminal()`, same anchoring),
+and the transient HTTP detector structurally excludes it ahead of its own
+pipeline so it can never consume the shared 429/5xx retry. R15 executes both
+detectors functionally over both wordings, every prefix and period form, the
+bare form, the echo/envelope/suffix/phrase-variant/retry-summary/uppercase/
+stale no-match matrix, the 599/600 window boundary, and the mutual-exclusion
+pair (the quota line must not match the account detector and vice versa), and
+the behavioral matrix adds `quota` (watchdog cut), both exit shapes, the
+older wording, stderr, the 599/600 window boundary end-to-end, a ~160 KiB
+match-first window, interleaves after the HTTP/free-tier/stall retries (each
+spends exactly its own backoff and no stall retry), a rung-deep scenario with
+no ladder advance, and `account-funds` variants proving exactly one attempt
+and no HTTP retry, all under the production pipefail shell form.
+
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
 proven arm-wide (relocating any counter into the rung loop fails
@@ -1677,9 +1715,14 @@ remote tip).
   runners degrade loudly to the legacy pipeline without the watchdog, and
   a provider 403 abusive-traffic egress-IP block is a named unconditional
   fast-fail whose recovery is a fresh run on a new runner, never a
-  same-runner retry (issue #669). The
+  same-runner retry (issue #669). The daily free-usage wall and the
+  account-level funds rejection are also named fast-fails (issue #754): the
+  quota line is cut by the watchdog at the next poll through a wider
+  600-line window instead of burning two stall timeouts, and neither class
+  consumes a retry budget or advances the ladder (the account rejection is
+  structurally excluded from the transient 429/5xx family). The
   resolver, the ladder, all retry paths (free-tier, stall, 429/5xx), the
-  egress-IP fast-fail, and
+  egress-IP fast-fail, the quota and account-funds fast-fails, and
   the watchdog are enforced by R15 in
   `.github/scripts/silent-stall-audit.sh` (anchored static element pins plus
   functional detector fixtures executed under the production pipefail shell
