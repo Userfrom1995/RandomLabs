@@ -130,11 +130,19 @@
 # comment-triggered agent lane must grant issues: write, every PR-gated lane
 # must also grant pull-requests: write, and review-comment lanes must grant
 # pull-requests: write, so opencode github run can react and post its session
-# summary at exit).
-# Wired into auditor.yml as the R1-R32 matrix.
+# summary at exit), and the R33 run-scalar size budget guard (issue #754:
+# every run scalar in every workflow and composite action stays at or below
+# 20,000 UTF-8 bytes, 1,000 bytes under GitHub's 21,000-character expression
+# template cap, after the quota-wall prose pushed the maintainer runner
+# scalar to 22,200 bytes and every push validation rejected the workflow
+# while the vendored Run opencode scalar sat 723 bytes under the cap and the
+# audit stayed green; the two incident steps must each exist exactly once,
+# enforced by a strict duplicate-key-rejecting parse plus padded, renamed,
+# duplicated, and malformed fixture self-tests).
+# Wired into auditor.yml as the R1-R33 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R32 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R33 audit the whole tree
 # (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -147,8 +155,8 @@
 # concurrency contract, the lab/fix agent cap-headroom contract, the
 # create-issue dedupe guard, the maintainer stray-PR cleanup guard, the
 # phase thread-binding plus build-push attribution guard, and the
-# trailer-strip thread-binding guard, and the agent bootstrap token-scope
-# guard), so
+# trailer-strip thread-binding guard, the agent bootstrap token-scope
+# guard, and the run-scalar size budget guard), so
 # they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
@@ -205,12 +213,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R32 PASS] $name: $desc"
+  [R1-R33 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R32 FAIL] $name: $desc"
+  [R1-R33 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -11155,158 +11163,35 @@ echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 ### 12 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
 ### 13 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The checkout is pinned to the same trusted default-branch commit, but use the staged copy as the authoritative prompt; never substitute any other edition.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
-# opencode CLI does not natively recognize workflow_run events (it only supports
-# issue_comment, pull_request_review_comment, issues, pull_request, schedule, workflow_dispatch).
-# For workflow_run triggers, present the event as workflow_dispatch so opencode handles
-# repo-level autonomous triage while the notification file (.maintainer/notification.txt)
-# conveys the failing workflow run details.
 if [ "${{ github.event_name }}" = "workflow_run" ]; then
   export GITHUB_EVENT_NAME="workflow_dispatch"
 fi
-# FALLBACK-LADDER (issue #591): per-rung retry on provider
-# "Model not found" (opencode may exit nonzero OR exit 0 after
-# posting its error comment), exactly once per rung; the match is
-# boundary-aware so prose quoting a different retired id can never
-# trigger a false advance; on an exit-0 run only the provider's
-# anchored terminal error line in the tail advances (a transcript
-# echo of the phrase re-ran a healthy completed session on
-# 2026-10-17, finding 7, so the whole-log substring match is gone
-# from that path); any other failure exits immediately; a failed
-# log capture and a dead ladder both exit 1 loudly so the verify
-# step below goes red instead of the 2026-10-17 hollow green.
-# FREE-TIER TRANSIENT RETRY (issue #620): the provider
-# intermittently rejects free-tier calls with FreeTierError
-# ("OpenCode's free tier can only be used from within OpenCode
-# ...") seconds into the agent step, killing the wake-up with no
-# decision file; maintainer run 39060571484, 2026-10-17. Such a
-# death retries the SAME model exactly once per arm (bounded), with
-# the same tail + column-0 terminal anchoring as the #591 detector
-# so a transcript echo or the responseBody JSON envelope never
-# consumes the retry; a second rejection fails loudly.
-# BLOCKED-EGRESS-IP FAST-FAIL (issue #669): the provider also rejects
-# a runner's egress IP with HTTP 403 abusive-traffic errors; that class
-# is named, fast-failed, and never retried on the same runner (a
-# fresh run on a new runner is the recovery), see the detector below.
 candidates="${MODEL_CANDIDATES:-}"
 if [ -z "$candidates" ]; then
   echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
   exit 1
 fi
-# The wrapper prints the provider's terminal error at column 0 (the
-# final text part `Model not found: <id>. Did you mean: ...`, or
-# `Error: Model not found: ...` when its catch handler prints the
-# throw), while a transcript echo of the phrase (a tool-call echo
-# rendered with the tool prefix, a quoted log line embedded in
-# prose) cannot match both the column-0 anchor and the terminal
-# form. Residual (documented): a healthy run whose own final
-# response contains the exact terminal form as a standalone
-# column-0 line could still match; none has ever been observed.
-# ( set +o pipefail; ... ) wrap (issue #653 review F1): every
-# `shell: bash` step runs as `bash --noprofile --norc -eo pipefail`,
-# and `grep -q` exits at the first match while `tail` may still be
-# writing. Once the 40-line window exceeds the pipe buffer (64 KiB
-# on Linux), tail takes SIGPIPE and pipefail propagates its 141, so
-# a genuine terminal line would read as "no match" (a silent green
-# on the exit-0 path, a lost retry on the nonzero path). The
-# subshell restores the pipeline's own grep status without
-# weakening either the tail scope or the column-0 anchor. The same
-# wrap guards all three detectors.
 model_error_terminal() {
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)" )
 }
-# FreeTierError detector (issue #620), same tail + column-0 terminal
-# anchoring as model_error_terminal: the provider prints the terminal
-# line bare from its AI SDK (`AI_APICallError: ...`) or from the CLI's
-# catch handler (`APIError: ...`), while a transcript echo (tool-call
-# echo, quoted log line in prose) and the responseBody JSON envelope
-# cannot match the anchored whole-line form.
 freetier_error_terminal() {
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
 }
-# Daily free-usage wall detector (issue #754), same column-0 terminal
-# anchoring as the other detectors but with a wider bounded window:
-# the CLI prints the terminal line, then a long error dump, then goes
-# silent. In review run 40048604834 the line sat about 345 lines above
-# the kill point, so the calibrated window is 600 lines (the 40-line
-# window of the other classes cannot see it). The phrase family covers
-# the older literal and the current `Free models work in OpenCode
-# (https://opencode.ai); ` variant; the `AI_RetryError: Failed after 3
-# attempts...` summary, the responseBody envelope, an indented echo, a
-# suffixed line, and a stale line beyond the window cannot match the
-# anchored whole-line form. Accepted residual (same as the other
-# detectors): a healthy session that prints the exact provider line at
-# column 0 in its last 600 log lines is fast-failed; the cost is one
-# fresh-run re-dispatch, which is this class's recovery.
 free_usage_limit_terminal() {
   ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
 }
-# Account-level funds rejection detector (issue #754): the provider's
-# `Upstream request failed: Insufficient account funds` line is
-# account-level, not a transient 5xx. It is excluded from the transient
-# family below (whose bounded `Upstream request failed: ` phrase would
-# otherwise match it) so it can never consume the shared HTTP retry,
-# and both runner paths fast-fail it by name.
 account_funds_terminal() {
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
 }
-# Transient HTTP-error detector (issues #653, #717), same tail +
-# column-0 terminal anchoring as the #591/#620 detectors: the observed
-# terminal forms are `AI_APICallError: Rate limit exceeded. Please try
-# again later.`, `AI_APICallError: Internal Server Error`, the standard
-# gateway phrases, and the retryable upstream-endpoint form
-# `AI_APICallError: Upstream request failed: Endpoint is unavailable.`
-# (statusCode 429, type server_error; matched by its bounded
-# `Upstream request failed: ` phrase family, never by a bare
-# `AI_APICallError:` prefix), bare at column 0, while the
-# `AI_RetryError: Failed after 3 attempts. Last error: ...` summary, a
-# transcript echo, and the responseBody JSON envelope cannot match the
-# anchored whole-line form. A persistent occurrence after the one
-# bounded same-model retry fails loudly on that model and does NOT
-# advance the ladder: every rung shares this gateway, so a fresh-run
-# re-dispatch (crash parity) is the recovery lane. The account-funds
-# rejection is structurally excluded (issue #754) so it can never
-# spend this budget.
 transient_http_error_terminal() {
   if account_funds_terminal "$1"; then
     return 1
   fi
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [A-Za-z0-9_.',-]+( [A-Za-z0-9_.',-]+)*)\.?$" )
 }
-# Blocked-egress-IP detector (issue #669), same tail + column-0
-# terminal anchoring as the #591/#620/#653 detectors: the provider
-# rejects the runner's egress IP with HTTP 403 and one of two
-# FreeTierError forms (`Forbidden, OpenCode Free Model Gateway Detect
-# Abuse Traffic`, or the long "OpenCode's free models aren't available
-# from your current network ..." message). All four incidents
-# (2026-10-18: 39127259752, 39144091490, 39165526719; 2026-10-20:
-# 39378762068) hit on the session's FIRST provider call within 8-20
-# seconds, which is consistent with the runner's egress IP already
-# being blocked when the job starts, so this class is deliberately
-# FAST-FAILED rather than retried: a same-model retry from the same
-# runner would hit the same IP. The canonical error below names the
-# class and the fresh-run recovery path; crash-parity triage already
-# re-dispatches onto a new runner (review/curator owner auto-retry,
-# test/lab via Maintainer workflow_run triage, the Maintainer via its
-# recurring schedule).
-# Accepted residual (review observation): this detector also runs on
-# the exit-0 path, so a healthy session that prints the exact provider
-# line at column 0 within its last 40 log lines (for example a fenced
-# quote of the failure it is debugging) is fast-failed with no retry.
-# This is the same accepted residual as the #591/#620/#653 detectors
-# (their echo fixtures cover indented echoes only), and the cost is
-# one fresh-run re-dispatch, which is this class's intended recovery.
 ip_block_error_terminal() {
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
 }
-# Provider-stall watchdog knobs (issue #653): an attempt whose captured
-# log does not grow for HANG_IDLE_SECONDS (checked every
-# HANG_POLL_SECONDS) is aborted and classified as a provider hang.
-# Env-overridable only so the audit harness can exercise the watchdog
-# in seconds; non-numeric values fall back to the production defaults.
-# Review F3: a zero poll interval would busy-loop with `idle += 0`
-# (watchdog silently disabled) and a value beyond the shell's integer
-# range would error on every `-ge` comparison (watchdog never fires),
-# so both knobs are clamped to sane positive bounds here.
 hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
 hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
 case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -16875,7 +16760,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "a11204469c4dde9b62c7fd812d012fb948a2854ac6ffea72bcb8cbd59bff15a5"
+EXPECTED_TEST_PROMPT_SHA256 = "062fad0ab189267fc45e5ec3b5c90cb6535576e0c0d8fe279ab1ef6d2855a3ae"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -24070,16 +23955,224 @@ case "$r32_out" in
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R32) on ${WF}: ${pass} passed, ${fail} failed."
+# [R33] Run-scalar size budget guard (issue #754): GitHub compiles a `run:`
+# script as a template expression and rejects the ENTIRE workflow file when
+# the scalar exceeds 21,000 characters. The #754 fast-fail prose pushed
+# maintainer.yml's Run Maintainer agent scalar to 22,200 bytes and every push
+# on the PR turned the required push validation red ("Exceeded max
+# expression length 21000", validation run 41311839234), while the vendored
+# composite Run opencode scalar sat at 20,277 bytes (723 under the cap) and
+# this audit stayed green because no rule measured script size. Every run
+# scalar in every workflow and composite action must now stay at or below
+# 20,000 UTF-8 bytes (1,000 bytes of expression-edit headroom), and the two
+# incident steps must each exist exactly once. The predicate reads a strict
+# duplicate-key-rejecting YAML parse (GitHub rejects such files too), fails
+# closed on a parse error or a missing sandbox, and is self-tested against
+# padded, renamed, duplicated, and malformed fixtures so the ceiling, the
+# named-step identity, and the uniform tree-wide sweep cannot silently
+# weaken.
+r33_ceiling=20000
+r33_dir=$(mktemp -d 2>/dev/null || true)
+r33_out=""
+r33_selftest_bad=""
+if [ -z "$r33_dir" ]; then
+  r33_out="sandbox-unavailable"
+else
+  cat > "$r33_dir/budget.py" <<'R33PY'
+import glob
+import os
+import sys
+
+import yaml
+
+
+class DuplicateKey(Exception):
+    pass
+
+
+def walk(node):
+    if isinstance(node, yaml.MappingNode):
+        seen = set()
+        for key_node, value_node in node.value:
+            key = getattr(key_node, "value", None)
+            if key in seen:
+                raise DuplicateKey("duplicate-yaml-key:%s:line-%s" % (key, key_node.start_mark.line + 1))
+            seen.add(key)
+            walk(value_node)
+    elif isinstance(node, yaml.SequenceNode):
+        for child in node.value:
+            walk(child)
+
+
+CEILING = int(sys.argv[2])
+NAMED = {
+    ".github/workflows/maintainer.yml": "Run Maintainer agent",
+    ".github/actions/opencode-run/action.yml": "Run opencode",
+}
+root = sys.argv[1]
+paths = sorted(
+    glob.glob(os.path.join(root, ".github/workflows/*.yml"))
+    + glob.glob(os.path.join(root, ".github/workflows/*.yaml"))
+    + glob.glob(os.path.join(root, ".github/actions/**/action.yml"), recursive=True)
+    + glob.glob(os.path.join(root, ".github/actions/**/action.yaml"), recursive=True)
+)
+problems = []
+seen_named = {}
+if not paths:
+    problems.append("no-workflow-or-action-files-found")
+for path in paths:
+    rel = os.path.relpath(path, root).replace(os.sep, "/")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        tree = yaml.compose(text)
+        if tree is not None:
+            walk(tree)
+        doc = yaml.safe_load(text)
+    except Exception as exc:  # noqa: BLE001 - any parse failure must fail closed
+        problems.append("%s(parse:%s)" % (rel, type(exc).__name__))
+        continue
+    if not isinstance(doc, dict):
+        problems.append("%s(not-a-mapping)" % rel)
+        continue
+    groups = []
+    if isinstance(doc.get("runs"), dict):
+        groups.append(doc["runs"].get("steps") or [])
+    for job in (doc.get("jobs") or {}).values():
+        if isinstance(job, dict):
+            groups.append(job.get("steps") or [])
+    for steps in groups:
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            run = step.get("run")
+            if not isinstance(run, str):
+                continue
+            name = step.get("name") or "<unnamed>"
+            size = len(run.encode("utf-8"))
+            if size > CEILING:
+                problems.append("%s:%s:%d" % (rel, name, size))
+            if rel in NAMED and name == NAMED[rel]:
+                seen_named.setdefault(rel, []).append(size)
+for rel, step_name in NAMED.items():
+    found = seen_named.get(rel) or []
+    if len(found) != 1:
+        problems.append("%s:%s(count=%d)" % (rel, step_name, len(found)))
+if problems:
+    print("BAD:" + " ".join(problems))
+else:
+    print("OK")
+R33PY
+  cat > "$r33_dir/pad.py" <<'R33PAD'
+import sys
+
+path, name, indent = sys.argv[1], sys.argv[2], int(sys.argv[3])
+lines = open(path, encoding="utf-8").read().split("\n")
+header = " " * indent + "- name: " + name
+run_key = " " * (indent + 2) + "run: |"
+if lines.count(header) != 1:
+    raise SystemExit("step-header-count:%s:%s" % (name, lines.count(header)))
+index = lines.index(header)
+run_index = next(i for i in range(index + 1, len(lines)) if lines[i] == run_key)
+lines.insert(run_index + 1, " " * (indent + 4) + "# " + ("x" * 20000))
+open(path, "w", encoding="utf-8").write("\n".join(lines))
+R33PAD
+  cat > "$r33_dir/replace.py" <<'R33REPL'
+import sys
+
+path, old, new = sys.argv[1], sys.argv[2], sys.argv[3]
+text = open(path, encoding="utf-8").read()
+if text.count(old) != 1:
+    raise SystemExit("replace-count:%s:%s" % (old, text.count(old)))
+open(path, "w", encoding="utf-8").write(text.replace(old, new))
+R33REPL
+  cat > "$r33_dir/append.py" <<'R33APPEND'
+import sys
+
+with open(sys.argv[1], "a", encoding="utf-8") as handle:
+    handle.write(sys.argv[2])
+R33APPEND
+  r33_fixture="$r33_dir/fixture"
+  r33_prepare() {
+    rm -rf "$r33_fixture"
+    mkdir -p "$r33_fixture/.github/workflows" "$r33_fixture/.github/actions/opencode-run"
+    cp .github/workflows/maintainer.yml "$r33_fixture/.github/workflows/maintainer.yml"
+    cp .github/actions/opencode-run/action.yml "$r33_fixture/.github/actions/opencode-run/action.yml"
+  }
+  r33_scan() { python3 -I "$r33_dir/budget.py" "$1" "$r33_ceiling"; }
+  r33_got() { r33_scan "$r33_fixture" 2>/dev/null || true; }
+  r33_out=$(r33_scan "$PWD" 2>/dev/null || true)
+  if [ -z "$r33_out" ]; then
+    r33_out="scan-emitted-nothing"
+  fi
+  r33_expect_ok() {
+    r33_value=$(r33_got)
+    [ "$r33_value" = "OK" ] || r33_selftest_bad="${r33_selftest_bad} $1(got:${r33_value:-empty})"
+  }
+  r33_expect_bad() {
+    r33_value=$(r33_got)
+    case "$r33_value" in
+      BAD:*"$2"*) : ;;
+      BAD:*) r33_selftest_bad="${r33_selftest_bad} $1(missing-needle:$2)" ;;
+      *) r33_selftest_bad="${r33_selftest_bad} $1(not-caught)" ;;
+    esac
+  }
+  r33_prepare
+  r33_expect_ok control
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run Maintainer agent" 6
+  r33_expect_bad pad-maintainer "Run Maintainer agent"
+  r33_prepare
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4
+  r33_expect_bad pad-composite "Run opencode"
+  r33_prepare
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Trigger pages deployment if main advanced" 6
+  r33_expect_bad pad-tree-wide "Trigger pages deployment if main advanced"
+  r33_prepare
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/maintainer.yml" "Run /oc triggers as owner" 6
+  r33_expect_bad pad-no-expression "Run /oc triggers as owner"
+  r33_prepare
+  python3 -I "$r33_dir/replace.py" "$r33_fixture/.github/workflows/maintainer.yml" "      - name: Run Maintainer agent" "      - name: Run Maintainer agent renamed"
+  r33_expect_bad missing-maintainer "Run Maintainer agent(count=0)"
+  r33_prepare
+  python3 -I "$r33_dir/replace.py" "$r33_fixture/.github/workflows/maintainer.yml" "      - name: Resolve model (bounded fallback ladder)" "      - name: Run Maintainer agent"
+  r33_expect_bad duplicate-maintainer "Run Maintainer agent(count=2)"
+  r33_prepare
+  python3 -I "$r33_dir/replace.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "    - name: Run opencode" "    - name: Run opencode renamed"
+  r33_expect_bad missing-composite "Run opencode(count=0)"
+  r33_prepare
+  python3 -I "$r33_dir/append.py" "$r33_fixture/.github/workflows/maintainer.yml" "
+jobs:
+"
+  r33_expect_bad duplicate-key "parse:"
+  r33_prepare
+  python3 -I "$r33_dir/append.py" "$r33_fixture/.github/workflows/maintainer.yml" "
+broken: [
+"
+  r33_expect_bad parse-error "parse:"
+  if [ -n "$r33_selftest_bad" ]; then
+    r33_out="self-test${r33_selftest_bad}"
+  fi
+  rm -rf "$r33_dir"
+fi
+case "$r33_out" in
+  OK)
+    check "R33" "every run scalar in every workflow and composite action is at most 20,000 UTF-8 bytes, 1,000 bytes under GitHub's 21,000-character expression template cap, whether or not the script carries an expression; the two incident steps (maintainer.yml Run Maintainer agent and the vendored opencode-run action Run opencode) each exist exactly once, measured from a strict duplicate-key-rejecting YAML parse with a fail-closed sandbox/parse state and self-tested padded, renamed, duplicated, and malformed fixtures so the ceiling, the named-step identity, and the uniform tree-wide sweep cannot silently weaken (issue #754: the quota-wall prose took the Maintainer scalar to 22,200 bytes and every push validation rejected the workflow while the composite sat 723 bytes under the cap and the audit stayed green)" "ok"
+    ;;
+  *)
+    check "R33" "run-scalar size budget missing or bypassable: ${r33_out} (issue #754: no rule measured script size, so a 22,200-byte Maintainer scalar failed GitHub push validation run 41311839234 with 'Exceeded max expression length 21000' while the 20,277-byte composite scalar sat 723 bytes under the cap; every run scalar must stay at or below 20,000 bytes and the two incident steps must exist exactly once, verified by a strict duplicate-key-rejecting parse with self-tested padded, renamed, duplicated, and malformed fixtures)" "bad"
+    ;;
+esac
+
+summary="Silent-stall regression audit (R1-R33) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R32)
+  body="## Silent-stall regression audit FAILED (R1-R33)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), or R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
