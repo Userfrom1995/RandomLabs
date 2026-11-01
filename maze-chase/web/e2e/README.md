@@ -69,8 +69,10 @@ and `tests/` pins the runner and nav-pill contracts with `node --test`.
 
 The CDP suites each expect their own browser. Reusing one Chrome across
 suites leaks storage, service workers, and pending CDP sessions between
-them, which produced boot-gate/rebind failures and a Node undici
-assertion on a second site-e2e run. `web/e2e/run-browser-e2e.sh` isolates
+them, which produced boot-gate/rebind failures. A separate intermittent
+site-e2e undici assertion came from unconsumed HTTP response bodies;
+`site-e2e.js` now consumes every response body on every fetch.
+`web/e2e/run-browser-e2e.sh` isolates
 every suite: one Chrome process, one profile, one debug port, and one
 Node process per script, with a static server on an ephemeral port.
 
