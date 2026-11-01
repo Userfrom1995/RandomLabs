@@ -79,9 +79,10 @@ escalation is for a persistent rejection, not the first occurrence.
   retries, a rung-deep scenario with no ladder advance, and `account-funds`
   variants proving exactly one attempt and no HTTP retry, all under the
   production `bash --noprofile --norc -eo pipefail` shell form.
-- R33 self-test: a third workflow (`auditor.yml`) and a `.yaml` extension
-  fixture prove the tree-wide sweep and both extensions, so a scanner
-  narrowed to the two incident files cannot pass.
+- R33 self-test: a third workflow (`auditor.yml`) plus a workflow `.yaml` and
+  a composite-action `.yaml` extension fixture prove the tree-wide sweep and
+  both extensions, so a scanner narrowed to the two incident files or to
+  `*.yml` cannot pass.
 - Full audit: `bash .github/scripts/silent-stall-audit.sh` reports 33 passed,
   0 failed, rc 0 (R15 and R33 included).
 
