@@ -143,14 +143,47 @@ Fixer round 5 (2026-11-01, this runner):
   (`run-linux.sh` keeps its pre-existing SC2015 info at `:99`).
 - `git diff --check` -> clean.
 
+Fixer round 6 (2026-11-01, this runner):
+
+- The high-contrast baseline is now an observed frame: the suite samples
+  the pre-reset canvas, waits for the Dusk reset repaint
+  (`h !== beforeResetHash`), then waits for the high-contrast repaint
+  (`h !== duskResetHash`) and uses that frame as `hcHash`. The fixed
+  150 ms sample is gone, so a stale pre-reset frame can no longer make
+  the clearing check tautological or flake the suite.
+- The 320x568 re-reveal uses `navPillScrollState` like the 390x844 and
+  430x900 blocks, so a platform whose active pill fits is accepted at
+  any scroll offset while the nav-overflow evidence stays pinned.
+- `run-browser-e2e.sh` resolves a bare `--chrome`/`CHROME` command name
+  through `command -v` (the help and README now state the accepted
+  forms); `drive.sh` documents that the `none` driver still runs the
+  bounded readiness wait.
+- `python3 -m unittest discover -s maze-chase/tools/compat/tests`
+  -> 72 tests, OK.
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 26 tests, all pass.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh browser-e2e.js`
+  -> `E2E: ALL GREEN`.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh site-e2e.js`
+  -> `SITE-E2E ALL GREEN: 680 assertions`.
+- `bash maze-chase/web/e2e/run-browser-e2e.sh`
+  -> all 5 CDP suites green with a fresh Chrome each.
+- `node tools/site/render-docs.mjs --check` -> 15 docs current; 424
+  internal links verified.
+- `cargo test -q -p maze-chase-terminal --test tester_site --test
+  tester_docs_language` -> 8 and 2 tests, OK.
+- `bash -n`, `shellcheck -x`, and `git diff --check` -> clean.
+
 ## Current step
 
-The Tester returned fix on `a9130b0d`: F1 (a relative `--outdir`
-doubled the transcript path), F2 (`--help` truncated mid-sentence), and
-F3 (stale record claims). The Fixer round applied F1 and F2 and
-corrected this file. The 72-test compat suite, the 26-test node suite,
-and the live 680-assertion site-e2e are green locally. Awaiting the
-re-review and a re-bound macOS row on the fixed head.
+Review round 6 returned fix on `d5ae6352`: the high-contrast canvas
+baseline was still a fixed-sleep sample, so the clearing check could
+pass without an observed high-contrast repaint. The Fixer round anchors
+the baseline on observed frames and also applies the round's low notes
+(the 320x568 classifier symmetry, a bare `--chrome`/`CHROME` command
+name, the stale test comments, and the `none` driver's readiness
+wording). The 72-test compat suite, the 26-test node suite, and the live
+680-assertion site-e2e are green locally. Awaiting the re-review and a
+re-bound macOS row on the fixed head.
 
 ## Next steps
 
@@ -276,4 +309,25 @@ re-review and a re-bound macOS row on the fixed head.
   the live 680-assertion site-e2e, `bash -n`, and `shellcheck` on the
   changed runner.
 - Skills (fixer round 5): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-11-01 (fixer): applied review round 6. B1 anchors the
+  high-contrast baseline on observed frames: the suite samples the
+  pre-reset canvas, waits for the Dusk reset to paint, then waits for
+  the high-contrast repaint and uses that frame as `hcHash`, so clearing
+  high contrast cannot pass against a stale pre-reset hash. Also used
+  `navPillScrollState` for the 320x568 re-reveal, resolved a bare
+  `--chrome`/`CHROME` command name through `command -v`, corrected the
+  stale undici and help-slice test comments, and documented the `none`
+  driver's readiness wait.
+- Delegation (fixer round 6): explore (canvas check audit) -> confirmed
+  the fixed-sleep baseline made the clearing check tautological and that
+  the new waits anchor both frames; explore (runner/docs audit) ->
+  confirmed the classifier math, the Chrome path contract, and the test
+  comment accuracy.
+- Primary verified (fixer round 6): read every changed line; ran the
+  72-test compat suite, the 26-test node suite, standalone
+  `browser-e2e.js` and `site-e2e.js`, the full five-suite runner,
+  `render-docs.mjs --check`, `tester_site`, `tester_docs_language`,
+  `bash -n`, `shellcheck`, and `git diff --check`.
+- Skills (fixer round 6): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).
