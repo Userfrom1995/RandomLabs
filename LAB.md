@@ -1283,17 +1283,25 @@ resetting at midnight UTC) is diagnostic only, never a park horizon. The
 account-level `Upstream request failed: Insufficient account funds` rejection
 is a separate named fast-fail (`account_funds_terminal()`, same anchoring),
 and the transient HTTP detector structurally excludes it ahead of its own
-pipeline so it can never consume the shared 429/5xx retry. R15 executes both
+pipeline so it can never consume the shared 429/5xx retry. Unlike the
+per-egress quota wall, a fresh run cannot recover the account rejection
+(it uses the same account): fund the provider plan or escalate to the Owner
+after a re-dispatch. R15 executes both
 detectors functionally over both wordings, every prefix and period form, the
 bare form, the echo/envelope/suffix/phrase-variant/retry-summary/uppercase/
-stale no-match matrix, the 599/600 window boundary, and the mutual-exclusion
-pair (the quota line must not match the account detector and vice versa), and
-the behavioral matrix adds `quota` (watchdog cut), both exit shapes, the
-older wording, stderr, the 599/600 window boundary end-to-end, a ~160 KiB
-match-first window, interleaves after the HTTP/free-tier/stall retries (each
-spends exactly its own backoff and no stall retry), a rung-deep scenario with
-no ladder advance, and `account-funds` variants proving exactly one attempt
-and no HTTP retry, all under the production pipefail shell form.
+stale no-match matrix, the 599/600 window boundary for both classes, and the
+mutual exclusion both ways (the quota and transient lines must not match the
+account detector, and the account line must not match the quota or transient
+detector), and the behavioral matrix adds `quota` (watchdog cut), both exit
+shapes, the older wording, stderr, the 599/600 window boundary end-to-end, a
+~160 KiB match-first window, the account line followed by silence
+classified ahead of the stall flag (one attempt, no stall retry), the quota
+and account post-attempt classes in both capture shapes including the
+degraded no-mkfifo shape, interleaves after the HTTP/free-tier/stall retries
+(each spends exactly its own backoff and no stall retry), a rung-deep
+scenario with no ladder advance, and `account-funds` variants proving
+exactly one attempt and no HTTP retry, all under the production pipefail
+shell form.
 
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
@@ -1716,11 +1724,14 @@ remote tip).
   a provider 403 abusive-traffic egress-IP block is a named unconditional
   fast-fail whose recovery is a fresh run on a new runner, never a
   same-runner retry (issue #669). The daily free-usage wall and the
-  account-level funds rejection are also named fast-fails (issue #754): the
-  quota line is cut by the watchdog at the next poll through a wider
-  600-line window instead of burning two stall timeouts, and neither class
-  consumes a retry budget or advances the ladder (the account rejection is
-  structurally excluded from the transient 429/5xx family). The
+  account-level funds rejection are also named fast-fails (issue #754): both
+  are detected through a wider 600-line window, the quota line is cut by the
+  watchdog at the next poll instead of burning two stall timeouts, and
+  neither class consumes a retry budget or advances the ladder (the account
+  rejection is structurally excluded from the transient 429/5xx family).
+  The quota wall recovers on a fresh run with a new egress IP; the account
+  rejection does not (the same account is charged), so the escalation is to
+  fund the provider plan or involve the Owner. The
   resolver, the ladder, all retry paths (free-tier, stall, 429/5xx), the
   egress-IP fast-fail, the quota and account-funds fast-fails, and
   the watchdog are enforced by R15 in
@@ -1742,7 +1753,7 @@ remote tip).
   (run 41311839234), while the vendored runner scalar sat at 20,277 bytes and
   the audit stayed green because no rule measured script size. The prose now
   lives in YAML comments above the two steps (comments survive review but are
-  not part of the scalar; the scalars are 14,108 and 13,976 bytes), every
+  not part of the scalar; the scalars are 14,317 and 14,185 bytes), every
   detector, retry path, and fail-closed exit is byte-identical, and R33 in
   `.github/scripts/silent-stall-audit.sh` measures every run scalar in every
   workflow and composite action against a documented 20,000-byte ceiling
