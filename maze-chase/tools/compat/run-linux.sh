@@ -75,6 +75,11 @@ done
 
 [ -n "$OUTDIR" ] || OUTDIR="$(mktemp -d "${TMPDIR:-/tmp}/maze-chase-compat.XXXXXX")"
 mkdir -p "$OUTDIR" "$EVIDENCE_DIR"
+# Canonicalize OUTDIR: the launch command writes the transcript relative to
+# this caller's CWD, while drive.sh resolves a relative --transcript against
+# its (already absolutized) --outdir, so a relative OUTDIR would double the
+# run prefix and leave the readiness wait watching a path nothing writes.
+OUTDIR="$(cd "$OUTDIR" && pwd)"
 
 # ---------------------------------------------------------------- display
 XVFB_PID=""
