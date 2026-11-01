@@ -21985,11 +21985,15 @@ REVIEW_FORWARD_BODY = (
 )
 
 PEROS_LINUX_FORWARD_BODY = (
-    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'decision_nonce=""',
+    'if [ -n "${LAB_RUN_NONCE:-}" ]; then',
+    'decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)',
+    'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then',
     'echo "::error::Tester decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
     'exit 1',
     'fi',
-    'action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'fi',
+    'action=$(jq -r \'.action // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || echo "")',
     'target="${{ github.event.issue.number }}"',
     'is_pr="false"',
     'if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi',
@@ -22021,11 +22025,15 @@ PEROS_LINUX_FORWARD_BODY = (
 )
 
 PEROS_MACOS_FORWARD_BODY = (
-    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'decision_nonce=""',
+    'if [ -n "${LAB_RUN_NONCE:-}" ]; then',
+    'decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)',
+    'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then',
     'echo "::error::Tester decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
     'exit 1',
     'fi',
-    'action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'fi',
+    'action=$(jq -r \'.action // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || echo "")',
     'target="${{ github.event.issue.number }}"',
     'is_pr="false"',
     'if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi',
@@ -22057,11 +22065,15 @@ PEROS_MACOS_FORWARD_BODY = (
 )
 
 PEROS_WINDOWS_FORWARD_BODY = (
-    'if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r \'.run_nonce // empty\' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then',
+    'decision_nonce=""',
+    'if [ -n "${LAB_RUN_NONCE:-}" ]; then',
+    'decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)',
+    'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then',
     'echo "::error::Tester decision file lost this run\'s contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."',
     'exit 1',
     'fi',
-    'action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")',
+    'fi',
+    'action=$(jq -r \'.action // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || echo "")',
     'target="${{ github.event.issue.number }}"',
     'is_pr="false"',
     'if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi',
@@ -23313,6 +23325,24 @@ MUTANTS = (
         PEROS,
         '          is_pr="false"\n          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi\n',
         '          is_pr="false"\n          pr_state=sentinel\n          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi\n',
+    ),
+    # Issue #800: the whole-body pin must stay bound to the shipped issue #791
+    # stdin/CR contract, not merely equal to a stale pre-#791 tuple. Reverting
+    # the action read to the jq path-argument shape (the exact regression #794
+    # fixed) must fail the pin.
+    (
+        "peros-forward-action-path-argument",
+        PEROS,
+        '          action=$(jq -r \'.action // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || echo "")\n',
+        '          action=$(jq -r \'.action // empty\' /tmp/random-lab-decision.json 2>/dev/null || echo "")\n',
+    ),
+    # Issue #800: dropping the CR strip from the stdin nonce read must fail the
+    # pin too, so a native-Windows jq CR regression cannot slip through.
+    (
+        "peros-forward-nonce-no-cr-strip",
+        PEROS,
+        '          if [ -n "${LAB_RUN_NONCE:-}" ]; then\n            decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)\n',
+        '          if [ -n "${LAB_RUN_NONCE:-}" ]; then\n            decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null || true)\n',
     ),
     (
         "review-linked-pr-producer",
