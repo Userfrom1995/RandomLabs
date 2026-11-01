@@ -60,8 +60,31 @@ allowance.
   retries, a rung-deep scenario with no ladder advance, and `account-funds`
   variants proving exactly one attempt and no HTTP retry, all under the
   production `bash --noprofile --norc -eo pipefail` shell form.
-- Full audit: `bash .github/scripts/silent-stall-audit.sh` reports 32 passed,
-  0 failed, rc 0 (R15 included).
+- Full audit: `bash .github/scripts/silent-stall-audit.sh` reports 33 passed,
+  0 failed, rc 0 (R15 and R33 included).
+
+## Follow-up: push-validation expression budget
+
+The first push of this PR exposed a second silent failure. GitHub compiles a
+`run:` scalar as a template expression and rejects the whole workflow file
+above 21,000 characters, but no audit rule measured script size. The #754
+prose pushed `maintainer.yml`'s `Run Maintainer agent` scalar to 22,200 bytes,
+so every push on the branch failed push validation with `Invalid workflow
+file` and `Exceeded max expression length 21000` (run 41311839234), while the
+audit stayed green at 32 passed. The vendored `Run opencode` scalar sat at
+20,277 bytes, only 723 under the cap.
+
+The fix moves the explanatory prose out of both block scalars into YAML
+comments above the steps (YAML comments survive review but are not part of
+the scalar), leaving the two scalars at 14,108 and 13,976 bytes with every
+detector, retry path, and fail-closed exit byte-identical. The touched R26
+pre-handler manifest was regenerated from the real extractor. A new audit
+rule, R33, measures every run scalar in every workflow and composite action
+against a documented 20,000-byte ceiling (1,000 bytes of headroom for future
+expression edits), requires both incident steps to exist exactly once,
+parses with a strict duplicate-key-rejecting loader, fails closed on parse or
+sandbox errors, and self-tests padded, renamed, duplicated, and malformed
+fixtures.
 
 ## Residuals
 
