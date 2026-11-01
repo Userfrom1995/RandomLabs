@@ -2395,7 +2395,16 @@ model_error_terminal() {
 freetier_error_terminal() {
 ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
 }
+free_usage_limit_terminal() {
+( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
+}
+account_funds_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+}
 transient_http_error_terminal() {
+if account_funds_terminal "$1"; then
+return 1
+fi
 ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [A-Za-z0-9_.',-]+( [A-Za-z0-9_.',-]+)*)\.?$" )
 }
 ip_block_error_terminal() {
@@ -2417,7 +2426,8 @@ while :; do
 log="$(mktemp)"
 fifo="${log}.fifo"
 hang_flag="${log}.hang"
-rm -f "$fifo" "$hang_flag"
+quota_flag="${log}.quota"
+rm -f "$fifo" "$hang_flag" "$quota_flag"
 echo "::notice::opencode run with model '$model'"
 if mkfifo "$fifo" 2>/dev/null; then
 set +e
@@ -2431,6 +2441,16 @@ idle=0
 while kill -0 "$oc_pid" 2>/dev/null; do
 sleep "$hang_poll_seconds"
 kill -0 "$oc_pid" 2>/dev/null || exit 0
+if free_usage_limit_terminal "$log"; then
+echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
+printf 'quota\n' > "$quota_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+fi
 size=$(wc -c < "$log" 2>/dev/null || echo 0)
 if [ "$size" -eq "$last_size" ]; then
 idle=$((idle + hang_poll_seconds))
@@ -2464,6 +2484,11 @@ st=("${PIPESTATUS[@]}")
 set -e
 status="${st[0]}"; tee_status="${st[1]}"
 fi
+if [ -s "$quota_flag" ]; then
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+exit 1
+fi
 if [ -s "$hang_flag" ]; then
 rm -f "$log" "$fifo" "$hang_flag"
 if [ "$hang_retry_used" -lt 1 ]; then
@@ -2477,7 +2502,17 @@ exit 1
 fi
 if [ "$tee_status" -ne 0 ]; then
 echo "::error::could not capture the opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
-rm -f "$log" "$fifo" "$hang_flag"
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+exit 1
+fi
+if free_usage_limit_terminal "$log"; then
+echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+exit 1
+fi
+if account_funds_terminal "$log"; then
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
 exit 1
 fi
 if ip_block_error_terminal "$log"; then
@@ -2572,7 +2607,16 @@ model_error_terminal() {
 freetier_error_terminal() {
 ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
 }
+free_usage_limit_terminal() {
+( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
+}
+account_funds_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+}
 transient_http_error_terminal() {
+if account_funds_terminal "$1"; then
+return 1
+fi
 ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [A-Za-z0-9_.',-]+( [A-Za-z0-9_.',-]+)*)\.?$" )
 }
 ip_block_error_terminal() {
@@ -2594,7 +2638,8 @@ while :; do
 log="$(mktemp)"
 fifo="${log}.fifo"
 hang_flag="${log}.hang"
-rm -f "$fifo" "$hang_flag"
+quota_flag="${log}.quota"
+rm -f "$fifo" "$hang_flag" "$quota_flag"
 echo "::notice::maintainer run with model '$model'"
 if mkfifo "$fifo" 2>/dev/null; then
 set +e
@@ -2608,6 +2653,16 @@ idle=0
 while kill -0 "$oc_pid" 2>/dev/null; do
 sleep "$hang_poll_seconds"
 kill -0 "$oc_pid" 2>/dev/null || exit 0
+if free_usage_limit_terminal "$log"; then
+echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
+printf 'quota\n' > "$quota_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+fi
 size=$(wc -c < "$log" 2>/dev/null || echo 0)
 if [ "$size" -eq "$last_size" ]; then
 idle=$((idle + hang_poll_seconds))
@@ -2641,6 +2696,11 @@ st=("${PIPESTATUS[@]}")
 set -e
 status="${st[0]}"; tee_status="${st[1]}"
 fi
+if [ -s "$quota_flag" ]; then
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+exit 1
+fi
 if [ -s "$hang_flag" ]; then
 rm -f "$log" "$fifo" "$hang_flag"
 if [ "$hang_retry_used" -lt 1 ]; then
@@ -2654,7 +2714,17 @@ exit 1
 fi
 if [ "$tee_status" -ne 0 ]; then
 echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
-rm -f "$log" "$fifo" "$hang_flag"
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+exit 1
+fi
+if free_usage_limit_terminal "$log"; then
+echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+exit 1
+fi
+if account_funds_terminal "$log"; then
+echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
+rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 exit 1
 fi
 if ip_block_error_terminal "$log"; then
@@ -2764,10 +2834,11 @@ r15_freetier_pins() {
   [ "$(grep -cE '^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(tee-guard-decoyed-or-missing)"
   # The live detectors must carry the pipefail-safe wrap (issue #653 review
   # F1): the exact `( set +o pipefail; tail -n 40 "$1" | grep -qE` shape,
-  # four times (model/freetier/transient-http/ip-block, issue #669). The
-  # functional big-window fixtures below prove the semantics; this pin catches
-  # a shape drift or a partial unwrap cheaply.
-  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "4" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
+  # five times (model/freetier/transient-http/account-funds/ip-block, issues
+  # #669 and #754). The quota detector uses the wider tail-600 window and is
+  # pinned separately below. The functional big-window fixtures prove the
+  # semantics; this pin catches a shape drift or a partial unwrap cheaply.
+  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "5" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
   # Loud persistence, exact-form and branch-tied: each persistent-rejection
   # branch must end in the nonzero exit matching its own message, so a
   # compensated swap (one branch's loud exit moved to the other, with the
@@ -2819,6 +2890,38 @@ r15_freetier_pins() {
   [ "$(grep -cF 'provider blocked this runner' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-canonical-ip-block-message)"
   n=$(grep -A2 -F "provider blocked this runner's egress IP" "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(ip-block-fast-fail-not-unconditional-exit-1)"
+  # Issue #754 element-presence pins: the daily free-usage wall and the
+  # account-level funds rejection are NAMED fast-fails, not retries. The quota
+  # detector needs the wider 600-line window (the terminal line sits about 345
+  # lines above the kill point; 40 lines cannot see it), the phrase family
+  # must cover both observed wordings, and the classification must be wired
+  # exactly twice (the watchdog cut and the post-attempt check) so BOTH exit
+  # shapes and both capture shapes are covered. The account detector must be
+  # wired exactly once, and the transient detector must structurally exclude
+  # it ahead of its own pipeline, so it can never consume the shared HTTP
+  # retry. The negative side (no retry budget, no rung advance) is bound
+  # behaviorally by the quota/account scenarios: exactly one attempt on the
+  # first rung.
+  grep -qF 'free_usage_limit_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-free-usage-limit-detector)"
+  fn=$(sed -n '/free_usage_limit_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
+  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 600 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(free-usage-limit-detector-not-pipefail-safe-tail-600)"
+  printf '%s\n' "$fn" | grep -qF 'Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$' || r15_bad="${r15_bad} ${label}(no-anchored-free-usage-limit-terminal-form)"
+  [ "$(grep -cE '^[[:space:]]*if free_usage_limit_terminal "\$log"; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(free-usage-limit-detector-not-wired-twice)"
+  [ "$(grep -cF 'provider daily free-usage limit reached' "$f" || true)" = "3" ] || r15_bad="${r15_bad} ${label}(no-canonical-free-usage-limit-message)"
+  [ "$(grep -cF 'quota_flag="${log}.quota"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag)"
+  [ "$(grep -cE '^[[:space:]]*if \[ -s "\$quota_flag" \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag-branch)"
+  [ "$(grep -cF 'printf '"'"'quota\n'"'"' > "$quota_flag"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag-write)"
+  n=$(grep -A2 -F 'provider daily free-usage limit reached' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(free-usage-limit-fast-fail-not-unconditional-exit-1)"
+  grep -qF 'account_funds_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-account-funds-detector)"
+  fn=$(sed -n '/account_funds_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
+  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(account-funds-detector-not-pipefail-safe-tail-scoped)"
+  printf '%s\n' "$fn" | grep -qF 'Upstream request failed: Insufficient account funds\.?$' || r15_bad="${r15_bad} ${label}(no-anchored-account-funds-terminal-form)"
+  [ "$(grep -cE '^[[:space:]]*if account_funds_terminal "\$log"; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(account-funds-detector-not-wired-once)"
+  [ "$(grep -cF 'insufficient account funds' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-canonical-account-funds-message)"
+  n=$(grep -A2 -F 'insufficient account funds' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(account-funds-fast-fail-not-unconditional-exit-1)"
+  grep -qF 'if account_funds_terminal "$1"; then' "$f" || r15_bad="${r15_bad} ${label}(transient-http-detector-does-not-exclude-account-funds)"
   grep -qF 'mkfifo "$fifo"' "$f" || r15_bad="${r15_bad} ${label}(no-fifo-capture-shape)"
   grep -qF 'mkfifo is unavailable on this runner' "$f" || r15_bad="${r15_bad} ${label}(no-loud-mkfifo-fallback)"
   grep -qF 'HANG_IDLE_SECONDS' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-knob)"
@@ -2841,8 +2944,11 @@ r15_freetier_pins() {
   grep -qF '[ "$hang_idle_seconds" -le 86400 ] 2>/dev/null || hang_idle_seconds=600' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-upper-clamp)"
   [ "$(grep -cF 'wait "$oc_pid"; status=$?' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-separate-opencode-pid-wait)"
   [ "$(grep -cF 'wait "$tee_pid"; tee_status=$?' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-separate-tee-pid-wait)"
-  [ "$(grep -cF 'kill -TERM "$oc_pid"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-term-kill)"
-  [ "$(grep -cF 'kill -KILL "$oc_pid"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-kill-escalation)"
+  # Two TERM/KILL pairs: the stall fire block and the issue #754 quota cut in
+  # the watchdog. Each must escalate exactly once (a missing pair disables its
+  # class; an extra pair widens the abort path).
+  [ "$(grep -cF 'kill -TERM "$oc_pid"' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-stall-term-kill)"
+  [ "$(grep -cF 'kill -KILL "$oc_pid"' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-stall-kill-escalation)"
   # Tester round 6 (bounded TERM-to-KILL grace): the watchdog's escalation
   # window is extracted between the hang_flag write and its own `exit 0` and
   # must carry the exact five-step shape: TERM oc, TERM tee, a single bounded
@@ -2955,6 +3061,16 @@ idle=0
 while kill -0 "$oc_pid" 2>/dev/null; do
 sleep "$hang_poll_seconds"
 kill -0 "$oc_pid" 2>/dev/null || exit 0
+if free_usage_limit_terminal "$log"; then
+echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
+printf 'quota\n' > "$quota_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+fi
 size=$(wc -c < "$log" 2>/dev/null || echo 0)
 if [ "$size" -eq "$last_size" ]; then
 idle=$((idle + hang_poll_seconds))
@@ -3182,6 +3298,17 @@ sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MA
 # Issue #669: the blocked-egress-IP detector pair, extracted the same way.
 sed -n '/ip_block_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-ip.fn" 2>/dev/null || true
 sed -n '/ip_block_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-ip.fn" 2>/dev/null || true
+# Issue #754: the daily free-usage wall detector and the account-funds
+# detector pairs. The account detector is concatenated into each HTTP fixture
+# file because the live transient detector calls it first (the structural
+# exclusion); sourcing only the transient function would leave that call
+# unresolved and the exclusion untested.
+sed -n '/free_usage_limit_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-quota.fn" 2>/dev/null || true
+sed -n '/free_usage_limit_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-quota.fn" 2>/dev/null || true
+sed -n '/account_funds_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-account.fn" 2>/dev/null || true
+sed -n '/account_funds_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-account.fn" 2>/dev/null || true
+cat "$r15_fn_dir/action-account.fn" >> "$r15_fn_dir/action-http.fn" 2>/dev/null || true
+cat "$r15_fn_dir/maint-account.fn" >> "$r15_fn_dir/maint-http.fn" 2>/dev/null || true
 cat > "$r15_fn_dir/terminal.txt" <<'R15EOF'
 AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
 APIError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
@@ -3441,6 +3568,137 @@ R15EOF
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
   printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/ip-window40.txt"
 done
+# Issue #754 functional fixtures for free_usage_limit_terminal: both observed
+# wordings (the older literal and the current `Free models work in OpenCode`
+# variant) in every prefix the wrapper emits and with an optional trailing
+# period, plus the forms that must never fast-fail: an indented tool-call
+# echo, the responseBody envelope, a trailing-suffixed line, a within-family
+# wording variant that is not the terminal line, the provider's own
+# `AI_RetryError: Failed after 3 attempts. Last error: ...` summary, an
+# uppercase line, and a line stale beyond the 600-line window. The 599/600
+# pair pins the window to exactly 600 lines. The quota detector must also not
+# match the account-funds line and vice versa.
+cat > "$r15_fn_dir/quota-terminal-old-ai.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go.
+R15EOF
+cat > "$r15_fn_dir/quota-terminal-old-api.txt" <<'R15EOF'
+APIError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+APIError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go.
+R15EOF
+cat > "$r15_fn_dir/quota-terminal-old-error.txt" <<'R15EOF'
+Error: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+Error: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go.
+R15EOF
+cat > "$r15_fn_dir/quota-terminal-new-ai.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go
+AI_APICallError: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go.
+R15EOF
+cat > "$r15_fn_dir/quota-terminal-new-api.txt" <<'R15EOF'
+APIError: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go
+APIError: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go.
+R15EOF
+cat > "$r15_fn_dir/quota-terminal-new-error.txt" <<'R15EOF'
+Error: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go
+Error: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go.
+R15EOF
+cat > "$r15_fn_dir/quota-bare.txt" <<'R15EOF'
+Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go
+R15EOF
+cat > "$r15_fn_dir/quota-echo.txt" <<'R15EOF'
+  | AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+Here is prose quoting the provider line above.
+R15EOF
+cat > "$r15_fn_dir/quota-envelope.txt" <<'R15EOF'
+  responseBody: "{\"type\":\"error\",\"error\":{\"type\":\"FreeUsageLimitError\",\"message\":\"Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go\"}}",
+R15EOF
+cat > "$r15_fn_dir/quota-suffix.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go (quoted from a tool result)
+R15EOF
+cat > "$r15_fn_dir/quota-phrase-variant.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached for this workspace. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+R15EOF
+cat > "$r15_fn_dir/quota-retry-summary.txt" <<'R15EOF'
+AI_RetryError: Failed after 3 attempts. Last error: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+R15EOF
+cat > "$r15_fn_dir/quota-upper.txt" <<'R15EOF'
+AI_APICallError: FREE USAGE LIMIT REACHED. SUBSCRIBE TO OPENCODE GO TO KEEP GOING: HTTPS://OPENCODE.AI/GO
+R15EOF
+cat > "$r15_fn_dir/quota-stale.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+R15EOF
+for i in $(seq 1 601); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/quota-stale.txt"
+done
+cat > "$r15_fn_dir/quota-window599.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+R15EOF
+for i in $(seq 1 599); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/quota-window599.txt"
+done
+cat > "$r15_fn_dir/quota-window600.txt" <<'R15EOF'
+AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go
+R15EOF
+for i in $(seq 1 600); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/quota-window600.txt"
+done
+# Issue #754 account-funds fixtures: every prefix and both period forms must
+# match; an indented echo, the envelope, a suffix, a within-family variant,
+# an uppercase line, and a stale line must not. The last pair binds the
+# mutual exclusion: the account line must not match the transient detector
+# (which would otherwise consume the shared HTTP retry), and the transient
+# gateway line must not match the account detector.
+cat > "$r15_fn_dir/account-terminal-ai.txt" <<'R15EOF'
+AI_APICallError: Upstream request failed: Insufficient account funds.
+AI_APICallError: Upstream request failed: Insufficient account funds
+R15EOF
+cat > "$r15_fn_dir/account-terminal-api.txt" <<'R15EOF'
+APIError: Upstream request failed: Insufficient account funds.
+APIError: Upstream request failed: Insufficient account funds
+R15EOF
+cat > "$r15_fn_dir/account-terminal-error.txt" <<'R15EOF'
+Error: Upstream request failed: Insufficient account funds.
+Error: Upstream request failed: Insufficient account funds
+R15EOF
+cat > "$r15_fn_dir/account-bare.txt" <<'R15EOF'
+Upstream request failed: Insufficient account funds.
+Upstream request failed: Insufficient account funds
+R15EOF
+cat > "$r15_fn_dir/account-echo.txt" <<'R15EOF'
+  | AI_APICallError: Upstream request failed: Insufficient account funds.
+Here is prose quoting the provider line above.
+R15EOF
+cat > "$r15_fn_dir/account-envelope.txt" <<'R15EOF'
+  responseBody: "{\"error\":{\"message\":\"Upstream request failed: Insufficient account funds.\"}}",
+R15EOF
+cat > "$r15_fn_dir/account-suffix.txt" <<'R15EOF'
+AI_APICallError: Upstream request failed: Insufficient account funds. (quoted from a tool result)
+R15EOF
+cat > "$r15_fn_dir/account-phrase-variant.txt" <<'R15EOF'
+AI_APICallError: Upstream request failed: Insufficient account balance.
+R15EOF
+cat > "$r15_fn_dir/account-upper.txt" <<'R15EOF'
+AI_APICallError: UPSTREAM REQUEST FAILED: INSUFFICIENT ACCOUNT FUNDS.
+R15EOF
+cat > "$r15_fn_dir/account-stale.txt" <<'R15EOF'
+AI_APICallError: Upstream request failed: Insufficient account funds.
+R15EOF
+for i in $(seq 1 45); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-stale.txt"
+done
+cat > "$r15_fn_dir/account-window39.txt" <<'R15EOF'
+AI_APICallError: Upstream request failed: Insufficient account funds.
+R15EOF
+for i in $(seq 1 39); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-window39.txt"
+done
+cat > "$r15_fn_dir/account-window40.txt" <<'R15EOF'
+AI_APICallError: Upstream request failed: Insufficient account funds.
+R15EOF
+for i in $(seq 1 40); do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/account-window40.txt"
+done
 # Review F2: pipe-buffer-sized tail windows. Every `shell: bash` step runs as
 # `bash --noprofile --norc -eo pipefail` (production), and `grep -q` exits at
 # the first match while `tail` may still be writing: once the 40-line window
@@ -3464,6 +3722,8 @@ r15_write_big_window "AI_APICallError: OpenCode's free tier can only be used fro
 r15_write_big_window "Model not found: a-free. Did you mean: b-free?" "$r15_fn_dir/mnf-bigwindow.txt"
 r15_write_big_window "AI_APICallError: Internal Server Error" "$r15_fn_dir/http-bigwindow.txt"
 r15_write_big_window "AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic" "$r15_fn_dir/ip-bigwindow.txt"
+r15_write_big_window "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go" "$r15_fn_dir/quota-bigwindow.txt"
+r15_write_big_window "AI_APICallError: Upstream request failed: Insufficient account funds." "$r15_fn_dir/account-bigwindow.txt"
 r15_detector_case() {
   local got
   ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
@@ -3494,6 +3754,22 @@ r15_ip_detector_case() {
   got=$?
   if [ "$got" != "$2" ]; then
     r15_bad="${r15_bad} ip-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
+  fi
+}
+r15_quota_detector_case() {
+  local got
+  ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; free_usage_limit_terminal "$3" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" != "$2" ]; then
+    r15_bad="${r15_bad} quota-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
+  fi
+}
+r15_account_detector_case() {
+  local got
+  ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; account_funds_terminal "$3" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" != "$2" ]; then
+    r15_bad="${r15_bad} account-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
   fi
 }
 for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
@@ -3576,6 +3852,50 @@ for r15_fn in "$r15_fn_dir/action-ip.fn" "$r15_fn_dir/maint-ip.fn"; do
   r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-window40.txt"
   r15_ip_detector_case "$r15_fn" 0 "$r15_fn_dir/ip-bigwindow.txt"
 done
+for r15_fn in "$r15_fn_dir/action-quota.fn" "$r15_fn_dir/maint-quota.fn"; do
+  if [ ! -s "$r15_fn" ]; then
+    r15_bad="${r15_bad} quota-detector-functional($(basename "$r15_fn"),empty)"
+    continue
+  fi
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-terminal-old-ai.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-terminal-old-api.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-terminal-old-error.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-terminal-new-ai.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-terminal-new-api.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-terminal-new-error.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-bare.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-echo.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-envelope.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-suffix.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-phrase-variant.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-retry-summary.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-upper.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-stale.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-window599.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/quota-window600.txt"
+  r15_quota_detector_case "$r15_fn" 0 "$r15_fn_dir/quota-bigwindow.txt"
+  r15_quota_detector_case "$r15_fn" 1 "$r15_fn_dir/account-terminal-ai.txt"
+done
+for r15_fn in "$r15_fn_dir/action-account.fn" "$r15_fn_dir/maint-account.fn"; do
+  if [ ! -s "$r15_fn" ]; then
+    r15_bad="${r15_bad} account-detector-functional($(basename "$r15_fn"),empty)"
+    continue
+  fi
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-terminal-ai.txt"
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-terminal-api.txt"
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-terminal-error.txt"
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-bare.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-echo.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-envelope.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-suffix.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-phrase-variant.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-upper.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-stale.txt"
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-window39.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/account-window40.txt"
+  r15_account_detector_case "$r15_fn" 0 "$r15_fn_dir/account-bigwindow.txt"
+  r15_account_detector_case "$r15_fn" 1 "$r15_fn_dir/http-upstream-ai.txt"
+done
 rm -rf "$r15_fn_dir"
 # Issue #620 loop-level behavioral test (review F5): static pins and a
 # detector-only functional test cannot express execution order or
@@ -3648,6 +3968,8 @@ r15_behavioral() {
      || ! bash -n "$block" 2>/dev/null \
      || ! grep -qF 'freetier_error_terminal() {' "$block" \
      || ! grep -qF 'transient_http_error_terminal() {' "$block" \
+     || ! grep -qF 'free_usage_limit_terminal() {' "$block" \
+     || ! grep -qF 'account_funds_terminal() {' "$block" \
      || ! grep -qF 'ip_block_error_terminal() {' "$block" \
      || ! grep -qF 'mkfifo "$fifo"' "$block" \
      || [ "$(grep -cF 'opencode github run' "$block" || true)" != "2" ] \
@@ -3720,6 +4042,59 @@ case "${R15_SCENARIO}:${n}" in
   ip-block7:*) echo "healthy success"; exit 0 ;;
   ip-block-stderr:1) echo "AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic" >&2; exit 1 ;;
   ip-block-stderr:*) echo "healthy success"; exit 0 ;;
+  # Issue #754: the daily free-usage wall is a NAMED fast-fail. The watchdog
+  # cuts on the terminal line at the next poll (the attempt then hangs, as in
+  # the incident), and the post-attempt detector covers an attempt that ends
+  # on its own (both exit shapes, the older wording, stderr, and the wider
+  # 600-line window boundary). Every scenario must produce exactly ONE attempt
+  # on the first rung (no stall retry consumed, no rung advance) and rc 1
+  # unconditionally. The interleaves spend another class's retry first and
+  # still fast-fail the quota line without spending a second backoff.
+  quota:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exec "$R15_REAL_SLEEP" 30 ;;
+  quota:*) echo "healthy success"; exit 0 ;;
+  quota-zero:1) echo "APIError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go."; exit 0 ;;
+  quota-zero:*) echo "healthy success"; exit 0 ;;
+  quota-nz7:1) echo "Error: Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 7 ;;
+  quota-nz7:*) echo "healthy success"; exit 0 ;;
+  quota-old:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  quota-old:*) echo "healthy success"; exit 0 ;;
+  quota-stderr:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go" >&2; exec "$R15_REAL_SLEEP" 30 ;;
+  quota-stderr:*) echo "healthy success"; exit 0 ;;
+  quota-after-http:1) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  quota-after-http:2) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  quota-after-http:*) echo "healthy success"; exit 0 ;;
+  quota-after-ft:1) echo "APIError: ${ft}"; exit 0 ;;
+  quota-after-ft:2) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  quota-after-ft:*) echo "healthy success"; exit 0 ;;
+  quota-after-hang:1) exec "$R15_REAL_SLEEP" 30 ;;
+  quota-after-hang:2) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  quota-after-hang:*) echo "healthy success"; exit 0 ;;
+  quota-deep:1) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 4 ;;
+  quota-deep:2) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; exit 0 ;;
+  quota-deep:*) echo "healthy success"; exit 0 ;;
+  # The window boundary is observable end-to-end: the line plus 599 trailing
+  # lines is inside the 600-line window (watchdog cut, one attempt, 5s grace),
+  # while the line plus 600 trailing lines is stale (the watchdog does not
+  # cut, the attempt stalls, and the ordinary 10s stall retry recovers).
+  quota-window599:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; for i in {1..599}; do echo "healthy tail line $i"; done; exec "$R15_REAL_SLEEP" 30 ;;
+  quota-window599:*) echo "healthy success"; exit 0 ;;
+  quota-window600:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; for i in {1..600}; do echo "healthy tail line $i"; done; exec "$R15_REAL_SLEEP" 30 ;;
+  quota-window600:*) echo "healthy success"; exit 0 ;;
+  quota-bigwindow:1) echo "AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go"; big=$(printf '%4088s' ''); big="${big// /x}"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do echo "healthy tail line $i $big"; done; exec "$R15_REAL_SLEEP" 30 ;;
+  quota-bigwindow:*) echo "healthy success"; exit 0 ;;
+  # Account-level funds rejection: named fast-fail, never the transient HTTP
+  # retry. If the transient detector failed to exclude it, the exit-0 shape
+  # would spend a 30s retry and the second (healthy) attempt would conclude
+  # green with two attempts; the shipped code exits 1 after exactly one.
+  account-funds:1) echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exit 0 ;;
+  account-funds:*) echo "healthy success"; exit 0 ;;
+  account-funds-nz:1) echo "Error: Upstream request failed: Insufficient account funds"; exit 7 ;;
+  account-funds-nz:*) echo "healthy success"; exit 0 ;;
+  account-funds-stderr:1) echo "APIError: Upstream request failed: Insufficient account funds." >&2; exit 0 ;;
+  account-funds-stderr:*) echo "healthy success"; exit 0 ;;
+  account-funds-after-http:1) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  account-funds-after-http:2) echo "AI_APICallError: Upstream request failed: Insufficient account funds."; exit 0 ;;
+  account-funds-after-http:*) echo "healthy success"; exit 0 ;;
   # Issue #653 scenarios: transient 429/5xx recovery on both exit shapes,
   # persistent loudness on both shapes, provider stalls (write nothing, keep
   # the process alive through the real sleep so the watchdog must kill it),
@@ -4202,6 +4577,32 @@ R15MKFIFO
   r15_behavioral_case ip-block0 1 "a-free" "provider blocked this runner" ""
   r15_behavioral_case ip-block7 1 "a-free" "provider blocked this runner" ""
   r15_behavioral_case ip-block-stderr 1 "a-free" "provider blocked this runner" ""
+  # Issue #754 behavioral matrix: the daily free-usage wall is fast-failed by
+  # the watchdog on the terminal line (one attempt, no stall retry, only the
+  # bounded 5s TERM grace) and by the post-attempt detector for attempts that
+  # end on their own (both exit shapes, older wording, stderr). The window
+  # boundary pair pins the 600-line scope end-to-end; the interleaves prove
+  # the class spends no other budget; the deep scenario proves no rung
+  # advance. The account-level funds rejection is fast-failed exactly once
+  # and never retried as a transient HTTP error (a broken exclusion would
+  # retry the exit-0 shape, show two attempts, and conclude green).
+  R15_HANG_IDLE=1 r15_behavioral_case quota 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case quota-zero 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case quota-nz7 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case quota-old 1 "a-free" "provider daily free-usage limit reached" ""
+  R15_HANG_IDLE=1 r15_behavioral_case quota-stderr 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case quota-after-http 1 "a-free a-free" "provider daily free-usage limit reached" "30:1"
+  r15_behavioral_case quota-after-ft 1 "a-free a-free" "provider daily free-usage limit reached" "15:1"
+  R15_HANG_IDLE=1 r15_behavioral_case quota-after-hang 1 "a-free a-free" "provider daily free-usage limit reached" "10:1"
+  r15_behavioral_case quota-deep 1 "a-free b-free" "provider daily free-usage limit reached" ""
+  R15_HANG_IDLE=1 R15_HANG_POLL=2 r15_behavioral_case quota-window599 1 "a-free" "provider daily free-usage limit reached" ""
+  R15_HANG_IDLE=1 R15_HANG_POLL=2 r15_behavioral_case quota-window600 0 "a-free a-free" "provider stall" "10:1"
+  R15_HANG_POLL=1
+  R15_HANG_IDLE=1 r15_behavioral_case quota-bigwindow 1 "a-free" "provider daily free-usage limit reached" ""
+  r15_behavioral_case account-funds 1 "a-free" "insufficient account funds" ""
+  r15_behavioral_case account-funds-nz 1 "a-free" "insufficient account funds" ""
+  r15_behavioral_case account-funds-stderr 1 "a-free" "insufficient account funds" ""
+  r15_behavioral_case account-funds-after-http 1 "a-free a-free" "insufficient account funds" "30:1"
   # Issue #653 behavioral matrix: transient 429/5xx recovery on BOTH exit
   # shapes (nonzero and exit-0 terminal), the incident's exact 429 wording,
   # persistent loudness on both shapes with the provider's own status
@@ -4468,9 +4869,9 @@ if grep -rnE "$r15_knob_pattern" .github/workflows .github/actions >/dev/null 2>
   r15_bad="${r15_bad} behavioral(tree,watchdog-knob-env-mapping)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure), plus the #653 bounded transient 429/5xx same-model retry (anchored 429/5xx terminal detector, cap 1 shared across rungs, loud persistent failure), the #717 upstream-endpoint 429 phrase family (same bounded retry, no ladder advance on persistence), and the provider-stall watchdog (FIFO capture shape, HANG_IDLE_SECONDS/HANG_POLL_SECONDS growth poll, TERM/KILL of exactly the opencode and tee PIDs, one same-model retry after 10s, second stall loud, loud no-mkfifo fallback to the legacy pipeline) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the AI_RetryError summary and out-of-family phrase variants never match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not; all executed under set -o pipefail with a ~160 KiB match-first window, so a grep -q SIGPIPE can never mask a terminal line), and both real runner run-blocks are executed loop-level under the exact production shell form (bash --noprofile --norc -eo pipefail) against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the free-tier budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified status propagation in both capture shapes, per-scenario timeout, the #653 HTTP recovery on both exit shapes with the 30s backoff value-scoped and wait-ordered, the #717 upstream-endpoint form on both exit shapes (the exact phrase and a within-family wording variant on each shape, with per-prefix fixtures carrying both period forms so a dropped prefix alternative fails) with persistent loudness on the same model and the next rung never attempted, and the upstream form proven to share the legacy #653 HTTP budget in both directions (a legacy 429 retry followed by the upstream form, and the reverse, are persistent on the second attempt), persistent HTTP loud on both shapes with the provider status propagated, a stalled attempt killed by the watchdog and retried once on the same model after the 10s backoff (ordering proven), a second stall loud, per-class budget independence in both directions and cross-class budget interleaves (six interleave scenarios repeat a class after another class's retry was consumed, so an arithmetic reset of a spent budget inside any other class's retry branch, in either exit shape of the FT and HTTP branches plus the hang branch, spends an extra backoff and runs an extra attempt), the #653 HTTP and stall budgets proven arm-wide by cross-rung grant/advance pairs in the FIFO capture shape and at rung depth 3 by the widened/hang-widened grant and advance pairs (a widening or theft gated on the third rung spends an extra backoff or turns a healthy advance loud), the degraded no-mkfifo shape bound the same way for the free-tier and HTTP retries (a persistent degraded rejection failing loudly after exactly the bounded retry with its one backoff, and a degraded cross-rung HTTP grant spending exactly one 30s backoff, plus a static no-budget-assignment pin on the degraded branch, and its status/tee/stderr plumbing: an unclassified nonzero degraded death stays loud with its own status, a failing degraded tee fails loudly, and a stderr-borne terminal line still reaches the captured log so the bounded retry fires), the degraded no-mkfifo shape still honoring the free-tier retry contract loudly, the FIFO capture shape's \`2>&1\` stderr merge bound like the degraded probe (a stderr-borne terminal line must reach the captured log so the bounded retry fires on both exit shapes), the watchdog's silence accounting bound directly (a 30s-cadence/90s-threshold scenario where exactly three polling rounds must accumulate, a producing attempt kept alive past the threshold so a zeroed byte-size read cannot kill it, and an output-then-stall attempt whose post-output silence must accumulate through the re-arm), the watchdog's production defaults (600s idle / 30s poll) and its single bounded 5s TERM-to-KILL escalation grace whole-region pinned as exactly the hang-flag write, the ordered TERM oc, TERM tee, sleep 5, KILL oc, KILL tee sequence, and the exit, with nothing else (whitespace and 2>/dev/null tolerated, an inserted sleep or a shadowed KILL caught), and the whole FIFO capture prelude whole-region pinned line-exact so an inserted sleep anywhere in the watchdog or at the launch/reap path around it (before the tee launch, before the opencode launch, anywhere in the subshell outside the fire block: before the baseline read, after the poll, after the post-sleep liveness re-check, between the idle accumulation and the threshold, between the threshold and the warning echo, in the re-arm else branch, after the subshell close, after the watch_pid assignment, after the oc reap and status capture) also fails the audit, with a TERM-trapping attempt that can only complete its cleanup through the real grace window and a TERM-ignoring hang-child-ignores-term attempt that only SIGKILL can end (so a neutered KILL blocks into the scenario timeout), the watchdog loop gate and post-sleep liveness re-check pinned, the poll cadence bound to the poll knob, the inclusive -ge threshold and the post-growth reset to exactly zero line-anchored (a weakened re-arm would make the required silence grow with the attempt's productive duration), the nonzero Model-not-found advance site bound for all three budgets (a scenario per class spends its single retry, advances through that branch, and requires the repeat on the next rung to be loud persistent with exactly one backoff, with rung-depth-3 mirrors so a rung-gated reset at that site cannot resurrect a spent budget), the prefixed Error: Model not found: catch-handler form still advancing the rung (unanchored per-model grep pinned exactly, mnf-err-nz), the success path exiting 0 itself rather than falling through, and the Maintainer verify's loud exit 1 on a missing decision contract, a 160 KiB match-first terminal window still retrying the same model end-to-end, a zero poll override clamped to the production interval so the watchdog still kills and retries, and the extracted runner step proven the executing one: no if: (or \`if :\`, or the quoted \`\"if\":\` / \`'if':\` spellings) key anywhere in its whole step region, except the Maintainer runner's exact shared actor-write gate condition of issue #696 with its gate step present in the same file (the step name line through the next sibling \`- name:\` or EOF, so a step-level \`if: false\` inserted after the run block cannot skip the runner while the body stays pinned), its step key set bound too (no HANG_IDLE_SECONDS/HANG_POLL_SECONDS env override in either runner step, and a tree-wide static ban rejects any such env mapping anywhere in .github/workflows or .github/actions in block, quoted, caller-step, or flow spelling, since workflow-, job-, caller-step- and flow-level env all reach the runner and one declarative line can push the first watchdog fire past every step timeout, no continue-on-error/timeout-minutes key on the composite runner step, the Maintainer step's exact continue-on-error: true and timeout-minutes: 60 each present exactly once, and exactly one shell: key whose exact line is shell: bash), exactly the two #653 invocation sites allowed by the file-level count and both present in the extracted block, and each runner's entire extracted run block pinned line-exact against its regenerated normalized literal (leading/trailing whitespace and an optional trailing 2>/dev/null stripped, comment and blank lines dropped, compared as whole normalized line sequences so a rewrite merging two real lines into one cannot pass), so any inserted or modified non-comment line anywhere in the block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) fails the audit alone; review round 18 made the whole extraction structural: python3/PyYAML (a strict, duplicate-key-rejecting loader) resolves each runner step by its parsed name, pins its parsed run scalar line-exact, treats explicit-key \`? if\` / \`: false\` and \`? HANG_IDLE_SECONDS\` / \`: \"86400\"\` spellings as the keys GitHub Actions sees, binds both runner steps' \`MODEL_CANDIDATES\` (and the composite's \`MODEL\`) to the resolver outputs by exact parsed value plus the resolver step's \`model_ladder\` id and \`resolve-model.sh\` invocation, and executes both verify steps behaviorally (the Maintainer verify must exit nonzero with no decision file and 0 with one; the general verify 0 on success and nonzero on failure), so a decoy \`run: |\` block scalar, the \`run: |2\` hide (F1), an explicit-key knob or step key (F2), a hollow-green \`|| true\` verify condition (F3), or a deleted candidate-chain env mapping (F4) can no longer pass, and a missing python runtime, a duplicate run/if/shell key, or a parse error fails closed; review round 19 binds each verify step's declarative key surface too: no continue-on-error, the exact if expression, an env mapping that is exactly AGENT_OUTCOME with the exact agent outcome expression, the Maintainer step's shell: bash exactly as shipped and no shell override on the general arm, and no timeout-minutes or working-directory override, so a continue-on-error: true, if: false, hardcoded AGENT_OUTCOME: success, shell, timeout, or cwd one-liner can no longer hollow-green or skip either loud-failure verify; review round 20 binds each verify step's enclosing job and workflow surface too: both the maintainer and general jobs must carry exactly the shipped key set with their exact parsed if scalars (block scalars, trailing newline included), runs-on: ubuntu-latest, timeout-minutes: 75, and steps, with no job-level continue-on-error, defaults, or env, and neither workflow may add workflow-level defaults or env, so a job-level continue-on-error: true, if: false, or defaults.run.shell override can no longer hollow-green or skip either loud-failure verify; review round 21 binds step-to-job containment too: the Maintainer runner step and the Maintainer verify must live in the maintainer job and the general verify in the general job, so moving a bound step into a sibling job (its pinned if references step outputs that no longer exist there, so GitHub silently skips it) can no longer pass; review round 22 binds each verify's AGENT_OUTCOME source by identity: the expression must be a steps.<id>.outcome reference whose id resolves to exactly one step in the verify's own job, and that step must be the agent runner step itself (the general arm's outcome source must be the Run opencode general agent composite runner with its exact uses, continue-on-error, timeout-minutes, and if; the Maintainer's maintainer_run must be the Run Maintainer agent step), so re-pointing the id to an always-success decoy step in the same job can no longer hollow-green the verify) (issues #591, #620, #653, #669, #696, #717)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure), plus the #653 bounded transient 429/5xx same-model retry (anchored 429/5xx terminal detector, cap 1 shared across rungs, loud persistent failure), the #717 upstream-endpoint 429 phrase family (same bounded retry, no ladder advance on persistence), and the provider-stall watchdog (FIFO capture shape, HANG_IDLE_SECONDS/HANG_POLL_SECONDS growth poll, TERM/KILL of exactly the opencode and tee PIDs, one same-model retry after 10s, second stall loud, loud no-mkfifo fallback to the legacy pipeline) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the AI_RetryError summary and out-of-family phrase variants never match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not; all executed under set -o pipefail with a ~160 KiB match-first window, so a grep -q SIGPIPE can never mask a terminal line), and both real runner run-blocks are executed loop-level under the exact production shell form (bash --noprofile --norc -eo pipefail) against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the free-tier budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified status propagation in both capture shapes, per-scenario timeout, the #653 HTTP recovery on both exit shapes with the 30s backoff value-scoped and wait-ordered, the #717 upstream-endpoint form on both exit shapes (the exact phrase and a within-family wording variant on each shape, with per-prefix fixtures carrying both period forms so a dropped prefix alternative fails) with persistent loudness on the same model and the next rung never attempted, and the upstream form proven to share the legacy #653 HTTP budget in both directions (a legacy 429 retry followed by the upstream form, and the reverse, are persistent on the second attempt), persistent HTTP loud on both shapes with the provider status propagated, a stalled attempt killed by the watchdog and retried once on the same model after the 10s backoff (ordering proven), a second stall loud, per-class budget independence in both directions and cross-class budget interleaves (six interleave scenarios repeat a class after another class's retry was consumed, so an arithmetic reset of a spent budget inside any other class's retry branch, in either exit shape of the FT and HTTP branches plus the hang branch, spends an extra backoff and runs an extra attempt), the #653 HTTP and stall budgets proven arm-wide by cross-rung grant/advance pairs in the FIFO capture shape and at rung depth 3 by the widened/hang-widened grant and advance pairs (a widening or theft gated on the third rung spends an extra backoff or turns a healthy advance loud), the degraded no-mkfifo shape bound the same way for the free-tier and HTTP retries (a persistent degraded rejection failing loudly after exactly the bounded retry with its one backoff, and a degraded cross-rung HTTP grant spending exactly one 30s backoff, plus a static no-budget-assignment pin on the degraded branch, and its status/tee/stderr plumbing: an unclassified nonzero degraded death stays loud with its own status, a failing degraded tee fails loudly, and a stderr-borne terminal line still reaches the captured log so the bounded retry fires), the degraded no-mkfifo shape still honoring the free-tier retry contract loudly, the FIFO capture shape's \`2>&1\` stderr merge bound like the degraded probe (a stderr-borne terminal line must reach the captured log so the bounded retry fires on both exit shapes), the watchdog's silence accounting bound directly (a 30s-cadence/90s-threshold scenario where exactly three polling rounds must accumulate, a producing attempt kept alive past the threshold so a zeroed byte-size read cannot kill it, and an output-then-stall attempt whose post-output silence must accumulate through the re-arm), the watchdog's production defaults (600s idle / 30s poll) and its single bounded 5s TERM-to-KILL escalation grace whole-region pinned as exactly the hang-flag write, the ordered TERM oc, TERM tee, sleep 5, KILL oc, KILL tee sequence, and the exit, with nothing else (whitespace and 2>/dev/null tolerated, an inserted sleep or a shadowed KILL caught), and the whole FIFO capture prelude whole-region pinned line-exact so an inserted sleep anywhere in the watchdog or at the launch/reap path around it (before the tee launch, before the opencode launch, anywhere in the subshell outside the fire block: before the baseline read, after the poll, after the post-sleep liveness re-check, between the idle accumulation and the threshold, between the threshold and the warning echo, in the re-arm else branch, after the subshell close, after the watch_pid assignment, after the oc reap and status capture) also fails the audit, with a TERM-trapping attempt that can only complete its cleanup through the real grace window and a TERM-ignoring hang-child-ignores-term attempt that only SIGKILL can end (so a neutered KILL blocks into the scenario timeout), the watchdog loop gate and post-sleep liveness re-check pinned, the poll cadence bound to the poll knob, the inclusive -ge threshold and the post-growth reset to exactly zero line-anchored (a weakened re-arm would make the required silence grow with the attempt's productive duration), the nonzero Model-not-found advance site bound for all three budgets (a scenario per class spends its single retry, advances through that branch, and requires the repeat on the next rung to be loud persistent with exactly one backoff, with rung-depth-3 mirrors so a rung-gated reset at that site cannot resurrect a spent budget), the prefixed Error: Model not found: catch-handler form still advancing the rung (unanchored per-model grep pinned exactly, mnf-err-nz), the success path exiting 0 itself rather than falling through, and the Maintainer verify's loud exit 1 on a missing decision contract, a 160 KiB match-first terminal window still retrying the same model end-to-end, a zero poll override clamped to the production interval so the watchdog still kills and retries, and the extracted runner step proven the executing one: no if: (or \`if :\`, or the quoted \`\"if\":\` / \`'if':\` spellings) key anywhere in its whole step region, except the Maintainer runner's exact shared actor-write gate condition of issue #696 with its gate step present in the same file (the step name line through the next sibling \`- name:\` or EOF, so a step-level \`if: false\` inserted after the run block cannot skip the runner while the body stays pinned), its step key set bound too (no HANG_IDLE_SECONDS/HANG_POLL_SECONDS env override in either runner step, and a tree-wide static ban rejects any such env mapping anywhere in .github/workflows or .github/actions in block, quoted, caller-step, or flow spelling, since workflow-, job-, caller-step- and flow-level env all reach the runner and one declarative line can push the first watchdog fire past every step timeout, no continue-on-error/timeout-minutes key on the composite runner step, the Maintainer step's exact continue-on-error: true and timeout-minutes: 60 each present exactly once, and exactly one shell: key whose exact line is shell: bash), exactly the two #653 invocation sites allowed by the file-level count and both present in the extracted block, and each runner's entire extracted run block pinned line-exact against its regenerated normalized literal (leading/trailing whitespace and an optional trailing 2>/dev/null stripped, comment and blank lines dropped, compared as whole normalized line sequences so a rewrite merging two real lines into one cannot pass), so any inserted or modified non-comment line anywhere in the block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) fails the audit alone; review round 18 made the whole extraction structural: python3/PyYAML (a strict, duplicate-key-rejecting loader) resolves each runner step by its parsed name, pins its parsed run scalar line-exact, treats explicit-key \`? if\` / \`: false\` and \`? HANG_IDLE_SECONDS\` / \`: \"86400\"\` spellings as the keys GitHub Actions sees, binds both runner steps' \`MODEL_CANDIDATES\` (and the composite's \`MODEL\`) to the resolver outputs by exact parsed value plus the resolver step's \`model_ladder\` id and \`resolve-model.sh\` invocation, and executes both verify steps behaviorally (the Maintainer verify must exit nonzero with no decision file and 0 with one; the general verify 0 on success and nonzero on failure), so a decoy \`run: |\` block scalar, the \`run: |2\` hide (F1), an explicit-key knob or step key (F2), a hollow-green \`|| true\` verify condition (F3), or a deleted candidate-chain env mapping (F4) can no longer pass, and a missing python runtime, a duplicate run/if/shell key, or a parse error fails closed; review round 19 binds each verify step's declarative key surface too: no continue-on-error, the exact if expression, an env mapping that is exactly AGENT_OUTCOME with the exact agent outcome expression, the Maintainer step's shell: bash exactly as shipped and no shell override on the general arm, and no timeout-minutes or working-directory override, so a continue-on-error: true, if: false, hardcoded AGENT_OUTCOME: success, shell, timeout, or cwd one-liner can no longer hollow-green or skip either loud-failure verify; review round 20 binds each verify step's enclosing job and workflow surface too: both the maintainer and general jobs must carry exactly the shipped key set with their exact parsed if scalars (block scalars, trailing newline included), runs-on: ubuntu-latest, timeout-minutes: 75, and steps, with no job-level continue-on-error, defaults, or env, and neither workflow may add workflow-level defaults or env, so a job-level continue-on-error: true, if: false, or defaults.run.shell override can no longer hollow-green or skip either loud-failure verify; review round 21 binds step-to-job containment too: the Maintainer runner step and the Maintainer verify must live in the maintainer job and the general verify in the general job, so moving a bound step into a sibling job (its pinned if references step outputs that no longer exist there, so GitHub silently skips it) can no longer pass; review round 22 binds each verify's AGENT_OUTCOME source by identity: the expression must be a steps.<id>.outcome reference whose id resolves to exactly one step in the verify's own job, and that step must be the agent runner step itself (the general arm's outcome source must be the Run opencode general agent composite runner with its exact uses, continue-on-error, timeout-minutes, and if; the Maintainer's maintainer_run must be the Run Maintainer agent step), so re-pointing the id to an always-success decoy step in the same job can no longer hollow-green the verify) , the issue #754 daily free-usage wall fast-fail (a wider 600-line anchored quota detector wired in the watchdog and post-attempt, one attempt with no stall-retry consumption and no ladder advance, canonical class error on both exit shapes and both capture shapes, with the 599/600 window boundary proven end-to-end) and the account-level funds rejection fast-fail (anchored detector structurally excluded from the transient 429/5xx family, one attempt, canonical error) (issues #591, #620, #653, #669, #696, #717, #754)" "ok"
 else
-  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620/#653/#669/#696/#717: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier or 429/5xx rejection kills a gate with no bounded retry, a provider stall silently burns the whole tick, or the retries loop unboundedly / conclude silently green / silently blind-advance past a failed log capture / miss a rejection inside the tail window / miss a terminal line past the pipe buffer because the detector pipeline was not pipefail-safe / advance on a lookalike id / match a terminal form in the wrong case / record a backoff they never waited / busy-loop with a zero poll interval that silently disables the watchdog / run without the watchdog silently when mkfifo is unavailable / reset a retry budget inside the degraded no-mkfifo branch so the bounded retry loops unboundedly / silently green an unclassified death or swallow a failing tee in the degraded pipeline / drop a stderr-carried terminal line in the degraded pipeline so the bounded retry is lost / drop the FIFO shape's stderr merge so a stderr-carried terminal line never reaches the captured log / watchdog accounting that never accumulates toward the threshold, kills a live producer, or never re-arms after growth / reset a retry budget at the nonzero Model-not-found advance site (even behind a later-rung gate) so a spent budget resurrects / reset another class's retry budget so an already-spent budget silently retries again / widen or steal the HTTP or stall budget gated on a later rung / pin a wrong watchdog default (idle or poll) or an unbounded TERM-to-KILL grace / reorder, widen, or neuter the fire-block escalation (KILL before or back-to-back with TERM, an inserted sleep, a shadowed KILL) so a TERM-trapping attempt can never finish its cleanup and a TERM-ignoring attempt can never be ended / splice an unknown line anywhere outside the fire block (the watchdog loop, or the FIFO capture prelude's launch, reap, or cleanup path around the subshell) so the abort or the bounded retry is delayed past every step timeout / drop the watchdog liveness gate or its post-sleep re-check / decouple the poll cadence from the poll knob, weaken the inclusive threshold, or re-arm the accumulator with anything but an exact reset to zero / anchor the nonzero-MNF grep at column 0 so the prefixed Error: form loses the rung advance / splice or rewrite any non-comment line outside the bound sub-regions of a runner block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) so a one-line insertion delays or neuters the attempt start, the retry, or the rejection handling while every sub-region pin stays satisfied / turn the success path's exit 0 into a silent fall-through / hollow-green the Maintainer verify / run a conditional or shadowed runner step (any condition other than the Maintainer runner's exact shared actor-write gate form of issue #696, including a step-level \`if:\` key placed after the run block, the \`if :\` spelling, or the quoted \`\"if\":\` / \`'if':\` spellings) / override the runner step's watchdog knobs through its step env (HANG_IDLE_SECONDS/HANG_POLL_SECONDS) or set either knob through any workflow-, job-, caller-step-, or flow-style env mapping in .github/workflows or .github/actions, add continue-on-error/timeout-minutes to the composite runner step, drop, alter, quote, or duplicate the Maintainer step's exact continue-on-error: true / timeout-minutes: 60 lines, override the runner step's \`shell:\` so the audited execution form differs from production, or add a second shell: key / merge two pinned lines into one to evade the exact compare / validate a textual decoy \`run: |\` block instead of the executing step's parsed run scalar, or hide the real body behind \`run: |2\` (F1) / miss an explicit-key \`? HANG_IDLE_SECONDS\` or \`? if\` spelling of a watchdog knob or step key (F2) / hollow-green either verify step with a \`|| true\` condition (F3) / leave a runner step's \`MODEL_CANDIDATES\` (or the composite's \`MODEL\`) unbound from the resolver outputs, or the resolver step without its \`model_ladder\` id and \`resolve-model.sh\` invocation (F4) / add continue-on-error: true, flip the if expression to false, hardcode AGENT_OUTCOME: success, override shell/timeout-minutes/working-directory, or otherwise change a verify step's declarative key surface so the loud-failure verify is hollow-greened or skipped (review round 19) / add a job-level continue-on-error, if: false, defaults, or env to either verify job, add a workflow-level defaults or env, change the job's runs-on or timeout-minutes, or add any extra job key so the verify job's execution contract is redefined (review round 20) / move a runner or verify step out of its expected job into a sibling job so its pinned if references step outputs that no longer exist and the step is silently skipped (review round 21) / re-point a verify's AGENT_OUTCOME step id to a decoy step in the same job (or drop or duplicate that id) so the verify reads an always-success outcome instead of the agent step's, or change the source step's runner identity/attributes while keeping its name (review round 22) / fail open when python3/PyYAML is unavailable, a YAML file has duplicate keys, or a runner/verify step cannot be resolved exactly once)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620/#653/#669/#696/#717/#754: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier or 429/5xx rejection kills a gate with no bounded retry, a provider stall silently burns the whole tick, or the retries loop unboundedly / the daily free-usage wall burns two stall attempts and misreports a repeated provider stall (or a stale line inside the widened window fast-fails a healthy run) / the account-level funds rejection consumes the transient HTTP retry / conclude silently green / silently blind-advance past a failed log capture / miss a rejection inside the tail window / miss a terminal line past the pipe buffer because the detector pipeline was not pipefail-safe / advance on a lookalike id / match a terminal form in the wrong case / record a backoff they never waited / busy-loop with a zero poll interval that silently disables the watchdog / run without the watchdog silently when mkfifo is unavailable / reset a retry budget inside the degraded no-mkfifo branch so the bounded retry loops unboundedly / silently green an unclassified death or swallow a failing tee in the degraded pipeline / drop a stderr-carried terminal line in the degraded pipeline so the bounded retry is lost / drop the FIFO shape's stderr merge so a stderr-carried terminal line never reaches the captured log / watchdog accounting that never accumulates toward the threshold, kills a live producer, or never re-arms after growth / reset a retry budget at the nonzero Model-not-found advance site (even behind a later-rung gate) so a spent budget resurrects / reset another class's retry budget so an already-spent budget silently retries again / widen or steal the HTTP or stall budget gated on a later rung / pin a wrong watchdog default (idle or poll) or an unbounded TERM-to-KILL grace / reorder, widen, or neuter the fire-block escalation (KILL before or back-to-back with TERM, an inserted sleep, a shadowed KILL) so a TERM-trapping attempt can never finish its cleanup and a TERM-ignoring attempt can never be ended / splice an unknown line anywhere outside the fire block (the watchdog loop, or the FIFO capture prelude's launch, reap, or cleanup path around the subshell) so the abort or the bounded retry is delayed past every step timeout / drop the watchdog liveness gate or its post-sleep re-check / decouple the poll cadence from the poll knob, weaken the inclusive threshold, or re-arm the accumulator with anything but an exact reset to zero / anchor the nonzero-MNF grep at column 0 so the prefixed Error: form loses the rung advance / splice or rewrite any non-comment line outside the bound sub-regions of a runner block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) so a one-line insertion delays or neuters the attempt start, the retry, or the rejection handling while every sub-region pin stays satisfied / turn the success path's exit 0 into a silent fall-through / hollow-green the Maintainer verify / run a conditional or shadowed runner step (any condition other than the Maintainer runner's exact shared actor-write gate form of issue #696, including a step-level \`if:\` key placed after the run block, the \`if :\` spelling, or the quoted \`\"if\":\` / \`'if':\` spellings) / override the runner step's watchdog knobs through its step env (HANG_IDLE_SECONDS/HANG_POLL_SECONDS) or set either knob through any workflow-, job-, caller-step-, or flow-style env mapping in .github/workflows or .github/actions, add continue-on-error/timeout-minutes to the composite runner step, drop, alter, quote, or duplicate the Maintainer step's exact continue-on-error: true / timeout-minutes: 60 lines, override the runner step's \`shell:\` so the audited execution form differs from production, or add a second shell: key / merge two pinned lines into one to evade the exact compare / validate a textual decoy \`run: |\` block instead of the executing step's parsed run scalar, or hide the real body behind \`run: |2\` (F1) / miss an explicit-key \`? HANG_IDLE_SECONDS\` or \`? if\` spelling of a watchdog knob or step key (F2) / hollow-green either verify step with a \`|| true\` condition (F3) / leave a runner step's \`MODEL_CANDIDATES\` (or the composite's \`MODEL\`) unbound from the resolver outputs, or the resolver step without its \`model_ladder\` id and \`resolve-model.sh\` invocation (F4) / add continue-on-error: true, flip the if expression to false, hardcode AGENT_OUTCOME: success, override shell/timeout-minutes/working-directory, or otherwise change a verify step's declarative key surface so the loud-failure verify is hollow-greened or skipped (review round 19) / add a job-level continue-on-error, if: false, defaults, or env to either verify job, add a workflow-level defaults or env, change the job's runs-on or timeout-minutes, or add any extra job key so the verify job's execution contract is redefined (review round 20) / move a runner or verify step out of its expected job into a sibling job so its pinned if references step outputs that no longer exist and the step is silently skipped (review round 21) / re-point a verify's AGENT_OUTCOME step id to a decoy step in the same job (or drop or duplicate that id) so the verify reads an always-success outcome instead of the agent step's, or change the source step's runner identity/attributes while keeping its name (review round 22) / fail open when python3/PyYAML is unavailable, a YAML file has duplicate keys, or a runner/verify step cannot be resolved exactly once)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
@@ -10822,6 +11223,32 @@ model_error_terminal() {
 freetier_error_terminal() {
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
 }
+# Daily free-usage wall detector (issue #754), same column-0 terminal
+# anchoring as the other detectors but with a wider bounded window:
+# the CLI prints the terminal line, then a long error dump, then goes
+# silent. In review run 40048604834 the line sat about 345 lines above
+# the kill point, so the calibrated window is 600 lines (the 40-line
+# window of the other classes cannot see it). The phrase family covers
+# the older literal and the current `Free models work in OpenCode
+# (https://opencode.ai); ` variant; the `AI_RetryError: Failed after 3
+# attempts...` summary, the responseBody envelope, an indented echo, a
+# suffixed line, and a stale line beyond the window cannot match the
+# anchored whole-line form. Accepted residual (same as the other
+# detectors): a healthy session that prints the exact provider line at
+# column 0 in its last 600 log lines is fast-failed; the cost is one
+# fresh-run re-dispatch, which is this class's recovery.
+free_usage_limit_terminal() {
+  ( set +o pipefail; tail -n 600 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$" )
+}
+# Account-level funds rejection detector (issue #754): the provider's
+# `Upstream request failed: Insufficient account funds` line is
+# account-level, not a transient 5xx. It is excluded from the transient
+# family below (whose bounded `Upstream request failed: ` phrase would
+# otherwise match it) so it can never consume the shared HTTP retry,
+# and both runner paths fast-fail it by name.
+account_funds_terminal() {
+  ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?Upstream request failed: Insufficient account funds\.?$" )
+}
 # Transient HTTP-error detector (issues #653, #717), same tail +
 # column-0 terminal anchoring as the #591/#620 detectors: the observed
 # terminal forms are `AI_APICallError: Rate limit exceeded. Please try
@@ -10836,8 +11263,13 @@ freetier_error_terminal() {
 # anchored whole-line form. A persistent occurrence after the one
 # bounded same-model retry fails loudly on that model and does NOT
 # advance the ladder: every rung shares this gateway, so a fresh-run
-# re-dispatch (crash parity) is the recovery lane.
+# re-dispatch (crash parity) is the recovery lane. The account-funds
+# rejection is structurally excluded (issue #754) so it can never
+# spend this budget.
 transient_http_error_terminal() {
+  if account_funds_terminal "$1"; then
+    return 1
+  fi
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [A-Za-z0-9_.',-]+( [A-Za-z0-9_.',-]+)*)\.?$" )
 }
 # Blocked-egress-IP detector (issue #669), same tail + column-0
@@ -10891,7 +11323,8 @@ for model in $candidates; do
     log="$(mktemp)"
     fifo="${log}.fifo"
     hang_flag="${log}.hang"
-    rm -f "$fifo" "$hang_flag"
+    quota_flag="${log}.quota"
+    rm -f "$fifo" "$hang_flag" "$quota_flag"
     echo "::notice::maintainer run with model '$model'"
     if mkfifo "$fifo" 2>/dev/null; then
       # FIFO capture shape (issue #653): tee and opencode run as
@@ -10910,6 +11343,24 @@ for model in $candidates; do
         while kill -0 "$oc_pid" 2>/dev/null; do
           sleep "$hang_poll_seconds"
           kill -0 "$oc_pid" 2>/dev/null || exit 0
+          # Daily free-usage wall (issue #754): the terminal quota
+          # line is the last provider output and the session then
+          # hangs, so cut on the line itself at the next poll instead
+          # of waiting out the full stall threshold (about 21 minutes
+          # across two attempts in review run 40048604834). The
+          # dedicated flag takes precedence over the stall flag below,
+          # so this class is fast-failed without consuming the one
+          # same-model stall retry.
+          if free_usage_limit_terminal "$log"; then
+            echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
+            printf 'quota\n' > "$quota_flag"
+            kill -TERM "$oc_pid" 2>/dev/null
+            kill -TERM "$tee_pid" 2>/dev/null
+            sleep 5
+            kill -KILL "$oc_pid" 2>/dev/null
+            kill -KILL "$tee_pid" 2>/dev/null
+            exit 0
+          fi
           size=$(wc -c < "$log" 2>/dev/null || echo 0)
           if [ "$size" -eq "$last_size" ]; then
             idle=$((idle + hang_poll_seconds))
@@ -10951,6 +11402,16 @@ for model in $candidates; do
       set -e
       status="${st[0]}"; tee_status="${st[1]}"
     fi
+    # Daily free-usage wall fast-fail (issue #754): the watchdog sets
+    # the quota flag when it cuts on the terminal line, so this class
+    # never reaches the stall retry below and consumes no budget. The
+    # branch sits ahead of the tee guard because the watchdog's TERM
+    # can make tee exit nonzero after a deliberate abort.
+    if [ -s "$quota_flag" ]; then
+      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+      echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+      exit 1
+    fi
     if [ -s "$hang_flag" ]; then
       rm -f "$log" "$fifo" "$hang_flag"
       if [ "$hang_retry_used" -lt 1 ]; then
@@ -10964,7 +11425,28 @@ for model in $candidates; do
     fi
     if [ "$tee_status" -ne 0 ]; then
       echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
-      rm -f "$log" "$fifo" "$hang_flag"
+      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+      exit 1
+    fi
+    # Daily free-usage wall fast-fail (issue #754) for an attempt that
+    # ended on its own (including the degraded no-mkfifo shape): the
+    # terminal line is matched in the wider bounded window, and the
+    # class exits 1 unconditionally so an exit-0 provider death can
+    # never conclude green. No retry budget is consumed and the ladder
+    # is never advanced: every free rung shares the same per-egress
+    # allowance, so a fresh run is the recovery lane.
+    if free_usage_limit_terminal "$log"; then
+      echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
+      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+      exit 1
+    fi
+    # Account-level funds rejection fast-fail (issue #754): checked
+    # before the transient HTTP class (which structurally excludes it)
+    # so it can never consume the shared HTTP retry, and exits 1
+    # unconditionally for both exit shapes.
+    if account_funds_terminal "$log"; then
+      echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$model'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. Fresh-run recovery: a re-dispatch is the recovery lane; escalate the provider plan if it persists."
+      rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
       exit 1
     fi
     # Blocked-egress-IP fast-fail (issue #669): checked before the
