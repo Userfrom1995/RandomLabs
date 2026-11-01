@@ -115,7 +115,15 @@ the human to apply; the bot never pushes to forks (guidance only).
   ladder: every rung shares the same gateway, so a fresh run is the recovery
   lane. A provider 403
   abusive-traffic egress-IP block is not retried: it is classified by name
-  and fast-failed, since a fresh run gets a new runner and a new IP. When the
+  and fast-failed, since a fresh run gets a new runner and a new IP. Two
+  more provider rejections are named fast-fails rather than retries: the
+  per-egress-IP daily free-usage wall (the watchdog cuts the attempt on the
+  terminal quota line through a wider 600-line window instead of burning the
+  stall timeout) and the account-level insufficient-funds rejection (which
+  is structurally excluded from the 429/5xx retry); both exit loudly with
+  the fresh-run recovery path, consume no retry budget, and never advance
+  the ladder, and the provider's `retry-after` header is diagnostic only.
+  When the
   whole ladder is dead the agent
   step fails loudly instead of a hollow green; the general arm
   reds its run so failure triage fires, and the Maintainer, self-excluded from
