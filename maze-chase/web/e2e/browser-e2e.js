@@ -997,13 +997,18 @@ async function waitForValue(ws, expr, ok, label, budgetMs = 2000, intervalMs = 2
   await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
   await sleep(400);
   assert((await themeLabel()) === 'Moonwake (3/3)', 'theme choice persists across a reload');
-  // Leave the shipped default for any later pass, and prove the label
-  // settled before the accessibility checks key off it.
+  // Leave the shipped default for any later pass. The label settles before
+  // the board repaint, so wait for the observed Dusk frame: the
+  // high-contrast baseline must be a frame that was actually painted, never
+  // a fixed-sleep sample of the previous theme.
+  const beforeResetHash = await canvasHash();
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
   const defaultLabel = await waitForValue(
     ws, `document.getElementById('theme-label').textContent`,
     (v) => v === 'Dusk Pond (1/3)', 'theme returns to the default row');
   assert(defaultLabel === 'Dusk Pond (1/3)', 'theme returns to the default row');
+  const duskResetHash = await waitForCanvas(
+    `h !== (${beforeResetHash})`, 'the theme reset repaints the board to Dusk');
 
   // Accessibility settings: both checkboxes exist, reachable, persist in
   // the Rust settings blob, and restore checked across a reload.
@@ -1020,8 +1025,8 @@ async function waitForValue(ws, expr, ok, label, budgetMs = 2000, intervalMs = 2
     (v) => v === 'Moonwake (high contrast)', 'high contrast label settles');
   assert(hcLabel === 'Moonwake (high contrast)',
     'high contrast labels the effective Moonwake theme');
-  await sleep(150);
-  const hcHash = await canvasHash();
+  const hcHash = await waitForCanvas(
+    `h !== (${duskResetHash})`, 'high contrast repaints the board to Moonwake');
   await evalJs(ws, `(() => {
     const c = document.getElementById('chk-contrast');
     c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true }));
