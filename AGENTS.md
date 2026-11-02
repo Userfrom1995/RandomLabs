@@ -260,7 +260,9 @@ Public Surface / Web Track:                                              │
 - `LAB.md` - architecture; `AGENTS.md` - this blueprint;
   `.github/agents/` - prompts, roster + `CREATING_AGENTS.md`; `maintainer/logs` branch - the
   Maintainer's memory; `progress/` - per-build state.
-- Setup: `bash setup.sh` (validate/setup/secrets/dispatch). Undo:
+- Setup: `bash setup.sh` (checks status and prints guided prompts;
+  `--secrets` writes the required repo secrets, `--dispatch` dispatches the
+  Maintainer once, `--check` is read-only and exits 0/1). Undo:
   `bash shutdown.sh` (backs up, removes the lab; `--purge` also deletes
   secrets).
 - Always validate YAML/shell before pushing workflow/script changes. The
