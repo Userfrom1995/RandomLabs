@@ -8767,6 +8767,18 @@ else
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'" || r22_bad="${r22_bad} test.yml(lane-guard-if-not-exact)"
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'BASE_SHA: ${{ steps.restore-runner.outputs.base }}' || r22_bad="${r22_bad} test.yml(lane-guard-base-env-not-exact)"
     printf '%s\n' "$r22_guard_block" | grep -qF "grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)'" || r22_bad="${r22_bad} test.yml(lane-guard-no-protected-pattern)"
+    # Issue #807 review round 1: the inventory is NUL-delimited and every
+    # failure fails closed, so C-quoted names, staged-only changes, and a
+    # corrupt index cannot read as a clean lane.
+    printf '%s\n' "$r22_guard_block" | grep -qF 'git diff --cached --name-only -z --no-renames "$base"' || r22_bad="${r22_bad} test.yml(lane-guard-no-staged-inventory)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'git diff --name-only -z --no-renames' || r22_bad="${r22_bad} test.yml(lane-guard-no-worktree-inventory)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'git ls-files -z --others --exclude-standard' || r22_bad="${r22_bad} test.yml(lane-guard-no-untracked-inventory)"
+    printf '%s\n' "$r22_guard_block" | grep -qF "while IFS= read -r -d '' path; do" || r22_bad="${r22_bad} test.yml(lane-guard-no-nul-matcher)"
+    printf '%s\n' "$r22_guard_block" | grep -qF '.github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;' || r22_bad="${r22_bad} test.yml(lane-guard-no-case-matcher)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the index; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-index-fails-open)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the working tree; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-worktree-fails-open)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory untracked paths; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-untracked-fails-open)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'core.quotePath' && r22_bad="${r22_bad} test.yml(lane-guard-line-oriented-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'rm -f /tmp/random-lab-decision.json' || r22_bad="${r22_bad} test.yml(lane-guard-no-verdict-discard)"
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'exit 1' || r22_bad="${r22_bad} test.yml(lane-guard-no-fail-closed-exit)"
     # Publication-gate step: exact gate, env-indirected trigger timestamp,
@@ -9098,10 +9110,13 @@ else
           r22_bad="${r22_bad} lane-guard(functional-${2}-restore-failed)"
           return
         fi
+        # Issue #807 review round 1: a .gitignore negation can override the
+        # agent-writable info/exclude, so the fixture exercises that attack.
+        printf '!.github/actions/opencode-run/\n!.github/actions/opencode-run/**\n' >> "$r22_807_repo/.gitignore"
         r22_807_staged=$(git -C "$r22_807_repo" add -A 2>/dev/null; git -C "$r22_807_repo" diff --cached --name-only 2>/dev/null)
         case "$3:$r22_807_staged" in
           no:*".github/actions/opencode-run/"*) r22_bad="${r22_bad} lane-guard(functional-${2}-runner-staged)" ;;
-          leak:*".github/actions/opencode-run/action.yml"*) : ;;
+          leak:*".github/actions/opencode-run/"*) : ;;
           leak:*) r22_bad="${r22_bad} lane-guard(functional-${2}-mutant-did-not-leak)" ;;
         esac
         if [ "$3" = "no" ]; then
@@ -9116,9 +9131,11 @@ else
       }
       r22_807_skip_mutant=$(printf '%s\n' "$r22_807_restore" | sed 's#xargs -0 -r git update-index --skip-worktree -- < "$tracked_list"#:#')
       r22_807_leak_mutant=$(printf '%s\n' "$r22_807_skip_mutant" | sed 's#if \[ -n "\$dirty" \]; then#if false; then#')
+      r22_807_untracked_mutant=$(printf '%s\n' "$r22_807_restore" | sed 's#xargs -0 -r git add -N -f -- < "$untracked_list"#:#; s#xargs -0 -r git update-index --skip-worktree -- < "$untracked_list"#:#')
       r22_807_check_restore "$r22_807_restore" fixed no pass
       r22_807_check_restore "$r22_807_skip_mutant" skip-mutant no fail
       r22_807_check_restore "$r22_807_leak_mutant" leak-mutant leak pass
+      r22_807_check_restore "$r22_807_untracked_mutant" untracked-mutant leak pass
       r22_807_guard_body=$(printf '%s\n' "$r22_807_guard" | sed "s#/tmp/random-lab-decision.json#$r22_807_tmp/decision.json#g")
       r22_807_guard_case() {
         r22_807_reset
@@ -9145,37 +9162,74 @@ else
             git -C "$r22_807_repo" add -A
             git -C "$r22_807_repo" commit -qm "tester: touch lab"
             ;;
+          quoted)
+            mkdir -p "$r22_807_repo/.github"
+            printf 'evil\n' > "$r22_807_repo/.github/evil\"quote.txt"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: touch lab"
+            ;;
+          newline)
+            mkdir -p "$r22_807_repo/.github"
+            printf 'evil\n' > "$r22_807_repo/.github/newline"$'\n'"file"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: touch lab"
+            ;;
           untracked)
             mkdir -p "$r22_807_repo/.github"
             printf 'evil\n' > "$r22_807_repo/.github/evil.txt"
             ;;
+          staged)
+            # Staged-only: the worktree stays at HEAD, only the index changes.
+            r22_807_blob=$(printf 'evil\n' | git -C "$r22_807_repo" hash-object -w --stdin)
+            git -C "$r22_807_repo" update-index --add --cacheinfo "100644,${r22_807_blob},.github/workflows/evil.yml"
+            ;;
+          corrupt-index)
+            printf 'not-a-git-index\n' > "$r22_807_repo/.git/corrupt-index"
+            ;;
         esac
         printf '{}\n' > "$r22_807_tmp/decision.json"
         r22_807_body="$r22_807_guard_body"
-        if [ "$3" = "weaken" ]; then
-          r22_807_body=$(printf '%s\n' "$r22_807_body" | sed "s#grep -E '.*'#grep -E '^\$'#")
-        fi
+        case "$3" in
+          weaken)
+            r22_807_body=$(printf '%s\n' "$r22_807_body" | sed 's#) protected=1 ;;#) : ;;#')
+            ;;
+          failopen)
+            r22_807_body=$(printf '%s\n' "$r22_807_body" | sed 's#if ! git diff#if false \&\& git diff#g; s#if ! git ls-files#if false \&\& git ls-files#g')
+            ;;
+        esac
         printf '%s\n' "$r22_807_body" > "$r22_807_tmp/guard-$1-$3.sh"
         r22_807_rc=0
-        ( cd "$r22_807_repo" && BASE_SHA="$r22_807_base" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+        if [ "$1" = "corrupt-index" ]; then
+          ( cd "$r22_807_repo" && BASE_SHA="$r22_807_base" GIT_INDEX_FILE="$r22_807_repo/.git/corrupt-index" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+        else
+          ( cd "$r22_807_repo" && BASE_SHA="$r22_807_base" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+        fi
         if [ "$r22_807_rc" -ne "$2" ]; then
           r22_bad="${r22_bad} lane-guard(functional-$1-$3-rc=${r22_807_rc},want=${2})"
         fi
         if [ "$2" -ne 0 ] && [ -f "$r22_807_tmp/decision.json" ]; then
           r22_bad="${r22_bad} lane-guard(functional-$1-$3-verdict-not-discarded)"
         fi
+        if [ "$2" -eq 0 ] && [ ! -f "$r22_807_tmp/decision.json" ]; then
+          r22_bad="${r22_bad} lane-guard(functional-$1-$3-clean-verdict-lost)"
+        fi
       }
       r22_807_guard_case clean 0 keep
       r22_807_guard_case committed 1 keep
       r22_807_guard_case unicode 1 keep
+      r22_807_guard_case quoted 1 keep
+      r22_807_guard_case newline 1 keep
       r22_807_guard_case untracked 1 keep
+      r22_807_guard_case staged 1 keep
+      r22_807_guard_case corrupt-index 1 keep
       r22_807_guard_case committed 0 weaken
+      r22_807_guard_case corrupt-index 0 failopen
     fi
   fi
   rm -rf "$r22_807_tmp"
 fi
 if [ -z "$r22_bad" ]; then
-  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree so the end-of-session auto-commit can never stage it onto a project PR, and a post-agent lane guard discards any verdict whose run touched a protected lab path (issue #807), with both real bodies executed in a sandbox against the incident shape and a mutated body proving the fixture load-bearing" "ok"
+  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree (tracked and untracked files alike) so the end-of-session auto-commit can never stage it onto a project PR even after a .gitignore negation, and a post-agent lane guard with a pinned environment discards any verdict whose run touched a protected lab path using a NUL-delimited, fail-closed inventory that catches C-quoted names, staged-only changes, and an unreadable index (issue #807), with both real bodies executed in a sandbox against the incident shape and mutated bodies proving the fixture load-bearing" "ok"
 else
   check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
 fi
@@ -17241,7 +17295,7 @@ ARM_ACTOR_NAME = "Actor write gate (issue #428)"
 ARM_RESTORE_NAME = "Restore the vendored runner when the checked-out head predates it"
 EXPECTED_ARM_ACTOR_KEYS = {"name", "id", "shell", "env", "run"}
 EXPECTED_ARM_ACTOR_BLOCK_SHA256 = "194c8b58365de523905f0f129a56fe069885983e0fad3dfebd73b73b777d6f39"
-EXPECTED_ARM_RESTORE_BLOCK_SHA256 = "e66725a996258d7bbba8bae015926bec077ea3ad224511a8272bb44321ec49e9"
+EXPECTED_ARM_RESTORE_BLOCK_SHA256 = "7ac89563cc245ff7081a201f946ceb6d1784c666cfec020730d7b44938a8d4a3"
 # Issue #807: the Tester restore marked the trusted runner skip-worktree so the
 # end-of-session auto-commit can never stage it onto a project PR (PR #788),
 # and the post-agent lane guard discards any verdict whose run touched a
@@ -17251,8 +17305,34 @@ EXPECTED_ARM_LANE_GUARD_KEYS = {"name", "id", "if", "env", "run"}
 EXPECTED_ARM_LANE_GUARD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'"
 EXPECTED_ARM_LANE_GUARD_ENV = {
     "BASE_SHA": "${{ steps.restore-runner.outputs.base }}",
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+    "GIT_ASKPASS": "/bin/false",
+    "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_DIR": "${{ github.workspace }}/.git",
+    "GIT_EDITOR": "/bin/false",
+    "GIT_EXEC_PATH": "/usr/lib/git-core",
+    "GIT_EXTERNAL_DIFF": "",
+    "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
+    "GIT_NAMESPACE": "",
+    "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
+    "GIT_PAGER": "/bin/cat",
+    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SSH_COMMAND": "ssh",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_TEMPLATE_DIR": "/dev/null",
+    "GIT_WORK_TREE": "${{ github.workspace }}",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
+    "PATH": "/usr/bin:/bin",
 }
-EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "b738492798a23b9611ecfa4365069cee721817c465c60c8327fc9e73e5f2ab7a"
+EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "8a04d73c4e1e50390b031eeeb0e4334abe04a2978902f5924dbc207afa585ade"
 EXPECTED_TEST_ACTOR_ENV = {
     "GH_TOKEN": "${{ github.token }}",
     "GATE_EVENT": "${{ github.event_name }}",
@@ -18315,6 +18395,27 @@ def validate_test(doc, sink):
                 "setup\\.sh$|shutdown\\.sh$)'" not in guard_run
             ):
                 sink.append("test.yml(lane-guard-protected-pattern-missing)")
+            # Issue #807 review round 1: the inventory must stay NUL-delimited
+            # (git C-quotes special names even with core.quotePath=false), the
+            # matcher must be the case/glob form, committed, staged-only, and
+            # worktree changes must all be covered, and no inventory command
+            # may swallow a failure (a corrupt index must fail closed).
+            for needle in (
+                "git diff --cached --name-only -z --no-renames \"$base\"",
+                "git diff --name-only -z --no-renames",
+                "git ls-files -z --others --exclude-standard",
+                "while IFS= read -r -d '' path; do",
+                ".github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;",
+            ):
+                if needle not in guard_run:
+                    sink.append("test.yml(lane-guard-inventory-missing)")
+            if "core.quotePath" in guard_run:
+                sink.append("test.yml(lane-guard-line-oriented-inventory")
+            for line in guard_run.splitlines():
+                if line.strip().startswith("#"):
+                    continue
+                if ("--name-only" in line or "--others --exclude-standard" in line) and "|| true" in line:
+                    sink.append("test.yml(lane-guard-inventory-fails-open)")
             if "rm -f /tmp/random-lab-decision.json" not in guard_run:
                 sink.append("test.yml(lane-guard-verdict-not-discarded)")
             if not re.search(r"(?m)^\s*exit\s+1\s*$", guard_run):
