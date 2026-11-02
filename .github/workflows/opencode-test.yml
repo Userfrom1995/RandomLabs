@@ -150,32 +150,62 @@ jobs:
           echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner when the checked-out head predates it
+        id: restore-runner
         run: |
           set -o pipefail
           # Local `uses: ./.github/actions/opencode-run` resolves against this
           # workspace (the PR head), never against the ref this workflow file was
           # loaded from, so a branch forked before the runner was vendored dies
           # before the agent starts with "Can't find 'action.yml' ... under
-          # .../opencode-run" (issue #430). Issue #713 review round 9: always
+          # .../opencode-run" - and the crash-parity verify step misreads that
+          # pre-start failure as a mid-stream agent crash, burning the whole
+          # auto-retry budget on a gate that never ran (issue #430). Issue #713
+          # review round 9: always
           # replace the checked-out copy with this run's workflow-commit copy.
           # The PR head's runner is untrusted code that would otherwise execute
           # with the job's token before any pinned step can verify the decision.
           # The old early exit that trusted a present head action.yml is gone.
-          if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+          #
+          # Issue #807: info/exclude covers untracked files only, so replacing
+          # the tracked runner left a tracked modification that the opencode
+          # CLI's end-of-session auto-commit staged and pushed onto a project
+          # PR (PR #788 carried the #805 runner as commit 40fa1586). Mark every
+          # tracked path under the restored directory skip-worktree, so the
+          # trusted working copy is invisible to `git status`, `git add -A`,
+          # and `git commit -a`; the untracked trusted files stay covered by
+          # info/exclude. A PR head that predates the vendoring has no tracked
+          # paths there, so only the exclude applies. Any other pre-existing
+          # change fails closed: the auto-commit must never see dirt the
+          # workflow did not intend to ship.
+          runner_path=.github/actions/opencode-run
+          if ! git cat-file -e "${GITHUB_SHA}:${runner_path}/action.yml" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+          if ! git cat-file -e "${GITHUB_SHA}:${runner_path}/action.yml" 2>/dev/null; then
             echo "::error::Vendored runner absent from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
             exit 1
           fi
-          rm -rf .github/actions/opencode-run
-          git archive "${GITHUB_SHA}" -- .github/actions/opencode-run | tar -x
-          printf '%s\n' ".github/actions/opencode-run/" >> "$(git rev-parse --git-path info/exclude)"
-          if [ ! -f .github/actions/opencode-run/action.yml ]; then
+          tracked_list=$(mktemp)
+          git ls-files -z -- "$runner_path" > "$tracked_list"
+          rm -rf "$runner_path"
+          git archive "${GITHUB_SHA}" -- "$runner_path" | tar -x
+          printf '%s\n' "$runner_path/" >> "$(git rev-parse --git-path info/exclude)"
+          if [ -s "$tracked_list" ]; then
+            xargs -0 -r git update-index --skip-worktree -- < "$tracked_list"
+          fi
+          rm -f "$tracked_list"
+          if [ ! -f "$runner_path/action.yml" ]; then
             echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
             exit 1
           fi
-          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed."
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::error::Workspace is dirty before the agent starts; refusing a session the end-of-session auto-commit could contaminate (issue #807)."
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Restored ${runner_path} from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed and never auto-committed."
 
       - name: Run opencode tester
         id: test
@@ -215,6 +245,65 @@ jobs:
             Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"run_nonce":"<value>","action":"maintainer"}` for approval/escalation, `{"run_nonce":"<value>","action":"fix"}` when app fixes are required, or `{"run_nonce":"<value>","action":"lab"}` when infrastructure fixes are required. The hardcoded workflow step reads this file; it never parses prose.
             RUN-BOUND CONTRACT NONCE (issue #713 round 16): this run exported `LAB_RUN_NONCE`. Read its value with `printf '%s' "$LAB_RUN_NONCE"` and write it VERBATIM as the `<value>` above and as exactly one standalone `run-nonce: <value>` line in the report; never write the placeholder text. Before you finish, run `bash "${RUNNER_TEMP}/lab-bin/verify-agent-contract.sh" --decision /tmp/random-lab-decision.json --report /tmp/random-lab-report.md --action maintainer,fix,lab --signoff "- the Tester"` and fix whatever it reports until it prints `contract: OK`. If that file is missing, skip the self-check and follow the contract above; the workflow's gates still enforce it. A handoff that is not bound to this run is rejected by the workflow gate and the run fails without an auto-retry.
             You MUST write ONE plain text decision report to `/tmp/random-lab-report.md` containing your findings, ending with your sign-off line `- the Tester` as the last non-blank line. Do NOT post comments yourself. The job token can write issues for the CLI's session bookkeeping (issue #743), so a successful post is not evidence that posting is allowed: only the hardcoded owner-PAT workflow step publishes your report after the gates pass. The report file is the publication contract; the workflow verifies it before anything is posted.
+
+      - name: Verify the Tester stayed in lane (issue 807)
+        id: lane-guard
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'
+        env:
+          BASE_SHA: ${{ steps.restore-runner.outputs.base }}
+        run: |
+          set -o pipefail
+          # Issue #807: the Tester only authors project test files. A
+          # `.github/**` path in this run's commits or working tree means the
+          # head an approval marker would bind is not the head the Tester
+          # verified (the PR #788 auto-commit landed 11 seconds before the
+          # marker). Discard the verdict, restore the runner to the pre-run
+          # head, and fail closed; the Maintainer repairs the branch and
+          # re-dispatches the Tester. The check is defense in depth for the
+          # skip-worktree restore above and for any future auto-commit shape.
+          base="${BASE_SHA:-}"
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::error::Lost the pre-agent baseline SHA; refusing to trust this session's head (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
+            echo "::error::The Tester rewrote history since the pre-run head ${base}; refusing to trust this session (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          fi
+          # core.quotePath=false keeps non-ASCII paths unquoted, so a
+          # protected path cannot slip past the anchored matcher as a quoted
+          # C-style string.
+          changed=$(
+            {
+              git -c core.quotePath=false diff --name-only --no-renames "$base" HEAD 2>/dev/null || true
+              git -c core.quotePath=false diff --name-only --no-renames HEAD 2>/dev/null || true
+              git -c core.quotePath=false ls-files --others --exclude-standard 2>/dev/null || true
+            } | sed '/^$/d' | sort -u
+          )
+          protected=$(printf '%s\n' "$changed" | grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)' || true)
+          if [ -z "$protected" ]; then
+            echo "The Tester's changes stay inside the project test lane; no protected lab path changed."
+            exit 0
+          fi
+          rm -f /tmp/random-lab-decision.json
+          echo "::error::The Tester's changes touch protected lab paths; discarding the verdict and failing closed (issue #807)."
+          printf '%s\n' "$protected"
+          runner_path=.github/actions/opencode-run
+          if git cat-file -e "${base}:${runner_path}/action.yml" 2>/dev/null; then
+            rm -rf "$runner_path"
+            git archive "$base" -- "$runner_path" | tar -x
+          else
+            rm -rf "$runner_path"
+          fi
+          git ls-files -z -- "$runner_path" 2>/dev/null | xargs -0 -r git update-index --no-skip-worktree -- 2>/dev/null || true
+          if git diff --quiet "$base" -- "$runner_path" 2>/dev/null && [ -z "$(git ls-files --others --exclude-standard -- "$runner_path" 2>/dev/null)" ]; then
+            echo "Restored ${runner_path} from the pre-run head ${base}."
+          else
+            echo "::error::${runner_path} is still dirty after restore; manual repair required (issue #807)."
+          fi
+          exit 1
 
       - name: Verify test decided, else fail closed
         id: verify-test
@@ -434,7 +523,7 @@ jobs:
 
       - name: Publish tester approval marker (owner-PAT-signed)
         id: marker
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success' && steps.lane-guard.outcome == 'success'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
