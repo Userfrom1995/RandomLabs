@@ -318,6 +318,7 @@ class DocumentationTruthTest(unittest.TestCase):
         self.assertIn("dispatch the Maintainer once", quickstart)
         command = text.split("bash setup.sh", 1)[1].splitlines()[0]
         self.assertEqual(set(command.split()), FIRST_RUN_FLAGS)
+        self.assertIn("The Actions tab can dispatch only", text)
 
     def test_agents_summary_describes_the_real_bare_mode(self):
         text = " ".join(
@@ -326,12 +327,15 @@ class DocumentationTruthTest(unittest.TestCase):
         self.assertIn("checks status and prints guided prompts", text)
         self.assertIn("`--secrets` writes the required repo secrets", text)
         self.assertIn("`--dispatch` dispatches the Maintainer once", text)
+        self.assertIn("`--check` alone is read-only", text)
         self.assertNotIn("validate/setup/secrets/dispatch", text)
 
     def test_lab_first_run_and_setup_claims_are_accurate(self):
         running = " ".join(read(LAB).split("## Running the lab", 1)[1].split())
         self.assertIn("write the required repo secrets", running)
         self.assertIn("`bash setup.sh --secrets --dispatch`", running)
+        self.assertIn("dispatch-only alternative", running)
+        self.assertIn("never writes secrets", running)
         self.assertNotIn("creates/verifies everything", running)
 
 
