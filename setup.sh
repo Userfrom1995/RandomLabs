@@ -87,13 +87,71 @@ if [ "$ok" -eq 0 ]; then
 fi
 
 # 4. Secrets
+# Resolve the target repository from GITHUB_REPOSITORY or a recognized
+# github.com origin URL only. Local paths, file:// remotes, and non-GitHub
+# hosts are rejected so a secret write or dispatch can never silently target
+# an unrelated repository (issue #799 evaluator finding F1).
+valid_repo_slug() {
+  local slug="$1"
+  [[ "$slug" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
+  case "$slug" in
+    ./*|../*|*/.|*/..) return 1 ;;
+  esac
+  return 0
+}
+
+resolve_github_repo() {
+  local url="$1" scheme rest authority path owner repo
+  url="${url%/}"
+  case "$url" in
+    git@github.com:*)
+      path="${url#git@github.com:}"
+      ;;
+    *://*)
+      scheme="${url%%://*}"
+      rest="${url#*://}"
+      authority="${rest%%/*}"
+      path="${rest#*/}"
+      case "$scheme" in
+        https|http|ssh|git) ;;
+        *) return 1 ;;
+      esac
+      case "$authority" in
+        *@*) authority="${authority##*@}" ;;
+      esac
+      if [ "$authority" != "github.com" ] && ! [[ "$authority" =~ ^github\.com:[0-9]{1,5}$ ]]; then
+        return 1
+      fi
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  case "$path" in
+    */*) ;;
+    *) return 1 ;;
+  esac
+  path="${path%/}"
+  owner="${path%/*}"
+  repo="${path##*/}"
+  repo="${repo%.git}"
+  valid_repo_slug "$owner/$repo" || return 1
+  printf '%s/%s\n' "$owner" "$repo"
+}
+
 REPO="${GITHUB_REPOSITORY:-}"
-if [ -z "$REPO" ] && origin_url="$(git remote get-url origin 2>/dev/null)"; then
-  REPO="$(printf '%s\n' "$origin_url" | sed -E 's#/+$##; s#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')"
-fi
-if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
-  echo "warning: could not determine the GitHub repo from GITHUB_REPOSITORY or the origin remote. Target repo unknown; secret and dispatch steps will be skipped."
+if [ -n "$REPO" ] && ! valid_repo_slug "$REPO"; then
+  echo "warning: GITHUB_REPOSITORY is not a valid owner/repo slug. Target repo unknown; secret and dispatch steps will be skipped."
   REPO=""
+fi
+origin_url="$(git remote get-url origin 2>/dev/null || true)"
+if [ -z "$REPO" ] && [ -n "$origin_url" ]; then
+  REPO="$(resolve_github_repo "$origin_url" || true)"
+  if [ -z "$REPO" ]; then
+    echo "warning: could not determine the GitHub repo from the origin remote (only github.com HTTPS/HTTP, SSH, and git URLs are recognized; set GITHUB_REPOSITORY for other hosts). Target repo unknown; secret and dispatch steps will be skipped."
+  fi
+elif [ -z "$REPO" ]; then
+  echo "warning: could not determine the GitHub repo (no GITHUB_REPOSITORY and no origin remote). Target repo unknown; secret and dispatch steps will be skipped."
 fi
 
 if [ -n "$REPO" ]; then
@@ -110,22 +168,26 @@ if [ -n "$REPO" ]; then
   fi
 fi
 
-if [ "$DO_SECRETS" -eq 1 ] && [ -n "$REPO" ]; then
-  echo "== Writing required secrets =="
-  set_gh_secret() {
-    local name="$1" desc="$2" value
-    if [ -n "${!name:-}" ]; then
-      value="${!name}"
-    else
-      read -r -s -p "$desc: " value
-      echo
-      [ -z "$value" ] && { echo "skipped (empty)"; return; }
-    fi
-    printf '%s' "$value" | gh secret set "$name" --repo "$REPO"
-    echo "$name set."
-  }
-  set_gh_secret OPENCODE_API_KEY "opencode API key (OPENCODE_API_KEY)"
-  set_gh_secret OPENCODE_PAT "GitHub PAT for /oc triggers (OPENCODE_PAT)"
+if [ "$DO_SECRETS" -eq 1 ]; then
+  if [ -n "$REPO" ]; then
+    echo "== Writing required secrets =="
+    set_gh_secret() {
+      local name="$1" desc="$2" value
+      if [ -n "${!name:-}" ]; then
+        value="${!name}"
+      else
+        read -r -s -p "$desc: " value
+        echo
+        [ -z "$value" ] && { echo "skipped (empty)"; return; }
+      fi
+      printf '%s' "$value" | gh secret set "$name" --repo "$REPO"
+      echo "$name set."
+    }
+    set_gh_secret OPENCODE_API_KEY "opencode API key (OPENCODE_API_KEY)"
+    set_gh_secret OPENCODE_PAT "GitHub PAT for /oc triggers (OPENCODE_PAT)"
+  else
+    echo "Skipping secrets: the target repo is unresolved (see the warning above)."
+  fi
 else
   echo "Skipping secrets (pass --secrets to set OPENCODE_API_KEY and OPENCODE_PAT)."
 fi
@@ -139,10 +201,16 @@ echo "  • Do NOT require status checks on bot runs you want to stay auto (held
 echo
 
 # 6. First run
-if [ "$DO_DISPATCH" -eq 1 ] && [ -n "$REPO" ] && command -v gh >/dev/null 2>&1; then
-  echo "== Dispatching the Maintainer (first run - approval-exempt) =="
-  gh workflow run maintainer.yml --repo "$REPO"
-  echo "Dispatched. Watch it at https://github.com/$REPO/actions"
+if [ "$DO_DISPATCH" -eq 1 ]; then
+  if [ -z "$REPO" ]; then
+    echo "Skipping dispatch: the target repo is unresolved (see the warning above)."
+  elif ! command -v gh >/dev/null 2>&1; then
+    echo "Skipping dispatch: gh is not installed."
+  else
+    echo "== Dispatching the Maintainer (first run - approval-exempt) =="
+    gh workflow run maintainer.yml --repo "$REPO"
+    echo "Dispatched. Watch it at https://github.com/$REPO/actions"
+  fi
 fi
 
 echo
