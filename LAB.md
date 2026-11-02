@@ -1167,7 +1167,25 @@ exactly those two PIDs, flagged, and retried once on the SAME model after a
 env-overridable only for the audit harness, and both are clamped to sane
 positive bounds (a zero poll interval would busy-loop with `idle += 0`,
 silently disabling the watchdog; a value beyond the shell's integer range
-would error on every comparison): the review round F3 hardening. One non-provider silence reaches the same watchdog: a staged-prompt session whose `external_directory` read is still `ask` prints a pending `permission: 'external_directory'` / `asking` line and waits for an approval no one can give, so the watchdog kill looks identical to a provider stall (issue #743 follow-on: review run 39852524926). Check the log for that line when triaging a stalled attempt before blaming the provider; the staged-prompt grant (issue #743 follow-on) removes the ask. When `mkfifo` is unavailable
+would error on every comparison): the review round F3 hardening. The watchdog
+is child-aware (issue #805): an unchanged log is not a provider stall while
+opencode still has a live descendant, because a tool command can write
+nothing to the session log for its whole runtime (output redirected to a
+file, or only summarized when the command returns; run 41388720220's
+browser-e2e loop was TERM/KILLed twice at 600 silent seconds while it was
+working). Each poll walks the pid/ppid table from the opencode pid (portable
+`ps` fallbacks, numeric row filter, bounded ancestry walk; any `ps` failure
+reads as "no descendant", the pre-#805 bounded behavior) and resets the idle
+accounting while a descendant is alive. One full poll window is granted
+after the descendant exits so a buffered result can reach the log before the
+threshold can fire, and no retry budget is consumed by a working tool; the
+no-descendant path still fires the identical TERM/KILL escalation and the
+one same-model stall retry. R15 adds `hang-live-child` (a real child
+outliving the threshold several times over is never killed, the tool result
+concludes the attempt, and no backoff is spent) and `hang-child-exits` (a
+genuinely silent attempt after that child exits is still killed after the
+grace window and retried once), so the probe can never mistake a working
+tool for a stall or disable the stall class for good. One non-provider silence reaches the same watchdog: a staged-prompt session whose `external_directory` read is still `ask` prints a pending `permission: 'external_directory'` / `asking` line and waits for an approval no one can give, so the watchdog kill looks identical to a provider stall (issue #743 follow-on: review run 39852524926). Check the log for that line when triaging a stalled attempt before blaming the provider; the staged-prompt grant (issue #743 follow-on) removes the ask. When `mkfifo` is unavailable
 (some Windows Git Bash environments) the runner degrades LOUDLY to the legacy
 inline pipeline without the watchdog, instead of bricking the arm. The
 second class is a transient 429/5xx terminal death; its observed forms are
@@ -1198,9 +1216,12 @@ executed functionally over its accept/reject matrix plus the tail-window
 39/40 boundary, and the behavioral matrix adds HTTP recovery on both exit
 shapes (backoff value-scoped and wait-ordered, so a backgrounded, revalued,
 or removed wait, and the watchdog's own poll sleeps, can never satisfy the
-assertion), persistent HTTP loud on both shapes, a stalled attempt killed by
-the watchdog and retried once on the same model after its 10-second backoff
-(ordering proven), a second stall loud, per-class budget independence in
+assertion), persistent HTTP loud on both shapes, a stalled attempt with no
+live descendant killed by the watchdog and retried once on the same model
+after its 10-second backoff (ordering proven), a live tool descendant
+outliving the threshold never killed (the attempt concludes on the tool
+result), a silent attempt after that descendant exits still killed and
+retried, a second stall loud, per-class budget independence in
 both directions (a consumed HTTP budget leaves the stall budget available
 and vice versa) and cross-class budget interleaves (six interleave scenarios
 repeat a class after another class's retry was consumed, covering both exit
@@ -1716,8 +1737,10 @@ remote tip).
   rejection is also survivable (issue #620): both runner paths retry the
   same model exactly once per arm on that class (anchored detector, bounded
   cap, a second rejection fails loudly). A provider stall (an attempt that
-  produces no output at all) is aborted by the FIFO watchdog and retried
-  once on the same model, and a transient 429/5xx terminal death is retried
+  produces no output at all while the opencode process tree has no live
+  descendant) is aborted by the child-aware FIFO watchdog and retried once
+  on the same model, while a live tool descendant keeps the attempt alive
+  (issue #805), and a transient 429/5xx terminal death is retried
   on the same model exactly once per arm with the provider's own exit
   status propagated on a second failure (issue #653); `mkfifo`-less
   runners degrade loudly to the legacy pipeline without the watchdog, and

@@ -108,8 +108,9 @@ the human to apply; the bot never pushes to forks (guidance only).
   fallback ladder when the provider retires the pin, and three transient
   provider failure classes are each retried once on the same model before
   they can drop a wake-up or kill a gate: a free-tier rejection, a stalled
-  attempt (which the runner's watchdog aborts instead of letting it burn the
-  step timeout), and a 429/5xx terminal rejection, including the retryable
+  attempt with no live tool process (which the runner's child-aware watchdog
+  aborts instead of letting it burn the step timeout, while a silent tool
+  command keeps its attempt alive), and a 429/5xx terminal rejection, including the retryable
   upstream-endpoint form `AI_APICallError: Upstream request failed: Endpoint
   is unavailable.` A persistent upstream-endpoint failure does not advance the
   ladder: every rung shares the same gateway, so a fresh run is the recovery
