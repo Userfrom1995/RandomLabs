@@ -447,6 +447,38 @@ test('an unusable Chrome path fails loudly', () => {
   assert.match(proc.stderr, /Chrome is not executable/);
 });
 
+test('a Chrome that dies before CDP prints its log and cleans up', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-no-cdp-'));
+  const tmpRoot = path.join(dir, 'tmp');
+  const chromeStub = path.join(dir, 'chrome');
+  fs.mkdirSync(tmpRoot);
+  fs.writeFileSync(chromeStub, [
+    '#!/usr/bin/env bash',
+    'echo "stub chrome cannot start" >&2',
+    'exit 1',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  try {
+    const proc = spawnSync('bash', [RUNNER, 'site-e2e.js',
+      '--base-url', 'http://127.0.0.1:1/', '--chrome', chromeStub], {
+      encoding: 'utf8',
+      timeout: 30000,
+      env: { ...process.env, TMPDIR: tmpRoot },
+    });
+    assert.equal(proc.status, 1, `${proc.stderr}\n${proc.stdout}`);
+    assert.match(proc.stderr, /Chrome did not expose CDP on port \d+/);
+    assert.match(proc.stderr, /stub chrome cannot start/);
+    assert.match(proc.stderr, /1 suite\(s\) failed: site-e2e\.js/);
+    assert.deepEqual(
+      fs.readdirSync(tmpRoot).filter((name) => name.startsWith('maze-chase-e2e.')),
+      [],
+      'the scratch tree must be removed',
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a Chrome command name resolves through PATH', () => {
   // The help and README advertise `--chrome PATH|NAME` / `CHROME=NAME`, so
   // a bare command name must go through `command -v` instead of being
