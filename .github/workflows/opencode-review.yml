@@ -255,6 +255,7 @@ jobs:
           echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner when the checked-out head predates it
+        id: restore-runner
         if: steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         run: |
           set -o pipefail
@@ -265,26 +266,52 @@ jobs:
           # .../opencode-run" - and the crash-parity verify step misreads that
           # pre-start failure as a mid-stream agent crash, burning the whole
           # auto-retry budget on a gate that never ran (issue #430). Issue #713
-          # review round 9: always replace the checked-out copy with this run's
-          # workflow-commit copy. The PR head's runner is untrusted code that
-          # would otherwise execute with the job's token before any pinned step
-          # can verify the decision; the old early exit that trusted a present
-          # head action.yml is gone.
-          if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+          # review round 9: always
+          # replace the checked-out copy with this run's workflow-commit copy.
+          # The PR head's runner is untrusted code that would otherwise execute
+          # with the job's token before any pinned step can verify the decision.
+          # The old early exit that trusted a present head action.yml is gone.
+          #
+          # Issue #807: info/exclude covers untracked files only, so replacing
+          # the tracked runner left a tracked modification that the opencode
+          # CLI's end-of-session auto-commit staged and pushed onto a project
+          # PR (PR #788 carried the #805 runner as commit 40fa1586). Mark every
+          # tracked path under the restored directory skip-worktree, so the
+          # trusted working copy is invisible to `git status`, `git add -A`,
+          # and `git commit -a`; the untracked trusted files stay covered by
+          # info/exclude. A PR head that predates the vendoring has no tracked
+          # paths there, so only the exclude applies. Any other pre-existing
+          # change fails closed: the auto-commit must never see dirt the
+          # workflow did not intend to ship.
+          runner_path=.github/actions/opencode-run
+          if ! git cat-file -e "${GITHUB_SHA}:${runner_path}/action.yml" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+          if ! git cat-file -e "${GITHUB_SHA}:${runner_path}/action.yml" 2>/dev/null; then
             echo "::error::Vendored runner absent from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
             exit 1
           fi
-          rm -rf .github/actions/opencode-run
-          git archive "${GITHUB_SHA}" -- .github/actions/opencode-run | tar -x
-          printf '%s\n' ".github/actions/opencode-run/" >> "$(git rev-parse --git-path info/exclude)"
-          if [ ! -f .github/actions/opencode-run/action.yml ]; then
+          tracked_list=$(mktemp)
+          git ls-files -z -- "$runner_path" > "$tracked_list"
+          rm -rf "$runner_path"
+          git archive "${GITHUB_SHA}" -- "$runner_path" | tar -x
+          printf '%s\n' "$runner_path/" >> "$(git rev-parse --git-path info/exclude)"
+          if [ -s "$tracked_list" ]; then
+            xargs -0 -r git update-index --skip-worktree -- < "$tracked_list"
+          fi
+          rm -f "$tracked_list"
+          if [ ! -f "$runner_path/action.yml" ]; then
             echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
             exit 1
           fi
-          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed."
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::error::Workspace is dirty before the agent starts; refusing a session the end-of-session auto-commit could contaminate (issue #807)."
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Restored ${runner_path} from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed and never auto-committed."
 
       - name: Run opencode reviewer
         id: review
