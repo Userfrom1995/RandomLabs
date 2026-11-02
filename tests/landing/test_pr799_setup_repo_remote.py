@@ -7,15 +7,21 @@ keep ``GITHUB_REPOSITORY`` precedence, and warn and continue (instead of
 aborting under ``set -euo pipefail``) when the repo cannot be resolved.
 
 Verifies:
-- setup.sh resolves HTTPS, SSH, scp-style, and trailing-slash remotes to
+- setup.sh resolves HTTPS (plain, credentialed, ``.git/``), SSH
+  (scp-style, ``ssh://``, with port), and trailing-slash remotes to
   ``owner/repo`` and writes secrets / dispatches against that slug
 - GITHUB_REPOSITORY still wins over the origin remote
 - a tree with no origin warns and exits 0 in bare, --secrets/--dispatch,
   and --check modes without touching ``gh``
+- a failing secret probe warns and surfaces its captured diagnostic
 - shutdown.sh --purge targets the suffix-free slug and its --check mode
   survives a missing origin
 - the three drifted documents state the real setup modes
 - the changed files carry zero em dashes (lab formatting invariant)
+
+The mock ``gh`` proves interception before the scenario matrix and every
+scenario runs with the live GitHub context scrubbed (delegation.md
+section 6), so a PATH fall-through can never touch the real repository.
 
 Stdlib only, no extra runtime dependencies.
 Run: python3 tests/landing/test_pr799_setup_repo_remote.py
@@ -53,8 +59,11 @@ REMOTE_CASES = (
     ("https://github.com/owner/repo.git", "owner/repo"),
     ("git@github.com:owner/repo.git", "owner/repo"),
     ("ssh://git@github.com/owner/repo.git", "owner/repo"),
+    ("ssh://git@github.com:22/owner/repo.git", "owner/repo"),
+    ("https://x-access-token:secret@github.com/owner/repo.git", "owner/repo"),
     ("https://github.com/owner/repo", "owner/repo"),
     ("https://github.com/owner/repo/", "owner/repo"),
+    ("https://github.com/owner/repo.git/", "owner/repo"),
 )
 
 FIRST_RUN_FLAGS = {"--secrets", "--dispatch"}
@@ -102,6 +111,24 @@ class ScriptSandbox(unittest.TestCase):
         gh = self.mock_bin / "gh"
         gh.write_text(MOCK_GH, encoding="utf-8")
         gh.chmod(0o755)
+        self.mock_path = "%s%s%s" % (
+            self.mock_bin,
+            os.pathsep,
+            os.environ.get("PATH", ""),
+        )
+        self.assertEqual(shutil.which("gh", path=self.mock_path), str(gh))
+        probe = subprocess.run(
+            ["gh", "interception-probe"],
+            cwd=self.tree,
+            env={"PATH": self.mock_path, "MOCK_GH_LOG": str(self.log)},
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(self.gh_calls(), [["interception-probe"]])
+        self.log.unlink(missing_ok=True)
         self.git("init", "-q")
 
     def git(self, *args):
@@ -120,8 +147,24 @@ class ScriptSandbox(unittest.TestCase):
 
     def run_script(self, script, *args, repo_env=None, stdin=subprocess.DEVNULL):
         env = os.environ.copy()
-        env["PATH"] = "%s%s%s" % (self.mock_bin, os.pathsep, env.get("PATH", ""))
-        env.pop("GITHUB_REPOSITORY", None)
+        # Harness isolation (delegation.md section 6): a mock that fails to
+        # intercept must fail inert, so the live GitHub context never reaches
+        # a scenario that could fall through to the real gh.
+        for name in (
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+            "GITHUB_EVENT_PATH",
+            "GITHUB_RUN_ID",
+            "GITHUB_ACTIONS",
+            "GITHUB_REPOSITORY",
+        ):
+            env.pop(name, None)
+        env["PATH"] = self.mock_path
+        # Even a fall-through to a real gh must have no stored auth and must
+        # resolve to a host that cannot be reached.
+        env["HOME"] = self.tempdir.name
+        env["GH_CONFIG_DIR"] = str(Path(self.tempdir.name) / "gh-config")
+        env["GH_HOST"] = "github.invalid"
         if repo_env is not None:
             env["GITHUB_REPOSITORY"] = repo_env
         env["OPENCODE_API_KEY"] = "test-api-key"
@@ -229,9 +272,22 @@ class SetupRepoResolutionTest(ScriptSandbox):
             encoding="utf-8",
         )
         gh.chmod(0o755)
+        self.assertEqual(shutil.which("gh", path=self.mock_path), str(gh))
+        probe = subprocess.run(
+            ["gh", "interception-probe"],
+            cwd=self.tree,
+            env={"PATH": self.mock_path, "MOCK_GH_LOG": str(self.log)},
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(probe.returncode, 1, probe.stdout + probe.stderr)
+        self.assertIn("HTTP 404: Not Found", probe.stderr)
         result = self.run_script("setup.sh", "--check")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("warning: could not list secrets for owner/repo", result.stdout)
+        self.assertIn("HTTP 404: Not Found", result.stdout)
 
 
 class ShutdownRepoResolutionTest(ScriptSandbox):
