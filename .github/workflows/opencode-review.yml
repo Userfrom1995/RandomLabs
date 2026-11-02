@@ -278,9 +278,12 @@ jobs:
           # PR (PR #788 carried the #805 runner as commit 40fa1586). Mark every
           # tracked path under the restored directory skip-worktree, so the
           # trusted working copy is invisible to `git status`, `git add -A`,
-          # and `git commit -a`; the untracked trusted files stay covered by
-          # info/exclude. A PR head that predates the vendoring has no tracked
-          # paths there, so only the exclude applies. Any other pre-existing
+          # and `git commit -a`. Issue #807 review round 1: the exclude lives
+          # inside the agent-writable .git directory, so it is only a second
+          # layer; mark the untracked trusted files intent-to-add plus
+          # skip-worktree as well, so a later exclude removal or a .gitignore
+          # negation can never stage them either. A PR head that predates the
+          # vendoring has no tracked paths there. Any other pre-existing
           # change fails closed: the auto-commit must never see dirt the
           # workflow did not intend to ship.
           runner_path=.github/actions/opencode-run
@@ -292,14 +295,20 @@ jobs:
             exit 1
           fi
           tracked_list=$(mktemp)
+          untracked_list=$(mktemp)
           git ls-files -z -- "$runner_path" > "$tracked_list"
           rm -rf "$runner_path"
           git archive "${GITHUB_SHA}" -- "$runner_path" | tar -x
+          git ls-files -z --others -- "$runner_path" > "$untracked_list"
           printf '%s\n' "$runner_path/" >> "$(git rev-parse --git-path info/exclude)"
           if [ -s "$tracked_list" ]; then
             xargs -0 -r git update-index --skip-worktree -- < "$tracked_list"
           fi
-          rm -f "$tracked_list"
+          if [ -s "$untracked_list" ]; then
+            xargs -0 -r git add -N -f -- < "$untracked_list"
+            xargs -0 -r git update-index --skip-worktree -- < "$untracked_list"
+          fi
+          rm -f "$tracked_list" "$untracked_list"
           if [ ! -f "$runner_path/action.yml" ]; then
             echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
             exit 1

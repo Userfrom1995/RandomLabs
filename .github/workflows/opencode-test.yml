@@ -172,9 +172,12 @@ jobs:
           # PR (PR #788 carried the #805 runner as commit 40fa1586). Mark every
           # tracked path under the restored directory skip-worktree, so the
           # trusted working copy is invisible to `git status`, `git add -A`,
-          # and `git commit -a`; the untracked trusted files stay covered by
-          # info/exclude. A PR head that predates the vendoring has no tracked
-          # paths there, so only the exclude applies. Any other pre-existing
+          # and `git commit -a`. Issue #807 review round 1: the exclude lives
+          # inside the agent-writable .git directory, so it is only a second
+          # layer; mark the untracked trusted files intent-to-add plus
+          # skip-worktree as well, so a later exclude removal or a .gitignore
+          # negation can never stage them either. A PR head that predates the
+          # vendoring has no tracked paths there. Any other pre-existing
           # change fails closed: the auto-commit must never see dirt the
           # workflow did not intend to ship.
           runner_path=.github/actions/opencode-run
@@ -186,14 +189,20 @@ jobs:
             exit 1
           fi
           tracked_list=$(mktemp)
+          untracked_list=$(mktemp)
           git ls-files -z -- "$runner_path" > "$tracked_list"
           rm -rf "$runner_path"
           git archive "${GITHUB_SHA}" -- "$runner_path" | tar -x
+          git ls-files -z --others -- "$runner_path" > "$untracked_list"
           printf '%s\n' "$runner_path/" >> "$(git rev-parse --git-path info/exclude)"
           if [ -s "$tracked_list" ]; then
             xargs -0 -r git update-index --skip-worktree -- < "$tracked_list"
           fi
-          rm -f "$tracked_list"
+          if [ -s "$untracked_list" ]; then
+            xargs -0 -r git add -N -f -- < "$untracked_list"
+            xargs -0 -r git update-index --skip-worktree -- < "$untracked_list"
+          fi
+          rm -f "$tracked_list" "$untracked_list"
           if [ ! -f "$runner_path/action.yml" ]; then
             echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
             exit 1
@@ -251,16 +260,42 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'
         env:
           BASE_SHA: ${{ steps.restore-runner.outputs.base }}
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
           set -o pipefail
-          # Issue #807: the Tester only authors project test files. A
-          # `.github/**` path in this run's commits or working tree means the
-          # head an approval marker would bind is not the head the Tester
-          # verified (the PR #788 auto-commit landed 11 seconds before the
-          # marker). Discard the verdict, restore the runner to the pre-run
-          # head, and fail closed; the Maintainer repairs the branch and
-          # re-dispatches the Tester. The check is defense in depth for the
-          # skip-worktree restore above and for any future auto-commit shape.
+          # Issue #807: the Tester only authors project test files. A protected
+          # lab path in this run's commits or working tree means the branch head
+          # is no longer the head the Tester verified (the PR #788 auto-commit
+          # landed 11 seconds before the marker). Discard the verdict, restore
+          # the runner to the pre-run head, and fail closed; the Maintainer
+          # repairs the branch and re-dispatches the Tester. The check is
+          # defense in depth for the skip-worktree restore above and for any
+          # future auto-commit shape.
           base="${BASE_SHA:-}"
           if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
             echo "::error::Lost the pre-agent baseline SHA; refusing to trust this session's head (issue #807)."
@@ -272,32 +307,58 @@ jobs:
             rm -f /tmp/random-lab-decision.json
             exit 1
           fi
-          # core.quotePath=false keeps non-ASCII paths unquoted, so a
-          # protected path cannot slip past the anchored matcher as a quoted
-          # C-style string.
-          changed=$(
-            {
-              git -c core.quotePath=false diff --name-only --no-renames "$base" HEAD 2>/dev/null || true
-              git -c core.quotePath=false diff --name-only --no-renames HEAD 2>/dev/null || true
-              git -c core.quotePath=false ls-files --others --exclude-standard 2>/dev/null || true
-            } | sed '/^$/d' | sort -u
-          )
-          protected=$(printf '%s\n' "$changed" | grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)' || true)
-          if [ -z "$protected" ]; then
+          # Review round 1: inventory paths NUL-delimited. git C-quotes names
+          # containing a double quote, backslash, tab, or newline even with
+          # path quoting disabled, so a line-oriented matcher could miss a
+          # protected path. Any inventory failure fails closed instead of
+          # reading as an empty change set. The index-to-base diff covers
+          # committed and staged-only paths; the worktree-to-index diff covers
+          # unstaged edits; the untracked list covers new files.
+          changed_list=$(mktemp) || {
+            echo "::error::Cannot allocate the lane inventory; failing closed (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          }
+          trap 'rm -f "$changed_list"' EXIT
+          if ! git diff --cached --name-only -z --no-renames "$base" >> "$changed_list"; then
+            echo "::error::Cannot inventory the index; failing closed (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          fi
+          if ! git diff --name-only -z --no-renames >> "$changed_list"; then
+            echo "::error::Cannot inventory the working tree; failing closed (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          fi
+          if ! git ls-files -z --others --exclude-standard >> "$changed_list"; then
+            echo "::error::Cannot inventory untracked paths; failing closed (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          fi
+          protected=0
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              .github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;
+            esac
+          done < "$changed_list"
+          if [ "$protected" -eq 0 ]; then
             echo "The Tester's changes stay inside the project test lane; no protected lab path changed."
             exit 0
           fi
           rm -f /tmp/random-lab-decision.json
           echo "::error::The Tester's changes touch protected lab paths; discarding the verdict and failing closed (issue #807)."
-          printf '%s\n' "$protected"
+          tr '\0' '\n' < "$changed_list" | grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)' || true
           runner_path=.github/actions/opencode-run
-          if git cat-file -e "${base}:${runner_path}/action.yml" 2>/dev/null; then
-            rm -rf "$runner_path"
-            git archive "$base" -- "$runner_path" | tar -x
-          else
-            rm -rf "$runner_path"
-          fi
           git ls-files -z -- "$runner_path" 2>/dev/null | xargs -0 -r git update-index --no-skip-worktree -- 2>/dev/null || true
+          rm -rf "$runner_path"
+          if git cat-file -e "${base}:${runner_path}/action.yml" 2>/dev/null; then
+            git archive "$base" -- "$runner_path" | tar -x
+          fi
+          git ls-files -z -- "$runner_path" 2>/dev/null | while IFS= read -r -d '' path; do
+            if ! git cat-file -e "${base}:${path}" 2>/dev/null; then
+              git update-index --force-remove -- "$path" 2>/dev/null || true
+            fi
+          done
           if git diff --quiet "$base" -- "$runner_path" 2>/dev/null && [ -z "$(git ls-files --others --exclude-standard -- "$runner_path" 2>/dev/null)" ]; then
             echo "Restored ${runner_path} from the pre-run head ${base}."
           else
