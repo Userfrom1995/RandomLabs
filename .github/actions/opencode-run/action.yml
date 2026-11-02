@@ -408,6 +408,34 @@ runs:
         ip_block_error_terminal() {
           ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
         }
+        live_descendant() {
+          # Issue #805: a silent opencode log is not a provider stall while
+          # opencode still has a live descendant. A tool command that writes
+          # nothing to the session log (output redirected to a file, or only
+          # summarized when the command returns) can run for its whole
+          # runtime with the captured log unchanged, and the old byte-size
+          # watchdog killed it at the idle threshold (run 41388720220: a
+          # browser-e2e loop was TERM/KILLed at 600 silent seconds twice).
+          # Walk the pid/ppid table from $1 and report any other live
+          # process whose ancestry reaches $1. Any ps failure reads as "no
+          # descendant", which is exactly the pre-#805 bounded behavior,
+          # never an unbounded wait.
+          {
+            ps -A -o pid=,ppid= 2>/dev/null ||
+              ps -e -o pid=,ppid= 2>/dev/null ||
+              ps 2>/dev/null
+          } | awk -v root="$1" '
+            $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ { parent[$1] = $2 }
+            END {
+              for (pid in parent) {
+                if (pid == root) continue
+                cur = pid
+                for (depth = 0; depth < 64 && cur in parent && cur != root; depth++) cur = parent[cur]
+                if (cur == root) exit 0
+              }
+              exit 1
+            }'
+        }
         hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
         hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
         case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -441,6 +469,7 @@ runs:
               (
                 last_size=$(wc -c < "$log" 2>/dev/null || echo 0)
                 idle=0
+                child_active=0
                 while kill -0 "$oc_pid" 2>/dev/null; do
                   sleep "$hang_poll_seconds"
                   kill -0 "$oc_pid" 2>/dev/null || exit 0
@@ -463,21 +492,37 @@ runs:
                     exit 0
                   fi
                   size=$(wc -c < "$log" 2>/dev/null || echo 0)
-                  if [ "$size" -eq "$last_size" ]; then
-                    idle=$((idle + hang_poll_seconds))
-                    if [ "$idle" -ge "$hang_idle_seconds" ]; then
-                      echo "::warning::opencode produced no output for ${hang_idle_seconds}s on model '$model' (provider stall, issue #653); aborting this attempt."
-                      printf 'hang\n' > "$hang_flag"
-                      kill -TERM "$oc_pid" 2>/dev/null
-                      kill -TERM "$tee_pid" 2>/dev/null
-                      sleep 5
-                      kill -KILL "$oc_pid" 2>/dev/null
-                      kill -KILL "$tee_pid" 2>/dev/null
-                      exit 0
-                    fi
-                  else
+                  if [ "$size" -ne "$last_size" ]; then
                     idle=0
                     last_size=$size
+                    continue
+                  fi
+                  # Issue #805: a live tool descendant means the attempt is
+                  # working, not stalled, even when the tool writes nothing
+                  # to the session log. Never accumulate idle time while one
+                  # is alive, and grant one full poll window after it exits
+                  # so its buffered result can reach the log before the
+                  # threshold can fire.
+                  if live_descendant "$oc_pid"; then
+                    child_active=1
+                    idle=0
+                    continue
+                  fi
+                  if [ "$child_active" -eq 1 ]; then
+                    child_active=0
+                    idle=0
+                    continue
+                  fi
+                  idle=$((idle + hang_poll_seconds))
+                  if [ "$idle" -ge "$hang_idle_seconds" ]; then
+                    echo "::warning::opencode produced no output for ${hang_idle_seconds}s on model '$model' with no live tool descendant (provider stall, issue #653); aborting this attempt."
+                    printf 'hang\n' > "$hang_flag"
+                    kill -TERM "$oc_pid" 2>/dev/null
+                    kill -TERM "$tee_pid" 2>/dev/null
+                    sleep 5
+                    kill -KILL "$oc_pid" 2>/dev/null
+                    kill -KILL "$tee_pid" 2>/dev/null
+                    exit 0
                   fi
                 done
               ) &
