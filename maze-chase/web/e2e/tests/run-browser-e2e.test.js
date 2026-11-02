@@ -366,6 +366,17 @@ test('--help prints the complete usage header', () => {
   assert.doesNotMatch(proc.stdout, /\(for the\s*$/m);
 });
 
+test('--help and --plan are browser-free dry runs', () => {
+  // Operators inspect the contract (and CI preview plans the per-suite
+  // URLs) before a browser is installed. Neither dry run may fall through
+  // to find_chrome: a missing CHROME path must not turn help or plan into
+  // a configuration error.
+  for (const args of [['--help'], ['--plan']]) {
+    const proc = run(args, { CHROME: '/definitely/not/chrome' });
+    assert.equal(proc.status, 0, `${args.join(' ')}: ${proc.stderr}`);
+  }
+});
+
 test('a failing suite propagates and the browser is cleaned up', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-contract-'));
   const nodeArgv = path.join(dir, 'node-argv.log');
