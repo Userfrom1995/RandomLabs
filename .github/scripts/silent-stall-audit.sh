@@ -8756,9 +8756,19 @@ else
   r22_pub_block=$(sed -n '/- name: Verify tester decision published, else fail closed/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
   r22_marker_block=$(sed -n '/- name: Publish tester approval marker (owner-PAT-signed)/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
   r22_fwd_block=$(sed -n '/- name: Forward tester decision/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
-  if [ -z "$r22_pub_block" ] || [ -z "$r22_marker_block" ] || [ -z "$r22_fwd_block" ]; then
+  r22_guard_block=$(sed -n '/- name: Verify the Tester stayed in lane (issue 807)/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+  if [ -z "$r22_pub_block" ] || [ -z "$r22_marker_block" ] || [ -z "$r22_fwd_block" ] || [ -z "$r22_guard_block" ]; then
     r22_bad="${r22_bad} test.yml(publication-steps-missing-or-renamed)"
   else
+    # Issue #807: the lane guard must run before the verdict can be posted and
+    # must discard it on any protected-lab-path change. The exact body is
+    # pinned by R30; these checks keep the two rules independently load-bearing.
+    printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'id: lane-guard' || r22_bad="${r22_bad} test.yml(lane-guard-id-not-exact)"
+    printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'" || r22_bad="${r22_bad} test.yml(lane-guard-if-not-exact)"
+    printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'BASE_SHA: ${{ steps.restore-runner.outputs.base }}' || r22_bad="${r22_bad} test.yml(lane-guard-base-env-not-exact)"
+    printf '%s\n' "$r22_guard_block" | grep -qF "grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)'" || r22_bad="${r22_bad} test.yml(lane-guard-no-protected-pattern)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'rm -f /tmp/random-lab-decision.json' || r22_bad="${r22_bad} test.yml(lane-guard-no-verdict-discard)"
+    printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'exit 1' || r22_bad="${r22_bad} test.yml(lane-guard-no-fail-closed-exit)"
     # Publication-gate step: exact gate, env-indirected trigger timestamp,
     # workflow-commit provenance, fail-closed missing script, exit mapping
     # with the verdict discarded on every non-published outcome.
@@ -8776,7 +8786,7 @@ else
     [ "$(printf '%s\n' "$r22_pub_block" | grep -cF 'rm -f /tmp/random-lab-decision.json' || true)" -ge 3 ] || r22_bad="${r22_bad} test.yml(publish-gate-discard-count-lt-3)"
     # Marker step: exact gate, bot token, workflow-commit provenance, unrunnable
     # exclusion, and the forward-permitting ok output on every non-failing path.
-    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success'" || r22_bad="${r22_bad} test.yml(marker-gate-not-exact)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success' && steps.lane-guard.outcome == 'success'" || r22_bad="${r22_bad} test.yml(marker-gate-not-exact)"
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r22_bad="${r22_bad} test.yml(marker-not-owner-pat)"
     printf '%s\n' "$r22_marker_block" | grep -q 'github\.token' && r22_bad="${r22_bad} test.yml(marker-references-github-token)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-probe)"
@@ -8799,8 +8809,11 @@ else
     r22_pub_ln=$(r22_line '- name: Verify tester decision published, else fail closed')
     r22_marker_ln=$(r22_line '- name: Publish tester approval marker (owner-PAT-signed)')
     r22_fwd_ln=$(r22_line '- name: Forward tester decision')
-    if [ -z "$r22_ev_ln" ] || [ -z "$r22_pub_ln" ] || [ -z "$r22_marker_ln" ] || [ -z "$r22_fwd_ln" ] || [ "$r22_ev_ln" -ge "$r22_pub_ln" ] || [ "$r22_pub_ln" -ge "$r22_marker_ln" ] || [ "$r22_marker_ln" -ge "$r22_fwd_ln" ]; then
-      r22_bad="${r22_bad} test.yml(step-order:${r22_ev_ln:-none}/${r22_pub_ln:-none}/${r22_marker_ln:-none}/${r22_fwd_ln:-none})"
+    r22_restore_ln=$(r22_line '- name: Restore the vendored runner when the checked-out head predates it')
+    r22_agent_ln=$(r22_line '- name: Run opencode tester')
+    r22_guard_ln=$(r22_line '- name: Verify the Tester stayed in lane (issue 807)')
+    if [ -z "$r22_ev_ln" ] || [ -z "$r22_pub_ln" ] || [ -z "$r22_marker_ln" ] || [ -z "$r22_fwd_ln" ] || [ -z "$r22_restore_ln" ] || [ -z "$r22_agent_ln" ] || [ -z "$r22_guard_ln" ] || [ "$r22_restore_ln" -ge "$r22_agent_ln" ] || [ "$r22_agent_ln" -ge "$r22_guard_ln" ] || [ "$r22_guard_ln" -ge "$r22_ev_ln" ] || [ "$r22_ev_ln" -ge "$r22_pub_ln" ] || [ "$r22_pub_ln" -ge "$r22_marker_ln" ] || [ "$r22_marker_ln" -ge "$r22_fwd_ln" ]; then
+      r22_bad="${r22_bad} test.yml(step-order:${r22_restore_ln:-none}/${r22_agent_ln:-none}/${r22_guard_ln:-none}/${r22_ev_ln:-none}/${r22_pub_ln:-none}/${r22_marker_ln:-none}/${r22_fwd_ln:-none})"
     # Issue #713 round 16: /tmp is writable by PR-executed code, so the test
     # arm binds the decision and evidence files to the trusted pre-agent
     # nonce. The clear step generates it; every consumer re-checks it.
@@ -9013,8 +9026,156 @@ R22_PUBLISHER_MOCK
     rm -rf "$r22_tmp"
   fi
 fi
+# Issue #807 functional regression: execute the shipped restore body in a
+# sandbox repo whose PR-head commit tracks an older runner, then simulate the
+# end-of-session `git add -A`. The fixed body must leave nothing staged under
+# .github; a mutant with the skip-worktree line replaced by `:` must stage the
+# incident path. The shipped lane guard must then pass a committed test file,
+# fail a protected-path commit and an untracked protected path, discard the
+# decision file on failure, and pass on the contaminated repo once its
+# protected pattern is neutered, so both fixtures are load-bearing.
+r22_807_tmp=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r22_807_tmp" ]; then
+  r22_bad="${r22_bad} lane-guard(functional-sandbox-unavailable)"
+else
+  r22_807_restore=$(awk '
+    /^      - name: Restore the vendored runner when the checked-out head predates it$/ {in_step=1; next}
+    in_step && /^      - name: / {exit}
+    in_step && /^        run: \|$/ {in_run=1; next}
+    in_run { if ($0 ~ /^          /) {sub(/^          /, ""); print} else if ($0 ~ /^[ ]*$/) {print ""} else {exit} }
+  ' "$R22_WF")
+  r22_807_guard=$(awk '
+    /^      - name: Verify the Tester stayed in lane \(issue 807\)$/ {in_step=1; next}
+    in_step && /^      - name: / {exit}
+    in_step && /^        run: \|$/ {in_run=1; next}
+    in_run { if ($0 ~ /^          /) {sub(/^          /, ""); print} else if ($0 ~ /^[ ]*$/) {print ""} else {exit} }
+  ' "$R22_WF")
+  r22_807_repo="$r22_807_tmp/repo"
+  if [ -z "$r22_807_restore" ] || [ -z "$r22_807_guard" ]; then
+    r22_bad="${r22_bad} lane-guard(functional-block-extraction-empty)"
+  else
+    mkdir -p "$r22_807_repo"
+    git -C "$r22_807_repo" init -q 2>/dev/null
+    git -C "$r22_807_repo" config user.email "lab@example.invalid"
+    git -C "$r22_807_repo" config user.name "Lab"
+    mkdir -p "$r22_807_repo/.github/actions/opencode-run"
+    printf 'old runner\n' > "$r22_807_repo/.github/actions/opencode-run/action.yml"
+    printf 'old helper\n' > "$r22_807_repo/.github/actions/opencode-run/runner.sh"
+    printf 'app\n' > "$r22_807_repo/app.txt"
+    git -C "$r22_807_repo" add -A
+    git -C "$r22_807_repo" commit -qm "base"
+    r22_807_base=$(git -C "$r22_807_repo" rev-parse HEAD)
+    printf 'trusted runner\n' > "$r22_807_repo/.github/actions/opencode-run/action.yml"
+    printf 'trusted helper\n' > "$r22_807_repo/.github/actions/opencode-run/new-file.sh"
+    git -C "$r22_807_repo" add -A
+    git -C "$r22_807_repo" commit -qm "trusted workflow commit"
+    r22_807_trusted=$(git -C "$r22_807_repo" rev-parse HEAD)
+    git -C "$r22_807_repo" reset --hard -q "$r22_807_base"
+    git -C "$r22_807_repo" clean -fdxq
+    if [ -z "$r22_807_base" ] || [ -z "$r22_807_trusted" ]; then
+      r22_bad="${r22_bad} lane-guard(functional-repo-setup-failed)"
+    else
+      r22_807_reset() {
+        git -C "$r22_807_repo" ls-files -z 2>/dev/null | xargs -0 -r git -C "$r22_807_repo" update-index --no-skip-worktree -- 2>/dev/null || true
+        git -C "$r22_807_repo" reset --hard -q "$r22_807_base"
+        git -C "$r22_807_repo" clean -fdxq
+        rm -f "$r22_807_repo/.git/info/exclude"
+      }
+      r22_807_run_restore() {
+        printf '%s\n' "$1" > "$r22_807_tmp/restore-$2.sh"
+        : > "$r22_807_tmp/restore-$2.out"
+        ( cd "$r22_807_repo" && GITHUB_SHA="$r22_807_trusted" GITHUB_OUTPUT="$r22_807_tmp/restore-$2.out" bash -e "$r22_807_tmp/restore-$2.sh" )
+      }
+      r22_807_check_restore() {
+        r22_807_reset
+        r22_807_rc=0
+        r22_807_run_restore "$1" "$2" || r22_807_rc=$?
+        if [ "$4" = "fail" ]; then
+          [ "$r22_807_rc" -ne 0 ] || r22_bad="${r22_bad} lane-guard(functional-${2}-dirty-check-did-not-fail-closed)"
+          return
+        fi
+        if [ "$r22_807_rc" -ne 0 ]; then
+          r22_bad="${r22_bad} lane-guard(functional-${2}-restore-failed)"
+          return
+        fi
+        r22_807_staged=$(git -C "$r22_807_repo" add -A 2>/dev/null; git -C "$r22_807_repo" diff --cached --name-only 2>/dev/null)
+        case "$3:$r22_807_staged" in
+          no:*".github/actions/opencode-run/"*) r22_bad="${r22_bad} lane-guard(functional-${2}-runner-staged)" ;;
+          leak:*".github/actions/opencode-run/action.yml"*) : ;;
+          leak:*) r22_bad="${r22_bad} lane-guard(functional-${2}-mutant-did-not-leak)" ;;
+        esac
+        if [ "$3" = "no" ]; then
+          mkdir -p "$r22_807_repo/tests"
+          printf 'test\n' > "$r22_807_repo/tests/test.txt"
+          git -C "$r22_807_repo" add -A
+          git -C "$r22_807_repo" commit -qm "tester: add test"
+          if git -C "$r22_807_repo" show --name-only --format= HEAD | grep -q '^\.github/'; then
+            r22_bad="${r22_bad} lane-guard(functional-${2}-auto-commit-includes-protected)"
+          fi
+        fi
+      }
+      r22_807_skip_mutant=$(printf '%s\n' "$r22_807_restore" | sed 's#xargs -0 -r git update-index --skip-worktree -- < "$tracked_list"#:#')
+      r22_807_leak_mutant=$(printf '%s\n' "$r22_807_skip_mutant" | sed 's#if \[ -n "\$dirty" \]; then#if false; then#')
+      r22_807_check_restore "$r22_807_restore" fixed no pass
+      r22_807_check_restore "$r22_807_skip_mutant" skip-mutant no fail
+      r22_807_check_restore "$r22_807_leak_mutant" leak-mutant leak pass
+      r22_807_guard_body=$(printf '%s\n' "$r22_807_guard" | sed "s#/tmp/random-lab-decision.json#$r22_807_tmp/decision.json#g")
+      r22_807_guard_case() {
+        r22_807_reset
+        if ! r22_807_run_restore "$r22_807_restore" "guard-$1"; then
+          r22_bad="${r22_bad} lane-guard(functional-$1-setup-failed)"
+          return
+        fi
+        case "$1" in
+          clean)
+            mkdir -p "$r22_807_repo/tests"
+            printf 'test\n' > "$r22_807_repo/tests/test.txt"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: add test"
+            ;;
+          committed)
+            mkdir -p "$r22_807_repo/.github/workflows"
+            printf 'evil\n' > "$r22_807_repo/.github/workflows/evil.yml"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: touch lab"
+            ;;
+          unicode)
+            mkdir -p "$r22_807_repo/.github"
+            printf 'evil\n' > "$r22_807_repo/.github/テスト.txt"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: touch lab"
+            ;;
+          untracked)
+            mkdir -p "$r22_807_repo/.github"
+            printf 'evil\n' > "$r22_807_repo/.github/evil.txt"
+            ;;
+        esac
+        printf '{}\n' > "$r22_807_tmp/decision.json"
+        r22_807_body="$r22_807_guard_body"
+        if [ "$3" = "weaken" ]; then
+          r22_807_body=$(printf '%s\n' "$r22_807_body" | sed "s#grep -E '.*'#grep -E '^\$'#")
+        fi
+        printf '%s\n' "$r22_807_body" > "$r22_807_tmp/guard-$1-$3.sh"
+        r22_807_rc=0
+        ( cd "$r22_807_repo" && BASE_SHA="$r22_807_base" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+        if [ "$r22_807_rc" -ne "$2" ]; then
+          r22_bad="${r22_bad} lane-guard(functional-$1-$3-rc=${r22_807_rc},want=${2})"
+        fi
+        if [ "$2" -ne 0 ] && [ -f "$r22_807_tmp/decision.json" ]; then
+          r22_bad="${r22_bad} lane-guard(functional-$1-$3-verdict-not-discarded)"
+        fi
+      }
+      r22_807_guard_case clean 0 keep
+      r22_807_guard_case committed 1 keep
+      r22_807_guard_case unicode 1 keep
+      r22_807_guard_case untracked 1 keep
+      r22_807_guard_case committed 0 weaken
+    fi
+  fi
+  rm -rf "$r22_807_tmp"
+fi
 if [ -z "$r22_bad" ]; then
-  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629)" "ok"
+  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree so the end-of-session auto-commit can never stage it onto a project PR, and a post-agent lane guard discards any verdict whose run touched a protected lab path (issue #807), with both real bodies executed in a sandbox against the incident shape and a mutated body proving the fixture load-bearing" "ok"
 else
   check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
 fi
@@ -16860,6 +17021,7 @@ EXPECTED_TEST_STEP_NAMES = [
     "Clear runtime decision",
     "Restore the vendored runner when the checked-out head predates it",
     "Run opencode tester",
+    "Verify the Tester stayed in lane (issue 807)",
     "Verify test decided, else fail closed",
     "Enforce live-execution evidence gate",
     "Publish tester decision report (owner PAT)",
@@ -17079,7 +17241,18 @@ ARM_ACTOR_NAME = "Actor write gate (issue #428)"
 ARM_RESTORE_NAME = "Restore the vendored runner when the checked-out head predates it"
 EXPECTED_ARM_ACTOR_KEYS = {"name", "id", "shell", "env", "run"}
 EXPECTED_ARM_ACTOR_BLOCK_SHA256 = "194c8b58365de523905f0f129a56fe069885983e0fad3dfebd73b73b777d6f39"
-EXPECTED_ARM_RESTORE_BLOCK_SHA256 = "ce0ee77c6894163548a4bafa8ddc39e1ef26752a42e6b583364ec11ac1c9d2b1"
+EXPECTED_ARM_RESTORE_BLOCK_SHA256 = "e66725a996258d7bbba8bae015926bec077ea3ad224511a8272bb44321ec49e9"
+# Issue #807: the Tester restore marked the trusted runner skip-worktree so the
+# end-of-session auto-commit can never stage it onto a project PR (PR #788),
+# and the post-agent lane guard discards any verdict whose run touched a
+# protected lab path. Both are bound structurally and executed functionally.
+ARM_LANE_GUARD_NAME = "Verify the Tester stayed in lane (issue 807)"
+EXPECTED_ARM_LANE_GUARD_KEYS = {"name", "id", "if", "env", "run"}
+EXPECTED_ARM_LANE_GUARD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'"
+EXPECTED_ARM_LANE_GUARD_ENV = {
+    "BASE_SHA": "${{ steps.restore-runner.outputs.base }}",
+}
+EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "b738492798a23b9611ecfa4365069cee721817c465c60c8327fc9e73e5f2ab7a"
 EXPECTED_TEST_ACTOR_ENV = {
     "GH_TOKEN": "${{ github.token }}",
     "GATE_EVENT": "${{ github.event_name }}",
@@ -17092,8 +17265,8 @@ EXPECTED_REVIEW_ACTOR_ENV = {
     "GATE_ACTOR": "${{ github.actor }}",
     "GATE_LABEL": "review",
 }
-EXPECTED_TEST_RESTORE_KEYS = {"name", "run"}
-EXPECTED_REVIEW_RESTORE_KEYS = {"name", "if", "run"}
+EXPECTED_TEST_RESTORE_KEYS = {"name", "id", "run"}
+EXPECTED_REVIEW_RESTORE_KEYS = {"name", "id", "if", "run"}
 EXPECTED_REVIEW_RESTORE_IF = "steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'"
 # Issue #781 F3: the review guard runs before checkout, so checkout, prompt
 # staging, and the actor gate are gated on the guard's OPEN decision (a non-PR
@@ -18092,6 +18265,60 @@ def validate_test(doc, sink):
         sink,
         None,
     )
+    # Issue #807: bind the Tester's post-agent lane guard. The restore step
+    # must publish the pre-run baseline, and the guard must be the only step
+    # carrying that exact body and gate. The joint pins make a removed guard,
+    # a renamed/decoy id, or a loosened `if` fail closed; the functional
+    # sandbox below executes the real body against a contaminated repo.
+    restore_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == ARM_RESTORE_NAME
+    ]
+    if len(restore_hits) == 1:
+        if restore_hits[0].get("id") != "restore-runner":
+            sink.append("test.yml(restore-id-not-restore-runner)")
+        restore_run = restore_hits[0].get("run")
+        if (
+            not isinstance(restore_run, str)
+            or 'echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"'
+            not in restore_run
+        ):
+            sink.append("test.yml(restore-no-base-output)")
+    guard_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == ARM_LANE_GUARD_NAME
+    ]
+    if len(guard_hits) != 1:
+        sink.append("test.yml(lane-guard-step-not-unique)")
+    else:
+        guard = guard_hits[0]
+        if set(guard) != EXPECTED_ARM_LANE_GUARD_KEYS:
+            sink.append("test.yml(lane-guard-keys-not-exact)")
+        if guard.get("id") != "lane-guard":
+            sink.append("test.yml(lane-guard-id-not-exact)")
+        if guard.get("if") != EXPECTED_ARM_LANE_GUARD_IF:
+            sink.append("test.yml(lane-guard-if-not-exact)")
+        if guard.get("env") != EXPECTED_ARM_LANE_GUARD_ENV:
+            sink.append("test.yml(lane-guard-env-not-exact)")
+        guard_run = guard.get("run")
+        if not isinstance(guard_run, str) or not guard_run.strip():
+            sink.append("test.yml(lane-guard-run-missing)")
+        else:
+            if normalized_sha(guard_run) != EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256:
+                sink.append("test.yml(lane-guard-run-block-not-exact)")
+            if (
+                "grep -E '^(\\.github(/|$)|AGENTS\\.md$|LAB\\.md$|"
+                "setup\\.sh$|shutdown\\.sh$)'" not in guard_run
+            ):
+                sink.append("test.yml(lane-guard-protected-pattern-missing)")
+            if "rm -f /tmp/random-lab-decision.json" not in guard_run:
+                sink.append("test.yml(lane-guard-verdict-not-discarded)")
+            if not re.search(r"(?m)^\s*exit\s+1\s*$", guard_run):
+                sink.append("test.yml(lane-guard-no-fail-closed-exit)")
     hits = [
         (index, step)
         for index, step in enumerate(steps)
