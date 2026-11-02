@@ -24,13 +24,81 @@ done
 
 TS="$(date -u +%Y%m%d-%H%M%S)"
 BACKUP=".github/lab-backup-$TS"
-REPO=""
-if origin_url="$(git remote get-url origin 2>/dev/null)"; then
-  REPO="$(printf '%s\n' "$origin_url" | sed -E 's#/+$##; s#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')"
-fi
-if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
-  echo "warning: could not determine the GitHub repo from the origin remote; purge will not delete secrets."
+
+# Resolve the target repository from GITHUB_REPOSITORY or a recognized
+# github.com origin URL only. Local paths, file:// remotes, and non-GitHub
+# hosts are rejected so --purge can never silently delete secrets on an
+# unrelated repository (issue #799 evaluator finding F1).
+valid_repo_slug() {
+  local slug="$1"
+  [[ "$slug" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
+  case "$slug" in
+    ./*|../*|*/.|*/..) return 1 ;;
+  esac
+  return 0
+}
+
+resolve_github_repo() {
+  local url="$1" scheme rest authority path owner repo
+  url="${url%/}"
+  case "$url" in
+    git@github.com:*)
+      path="${url#git@github.com:}"
+      ;;
+    *://*)
+      scheme="${url%%://*}"
+      rest="${url#*://}"
+      authority="${rest%%/*}"
+      path="${rest#*/}"
+      case "$scheme" in
+        https|http|ssh|git) ;;
+        *) return 1 ;;
+      esac
+      case "$authority" in
+        *@*) authority="${authority##*@}" ;;
+      esac
+      if [ "$authority" != "github.com" ] && ! [[ "$authority" =~ ^github\.com:[0-9]{1,5}$ ]]; then
+        return 1
+      fi
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  case "$path" in
+    */*) ;;
+    *) return 1 ;;
+  esac
+  path="${path%/}"
+  owner="${path%/*}"
+  repo="${path##*/}"
+  repo="${repo%.git}"
+  valid_repo_slug "$owner/$repo" || return 1
+  printf '%s/%s\n' "$owner" "$repo"
+}
+
+warn_unresolved_repo() {
+  local why="$1"
+  if [ "$PURGE" -eq 1 ]; then
+    echo "warning: $why; purge will not delete secrets."
+  else
+    echo "warning: $why."
+  fi
+}
+
+REPO="${GITHUB_REPOSITORY:-}"
+if [ -n "$REPO" ] && ! valid_repo_slug "$REPO"; then
+  warn_unresolved_repo "GITHUB_REPOSITORY is not a valid owner/repo slug"
   REPO=""
+fi
+origin_url="$(git remote get-url origin 2>/dev/null || true)"
+if [ -z "$REPO" ] && [ -n "$origin_url" ]; then
+  REPO="$(resolve_github_repo "$origin_url" || true)"
+  if [ -z "$REPO" ]; then
+    warn_unresolved_repo "could not determine the GitHub repo from the origin remote (only github.com HTTPS/HTTP, SSH, and git URLs are recognized; set GITHUB_REPOSITORY for other hosts)"
+  fi
+elif [ -z "$REPO" ]; then
+  warn_unresolved_repo "could not determine the GitHub repo (no GITHUB_REPOSITORY and no origin remote)"
 fi
 
 WORKFLOWS=(
