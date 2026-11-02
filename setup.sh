@@ -87,9 +87,12 @@ if [ "$ok" -eq 0 ]; then
 fi
 
 # 4. Secrets
-REPO="${GITHUB_REPOSITORY:-$(git remote get-url origin 2>/dev/null | sed -E 's#.*[:/]([^/]+/[^/]+)(\.git)?$#\1#')}"
-if [ -z "$REPO" ] || [ "$REPO" = "." ]; then
-  echo "warning: could not determine the GitHub repo (git remote). Target repo unknown."
+REPO="${GITHUB_REPOSITORY:-}"
+if [ -z "$REPO" ] && origin_url="$(git remote get-url origin 2>/dev/null)"; then
+  REPO="$(printf '%s\n' "$origin_url" | sed -E 's#/+$##; s#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')"
+fi
+if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+  echo "warning: could not determine the GitHub repo from GITHUB_REPOSITORY or the origin remote. Target repo unknown; secret and dispatch steps will be skipped."
   REPO=""
 fi
 
@@ -97,7 +100,12 @@ if [ -n "$REPO" ]; then
   echo "Target repo: $REPO"
   if command -v gh >/dev/null 2>&1; then
     echo "-- secrets currently set (names only) --"
-    gh secret list --repo "$REPO" 2>/dev/null | awk 'NR==1 || $1 ~ /OPENCODE|BOT/' || true
+    if secret_list="$(gh secret list --repo "$REPO" 2>&1)"; then
+      printf '%s\n' "$secret_list" | awk 'NR==1 || $1 ~ /OPENCODE|BOT/'
+    else
+      echo "warning: could not list secrets for $REPO (check gh auth and repo access)."
+      printf '%s\n' "$secret_list" | sed 's/^/  /'
+    fi
     echo
   fi
 fi

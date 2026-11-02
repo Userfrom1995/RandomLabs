@@ -24,7 +24,14 @@ done
 
 TS="$(date -u +%Y%m%d-%H%M%S)"
 BACKUP=".github/lab-backup-$TS"
-REPO="$(git remote get-url origin 2>/dev/null | sed -E 's#.*[:/]([^/]+/[^/]+)(\.git)?$#\1#')"
+REPO=""
+if origin_url="$(git remote get-url origin 2>/dev/null)"; then
+  REPO="$(printf '%s\n' "$origin_url" | sed -E 's#/+$##; s#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')"
+fi
+if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+  echo "warning: could not determine the GitHub repo from the origin remote; purge will not delete secrets."
+  REPO=""
+fi
 
 WORKFLOWS=(
   "maintainer.yml"
