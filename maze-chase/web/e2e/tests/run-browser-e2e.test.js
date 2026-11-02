@@ -446,3 +446,60 @@ test('an unusable Chrome path fails loudly', () => {
   assert.equal(proc.status, 3);
   assert.match(proc.stderr, /Chrome is not executable/);
 });
+
+test('a Chrome command name resolves through PATH', () => {
+  // The help and README advertise `--chrome PATH|NAME` / `CHROME=NAME`, so
+  // a bare command name must go through `command -v` instead of being
+  // treated as a CWD-relative filesystem path. A stub named google-chrome
+  // proves both that the name resolves and that the resolved binary is the
+  // one launched with the suite's fresh profile and debug port.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-chrome-name-'));
+  const nodeArgv = path.join(dir, 'node-argv.log');
+  const chromeArgv = path.join(dir, 'chrome-argv.log');
+  const nodeStub = path.join(dir, 'node');
+  fs.writeFileSync(nodeStub, [
+    '#!/usr/bin/env bash',
+    'if [ "$1" = "-e" ]; then exit 0; fi',
+    'printf "%s\\n" "$*" >> "$ARGV_LOG"',
+    'exit 0',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const chromeStub = path.join(dir, 'google-chrome');
+  fs.writeFileSync(chromeStub, [
+    '#!/usr/bin/env bash',
+    'printf "%s\\n" "$*" >> "$CHROME_ARGV_LOG"',
+    'port=""',
+    'for arg in "$@"; do',
+    '  case "$arg" in',
+    '    --remote-debugging-port=*) port="${arg#--remote-debugging-port=}" ;;',
+    '  esac',
+    'done',
+    '[ -n "$port" ] || exit 1',
+    'exec python3 -m http.server "$port" --bind 127.0.0.1',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  try {
+    const proc = spawnSync('bash', [RUNNER, 'site-e2e.js',
+      '--base-url', 'http://127.0.0.1:1/'], {
+      encoding: 'utf8',
+      timeout: 15000,
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH}`,
+        CHROME: 'google-chrome',
+        ARGV_LOG: nodeArgv,
+        CHROME_ARGV_LOG: chromeArgv,
+      },
+    });
+    assert.equal(proc.status, 0, `${proc.stderr}\n${proc.stdout}`);
+    assert.match(proc.stdout, /PASSED: site-e2e\.js/);
+    const chromeCall = fs.readFileSync(chromeArgv, 'utf8').trim();
+    const port = chromeCall.match(/--remote-debugging-port=(\d+)/);
+    assert.ok(port, `Chrome was not launched with a debug port: ${chromeCall}`);
+    assert.match(chromeCall, /--user-data-dir=\S+\/profile-site-e2e/);
+    const nodeCall = fs.readFileSync(nodeArgv, 'utf8').trim();
+    assert.match(nodeCall, new RegExp(`/site-e2e\\.js http://127\\.0\\.0\\.1:1/ ${port[1]}$`));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
