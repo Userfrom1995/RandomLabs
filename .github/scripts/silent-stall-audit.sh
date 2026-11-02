@@ -8770,11 +8770,13 @@ else
     # Issue #807 review round 1: the inventory is NUL-delimited and every
     # failure fails closed, so C-quoted names, staged-only changes, and a
     # corrupt index cannot read as a clean lane.
+    printf '%s\n' "$r22_guard_block" | grep -qF 'git diff --name-only -z --no-renames "$base" HEAD' || r22_bad="${r22_bad} test.yml(lane-guard-no-committed-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'git diff --cached --name-only -z --no-renames "$base"' || r22_bad="${r22_bad} test.yml(lane-guard-no-staged-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'git diff --name-only -z --no-renames' || r22_bad="${r22_bad} test.yml(lane-guard-no-worktree-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'git ls-files -z --others --exclude-standard' || r22_bad="${r22_bad} test.yml(lane-guard-no-untracked-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF "while IFS= read -r -d '' path; do" || r22_bad="${r22_bad} test.yml(lane-guard-no-nul-matcher)"
     printf '%s\n' "$r22_guard_block" | grep -qF '.github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;' || r22_bad="${r22_bad} test.yml(lane-guard-no-case-matcher)"
+    printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the committed history; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-committed-fails-open)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the index; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-index-fails-open)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the working tree; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-worktree-fails-open)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory untracked paths; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-untracked-fails-open)"
@@ -9183,6 +9185,19 @@ else
             r22_807_blob=$(printf 'evil\n' | git -C "$r22_807_repo" hash-object -w --stdin)
             git -C "$r22_807_repo" update-index --add --cacheinfo "100644,${r22_807_blob},.github/workflows/evil.yml"
             ;;
+          head-only)
+            # Committed-only: HEAD keeps the protected commit while the index
+            # and worktree are reset to the pre-run head. Only the base-to-HEAD
+            # inventory can see it.
+            mkdir -p "$r22_807_repo/.github/workflows"
+            printf 'evil\n' > "$r22_807_repo/.github/workflows/evil.yml"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: touch lab"
+            git -C "$r22_807_repo" read-tree "$r22_807_base"
+            git -C "$r22_807_repo" checkout-index -a -f
+            rm -f "$r22_807_repo/.github/workflows/evil.yml"
+            rmdir "$r22_807_repo/.github/workflows" 2>/dev/null || true
+            ;;
           corrupt-index)
             printf 'not-a-git-index\n' > "$r22_807_repo/.git/corrupt-index"
             ;;
@@ -9195,6 +9210,9 @@ else
             ;;
           failopen)
             r22_807_body=$(printf '%s\n' "$r22_807_body" | sed 's#if ! git diff#if false \&\& git diff#g; s#if ! git ls-files#if false \&\& git ls-files#g')
+            ;;
+          headmutant)
+            r22_807_body=$(printf '%s\n' "$r22_807_body" | sed 's#^if ! git diff --name-only -z --no-renames "\$base" HEAD >> "\$changed_list"; then#if false; then#')
             ;;
         esac
         printf '%s\n' "$r22_807_body" > "$r22_807_tmp/guard-$1-$3.sh"
@@ -9221,8 +9239,10 @@ else
       r22_807_guard_case newline 1 keep
       r22_807_guard_case untracked 1 keep
       r22_807_guard_case staged 1 keep
+      r22_807_guard_case head-only 1 keep
       r22_807_guard_case corrupt-index 1 keep
       r22_807_guard_case committed 0 weaken
+      r22_807_guard_case head-only 0 headmutant
       r22_807_guard_case corrupt-index 0 failopen
     fi
   fi
@@ -17332,7 +17352,7 @@ EXPECTED_ARM_LANE_GUARD_ENV = {
     "LD_PRELOAD": "",
     "PATH": "/usr/bin:/bin",
 }
-EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "8a04d73c4e1e50390b031eeeb0e4334abe04a2978902f5924dbc207afa585ade"
+EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "e99db62654d00d4ce22f8a3444437f92e530beb8d3a4d9479e9de5603a3d6a78"
 EXPECTED_TEST_ACTOR_ENV = {
     "GH_TOKEN": "${{ github.token }}",
     "GATE_EVENT": "${{ github.event_name }}",
@@ -18401,6 +18421,7 @@ def validate_test(doc, sink):
             # worktree changes must all be covered, and no inventory command
             # may swallow a failure (a corrupt index must fail closed).
             for needle in (
+                "git diff --name-only -z --no-renames \"$base\" HEAD",
                 "git diff --cached --name-only -z --no-renames \"$base\"",
                 "git diff --name-only -z --no-renames",
                 "git ls-files -z --others --exclude-standard",

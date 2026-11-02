@@ -311,15 +311,23 @@ jobs:
           # containing a double quote, backslash, tab, or newline even with
           # path quoting disabled, so a line-oriented matcher could miss a
           # protected path. Any inventory failure fails closed instead of
-          # reading as an empty change set. The index-to-base diff covers
-          # committed and staged-only paths; the worktree-to-index diff covers
-          # unstaged edits; the untracked list covers new files.
+          # reading as an empty change set. The base-to-HEAD diff covers
+          # committed paths even after an index reset; the base-to-index diff
+          # covers staged-only paths; the worktree-to-index diff covers
+          # unstaged edits; the untracked list covers new files. Review round
+          # 2: the base-to-HEAD inventory is read first, because HEAD-vs-base
+          # is the only view that survives a reset of the index and worktree.
           changed_list=$(mktemp) || {
             echo "::error::Cannot allocate the lane inventory; failing closed (issue #807)."
             rm -f /tmp/random-lab-decision.json
             exit 1
           }
           trap 'rm -f "$changed_list"' EXIT
+          if ! git diff --name-only -z --no-renames "$base" HEAD >> "$changed_list"; then
+            echo "::error::Cannot inventory the committed history; failing closed (issue #807)."
+            rm -f /tmp/random-lab-decision.json
+            exit 1
+          fi
           if ! git diff --cached --name-only -z --no-renames "$base" >> "$changed_list"; then
             echo "::error::Cannot inventory the index; failing closed (issue #807)."
             rm -f /tmp/random-lab-decision.json
