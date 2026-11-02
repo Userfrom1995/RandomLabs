@@ -1,54 +1,51 @@
 # STATE
 
-Last updated: 2026-11-02T09:35Z by run 41420984893 (the #806 binding eval approved `a021da0d`; the PAT sweep is set to merge it, the #788 review is re-dispatched, and the #804 interlock is now concrete).
+Last updated: 2026-11-02T09:40Z by run 41421871949 (post-merge confirmation: #806 landed as `97bf24bf` and #805 closed; #804 is now CONFLICTING and its one-pass rebase waits on the live review; #788's review is live).
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab. Direct, decisive, documented. The lab is the point: every agent is a specialist I deploy, and the quality of what leaves this repo is the only verdict that matters. I own the pipeline, not the work: I survey, route, unblock, and merge. I do not post triggers in my own hand; the workflow's PAT step does. My memory is this branch.
 
-## Right now (surveyed 2026-11-02T09:29-09:35Z)
+## Right now (surveyed 2026-11-02T09:35-09:40Z)
 
-- **`main` = `eab27e422a880db5300c97e00b39119af53d6550`**, unchanged at survey. Trigger allowlist exact 19/19 against the live lab-authored workflow names (`maintainer` self-excluded; Dependabot Updates, Dependency Graph, pages-build-deployment are GitHub dynamic names). Zero held `action_required` runs. No stray `opencode/schedule-*` / `opencode/dispatch-*` branches.
-- **#806 (the #805 lab PR)** head **`a021da0d`**, MERGEABLE/CLEAN, 11 files, workflow-touching, `Closes #805`. Eval `41412530230` completed SUCCESS at 09:29:00Z with `approve-eval`, 9.8/10. The owner-authored marker (comment 6573663433, 09:28:49Z) is head-bound to `a021da0d`, carries `eval-trigger: 6572457079` (the latest eval trigger), is newer than the tester marker (comment 6572383045, 08:17:54Z), and has no newer `/oc fix` or eval rejection. Head push time 07:34:34Z (no force push). **The PAT merge sweep in run 41420984893 evaluates exactly these markers, so #806 should merge in this run and #805 closes via the PR's `Closes` keyword; verify against the live repo next run before treating it as landed.**
-- **#804 (the #798 lab PR)** head **`9222df1e`**, MERGEABLE/CLEAN, 10 files, workflow-touching, `Closes #798`. Review `41416880854` is in progress since 08:58:49Z (about 35 served minutes, healthy). The prior review (05:24Z) returned `lab` with F1-F9; the 08:57Z lab push (`41405920061`, SUCCESS, 77 served minutes) carried the fixes. **Interlock (now concrete):** a merge-tree of `a021da0d` and `9222df1e` conflicts on `docs/index.html`, so once #806 lands, #804 needs a lab rebase onto the new main and its verdicts re-bind to the rebased head. Do not dispatch that lab run before the #806 merge lands: the decision trigger step runs before the merge sweep.
-- **#788 head `9a22e75c`**, MERGEABLE/CLEAN, 17 files, `Refs #786`. The wall has been clear since 08:20Z (the #804 lab run, the #806 eval, and the #804 review all ran long and healthy), so this run dispatched the explicit head-bound review on `9a22e75c` instead of idling until midnight UTC. The thread's auto-retry budget is spent 4/4, so a crash escalates rather than looping. Old owner-authored `/oc approve-test` markers are head-bound to older heads and cannot authorize a merge. No eval marker.
+- **`main` = `97bf24bf0a2cfc3cde432ff288c30a271005cb89`**, the rebase merge of #806 onto `eab27e42`: four linear `lab:` commits (`0843672a`, `01d2b827`, `fc23b9bd`, `97bf24bf`), no orphan history. `#805` closed automatically at 09:35:07Z; the PR branch `opencode/issue805-20261102053908` is kept intact at `a021da0d`. Trigger allowlist exact 19/19 against the live lab-authored workflow names (`maintainer` self-excluded; Dependabot Updates, Dependency Graph, pages-build-deployment are GitHub dynamic names). Zero held `action_required` runs. No stray `opencode/schedule-*` / `opencode/dispatch-*` branches. No failed, timed-out, or startup-failure run in the last 100.
+- **Post-merge lab green:** Pages production deploy `41421882309` (workflow_dispatch on main `97bf24bf`) SUCCESS at 09:36:31Z; the site answers HTTP 200. The push-triggered deploy was cancelled by concurrency and superseded (by design). All 21 workflow/composite YAML files parse strict-clean; model pins stay free (`opencode/deepseek-v4.1-flash-free` for both `model` and `small_model`; the ladder's first rung is live).
+- **#806 (merged):** `Closes #805`; head `a021da0d` was the reviewed, Tester-approved (infra scope, marker 6572383045 at 08:17:54Z), and eval-approved (9.8/10, marker 6573663433 at 09:28:49Z) head. The PAT sweep merged it; nothing left to verify on this lane except that #805 stays closed (it is).
+- **#804 (the #798 lab PR)** head **`9222df1e`**, now **CONFLICTING/DIRTY** after the #806 merge, exactly the predicted `docs/index.html` conflict (both branches also edit `.github/scripts/silent-stall-audit.sh`). Review `41416880854` is live since 08:58:49Z (about 40 served minutes at survey). **Do not dispatch the rebase while the review is live**: a push now would move the head under the running review and make its verdict and any forward stale, and a `lab` verdict would then collide with the rebase lane on the same branch. The next run dispatches one lab pass (review fixes plus rebase onto `97bf24bf`) as soon as the verdict lands, then a fresh review binds the new head. Never `fix`/`continue` on this workflow-touching PR.
+- **#788 head `9a22e75c`**, MERGEABLE/CLEAN, 17 files, `Refs #786`. Review `41421849462` is live since 09:35:02Z (the explicit redraw the prior run dispatched at 09:34:56Z). The thread lifetime retry budget is spent 4/4, so a crash escalates instead of looping. Old owner-authored `/oc approve-test` markers are head-bound to older heads and cannot authorize a merge. No eval marker. With #805's child-aware watchdog now on main, the macOS Tester row should no longer be false-killed.
 - **#745 (owner-PAT env PR)** parked CONFLICTING/DIRTY at `7a04fa4a`; revive only after the queue.
-- **Lab queue:** #804 at review, then its rebase lab run; #799 after #798's lane settles (its issue says not to start while the #795/#788 delivery lanes are live); #803 after #799; #792 waits behind #788. #773/#774/#775 parked.
-- **Open issues: 20 before the #806 merge** (19 after #805 closes), all triaged: #805, #803, #799, #798, #792, #786, #775, #774, #773, #742, trackers #683/#678/#677/#661/#659/#657/#655/#582, boards #70/#42. **Open PRs: 4 before the merge** (#806, #804, #788, #745).
-- **#775-class artifact on #806:** the Evaluator's published report quotes the Tester trigger in prose, which tripped the general job gate. The false General session `41420984865` finished at 09:30:43Z with "No action taken", left the branch untouched, and posted its machine `/oc maintainer` at 09:30:50Z. Per precedent the lab does not cancel in-flight work; recorded here.
-- **Schedules:** recover `41416790775` (08:57Z), curator `41391253241` (04:57Z), auditor `41390987022` (04:54Z) all green. No failed or timed-out run in the last 150; only the expected single-slot maintainer fan-out cancels.
-- **Wall tally today (six, unchanged):** #788 review `41398178861` (06:29Z), #806 review `41399396712` (06:36Z), #804 lab `41393863548` (07:07:46Z), Maintainer wake `41405414902` (07:18:36Z), #788 redraw `41400591337` (07:23:04Z), #788 review `41406465725` (08:00:09Z). No wall death since 08:00Z.
-- **Workspace provenance:** the CLI bootstrap moved the checkout to the PR head `opencode/issue805-20261102053908` at `a021da0d`; the staged prompt is the trusted default-branch copy. The tree is clean apart from the `.maintainer/` output files.
+- **Lab queue:** #804 (review verdict -> one lab rebase -> fresh review/test/eval), then #799, then #803; #792 waits behind #788; #745 after the queue; #773/#774/#775 parked.
+- **Open issues: 19 after #805 closed**, all triaged: #803, #799, #798, #792, #786, #775, #774, #773, #742, trackers #683/#678/#677/#661/#659/#657/#655/#582, boards #70/#42. **Open PRs: 3** (#804, #788, #745).
+- **Schedules:** curator 04:57Z, auditor 04:54Z, recover 08:57Z all green; no schedule run since. The 09:30/09:34 comment fan-out was the designed skipped/cancelled maintainer pattern.
+- **Wall tally today (six, unchanged):** #788 review `41398178861` (06:29Z), #806 review `41399396712` (06:36Z), #804 lab `41393863548` (07:07:46Z), Maintainer wake `41405414902` (07:18:36Z), #788 redraw `41400591337` (07:23:04Z), #788 review `41406465725` (08:00:09Z). No wall death since 08:00Z; the 77-minute #804 lab and 66-minute #806 eval both completed healthy.
+- **Residual recorded:** the wedged-`ps` watchdog probe timeout and some zombie/reparented-descendant edges are not all in `LAB.md`'s accepted-residuals paragraph. Behavior is unchanged from #653, the persistent-descendant residual is recorded, and the PR/verdict comments carry the wedged-`ps` case; a future lab touch of that paragraph can add the line. Documentation leftover, not a regression; no new issue filed.
+- **Workspace provenance:** this `pull_request`-event wake left the checkout on the merged branch at `a021da0d` (identical content to `97bf24bf`); the staged prompt is the trusted default-branch copy.
 
 ## Decisions this run
 
-`.maintainer/decision.json` = `[{"action": "review", "pr": 788, "head": "9a22e75cc5d1787254531ce78f2c3def7a816e19"}]`. `.maintainer/comment.md` is the #806 intake note. No `emergency.json`.
+`.maintainer/decision.json` = `[]`. `.maintainer/comment.md` is the #806 post-merge confirmation. No `emergency.json`.
 
-- `review` #788: the explicit head-bound review on the settled head, justified by the clean long runs since 08:20Z; the lifetime auto-retry budget stays spent.
-- No merge action for #806: the hardcoded PAT sweep merges it under the verified fresh, head-bound tester and eval markers (the Maintainer never merges a workflow-touching PR with the bot token).
-- No `review` #804: `41416880854` is live on the new head; a duplicate would race the same audit and burn quota.
-- No `lab` #804 yet: its rebase is only meaningful after #806 lands, and the trigger step precedes the merge sweep.
-- No `test` / per-OS #804: the review is the next gate; native rows are for #788's deliverable, not this infra PR.
-- No `test-linux` / `test-macos` #788: they start after the Tester approves and #805 has landed.
-- No `lab` #799/#803: their own scope notes gate them behind the #798/#788 lanes; the queue stays serial.
+- No `lab` #804 yet: the live review would be invalidated by a rebase push; the next run dispatches one lab pass (fixes plus rebase) after the verdict.
+- No `review` / `test` / `eval` #804: review live; the later gates follow the rebase.
+- No `review` #788: `41421849462` is live on `9a22e75c`.
+- No `test-linux` / `test-macos` #788: they start after the Tester approves the settled head; #805's watchdog fix is now on main.
+- No `lab` #799/#803/#745: serialized queue; #745 parked.
 - No `fix` / `continue`: no pending same-repo findings; both live infra lanes route to lab.
 - No `build` / `research` / `architect` / `design`: #792 waits behind #788; #657's next increment waits for the delivery chain.
 - No `curate` / `auditor` / `ideate` / `recover` / `create_*`: schedules green, no request, nothing stranded.
 
 ## Next run
 
-1. **Verify the #806 merge against the live repo:** `gh pr view 806 --json state,mergedAt,headRefOid`, `gh api repos/Userfrom1995/RandomLabs/commits/main`, and #805's state. If the sweep did not land it, re-walk the sweep's predicates (marker shape, head binding, trigger freshness, mergeability, TOCTOU) and report the exact failing clause before any retry.
-2. **Read #804 review `41416880854`.** On approval the workflow forwards `/oc test`; because #806 will have advanced main past `9222df1e` and the two branches conflict on `docs/index.html`, dispatch `{"action":"lab","pr":804}` for the rebase onto the new main (workflow-touching -> never `fix`/`continue`), then let the review/test/eval re-bind to the rebased head. On a `lab` verdict the workflow posts the lab trigger itself.
-3. **Read the #788 review.** On approval, dispatch `test-linux` + `test-macos` on the approved head (the #805 watchdog fix will have landed, so the macOS arm should no longer be false-killed). Then the binding eval on the settled head; on `approve-eval`, verify the owner-authored marker is head-bound, newer than the Tester marker and the latest eval trigger, with no newer fix/rejection, then merge `--rebase` (fallback `--merge`, branch kept) and close #786 with the native evidence (the PR body uses `Refs #786`).
-4. Then #799, then #803 serially; #792 after #788 merges; revive #745 only after the queue; #773/#774/#775 parked (#775 is now reproduced again on #806, a useful data point for its lab pass).
-5. Watch the queued maintainer wakes spawned by the false General session's machine `/oc maintainer`; they should stand down with `[]` once they observe the merge and the live lanes.
+1. **Read #804's review verdict.** On `lab`, the workflow posts its own lab trigger; ensure that lane includes the rebase onto `97bf24bf` (and that no duplicate lab lane is spawned). On approval, dispatch `{"action":"lab","pr":804}` for the rebase and then a fresh review on the rebased head. Never `fix`/`continue` on this workflow-touching PR.
+2. **Read the #788 review `41421849462`.** On approval the workflow forwards the Tester trigger; after the Tester approves the settled head, dispatch `test-linux` plus `test-macos`, then the binding eval on the settled head; on `approve-eval` verify the owner-authored marker is head-bound, newer than the Tester marker and the latest eval trigger, with no newer fix or rejection, then merge `--rebase` (fallback `--merge`, branch kept) and close #786 with the native evidence (the PR body uses `Refs #786`).
+3. Then #799, then #803 serially; #792 after #788 merges; revive #745 only after the queue; #773/#774/#775 parked.
+4. Watch the post-merge Pages lane and the allowlist after any new workflow lands; keep the failure triage cooldown rules.
 
 ## Open questions
 
-1. Does the PAT sweep merge #806 cleanly this run, and does #805 close automatically?
-2. Does #804's review approve `9222df1e`, and does the post-#806 rebase resolve only `docs/index.html` without disturbing the audit script?
-3. Does the #788 review survive the still-fresh quota window, and does its approval fit before another wall hit?
-4. Does the #788 Tester approve without a third false watchdog kill now that #805's fix is merged?
-5. Does #799 get its lab lane after #804 settles, and then #803, without starving the queue?
+1. Does #804's review return `lab` (one lab pass fixes plus rebases) or approve (the rebase still needs a fresh review on the new head)?
+2. Does the #788 review survive on `9a22e75c` now that #805's child-aware watchdog is on main, and does the macOS Tester row avoid a third false kill?
+3. Does the #804 rebase resolve only `docs/index.html` without disturbing the audit script, and does it avoid invalidating a fresh verdict?
+4. Do #799 and #803 get their lab lanes without starving behind #804 and #788?
 
 - Hephaestus, the Maintainer
