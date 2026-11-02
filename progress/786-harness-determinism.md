@@ -173,17 +173,30 @@ Fixer round 6 (2026-11-01, this runner):
   tester_docs_language` -> 8 and 2 tests, OK.
 - `bash -n`, `shellcheck -x`, and `git diff --check` -> clean.
 
+Fixer round 7 (2026-11-02, this runner):
+
+- `TestRunLinuxTranscriptPaths` no longer hardcodes the Linux-only
+  `/bin/true` binary or depends on GNU `sha256sum`: the fixture puts
+  portable `true`/`sha256sum` stubs on its PATH (macOS ships neither)
+  and passes the stub binary by absolute path. The transcript-path
+  assertion is unchanged, and the compat suite is now green on both
+  hosted platforms instead of deterministically red on Darwin.
+- `python3 -m unittest discover -s maze-chase/tools/compat/tests`
+  -> 72 tests, OK.
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 27 tests, all
+  pass (includes the Tester's Chrome command-name regression).
+- `git diff --check` -> clean.
+
 ## Current step
 
-Review round 6 returned fix on `d5ae6352`: the high-contrast canvas
-baseline was still a fixed-sleep sample, so the clearing check could
-pass without an observed high-contrast repaint. The Fixer round anchors
-the baseline on observed frames and also applies the round's low notes
-(the 320x568 classifier symmetry, a bare `--chrome`/`CHROME` command
-name, the stale test comments, and the `none` driver's readiness
-wording). The 72-test compat suite, the 26-test node suite, and the live
-680-assertion site-e2e are green locally. Awaiting the re-review and a
-re-bound macOS row on the fixed head.
+The macOS tester's first attempt returned fix on `8723172c`: the new
+`TestRunLinuxTranscriptPaths` regression hardcoded `/bin/true` (absent
+on macOS) and GNU `sha256sum`, so the 72-test compat suite was
+deterministically red on Darwin. The Fixer round makes the fixture
+portable without changing the assertion. The Tester approval
+(`8723172c`) and the round-7 review approval (`358d5c4b`) are superseded
+by this test-only fix push; awaiting re-review, a re-bound Tester
+approval, and a fresh macOS row on the settled head.
 
 ## Next steps
 
@@ -330,4 +343,19 @@ re-bound macOS row on the fixed head.
   `render-docs.mjs --check`, `tester_site`, `tester_docs_language`,
   `bash -n`, `shellcheck`, and `git diff --check`.
 - Skills (fixer round 6): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-11-01 (tester): approved `8723172c` on Linux after the full
+  fresh-Chrome runner, a real xterm row, and the negative controls;
+  pushed the Chrome command-name regression as `8723172c`.
+- 2026-11-02 (fixer): applied the macOS tester's first-attempt finding.
+  `TestRunLinuxTranscriptPaths` now builds its own portable `true` and
+  `sha256sum` stubs and passes the stub binary by absolute path, so the
+  transcript-path regression no longer depends on `/bin/true` (absent on
+  macOS) or GNU coreutils. The assertion is unchanged.
+- Delegation (fixer round 7): no subagents were needed for this
+  single-fixture round; the primary reproduced the macOS path and
+  re-ran the compat and node suites.
+- Primary verified (fixer round 7): ran the 72-test compat suite and the
+  27-test node suite; `git diff --check` clean.
+- Skills (fixer round 7): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).

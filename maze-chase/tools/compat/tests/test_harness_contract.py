@@ -727,10 +727,19 @@ class TestRunLinuxTranscriptPaths(unittest.TestCase):
         os.chmod(os.path.join(compat, "collect.py"), 0o755)
         bindir = os.path.join(self.tmp, "bin")
         os.makedirs(bindir)
+        self.bindir = bindir
         with open(os.path.join(bindir, "xterm"), "w",
                   encoding="utf-8") as fh:
             fh.write("#!/bin/sh\necho 'fake xterm 1.0'\n")
         os.chmod(os.path.join(bindir, "xterm"), 0o755)
+        # Portable stand-ins for the host tools this transcript-path case
+        # consults: macOS has no /bin/true, and GNU sha256sum is not a
+        # macOS system tool.
+        for tool in ("true", "sha256sum"):
+            path = os.path.join(bindir, tool)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("#!/bin/sh\nexit 0\n")
+            os.chmod(path, 0o755)
         self.env = dict(
             os.environ,
             PATH=bindir + os.pathsep + os.environ.get("PATH", ""),
@@ -744,7 +753,8 @@ class TestRunLinuxTranscriptPaths(unittest.TestCase):
             ["bash",
              os.path.join(self.tmp, "tools", "compat", "run-linux.sh"),
              "--emulator", "xterm", "--tier", "auto", "--skip-build",
-             "--binary", "/bin/true", "--outdir", "rel-run"],
+             "--binary", os.path.join(self.bindir, "true"),
+             "--outdir", "rel-run"],
             cwd=self.tmp, env=self.env, capture_output=True, text=True,
             timeout=60,
         )
