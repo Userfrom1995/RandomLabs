@@ -262,7 +262,8 @@ Public Surface / Web Track:                                              │
   Maintainer's memory; `progress/` - per-build state.
 - Setup: `bash setup.sh` (checks status and prints guided prompts;
   `--secrets` writes the required repo secrets, `--dispatch` dispatches the
-  Maintainer once, `--check` is read-only and exits 0/1). Undo:
+  Maintainer once, `--check` alone is read-only and exits 0/1; combined with
+  `--secrets` or `--dispatch` it still writes). Undo:
   `bash shutdown.sh` (backs up, removes the lab; `--purge` also deletes
   secrets).
 - Always validate YAML/shell before pushing workflow/script changes. The

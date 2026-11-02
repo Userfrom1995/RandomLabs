@@ -1676,9 +1676,10 @@ remote tip).
 ## Running the lab
 
 - **First run**: write the required repo secrets and dispatch the Maintainer
-  once with `bash setup.sh --secrets --dispatch` (or from Actions →
-  `maintainer` → Run workflow) - it seeds `maintainer/logs`, checks the
-  board, and processes whatever is in flight.
+  once with `bash setup.sh --secrets --dispatch` - it seeds
+  `maintainer/logs`, checks the board, and processes whatever is in flight.
+  Once the secrets are set, Actions → `maintainer` → Run workflow is a
+  dispatch-only alternative (it never writes secrets).
 - **Onboarding (workflow-approval duty)**: while the bot's PRs exist, GitHub
   requires the owner to approve workflow runs on them. `opencode.yml`
   auto-approves held runs after each push (head-scoped polling plus a
