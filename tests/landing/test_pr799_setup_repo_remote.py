@@ -2,26 +2,31 @@
 
 A standard ``git clone`` leaves ``.git`` on the origin URL, and the old
 greedy capture kept that suffix, so every ``gh --repo`` call targeted a 404
-repository. The scripts now strip the suffix for HTTPS and SSH remotes,
-keep ``GITHUB_REPOSITORY`` precedence, and warn and continue (instead of
-aborting under ``set -euo pipefail``) when the repo cannot be resolved.
+repository. The scripts now extract the slug from recognized github.com
+origin URLs only, keep ``GITHUB_REPOSITORY`` precedence (in both scripts),
+and warn and continue (instead of aborting under ``set -euo pipefail``) when
+the repo cannot be resolved.
 
 Verifies:
 - setup.sh resolves HTTPS (plain, credentialed, ``.git/``), SSH
-  (scp-style, ``ssh://``, with port), and trailing-slash remotes to
-  ``owner/repo`` and writes secrets / dispatches against that slug
+  (scp-style, ``ssh://``, with port), git, and trailing-slash remotes to
+  ``owner/repo`` and writes secrets / dispatches against exactly that slug
 - GITHUB_REPOSITORY still wins over the origin remote
+- local paths, ``file://`` remotes, and non-GitHub hosts are rejected and
+  never reach ``gh`` in either script (the evaluator's F1 mis-target class)
 - a tree with no origin warns and exits 0 in bare, --secrets/--dispatch,
   and --check modes without touching ``gh``
 - a failing secret probe warns and surfaces its captured diagnostic
-- shutdown.sh --purge targets the suffix-free slug and its --check mode
-  survives a missing origin
-- the three drifted documents state the real setup modes
+- shutdown.sh --purge targets the suffix-free slug, honors
+  GITHUB_REPOSITORY, and its --check mode survives a missing origin
+- the four drifted documents state the real setup modes
 - the changed files carry zero em dashes (lab formatting invariant)
 
 The mock ``gh`` proves interception before the scenario matrix and every
 scenario runs with the live GitHub context scrubbed (delegation.md
 section 6), so a PATH fall-through can never touch the real repository.
+A dedicated scenario asserts all six scrubbed keys stay out of the child
+environment, so removing the scrub cannot pass unnoticed.
 
 Stdlib only, no extra runtime dependencies.
 Run: python3 tests/landing/test_pr799_setup_repo_remote.py
@@ -34,13 +39,16 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SETUP = ROOT / "setup.sh"
 SHUTDOWN = ROOT / "shutdown.sh"
 DOCS_HTML = ROOT / "docs" / "index.html"
+DOCS_MD = ROOT / "docs" / "index.md"
 AGENTS = ROOT / "AGENTS.md"
 LAB = ROOT / "LAB.md"
+README = ROOT / "README.md"
 
 MOCK_GH = """#!/usr/bin/env python3
 import json
@@ -55,19 +63,61 @@ except Exception:
     pass
 """
 
+FAILING_GH = """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+with open(os.environ["MOCK_GH_LOG"], "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(sys.argv[1:]) + "\\n")
+try:
+    sys.stdin.buffer.read()
+except Exception:
+    pass
+sys.stderr.write("HTTP 404: Not Found\\n")
+sys.exit(1)
+"""
+
 REMOTE_CASES = (
     ("https://github.com/owner/repo.git", "owner/repo"),
     ("git@github.com:owner/repo.git", "owner/repo"),
     ("ssh://git@github.com/owner/repo.git", "owner/repo"),
     ("ssh://git@github.com:22/owner/repo.git", "owner/repo"),
     ("https://x-access-token:secret@github.com/owner/repo.git", "owner/repo"),
+    ("git://github.com/owner/repo.git", "owner/repo"),
     ("https://github.com/owner/repo", "owner/repo"),
     ("https://github.com/owner/repo/", "owner/repo"),
     ("https://github.com/owner/repo.git/", "owner/repo"),
 )
 
+UNRECOGNIZED_REMOTES = (
+    "file:///srv/git/owner/repo.git",
+    "https://gitlab.com/owner/repo.git",
+    "https://github.com.evil.example/owner/repo.git",
+    "https://github.com:22evil/owner/repo.git",
+    "../repo",
+    "/srv/git/owner/repo.git",
+    ".",
+)
+
 FIRST_RUN_FLAGS = {"--secrets", "--dispatch"}
 SECRET_NAMES = ["OPENCODE_API_KEY", "OPENCODE_PAT"]
+SCRUBBED_ENV = (
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_EVENT_PATH",
+    "GITHUB_RUN_ID",
+    "GITHUB_ACTIONS",
+    "GITHUB_REPOSITORY",
+)
+
+ENV_PROBE = """#!/usr/bin/env bash
+for name in GITHUB_TOKEN GH_TOKEN GITHUB_EVENT_PATH GITHUB_RUN_ID GITHUB_ACTIONS GITHUB_REPOSITORY; do
+  if [ -n "${!name:-}" ]; then
+    printf '%s=%s\\n' "$name" "${!name}"
+  fi
+done
+"""
 
 
 def read(path):
@@ -150,14 +200,7 @@ class ScriptSandbox(unittest.TestCase):
         # Harness isolation (delegation.md section 6): a mock that fails to
         # intercept must fail inert, so the live GitHub context never reaches
         # a scenario that could fall through to the real gh.
-        for name in (
-            "GITHUB_TOKEN",
-            "GH_TOKEN",
-            "GITHUB_EVENT_PATH",
-            "GITHUB_RUN_ID",
-            "GITHUB_ACTIONS",
-            "GITHUB_REPOSITORY",
-        ):
+        for name in SCRUBBED_ENV:
             env.pop(name, None)
         env["PATH"] = self.mock_path
         # Even a fall-through to a real gh must have no stored auth and must
@@ -223,12 +266,14 @@ class SetupRepoResolutionTest(ScriptSandbox):
                     result.returncode, 0, result.stdout + result.stderr
                 )
                 self.assertNotIn("could not determine", result.stdout)
-                self.assertEqual(self.repo_targets(), [expected] * 4)
-                self.assertEqual(self.secret_sets(), SECRET_NAMES)
-                self.assertEqual(len(self.dispatches()), 1)
                 self.assertEqual(
-                    self.dispatches()[0],
-                    ["workflow", "run", "maintainer.yml", "--repo", expected],
+                    self.gh_calls(),
+                    [
+                        ["secret", "list", "--repo", expected],
+                        ["secret", "set", "OPENCODE_API_KEY", "--repo", expected],
+                        ["secret", "set", "OPENCODE_PAT", "--repo", expected],
+                        ["workflow", "run", "maintainer.yml", "--repo", expected],
+                    ],
                 )
 
     def test_github_repository_keeps_precedence_over_the_remote(self):
@@ -240,9 +285,41 @@ class SetupRepoResolutionTest(ScriptSandbox):
             repo_env="example/random-labs",
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.repo_targets(), ["example/random-labs"] * 4)
-        self.assertEqual(self.secret_sets(), SECRET_NAMES)
-        self.assertEqual(len(self.dispatches()), 1)
+        self.assertEqual(
+            self.gh_calls(),
+            [
+                ["secret", "list", "--repo", "example/random-labs"],
+                ["secret", "set", "OPENCODE_API_KEY", "--repo", "example/random-labs"],
+                ["secret", "set", "OPENCODE_PAT", "--repo", "example/random-labs"],
+                ["workflow", "run", "maintainer.yml", "--repo", "example/random-labs"],
+            ],
+        )
+
+    def test_malformed_github_repository_warns_and_falls_back(self):
+        self.set_origin("https://github.com/owner/repo.git")
+        result = self.run_script(
+            "setup.sh", "--check", repo_env="../repo"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("GITHUB_REPOSITORY is not a valid owner/repo slug", result.stdout)
+        self.assertEqual(
+            self.gh_calls(), [["secret", "list", "--repo", "owner/repo"]]
+        )
+
+    def test_unrecognized_remotes_never_target_a_repo(self):
+        for remote in UNRECOGNIZED_REMOTES:
+            with self.subTest(remote=remote):
+                self.set_origin(remote)
+                self.log.unlink(missing_ok=True)
+                for args in (("--secrets", "--dispatch"), ("--check",)):
+                    result = self.run_script("setup.sh", *args)
+                    self.assertEqual(
+                        result.returncode, 0, result.stdout + result.stderr
+                    )
+                    self.assertIn(
+                        "could not determine the GitHub repo", result.stdout
+                    )
+                    self.assertEqual(self.gh_calls(), [])
 
     def test_missing_origin_warns_and_continues(self):
         for args in ((), ("--secrets", "--dispatch"), ("--check",)):
@@ -253,24 +330,17 @@ class SetupRepoResolutionTest(ScriptSandbox):
                     result.returncode, 0, result.stdout + result.stderr
                 )
                 self.assertIn("could not determine the GitHub repo", result.stdout)
+                if "--secrets" in args:
+                    self.assertIn(
+                        "Skipping secrets: the target repo is unresolved",
+                        result.stdout,
+                    )
                 self.assertEqual(self.gh_calls(), [])
-
-    def test_unresolvable_origin_warns_and_continues(self):
-        self.set_origin(".")
-        result = self.run_script("setup.sh", "--secrets", "--dispatch")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("could not determine the GitHub repo", result.stdout)
-        self.assertEqual(self.gh_calls(), [])
 
     def test_check_mode_reports_a_failing_secret_probe(self):
         self.set_origin("https://github.com/owner/repo.git")
         gh = self.mock_bin / "gh"
-        gh.write_text(
-            "#!/usr/bin/env bash\n"
-            'echo "HTTP 404: Not Found" >&2\n'
-            "exit 1\n",
-            encoding="utf-8",
-        )
+        gh.write_text(FAILING_GH, encoding="utf-8")
         gh.chmod(0o755)
         self.assertEqual(shutil.which("gh", path=self.mock_path), str(gh))
         probe = subprocess.run(
@@ -284,10 +354,26 @@ class SetupRepoResolutionTest(ScriptSandbox):
         )
         self.assertEqual(probe.returncode, 1, probe.stdout + probe.stderr)
         self.assertIn("HTTP 404: Not Found", probe.stderr)
+        self.log.unlink(missing_ok=True)
         result = self.run_script("setup.sh", "--check")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("warning: could not list secrets for owner/repo", result.stdout)
+        self.assertIn(
+            "warning: could not list secrets for owner/repo (check gh auth and repo access).",
+            result.stdout,
+        )
         self.assertIn("HTTP 404: Not Found", result.stdout)
+        self.assertEqual(
+            self.gh_calls(), [["secret", "list", "--repo", "owner/repo"]]
+        )
+
+    def test_harness_scrubs_the_live_github_context(self):
+        probe = self.tree / "env-probe.sh"
+        probe.write_text(ENV_PROBE, encoding="utf-8")
+        hostile = dict.fromkeys(SCRUBBED_ENV, "canary")
+        with mock.patch.dict(os.environ, hostile):
+            result = self.run_script("env-probe.sh")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "", result.stdout)
 
 
 class ShutdownRepoResolutionTest(ScriptSandbox):
@@ -300,13 +386,64 @@ class ShutdownRepoResolutionTest(ScriptSandbox):
                 self.assertEqual(
                     result.returncode, 0, result.stdout + result.stderr
                 )
-                self.assertEqual(self.secret_deletes(), SECRET_NAMES)
-                self.assertEqual(self.repo_targets(), [expected] * 2)
+                self.assertEqual(
+                    self.gh_calls(),
+                    [
+                        ["secret", "delete", "OPENCODE_API_KEY", "--repo", expected],
+                        ["secret", "delete", "OPENCODE_PAT", "--repo", expected],
+                    ],
+                )
+
+    def test_unrecognized_remotes_never_purge(self):
+        for remote in UNRECOGNIZED_REMOTES:
+            with self.subTest(remote=remote):
+                self.set_origin(remote)
+                self.log.unlink(missing_ok=True)
+                result = self.run_script("shutdown.sh", "--yes", "--purge")
+                self.assertEqual(
+                    result.returncode, 0, result.stdout + result.stderr
+                )
+                self.assertIn("could not determine the GitHub repo", result.stdout)
+                self.assertIn("purge will not delete secrets", result.stdout)
+                self.assertEqual(self.gh_calls(), [])
+
+    def test_github_repository_override_wins_over_an_unrecognized_origin(self):
+        self.set_origin("file:///srv/git/owner/repo.git")
+        result = self.run_script(
+            "shutdown.sh",
+            "--yes",
+            "--purge",
+            repo_env="example/random-labs",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.gh_calls(),
+            [
+                ["secret", "delete", "OPENCODE_API_KEY", "--repo", "example/random-labs"],
+                ["secret", "delete", "OPENCODE_PAT", "--repo", "example/random-labs"],
+            ],
+        )
+
+    def test_malformed_github_repository_falls_back_to_the_origin(self):
+        self.set_origin("https://github.com/owner/repo.git")
+        result = self.run_script(
+            "shutdown.sh", "--yes", "--purge", repo_env="../repo"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("GITHUB_REPOSITORY is not a valid owner/repo slug", result.stdout)
+        self.assertEqual(
+            self.gh_calls(),
+            [
+                ["secret", "delete", "OPENCODE_API_KEY", "--repo", "owner/repo"],
+                ["secret", "delete", "OPENCODE_PAT", "--repo", "owner/repo"],
+            ],
+        )
 
     def test_check_mode_survives_a_missing_origin(self):
         result = self.run_script("shutdown.sh", "--check")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("could not determine the GitHub repo", result.stdout)
+        self.assertNotIn("purge will not delete secrets", result.stdout)
         self.assertEqual(self.gh_calls(), [])
 
 
@@ -328,6 +465,7 @@ class DocumentationTruthTest(unittest.TestCase):
         self.assertIn("`--secrets` writes the required repo secrets", text)
         self.assertIn("`--dispatch` dispatches the Maintainer once", text)
         self.assertIn("`--check` alone is read-only", text)
+        self.assertIn("once the lab file checks pass", text)
         self.assertNotIn("validate/setup/secrets/dispatch", text)
 
     def test_lab_first_run_and_setup_claims_are_accurate(self):
@@ -338,10 +476,36 @@ class DocumentationTruthTest(unittest.TestCase):
         self.assertIn("never writes secrets", running)
         self.assertNotIn("creates/verifies everything", running)
 
+    def test_readme_and_docs_markdown_label_the_actions_route_dispatch_only(self):
+        for path, anchor in (
+            (README, "**First run:**"),
+            (DOCS_MD, "**First run**:"),
+        ):
+            with self.subTest(path=path.name):
+                rest = read(path).split(anchor, 1)[1]
+                block = " ".join(
+                    rest.split("\n- ", 1)[0].split("\n\n", 1)[0].split()
+                )
+                self.assertIn("write the required repo secrets", block)
+                self.assertIn("bash setup.sh --secrets --dispatch", block)
+                self.assertIn("dispatch-only", block)
+
 
 class HygieneTest(unittest.TestCase):
     def test_changed_files_have_no_em_dashes(self):
-        for path in (SETUP, SHUTDOWN, DOCS_HTML, AGENTS, LAB):
+        paths = [
+            SETUP,
+            SHUTDOWN,
+            DOCS_HTML,
+            DOCS_MD,
+            AGENTS,
+            LAB,
+            README,
+            Path(__file__).resolve(),
+        ]
+        decisions = ROOT / ".github" / "agents" / "decisions" / "lab-engineer"
+        paths.extend(sorted(decisions.glob("*799-*.md")))
+        for path in paths:
             with self.subTest(path=path.name):
                 self.assertNotIn("\u2014", read(path))
 
