@@ -1675,9 +1675,10 @@ remote tip).
 
 ## Running the lab
 
-- **First run**: dispatch the Maintainer once (Actions → `maintainer` → Run
-  workflow) - it seeds `maintainer/logs`, checks the board, and processes
-  whatever is in flight.
+- **First run**: write the required repo secrets and dispatch the Maintainer
+  once with `bash setup.sh --secrets --dispatch` (or from Actions →
+  `maintainer` → Run workflow) - it seeds `maintainer/logs`, checks the
+  board, and processes whatever is in flight.
 - **Onboarding (workflow-approval duty)**: while the bot's PRs exist, GitHub
   requires the owner to approve workflow runs on them. `opencode.yml`
   auto-approves held runs after each push (head-scoped polling plus a
@@ -1687,8 +1688,9 @@ remote tip).
   expire: approve whenever the sweep asks.
 - **Talking to the lab**: `/oc build …`, `/oc fix`, `/oc review`,
   `/oc continue`, `/oc test`, `/oc help` - see AGENTS.md.
-- **One-command setup**: `bash setup.sh` (creates/verifies everything,
-  optionally writes secrets, prints onboarding).
+- **One-command setup**: `bash setup.sh` (checks status and prints guided
+  prompts; `--secrets` writes the required repo secrets, `--dispatch`
+  dispatches the Maintainer once).
 - **Undo everything**: `bash shutdown.sh` (backs up and removes the lab,
   restores human control).
 - **Branch protection on main**: parent branch + require PR + require the
