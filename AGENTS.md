@@ -263,7 +263,8 @@ Public Surface / Web Track:                                              │
 - Setup: `bash setup.sh` (checks status and prints guided prompts;
   `--secrets` writes the required repo secrets, `--dispatch` dispatches the
   Maintainer once, `--check` alone is read-only and exits 0/1; combined with
-  `--secrets` or `--dispatch` it still writes). Undo:
+  `--secrets` or `--dispatch` it still writes once the lab file checks pass).
+  Undo:
   `bash shutdown.sh` (backs up, removes the lab; `--purge` also deletes
   secrets).
 - Always validate YAML/shell before pushing workflow/script changes. The

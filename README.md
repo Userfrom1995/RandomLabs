@@ -29,7 +29,8 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **General**: Answers plain `/oc` questions and housekeeping.
 
 - **First run:** write the required repo secrets and dispatch the Maintainer
-  once (Actions -> `maintainer`) or `bash setup.sh --secrets --dispatch`.
+  once with `bash setup.sh --secrets --dispatch`. Once the secrets are set,
+  Actions -> `maintainer` -> Run workflow is a dispatch-only alternative.
 - **Reset:** `bash shutdown.sh` (backs up and removes the lab).
 - Full architecture: [LAB.md](LAB.md) · [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) · [Agent prompts](.github/agents/REGISTRY.md)
 
