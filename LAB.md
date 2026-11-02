@@ -1161,9 +1161,10 @@ background children with known PIDs (each waited separately, so a failing
 tee or opencode is still attributed exactly), and a watchdog subshell polls
 the captured log's byte size, tracking idle time. An attempt whose log does
 not grow for `HANG_IDLE_SECONDS` (default 600, checked every
-`HANG_POLL_SECONDS`, default 30) is aborted with TERM then KILL sent to
-exactly those two PIDs, flagged, and retried once on the SAME model after a
-10-second backoff; a second stall fails loudly with `exit 1`. The knobs are
+`HANG_POLL_SECONDS`, default 30) while opencode has no live descendant is
+aborted with TERM then KILL sent to exactly those two PIDs, flagged, and
+retried once on the SAME model after a 10-second backoff; a second stall
+fails loudly with `exit 1`. The knobs are
 env-overridable only for the audit harness, and both are clamped to sane
 positive bounds (a zero poll interval would busy-loop with `idle += 0`,
 silently disabling the watchdog; a value beyond the shell's integer range
@@ -1185,7 +1186,9 @@ outliving the threshold several times over is never killed, the tool result
 concludes the attempt, and no backoff is spent) and `hang-child-exits` (a
 genuinely silent attempt after that child exits is still killed after the
 grace window and retried once), so the probe can never mistake a working
-tool for a stall or disable the stall class for good. One non-provider silence reaches the same watchdog: a staged-prompt session whose `external_directory` read is still `ask` prints a pending `permission: 'external_directory'` / `asking` line and waits for an approval no one can give, so the watchdog kill looks identical to a provider stall (issue #743 follow-on: review run 39852524926). Check the log for that line when triaging a stalled attempt before blaming the provider; the staged-prompt grant (issue #743 follow-on) removes the ask. When `mkfifo` is unavailable
+tool for a stall or disable the stall class for good (a descendant that
+never exits suppresses the watchdog for that attempt; see the accepted
+residuals below). One non-provider silence reaches the same watchdog: a staged-prompt session whose `external_directory` read is still `ask` prints a pending `permission: 'external_directory'` / `asking` line and waits for an approval no one can give, so the watchdog kill looks identical to a provider stall (issue #743 follow-on: review run 39852524926). Check the log for that line when triaging a stalled attempt before blaming the provider; the staged-prompt grant (issue #743 follow-on) removes the ask. When `mkfifo` is unavailable
 (some Windows Git Bash environments) the runner degrades LOUDLY to the legacy
 inline pipeline without the watchdog, instead of bricking the arm. The
 second class is a transient 429/5xx terminal death; its observed forms are
@@ -1529,8 +1532,11 @@ spellings, including a dot-segment spelling.
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
 grace a reused PID could be signalled and a hung `opencode` descendant can
-survive the two-PID abort and race the retry; a legitimately silent
-attempt longer than 600 seconds is treated as a stall and retried once;
+survive the two-PID abort and race the retry; a silent attempt with no
+live descendant for longer than 600 seconds is treated as a stall and
+retried once, while a live descendant resets the idle accounting (a
+descendant that never exits would suppress the watchdog for the life of
+that attempt);
 and an env-supplied `HANG_POLL_SECONDS` with a leading zero (for example
 `09`) passes the digit clamp but bash reads it as invalid octal, so the
 watchdog never accumulates. Declarative env overrides of both knobs are

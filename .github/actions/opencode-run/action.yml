@@ -323,7 +323,8 @@ runs:
     # one fresh-run re-dispatch, which is this class's intended recovery.
     # Provider-stall watchdog knobs (issue #653): an attempt whose captured
     # log does not grow for HANG_IDLE_SECONDS (checked every
-    # HANG_POLL_SECONDS) is aborted and classified as a provider hang.
+    # HANG_POLL_SECONDS) while opencode has no live descendant is aborted
+    # and classified as a provider hang (issue #805).
     # Env-overridable only so the audit harness can exercise the watchdog
     # in seconds; non-numeric values fall back to the production defaults.
     # Review F3: a zero poll interval would busy-loop with `idle += 0`
@@ -370,8 +371,10 @@ runs:
       # minutes until the agent step timeout (eval run 39094600854 stalled
       # ~46 minutes the same way), so the captured log is now watched for
       # growth: an attempt whose log does not grow for HANG_IDLE_SECONDS
-      # (default 600) is TERM/KILLed as a provider hang and retried once on
-      # the SAME model; a second stall fails loudly. FIFO capture keeps
+      # (default 600) with no live opencode descendant is TERM/KILLed as a
+      # provider hang and retried once on the SAME model, while a live
+      # descendant resets the idle accounting (issue #805); a second stall
+      # fails loudly. FIFO capture keeps
       # opencode and tee as separate known PIDs to signal; on a runner
       # without mkfifo the step degrades loudly to the legacy inline
       # pipeline without the watchdog instead of bricking the arm (the

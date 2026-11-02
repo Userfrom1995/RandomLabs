@@ -436,7 +436,8 @@ jobs:
       # one fresh-run re-dispatch, which is this class's intended recovery.
       # Provider-stall watchdog knobs (issue #653): an attempt whose captured
       # log does not grow for HANG_IDLE_SECONDS (checked every
-      # HANG_POLL_SECONDS) is aborted and classified as a provider hang.
+      # HANG_POLL_SECONDS) while opencode has no live descendant is aborted
+      # and classified as a provider hang (issue #805).
       # Env-overridable only so the audit harness can exercise the watchdog
       # in seconds; non-numeric values fall back to the production defaults.
       # Review F3: a zero poll interval would busy-loop with `idle += 0`
