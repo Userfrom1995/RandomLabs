@@ -12,9 +12,10 @@ Verifies:
   (scp-style, ``ssh://``, with port), git, and trailing-slash remotes to
   ``owner/repo`` and writes secrets / dispatches against exactly that slug
 - GITHUB_REPOSITORY still wins over the origin remote
-- local paths, ``file://`` remotes, non-GitHub hosts, and query/fragment
-  ``@github.com`` authority bypasses are rejected and never reach ``gh`` in
-  either script (the evaluator's F1 mis-target class)
+- local paths, ``file://`` remotes, non-GitHub hosts, query/fragment
+  ``@github.com`` authority bypasses, empty path components, and
+  dot-leading owners are rejected and never reach ``gh`` in either script
+  (the evaluator's F1 mis-target class)
 - a tree with no origin warns and exits 0 in bare, --secrets/--dispatch,
   and --check modes without touching ``gh``
 - a failing secret probe warns and surfaces its captured diagnostic
@@ -103,6 +104,11 @@ UNRECOGNIZED_REMOTES = (
     "https://evil.invalid?x@github.com/owner/repo",
     "https://evil.invalid#x@github.com/owner/repo",
     "https://gitlab.com?x@github.com:22/owner/repo",
+    "https://github.com/a//",
+    "git@github.com:owner//",
+    "ssh://git@github.com/owner//",
+    "https://github.com/.git/repo.git",
+    "https://github.com/.../repo.git",
     "../repo",
     "/srv/git/owner/repo.git",
     ".",
