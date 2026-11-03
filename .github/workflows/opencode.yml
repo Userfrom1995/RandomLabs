@@ -1579,7 +1579,13 @@ jobs:
           exit 1
 
       - name: Post /oc review to trigger Reviewer
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.skip_forward != 'true'
+        # Issue #810: only a verify that concluded successfully may forward to
+        # the Reviewer. The retry and closed-PR handoffs publish retry=true /
+        # skip_forward=true from a successful verify, while the cap branch and
+        # the retry-enumeration-failure branch exit 1 with neither output set.
+        # Without the outcome check those failures fall through and post
+        # /oc review on an unchanged head.
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true' && steps.verify.outcome == 'success' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.skip_forward != 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
