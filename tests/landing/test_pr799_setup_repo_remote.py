@@ -15,8 +15,9 @@ Verifies:
 - GITHUB_REPOSITORY still wins over the origin remote
 - local paths, ``file://`` remotes, non-GitHub hosts, query/fragment
   ``@github.com`` authority bypasses, ``git://`` userinfo host lookalikes,
-  empty path components, and dot-leading owners are rejected and never reach
-  ``gh`` in either script (the evaluator's F1 mis-target class)
+  percent-encoded SSH authorities, empty path components, and dot-leading
+  owners are rejected and never reach ``gh`` in either script (the
+  evaluator's F1 mis-target class)
 - a tree with no origin warns and exits 0 in bare, --secrets/--dispatch,
   and --check modes without touching ``gh``
 - a failing secret probe warns and surfaces its captured diagnostic
@@ -96,6 +97,8 @@ REMOTE_CASES = (
     ("https://github.com/owner/repo", "owner/repo"),
     ("https://github.com/owner/repo/", "owner/repo"),
     ("https://github.com/owner/repo.git/", "owner/repo"),
+    ("https://github.com/alice-org/project.one.git", "alice-org/project.one"),
+    ("git@github.com:bob-lab/tool_two.git", "bob-lab/tool_two"),
 )
 
 UNRECOGNIZED_REMOTES = (
@@ -109,6 +112,9 @@ UNRECOGNIZED_REMOTES = (
     "git://user@github.com/owner/repo",
     "git://evil.invalid@github.com/owner/repo",
     "git://user@github.com:9418/owner/repo",
+    "ssh://evil.com%2f@github.com/owner/repo",
+    "ssh://evil.com%2F@github.com/owner/repo",
+    "ssh://evil.com%0a@github.com/owner/repo",
     "https://github.com/a//",
     "git@github.com:owner//",
     "ssh://git@github.com/owner//",
@@ -166,10 +172,32 @@ def make_lab_tree(destination):
             target.touch()
 
 
+DANGEROUS_NEGATIVES = (
+    "git://user@github.com/owner/repo",
+    "git://evil.invalid@github.com/owner/repo",
+    "git://user@github.com:9418/owner/repo",
+    "ssh://evil.com%2f@github.com/owner/repo",
+    "ssh://evil.com%2F@github.com/owner/repo",
+    "ssh://evil.com%0a@github.com/owner/repo",
+    "https://evil.invalid?x@github.com/owner/repo",
+    "https://evil.invalid#x@github.com/owner/repo",
+    "https://github.com/a//",
+    "git@github.com:owner//",
+    "ssh://git@github.com/owner//",
+    "https://github.com/.git/repo.git",
+    "https://github.com/.../repo.git",
+)
+
+
 class ResolverFixtureTest(unittest.TestCase):
     def test_fixture_matrices_are_populated(self):
         self.assertTrue(REMOTE_CASES)
         self.assertTrue(UNRECOGNIZED_REMOTES)
+
+    def test_every_historical_mis_target_fixture_stays_negative(self):
+        for remote in DANGEROUS_NEGATIVES:
+            with self.subTest(remote=remote):
+                self.assertIn(remote, UNRECOGNIZED_REMOTES)
 
 
 class ScriptSandbox(unittest.TestCase):
