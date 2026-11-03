@@ -320,15 +320,33 @@ jobs:
               echo "::error::${artifact} absent from workflow commit ${GITHUB_SHA}; refusing to execute the PR-head copy (fail closed)."
               exit 1
             fi
+            tracked_list=$(mktemp) || { echo "::error::Cannot allocate the trusted-path inventory for ${artifact} (fail closed)."; exit 1; }
+            untracked_list=$(mktemp) || { echo "::error::Cannot allocate the trusted-path inventory for ${artifact} (fail closed)."; exit 1; }
+            git ls-files -z -- "$artifact" > "$tracked_list" || { echo "::error::Cannot inventory ${artifact} (fail closed)."; exit 1; }
             rm -rf "$artifact"
-            git archive "${GITHUB_SHA}" -- "$artifact" | tar -x
+            git archive "${GITHUB_SHA}" -- "$artifact" | tar -x || { echo "::error::Restore of ${artifact} from ${GITHUB_SHA} failed (fail closed)."; exit 1; }
+            git ls-files -z --others -- "$artifact" > "$untracked_list" || { echo "::error::Cannot inventory untracked ${artifact} (fail closed)."; exit 1; }
+            printf '%s\n' "$artifact" >> "$(git rev-parse --git-path info/exclude)"
+            if [ -s "$tracked_list" ]; then
+              git update-index --skip-worktree -z --stdin < "$tracked_list" || { echo "::error::Cannot mark tracked ${artifact} skip-worktree (fail closed)."; exit 1; }
+            fi
+            if [ -s "$untracked_list" ]; then
+              git add -N -f --pathspec-from-file=- --pathspec-file-nul < "$untracked_list" || { echo "::error::Cannot mark untracked ${artifact} intent-to-add (fail closed)."; exit 1; }
+              git update-index --skip-worktree -z --stdin < "$untracked_list" || { echo "::error::Cannot mark untracked ${artifact} skip-worktree (fail closed)."; exit 1; }
+            fi
+            rm -f "$tracked_list" "$untracked_list"
             if [ ! -e "$artifact" ]; then
               echo "::error::Restore of ${artifact} from ${GITHUB_SHA} yielded nothing (fail closed)."
               exit 1
             fi
-            printf '%s\n' "$artifact" >> "$(git rev-parse --git-path info/exclude)"
           done
-          echo "Restored .github/actions/opencode-run and .github/scripts/post-peros-findings.sh from workflow commit ${GITHUB_SHA}; the checked-out editions are never executed."
+          dirty=$(git status --porcelain) || { echo "::error::Cannot read the workspace state (fail closed)."; exit 1; }
+          if [ -n "$dirty" ]; then
+            echo "::error::Workspace is dirty before the per-OS agent starts; refusing a session the end-of-session auto-commit could contaminate (issue #807)."
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+          echo "Restored .github/actions/opencode-run and .github/scripts/post-peros-findings.sh from workflow commit ${GITHUB_SHA}; the checked-out editions are never executed and never auto-committed."
 
       - name: Run Linux tester agent
         id: test
@@ -804,15 +822,33 @@ jobs:
               echo "::error::${artifact} absent from workflow commit ${GITHUB_SHA}; refusing to execute the PR-head copy (fail closed)."
               exit 1
             fi
+            tracked_list=$(mktemp) || { echo "::error::Cannot allocate the trusted-path inventory for ${artifact} (fail closed)."; exit 1; }
+            untracked_list=$(mktemp) || { echo "::error::Cannot allocate the trusted-path inventory for ${artifact} (fail closed)."; exit 1; }
+            git ls-files -z -- "$artifact" > "$tracked_list" || { echo "::error::Cannot inventory ${artifact} (fail closed)."; exit 1; }
             rm -rf "$artifact"
-            git archive "${GITHUB_SHA}" -- "$artifact" | tar -x
+            git archive "${GITHUB_SHA}" -- "$artifact" | tar -x || { echo "::error::Restore of ${artifact} from ${GITHUB_SHA} failed (fail closed)."; exit 1; }
+            git ls-files -z --others -- "$artifact" > "$untracked_list" || { echo "::error::Cannot inventory untracked ${artifact} (fail closed)."; exit 1; }
+            printf '%s\n' "$artifact" >> "$(git rev-parse --git-path info/exclude)"
+            if [ -s "$tracked_list" ]; then
+              git update-index --skip-worktree -z --stdin < "$tracked_list" || { echo "::error::Cannot mark tracked ${artifact} skip-worktree (fail closed)."; exit 1; }
+            fi
+            if [ -s "$untracked_list" ]; then
+              git add -N -f --pathspec-from-file=- --pathspec-file-nul < "$untracked_list" || { echo "::error::Cannot mark untracked ${artifact} intent-to-add (fail closed)."; exit 1; }
+              git update-index --skip-worktree -z --stdin < "$untracked_list" || { echo "::error::Cannot mark untracked ${artifact} skip-worktree (fail closed)."; exit 1; }
+            fi
+            rm -f "$tracked_list" "$untracked_list"
             if [ ! -e "$artifact" ]; then
               echo "::error::Restore of ${artifact} from ${GITHUB_SHA} yielded nothing (fail closed)."
               exit 1
             fi
-            printf '%s\n' "$artifact" >> "$(git rev-parse --git-path info/exclude)"
           done
-          echo "Restored .github/actions/opencode-run and .github/scripts/post-peros-findings.sh from workflow commit ${GITHUB_SHA}; the checked-out editions are never executed."
+          dirty=$(git status --porcelain) || { echo "::error::Cannot read the workspace state (fail closed)."; exit 1; }
+          if [ -n "$dirty" ]; then
+            echo "::error::Workspace is dirty before the per-OS agent starts; refusing a session the end-of-session auto-commit could contaminate (issue #807)."
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+          echo "Restored .github/actions/opencode-run and .github/scripts/post-peros-findings.sh from workflow commit ${GITHUB_SHA}; the checked-out editions are never executed and never auto-committed."
 
       - name: Run macOS tester agent
         id: test
@@ -1345,15 +1381,33 @@ jobs:
               echo "::error::${artifact} absent from workflow commit ${GITHUB_SHA}; refusing to execute the PR-head copy (fail closed)."
               exit 1
             fi
+            tracked_list=$(mktemp) || { echo "::error::Cannot allocate the trusted-path inventory for ${artifact} (fail closed)."; exit 1; }
+            untracked_list=$(mktemp) || { echo "::error::Cannot allocate the trusted-path inventory for ${artifact} (fail closed)."; exit 1; }
+            git ls-files -z -- "$artifact" > "$tracked_list" || { echo "::error::Cannot inventory ${artifact} (fail closed)."; exit 1; }
             rm -rf "$artifact"
-            git archive "${GITHUB_SHA}" -- "$artifact" | tar -x
+            git archive "${GITHUB_SHA}" -- "$artifact" | tar -x || { echo "::error::Restore of ${artifact} from ${GITHUB_SHA} failed (fail closed)."; exit 1; }
+            git ls-files -z --others -- "$artifact" > "$untracked_list" || { echo "::error::Cannot inventory untracked ${artifact} (fail closed)."; exit 1; }
+            printf '%s\n' "$artifact" >> "$(git rev-parse --git-path info/exclude)"
+            if [ -s "$tracked_list" ]; then
+              git update-index --skip-worktree -z --stdin < "$tracked_list" || { echo "::error::Cannot mark tracked ${artifact} skip-worktree (fail closed)."; exit 1; }
+            fi
+            if [ -s "$untracked_list" ]; then
+              git add -N -f --pathspec-from-file=- --pathspec-file-nul < "$untracked_list" || { echo "::error::Cannot mark untracked ${artifact} intent-to-add (fail closed)."; exit 1; }
+              git update-index --skip-worktree -z --stdin < "$untracked_list" || { echo "::error::Cannot mark untracked ${artifact} skip-worktree (fail closed)."; exit 1; }
+            fi
+            rm -f "$tracked_list" "$untracked_list"
             if [ ! -e "$artifact" ]; then
               echo "::error::Restore of ${artifact} from ${GITHUB_SHA} yielded nothing (fail closed)."
               exit 1
             fi
-            printf '%s\n' "$artifact" >> "$(git rev-parse --git-path info/exclude)"
           done
-          echo "Restored .github/actions/opencode-run and .github/scripts/post-peros-findings.sh from workflow commit ${GITHUB_SHA}; the checked-out editions are never executed."
+          dirty=$(git status --porcelain) || { echo "::error::Cannot read the workspace state (fail closed)."; exit 1; }
+          if [ -n "$dirty" ]; then
+            echo "::error::Workspace is dirty before the per-OS agent starts; refusing a session the end-of-session auto-commit could contaminate (issue #807)."
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+          echo "Restored .github/actions/opencode-run and .github/scripts/post-peros-findings.sh from workflow commit ${GITHUB_SHA}; the checked-out editions are never executed and never auto-committed."
 
       - name: Run Windows tester agent
         id: test
