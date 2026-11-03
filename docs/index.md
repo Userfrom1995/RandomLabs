@@ -55,7 +55,7 @@ Build
 
 Review
   Build output ──► Reviewer
-  findings ──► Fixer / Lab Engineer (/oc fix) ──► Reviewer
+  findings ──► Fixer (/oc fix) / Lab Engineer (/oc lab) ──► Reviewer
   clean ──► Tester (/oc test)
 
 Test
