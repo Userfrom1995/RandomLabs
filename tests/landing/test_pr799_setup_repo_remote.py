@@ -12,14 +12,18 @@ Verifies:
   (scp-style, ``ssh://``, with port), git, and trailing-slash remotes to
   ``owner/repo`` and writes secrets / dispatches against exactly that slug
 - GITHUB_REPOSITORY still wins over the origin remote
-- local paths, ``file://`` remotes, and non-GitHub hosts are rejected and
-  never reach ``gh`` in either script (the evaluator's F1 mis-target class)
+- local paths, ``file://`` remotes, non-GitHub hosts, and query/fragment
+  ``@github.com`` authority bypasses are rejected and never reach ``gh`` in
+  either script (the evaluator's F1 mis-target class)
 - a tree with no origin warns and exits 0 in bare, --secrets/--dispatch,
   and --check modes without touching ``gh``
 - a failing secret probe warns and surfaces its captured diagnostic
 - shutdown.sh --purge targets the suffix-free slug, honors
-  GITHUB_REPOSITORY, and its --check mode survives a missing origin
-- the four drifted documents state the real setup modes
+  GITHUB_REPOSITORY over a recognized origin, and its --check mode survives
+  a missing origin
+- a malformed GITHUB_REPOSITORY override falls back to the origin with a
+  neutral notice, including on the secret-write and purge paths
+- the five documentation surfaces state the real setup modes
 - the changed files carry zero em dashes (lab formatting invariant)
 
 The mock ``gh`` proves interception before the scenario matrix and every
@@ -80,6 +84,7 @@ sys.exit(1)
 
 REMOTE_CASES = (
     ("https://github.com/owner/repo.git", "owner/repo"),
+    ("http://github.com/owner/repo.git", "owner/repo"),
     ("git@github.com:owner/repo.git", "owner/repo"),
     ("ssh://git@github.com/owner/repo.git", "owner/repo"),
     ("ssh://git@github.com:22/owner/repo.git", "owner/repo"),
@@ -95,13 +100,15 @@ UNRECOGNIZED_REMOTES = (
     "https://gitlab.com/owner/repo.git",
     "https://github.com.evil.example/owner/repo.git",
     "https://github.com:22evil/owner/repo.git",
+    "https://evil.invalid?x@github.com/owner/repo",
+    "https://evil.invalid#x@github.com/owner/repo",
+    "https://gitlab.com?x@github.com:22/owner/repo",
     "../repo",
     "/srv/git/owner/repo.git",
     ".",
 )
 
 FIRST_RUN_FLAGS = {"--secrets", "--dispatch"}
-SECRET_NAMES = ["OPENCODE_API_KEY", "OPENCODE_PAT"]
 SCRUBBED_ENV = (
     "GITHUB_TOKEN",
     "GH_TOKEN",
@@ -232,28 +239,6 @@ class ScriptSandbox(unittest.TestCase):
             if line.strip()
         ]
 
-    def repo_targets(self):
-        targets = []
-        for call in self.gh_calls():
-            if "--repo" in call:
-                targets.append(call[call.index("--repo") + 1])
-        return targets
-
-    def secret_sets(self):
-        return [
-            call[2] for call in self.gh_calls() if call[:2] == ["secret", "set"]
-        ]
-
-    def secret_deletes(self):
-        return [
-            call[2] for call in self.gh_calls() if call[:2] == ["secret", "delete"]
-        ]
-
-    def dispatches(self):
-        return [
-            call for call in self.gh_calls() if call[:2] == ["workflow", "run"]
-        ]
-
 
 class SetupRepoResolutionTest(ScriptSandbox):
     def test_standard_clone_remotes_target_the_suffix_free_slug(self):
@@ -302,8 +287,29 @@ class SetupRepoResolutionTest(ScriptSandbox):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("GITHUB_REPOSITORY is not a valid owner/repo slug", result.stdout)
+        self.assertIn("ignoring it and trying the origin remote", result.stdout)
+        self.assertNotIn("will be skipped", result.stdout)
         self.assertEqual(
             self.gh_calls(), [["secret", "list", "--repo", "owner/repo"]]
+        )
+
+    def test_malformed_github_repository_falls_back_on_a_write(self):
+        self.set_origin("https://github.com/owner/repo.git")
+        result = self.run_script(
+            "setup.sh", "--secrets", "--dispatch", repo_env="../repo"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("GITHUB_REPOSITORY is not a valid owner/repo slug", result.stdout)
+        self.assertIn("ignoring it and trying the origin remote", result.stdout)
+        self.assertNotIn("will be skipped", result.stdout)
+        self.assertEqual(
+            self.gh_calls(),
+            [
+                ["secret", "list", "--repo", "owner/repo"],
+                ["secret", "set", "OPENCODE_API_KEY", "--repo", "owner/repo"],
+                ["secret", "set", "OPENCODE_PAT", "--repo", "owner/repo"],
+                ["workflow", "run", "maintainer.yml", "--repo", "owner/repo"],
+            ],
         )
 
     def test_unrecognized_remotes_never_target_a_repo(self):
@@ -424,6 +430,20 @@ class ShutdownRepoResolutionTest(ScriptSandbox):
             ],
         )
 
+    def test_github_repository_keeps_precedence_over_a_recognized_origin(self):
+        self.set_origin("https://github.com/ignored/remote.git")
+        result = self.run_script(
+            "shutdown.sh", "--yes", "--purge", repo_env="example/random-labs"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.gh_calls(),
+            [
+                ["secret", "delete", "OPENCODE_API_KEY", "--repo", "example/random-labs"],
+                ["secret", "delete", "OPENCODE_PAT", "--repo", "example/random-labs"],
+            ],
+        )
+
     def test_malformed_github_repository_falls_back_to_the_origin(self):
         self.set_origin("https://github.com/owner/repo.git")
         result = self.run_script(
@@ -431,6 +451,8 @@ class ShutdownRepoResolutionTest(ScriptSandbox):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("GITHUB_REPOSITORY is not a valid owner/repo slug", result.stdout)
+        self.assertIn("ignoring it and trying the origin remote", result.stdout)
+        self.assertNotIn("purge will not delete secrets", result.stdout)
         self.assertEqual(
             self.gh_calls(),
             [
@@ -438,6 +460,14 @@ class ShutdownRepoResolutionTest(ScriptSandbox):
                 ["secret", "delete", "OPENCODE_PAT", "--repo", "owner/repo"],
             ],
         )
+
+    def test_unresolved_purge_does_not_announce_purge_mode(self):
+        result = self.run_script("shutdown.sh", "--yes", "--purge")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("could not determine the GitHub repo", result.stdout)
+        self.assertIn("purge will not delete secrets", result.stdout)
+        self.assertNotIn("Purge mode:", result.stdout)
+        self.assertEqual(self.gh_calls(), [])
 
     def test_check_mode_survives_a_missing_origin(self):
         result = self.run_script("shutdown.sh", "--check")
@@ -450,12 +480,12 @@ class ShutdownRepoResolutionTest(ScriptSandbox):
 class DocumentationTruthTest(unittest.TestCase):
     def test_site_quickstart_names_both_secrets_and_dispatch(self):
         text = read(DOCS_HTML)
-        quickstart = text.split("bash setup.sh", 1)[0].splitlines()[-1]
+        quickstart = " ".join(text.split("bash setup.sh", 1)[0].splitlines()[-2:])
         self.assertIn("write the required secrets", quickstart)
         self.assertIn("dispatch the Maintainer once", quickstart)
         command = text.split("bash setup.sh", 1)[1].splitlines()[0]
         self.assertEqual(set(command.split()), FIRST_RUN_FLAGS)
-        self.assertIn("The Actions tab can dispatch only", text)
+        self.assertIn("maintainer -> Run workflow (dispatch only)", text)
 
     def test_agents_summary_describes_the_real_bare_mode(self):
         text = " ".join(
@@ -465,7 +495,7 @@ class DocumentationTruthTest(unittest.TestCase):
         self.assertIn("`--secrets` writes the required repo secrets", text)
         self.assertIn("`--dispatch` dispatches the Maintainer once", text)
         self.assertIn("`--check` alone is read-only", text)
-        self.assertIn("once the lab file checks pass", text)
+        self.assertIn("once the lab file and target-repo checks pass", text)
         self.assertNotIn("validate/setup/secrets/dispatch", text)
 
     def test_lab_first_run_and_setup_claims_are_accurate(self):
