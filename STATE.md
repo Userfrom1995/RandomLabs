@@ -1,27 +1,27 @@
 # STATE
 
-Last updated: 2026-11-03T03:33Z by run 41572137273. Wake: `issue_comment` on PR #808 (the owner-authored round-4 review verdict at 03:25:38Z) plus the review workflow's `/oc lab` forward at 03:25:42Z. The #808 lab lane is live on `a981e274`; the #788 recovery review waits on the failure-triage cooldown (earliest 03:46Z); four lanes are still in their agent passes.
+Last updated: 2026-11-03T03:39Z by run 41573193791. Wake: owner-authored `/oc maintainer` at 03:36:12Z after the #808 lab push (lab run 41572141901 SUCCESS at 03:36:21Z). The branch moved `a981e274` -> `46732940`, the round-5 review is live on the new head, and the #788 manual review waits on the failure-triage cooldown (earliest 03:46Z). Every other lane is in its agent pass.
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and post hardcoded PAT triggers that route work to the right agent. I never post `/oc` comments myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 03:25-03:33Z)
+## Right now (surveyed 03:36-03:39Z)
 
-- **main** = `97bf24bf0a2cfc3cde432ff288c30a271005cb89`, unchanged. Trigger allowlist exact 19/19 against the live lab-authored workflow names (`maintainer` self-excluded; Dependabot Updates, Dependency Graph and pages-build-deployment are GitHub dynamic). Zero held `action_required` runs. No stray `opencode/schedule-*` / `opencode/dispatch-*` branches. Open PRs: #809, #808, #804, #788, #745. Open issues: 22. Every active PR head is MERGEABLE/CLEAN except #745 CONFLICTING/DIRTY. Pages green at 03:03:39Z on `main`. The only recent cancelled runs are maintainer `workflow_run` fan-out (skip-only, designed #601 semantics).
-- **#808**: head `a981e274e32228aa1c425c176e27ad0c19afe8b3`, MERGEABLE/CLEAN, 11 files (+931/-36). Round-4 review `41569440604` completed SUCCESS at 03:25:46Z with a **lab** verdict. Blocking F1: both resolvers strip the trailing slash after the `*/*` guard, so an empty final path component collapses to a different slug (`https://github.com/a//` -> `a/a`, `git@github.com:owner//` -> `owner/owner`) and `--secrets`, `--dispatch`, `--purge` would target a different repository; the reviewer's verified correction is removing the second `path="${path%/}"` in both scripts plus the three double-slash fixtures (20/20 green with the fix, 6 failures without). Blocking F2: the live PR body still carries the round-3 ledger/counts and a false "path-like components skip every write" claim, so it needs `gh pr edit 808`. The round-4 F1-F4 fixes otherwise hold (query/fragment authority bypass closed, neutral fallback warnings, mutation-proven F3/F4 write-path and precedence tests). The owner's `/oc lab` at 03:25:42Z started Lab Engineer `41572141901`, live on this head since 03:25:44Z.
-- **#788**: head `c7c3ff31a2aa06bc527294eebc69647d52315961`, MERGEABLE/CLEAN, unchanged. Round-9 review `41569951985` died at 03:15:56Z on the #754 per-egress free-usage wall (about 11 served minutes, `retry-after` 75423s); no verdict, no decision file, and the verify refused an auto-retry because the thread's review lifetime budget is spent (#803). The wall sample is on #70 (03:24:40Z) and the wall-death status note is on #788 (03:24:41Z). The recovery review is held to the 30-minute failure-triage cooldown (earliest 03:46Z) and is a manual dispatch only.
-- **#809**: head `7c3ab4f4dbddb164fb96255b9ebd3e9a7a1561f9`, body still 1,921 chars with no delegation ledger; the body-only lab `41568177399` is live since 02:46:39Z (about 46 minutes). It must use `gh pr edit`, because #811 documents that the lab resume path drops agent metadata.
-- **#804**: head `d1a4b5c90be4ad6251a6361a5afa05fc1a317e90`; lab `41569642729` is live since 03:01:20Z on the round-3 B1-B4 findings (B1/B2 are owner-PAT exfiltration paths).
-- **#810**: lab `41568183890` is live since 02:46:42Z; no branch or PR yet, so #811 stays queued behind it. #811 is triaged (maintainer comment 02:51:20Z).
+- **main** = `97bf24bf0a2cfc3cde432ff288c30a271005cb89`, unchanged. Trigger allowlist exact 19/19 against the live lab-authored workflow names (`maintainer` self-excluded; Dependabot Updates, Dependency Graph and pages-build-deployment are GitHub dynamic). Zero held `action_required` runs. No stray `opencode/schedule-*` / `opencode/dispatch-*` branches. Open PRs: #809, #808, #804, #788, #745. Open issues: 22. Every active PR head is MERGEABLE/CLEAN except #745 CONFLICTING/DIRTY. Pages green at 03:36:29Z on `main`.
+- **#808**: head `46732940650ef34c7e8064ca717f953561690d57`, MERGEABLE/CLEAN, 12 files, 15 commits. Lab run `41572141901` completed SUCCESS at 03:36:21Z and pushed `2afdcc9b` (resolver fix) and `46732940` (round-5 ledger). Verified independently from a `git archive` extraction of the branch: no second `path="${path%/}"` in either script, the whole unstripped authority is validated by `^([^@/?#[:space:]]+@)?github\.com(:[0-9]{1,5})?$`, `valid_repo_slug` rejects dot-leading owners, the three double-slash shapes are negative fixtures, targeted suite 20/20 OK, landing discovery 65/65 OK, `bash -n` clean. The live PR body is 4,005 chars and carries the round-5 ledger plus the true ten-positive/fifteen-negative counts, so round-4 F2 is closed. Review `41573177649` is live on the new head from the lab forward at 03:36:03Z; `41573193598` is the skip-only fan-out for this wake.
+- **#788**: head `c7c3ff31a2aa06bc527294eebc69647d52315961`, MERGEABLE/CLEAN, unchanged. Round-9 review `41569951985` died at 03:15:56Z on the #754 per-egress free-usage wall with no verdict; the review lifetime budget is spent (#803), so the recovery is one manual review at the first tick at or after the 30-minute failure-triage cooldown (earliest 03:45:56Z; the ~03:56Z schedule tick owns it).
+- **#809**: head `7c3ab4f4dbddb164fb96255b9ebd3e9a7a1561f9`, MERGEABLE/CLEAN, body still 1,921 chars with no delegation ledger. The body-only lab `41568177399` is live since 02:46:36Z (about 52 minutes) and must use `gh pr edit`, because #811 documents that the lab resume path drops agent metadata.
+- **#804**: head `d1a4b5c90be4ad6251a6361a5afa05fc1a317e90`; lab `41569642729` is live since 03:01:17Z on the round-3 B1-B4 findings (B1/B2 are owner-PAT exfiltration paths).
+- **#810**: lab `41568183890` is live since 02:46:39Z; no branch or PR yet, so #811 stays queued behind it. #811 is triaged (maintainer comment 02:51:20Z).
 - **#811** remains queued behind #810 because both would add the next `silent-stall-audit.sh` rule.
 - **No merge candidate**: the #808 tester marker is bound to the old head `cf626b9c`, the #788 tester markers predate `c7c3ff31`, and no head carries a fresh owner-authored approve-eval marker.
-- **#745** parked CONFLICTING/DIRTY at `7a04fa4a`. **#803** queued behind the #788/#792 lanes by its own scope note. **#792** waits behind #788; #786 stays open until the #788 merge. #773/#774/#775 parked. #742 stays open behind #745. Trackers #657/#655/#661/#659/#678/#677/#683/#582 and boards #70/#42 stay open.
+- **#745** parked CONFLICTING/DIRTY at `7a04fa4a`. **#803** queued behind the #788/#792 lanes. **#792** waits behind #788; #786 stays open until the #788 merge. **#773/#774/#775 parked**. #742 stays open behind #745. Trackers #657/#655/#661/#659/#678/#677/#683/#582 and boards #70/#42 stay open.
 
 ## The live recovery lanes (do not duplicate)
 
-1. #808 lab `41572141901` on `a981e274` (the double-slash mis-target plus the PR-body refresh); on push the lab workflow forwards `/oc review`, then the read-only Tester, then the binding eval, then the head-bound merge with `Closes #799`.
-2. #788 manual review on `c7c3ff31` (due at the first tick at or after the failure cooldown, >= 03:46Z); on clean the workflow forwards the Tester, then the delegated native rows, then the binding eval, then the head-bound merge and the #786 close. On another wall death, re-dispatch the review after the next cooldown on a fresh runner; never park on the `retry-after` value.
+1. #808 review `41573177649` on `46732940`; on clean the workflow forwards the read-only Tester, then the binding eval, then the head-bound merge with `Closes #799`.
+2. #788 manual review on `c7c3ff31` at the first tick at or after 03:45:56Z; on clean the workflow forwards the Tester, then the delegated native rows, then the binding eval, then the head-bound merge and the #786 close. Another wall death is a fresh-runner re-dispatch after the next cooldown; never park on `retry-after`.
 3. #809 body-only lab `41568177399`; verify the ledger lands, then let the lab forward the one manual review on `7c3ab4f4` (or a newer head), then the read-only Tester, eval, merge with `Closes #807`.
 4. #804 lab `41569642729`; on push the lab workflow forwards `/oc review`. Then the read-only Tester, eval, merge with `Closes #798`. Never `fix`/`continue` on this infra PR.
 5. #810 lab `41568183890`; verify its branch/PR before the next review. Then review, test, eval, merge with `Closes #810`.
@@ -40,8 +40,8 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## The #808 chain
 
-1. Read the lab push and its forwarded review; verify the second `path="${path%/}"` is gone in both scripts, the three double-slash fixtures exist, and the PR body carries the current ledger with no false path-like claim.
-2. On a clean review the workflow forwards the read-only Tester; then the binding eval; then the head-bound merge with `Closes #799`.
+1. Read the round-5 review verdict on `46732940`; the double-slash fix, the fixtures, and the refreshed body are verified, so a clean verdict should now forward the read-only Tester.
+2. Tester approval binds the settled head; then the binding eval; then the head-bound merge with `Closes #799`.
 3. If the review returns `lab` again, route lab on the exact new finding; never `fix` or `continue` on this infra PR.
 
 ## The #804 chain
@@ -52,22 +52,22 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## The #788 chain
 
-1. At the first tick at or after 03:46Z, dispatch exactly one manual `review` on `c7c3ff31`; a tick before that must hold and log the cooldown. A clean approval makes the workflow forward `/oc test`, a `fix` verdict starts the Fixer through its own forward, and another provider-wall death is a fresh-runner re-dispatch after the next cooldown.
+1. At the first tick at or after 03:45:56Z, dispatch exactly one manual `review` on `c7c3ff31`; a tick before that must hold and log the cooldown. A clean approval makes the workflow forward `/oc test`, a `fix` verdict starts the Fixer through its own forward, and another provider-wall death is a fresh-runner re-dispatch after the next cooldown.
 2. On Tester approval dispatch at least a fresh macOS row (the delegated acceptance) and a Linux row as warranted on the tester-settled head, so the native evidence binds the final head.
 3. On a clean macOS and Linux pass, dispatch the binding eval on the new head; on `approve-eval`, verify the owner-authored marker is head-bound and newer than the Tester marker and the latest eval trigger, with no newer fix or rejection, then merge `--rebase` (fallback `--merge`, branch kept), close #786 with the native evidence (the PR body says `Refs`, so this is a manual close), and dispatch `build` #792.
 4. Do not treat unchanged-head markers from the spurious 14:51/15:58 chain as fresh. The review and fix lifetime budgets are spent, so any crash needs a manual dispatch.
 
 ## The serialized infra queue
 
-1. Live this tick: #808 lab, #809 body-only lab, #804 lab, #810 lab; the #788 manual review becomes eligible at 03:46Z.
-2. Next tick: the #808, #804 and #788 handoffs land from their workflows; #809's body verification and its one manual review.
+1. Live this tick: #808 review, #809 body-only lab, #804 lab, #810 lab; the #788 manual review becomes eligible at 03:45:56Z.
+2. Next tick: the #808 review verdict and its Tester forward; the #788 manual review; #809's body verification and its one manual review.
 3. Dispatch #811 the moment #810's lane produces its PR (or ends); then #811 review/test/eval.
 4. #803 (lifetime retry budgets) after the #788/#792 lanes settle; #745 after that; #773/#774/#775 parked.
 5. #792 immediately after the #788 merge; close #786 on the same evidence.
 
 ## Loose ends board
 
-1. **#808**: lab live on `a981e274`; verify the double-slash fix and the refreshed PR body before the forwarded review is trusted.
+1. **#808**: round-5 review live on `46732940`; the lab push is verified (double-slash fix, fixtures, refreshed body).
 2. **#788**: manual review due after the failure cooldown on `c7c3ff31`; watch for a moved head, a `fix` verdict, or another wall kill.
 3. **#809**: body lab live; verify the 1,921-char body becomes the ledger before the one manual review.
 4. **#804**: lab live on B1-B4 (two owner-PAT exfiltration paths); watch the pushed head and the forwarded review.
@@ -88,8 +88,8 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Next run
 
-1. At the first tick at or after 03:46Z, dispatch exactly one manual `review` on `c7c3ff31`; a tick before that must hold and log the cooldown. On clean let the workflow forward `/oc test`; on `fix` let its forward start the Fixer; on another wall death re-dispatch after the next cooldown on a fresh runner.
-2. Read the #808 lab push and its forwarded review; verify the double-slash fix, the fixtures, and the refreshed PR body.
+1. At the first tick at or after 03:45:56Z, dispatch exactly one manual `review` on `c7c3ff31`; a tick before that must hold and log the cooldown. On clean let the workflow forward `/oc test`; on `fix` let its forward start the Fixer; on another wall death re-dispatch after the next cooldown on a fresh runner.
+2. Read the #808 round-5 review verdict on `46732940` and let its forward route the next lane (Tester on approval, lab on another finding).
 3. Verify the #809 body edit (ledger present) and let its lab forward the one manual review; dispatch it only if the lab ended without one.
 4. Read the #804 lab push and its forwarded review; route the next lane from the verdict.
 5. Verify the #810 PR and immediately dispatch lab #811 (or dispatch #811 if #810 ended without a PR).
@@ -98,7 +98,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Open questions
 
-1. Does the #808 lab close the double-slash collapse and refresh the PR body so a fresh review can approve `a981e274` (or a newer head)?
+1. Does the round-5 review approve `46732940` now that the double-slash collapse and the stale body are both closed?
 2. Does the post-cooldown fresh-runner review approve `c7c3ff31` and let the Tester run, or does it hit the wall/fix again?
 3. Does the #809 `gh pr edit` body pass land the ledger so its single manual review can run?
 4. Does the #804 lab close B1-B4, including both owner-PAT exfiltration paths?
