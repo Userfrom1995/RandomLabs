@@ -9,13 +9,14 @@ the repo cannot be resolved.
 
 Verifies:
 - setup.sh resolves HTTPS (plain, credentialed, ``.git/``), SSH
-  (scp-style, ``ssh://``, with port), git, and trailing-slash remotes to
-  ``owner/repo`` and writes secrets / dispatches against exactly that slug
+  (scp-style, ``ssh://``, with port), git (with and without a port), and
+  trailing-slash remotes to ``owner/repo`` and writes secrets / dispatches
+  against exactly that slug
 - GITHUB_REPOSITORY still wins over the origin remote
 - local paths, ``file://`` remotes, non-GitHub hosts, query/fragment
-  ``@github.com`` authority bypasses, empty path components, and
-  dot-leading owners are rejected and never reach ``gh`` in either script
-  (the evaluator's F1 mis-target class)
+  ``@github.com`` authority bypasses, ``git://`` userinfo host lookalikes,
+  empty path components, and dot-leading owners are rejected and never reach
+  ``gh`` in either script (the evaluator's F1 mis-target class)
 - a tree with no origin warns and exits 0 in bare, --secrets/--dispatch,
   and --check modes without touching ``gh``
 - a failing secret probe warns and surfaces its captured diagnostic
@@ -91,6 +92,7 @@ REMOTE_CASES = (
     ("ssh://git@github.com:22/owner/repo.git", "owner/repo"),
     ("https://x-access-token:secret@github.com/owner/repo.git", "owner/repo"),
     ("git://github.com/owner/repo.git", "owner/repo"),
+    ("git://github.com:9418/owner/repo.git", "owner/repo"),
     ("https://github.com/owner/repo", "owner/repo"),
     ("https://github.com/owner/repo/", "owner/repo"),
     ("https://github.com/owner/repo.git/", "owner/repo"),
@@ -104,6 +106,9 @@ UNRECOGNIZED_REMOTES = (
     "https://evil.invalid?x@github.com/owner/repo",
     "https://evil.invalid#x@github.com/owner/repo",
     "https://gitlab.com?x@github.com:22/owner/repo",
+    "git://user@github.com/owner/repo",
+    "git://evil.invalid@github.com/owner/repo",
+    "git://user@github.com:9418/owner/repo",
     "https://github.com/a//",
     "git@github.com:owner//",
     "ssh://git@github.com/owner//",
@@ -159,6 +164,12 @@ def make_lab_tree(destination):
             target.mkdir(exist_ok=True)
         else:
             target.touch()
+
+
+class ResolverFixtureTest(unittest.TestCase):
+    def test_fixture_matrices_are_populated(self):
+        self.assertTrue(REMOTE_CASES)
+        self.assertTrue(UNRECOGNIZED_REMOTES)
 
 
 class ScriptSandbox(unittest.TestCase):
@@ -490,7 +501,9 @@ class DocumentationTruthTest(unittest.TestCase):
         self.assertIn("write the required secrets", quickstart)
         self.assertIn("dispatch the Maintainer once", quickstart)
         command = text.split("bash setup.sh", 1)[1].splitlines()[0]
-        self.assertEqual(set(command.split()), FIRST_RUN_FLAGS)
+        tokens = command.split()
+        self.assertEqual(len(tokens), len(FIRST_RUN_FLAGS))
+        self.assertEqual(set(tokens), FIRST_RUN_FLAGS)
         self.assertIn("maintainer -> Run workflow (dispatch only)", text)
 
     def test_agents_summary_describes_the_real_bare_mode(self):

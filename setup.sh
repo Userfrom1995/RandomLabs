@@ -118,18 +118,29 @@ resolve_github_repo() {
       rest="${url#*://}"
       authority="${rest%%/*}"
       path="${rest#*/}"
-      case "$scheme" in
-        https|http|ssh|git) ;;
-        *) return 1 ;;
-      esac
       # Validate the whole unstripped authority in one anchored match. A
       # query or fragment must never smuggle an `@github.com` suffix past the
       # host check: `https://evil.invalid?x@github.com/owner/repo` is not
       # github.com, and stripping to the last `@` would accept it (review
-      # round-4 review finding F1).
-      if ! [[ "$authority" =~ ^([^@/?#[:space:]]+@)?github\.com(:[0-9]{1,5})?$ ]]; then
-        return 1
-      fi
+      # round-4 finding F1).
+      case "$scheme" in
+        https|http|ssh)
+          # Credentialed HTTPS and the ssh://git@github.com form carry
+          # userinfo, so it is allowed before the host.
+          if ! [[ "$authority" =~ ^([^@/?#[:space:]]+@)?github\.com(:[0-9]{1,5})?$ ]]; then
+            return 1
+          fi
+          ;;
+        git)
+          # git:// has no userinfo: git treats `user@github.com` as the whole
+          # hostname, so `git://evil.invalid@github.com/owner/repo` is not a
+          # github.com origin (review round-5 finding F1).
+          if ! [[ "$authority" =~ ^github\.com(:[0-9]{1,5})?$ ]]; then
+            return 1
+          fi
+          ;;
+        *) return 1 ;;
+      esac
       ;;
     *)
       return 1
