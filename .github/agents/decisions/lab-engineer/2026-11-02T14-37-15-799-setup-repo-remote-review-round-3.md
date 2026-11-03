@@ -17,11 +17,13 @@ production `Userfrom1995/RandomLabs` for secret writes, dispatches, and
 purges. That is a new destructive mis-target and is fixed here.
 
 The resolver in both scripts now extracts a slug only from recognized
-github.com origin URLs: HTTPS, HTTP, `ssh://`, and `git://` (optional
-userinfo, optional numeric port), plus scp-style `git@github.com:...`, with
-an optional trailing slash and one optional `.git` suffix. Local paths,
-`file://` URLs, non-GitHub hosts, host lookalikes, path-like components, and
-`.`/`..` are rejected with a loud warning and zero `gh` calls. `shutdown.sh`
+github.com origin URLs: HTTPS, HTTP, and `ssh://` (optional userinfo and
+numeric port), `git://` (numeric port only: git treats `user@github.com` as
+the whole hostname, so git:// carries no userinfo), plus scp-style
+`git@github.com:...`, with an optional trailing slash and one optional `.git`
+suffix. Local paths, `file://` URLs, non-GitHub hosts, host lookalikes,
+`git://` userinfo lookalikes, path-like components, and `.`/`..` are rejected
+with a loud warning and zero `gh` calls. `shutdown.sh`
 now also honors `GITHUB_REPOSITORY` as the explicit override for GitHub
 Enterprise and other hosts, and a malformed override falls back to a
 recognized origin rather than being used. The secret-skip message branches on
