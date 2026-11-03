@@ -124,10 +124,20 @@ resolve_github_repo() {
       # github.com, and stripping to the last `@` would accept it (review
       # round-4 finding F1).
       case "$scheme" in
-        https|http|ssh)
-          # Credentialed HTTPS and the ssh://git@github.com form carry
-          # userinfo, so it is allowed before the host.
+        https|http)
+          # Credentialed HTTP(S) userinfo is not percent-decoded by curl, so
+          # the host stays github.com and the existing form is safe.
           if ! [[ "$authority" =~ ^([^@/?#[:space:]]+@)?github\.com(:[0-9]{1,5})?$ ]]; then
+            return 1
+          fi
+          ;;
+        ssh)
+          # Git percent-decodes the SSH authority before it splits user and
+          # host, so `ssh://evil.com%2f@github.com/owner/repo` reaches the
+          # host `evil.com` while the raw text still ends in `@github.com`.
+          # Only a plain safe username is accepted here (review round-7
+          # finding F1).
+          if ! [[ "$authority" =~ ^([A-Za-z0-9._-]+@)?github\.com(:[0-9]{1,5})?$ ]]; then
             return 1
           fi
           ;;
