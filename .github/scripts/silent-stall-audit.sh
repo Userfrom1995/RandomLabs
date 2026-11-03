@@ -22299,6 +22299,16 @@ esac
 # pre-check, close-block exit, producer, target binding, prefixed second
 # binding, live_state override, inserted line, and handoff target one at a
 # time and require this rule to fail alone.
+#
+# Issue #810 extends the rule to the fix verify/forward pair: the retry and
+# closed-PR handoffs publish retry=true / skip_forward=true from a successful
+# verify, but the cap branch and the retry-enumeration-failure branch exit 1
+# with neither output set, so the forward needs its own fail-closed
+# `steps.verify.outcome == 'success'` requirement. This rule executes the real
+# verify body over the pushed, retry, cap, enumeration-failure, and closed-race
+# matrix, drives the real forward gate from the actual result and outputs, runs
+# the real forward body only when that gate allows it, and mutation-self-tests
+# removal of the success clause.
 r32_out=$(python3 -I - <<'PY'
 import copy
 import os
@@ -22339,6 +22349,7 @@ FIX_BASELINE_IF = "steps.fix_guard.outputs.open == 'true'"
 FIX_FORWARD_IF = (
     "always() && steps.actor_gate.outputs.run == 'true'"
     " && steps.fix_guard.outputs.open == 'true'"
+    " && steps.verify.outcome == 'success'"
     " && steps.verify.outputs.retry != 'true'"
     " && steps.verify.outputs.skip_forward != 'true'"
 )
@@ -22796,10 +22807,10 @@ if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
   # asks about the event issue instead of the resolved PR is a wrong-target
   # read, not a valid OPEN read, so the mock refuses it and the executing
   # body's `|| echo ""` turns it into the unknown state (open=false).
-  if [ "$#" -ne 9 ] || [ "${4:-}" != "--repo" ] \
-     || [ "${5:-}" != "${GITHUB_REPOSITORY:-}" ] \
-     || [ "${6:-}" != "--json" ] || [ "${7:-}" != "state" ] \
-     || [ "${8:-}" != "--jq" ] || [ "${9:-}" != ".state" ]; then
+  if [ "$#" -ne 9 ] || [ "${4:-}" != "--repo" ] \\
+     || [ "${5:-}" != "${GITHUB_REPOSITORY:-}" ] \\
+     || [ "${6:-}" != "--json" ] \\
+     || [ "${8:-}" != "--jq" ] || [ "${9:-}" != ".${7:-}" ]; then
     echo "mock gh: unexpected pr view shape: $*" >&2
     exit 1
   fi
@@ -22807,11 +22818,71 @@ if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
     echo "mock gh: unexpected PR target ${3:-<none>} (want $MOCK_EXPECTED_PR)" >&2
     exit 1
   fi
-  printf '%s\\n' "${MOCK_PR_STATE:-}"
+  case "${7:-}" in
+    state) printf '%s\\n' "${MOCK_PR_STATE:-}" ;;
+    headRefOid) printf '%s\\n' "${MOCK_HEAD:-}" ;;
+    *) echo "mock gh: unexpected pr view field ${7:-<none>}" >&2; exit 1 ;;
+  esac
   exit 0
 fi
+if [ "${1:-}" = "api" ]; then
+  url="${2:-}"
+  case "$url" in
+    *"/comments?per_page=100")
+      # Issue #810: the fix verify enumerates prior auto-retries through the
+      # paginated slurp form. A failure fixture returns nonzero so the body's
+      # fail-closed enumeration branch runs; the success fixture returns one
+      # slurp page carrying MOCK_RETRY_COUNT retry markers.
+      if [ "${MOCK_API_FAIL:-}" = "1" ]; then
+        echo "mock gh: injected comment-list failure" >&2
+        exit 1
+      fi
+      count="${MOCK_RETRY_COUNT:-0}"
+      printf '[['
+      i=0
+      while [ "$i" -lt "$count" ]; do
+        [ "$i" -gt 0 ] && printf ','
+        printf '{"user":{"login":"%s"},"body":"/oc fix (auto-retry %d)"}' \\
+          "${MOCK_REPO_OWNER:-RandomLabs}" "$((i + 1))"
+        i=$((i + 1))
+      done
+      printf ']]\\n'
+      exit 0
+      ;;
+    *"/comments")
+      body=""
+      shift 2
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          -f)
+            case "${2:-}" in
+              body=*) body="${2#body=}" ;;
+            esac
+            shift 2
+            ;;
+          *) shift ;;
+        esac
+      done
+      printf '%s\\n' "$body" >> "${MOCK_BODY_LOG:?}"
+      exit 0
+      ;;
+  esac
+  exit 1
+fi
 if [ "${1:-}" = "issue" ] && [ "${2:-}" = "comment" ]; then
-  body=$(cat)
+  body=""
+  shift 2
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --repo) shift 2 ;;
+      --body) body="${2:-}"; shift 2 ;;
+      --body-file)
+        if [ "${2:-}" = "-" ]; then body=$(cat); fi
+        shift 2
+        ;;
+      *) shift ;;
+    esac
+  done
   printf '%s\\n' "$body" >> "${MOCK_BODY_LOG:?}"
   exit 0
 fi
@@ -23018,6 +23089,7 @@ CLAUSES = {
     "steps.actor_gate.outputs.run == 'true'": lambda values: values.get("actor") == "true",
     "steps.fix_guard.outputs.open == 'true'": lambda values: values.get("open") == "true",
     "steps.review_guard.outputs.open == 'true'": lambda values: values.get("open") == "true",
+    "steps.verify.outcome == 'success'": lambda values: values.get("verify_success") == "true",
     "steps.verify.outputs.retry != 'true'": lambda values: values.get("retry") != "true",
     "steps.verify.outputs.skip_forward != 'true'": lambda values: values.get("skip_forward") != "true",
     "steps.pr-info.outputs.is_pr == 'true'": lambda values: values.get("is_pr") == "true",
@@ -23087,32 +23159,120 @@ def behavioral_fix(doc, problems):
                 problems.append("fix-guard-%s(open=%r)" % (name, values.get("open")))
             if comment_bodies(log):
                 problems.append("fix-guard-%s(posted-comment)" % name)
-        out = os.path.join(root, "out-race")
-        log = body_log(root, "verify-race")
-        result = run_script(
-            verify_body,
-            sandbox_env(
-                mock_dir,
-                {
-                    "GITHUB_OUTPUT": out,
-                    "MOCK_PR_STATE": "MERGED",
-                    "MOCK_BODY_LOG": log,
-                    "AGENT_GATE": "true",
-                    "BASELINE_HEAD": "fixture-baseline",
-                },
-            ),
-            root,
+        # Issue #810: execute the real verify body over the full outcome matrix
+        # and drive the real forward gate from the actual verify result and
+        # outputs, then run the forward body only when the gate allows it. Only
+        # a successful verify that observed a pushed head may post /oc review;
+        # the retry handoff and the closed-PR hard stop publish their own
+        # outputs, while the cap and retry-enumeration failures exit 1 with
+        # neither output set and used to fall through to the reviewer.
+        forward = exactly_one(steps, FIX_FORWARD, "fix-forward", problems)
+        if forward is None:
+            return
+        forward_body = expand(run_of(forward), allow_pr_info=False)
+        if "${{" in forward_body:
+            problems.append("fix-forward(unexpanded-expression)")
+            return
+        verify_scenarios = (
+            # name, state, head, retries, api failure, want rc, want retry,
+            # want skip_forward, want forward
+            ("pushed", "OPEN", "fixture-new-head", 0, False, 0, None, None, True),
+            ("retry", "OPEN", "fixture-baseline", 0, False, 0, "true", None, False),
+            ("cap", "OPEN", "fixture-baseline", 3, False, 1, None, None, False),
+            ("enum-failure", "OPEN", "fixture-baseline", 0, True, 1, None, None, False),
+            ("closed-race", "MERGED", "fixture-baseline", 0, False, 0, None, "true", False),
         )
-        if result.returncode != 0:
-            problems.append("fix-verify-race(rc=%d)" % result.returncode)
-        else:
+        for (
+            name,
+            state,
+            head,
+            retries,
+            api_fail,
+            want_rc,
+            want_retry,
+            want_skip,
+            want_forward,
+        ) in verify_scenarios:
+            out = os.path.join(root, "out-verify-%s" % name)
+            log = body_log(root, "verify-%s" % name)
+            extra = {
+                "GITHUB_OUTPUT": out,
+                "MOCK_PR_STATE": state,
+                "MOCK_HEAD": head,
+                "MOCK_RETRY_COUNT": str(retries),
+                "MOCK_BODY_LOG": log,
+                "MOCK_EXPECTED_PR": "781",
+                "AGENT_GATE": "true",
+                "BASELINE_HEAD": "fixture-baseline",
+            }
+            if api_fail:
+                extra["MOCK_API_FAIL"] = "1"
+            result = run_script(verify_body, sandbox_env(mock_dir, extra), root)
+            if result.returncode != want_rc:
+                problems.append(
+                    "fix-verify-%s(rc=%d,want=%d)" % (name, result.returncode, want_rc)
+                )
+                continue
             values = outputs_of(out)
-            if values.get("skip_forward") != "true":
-                problems.append("fix-verify-race(skip_forward=%r)" % values.get("skip_forward"))
-            if values.get("retry") == "true":
-                problems.append("fix-verify-race(retry-posted)")
-        if comment_bodies(log):
-            problems.append("fix-verify-race(posted-comment)")
+            if want_retry is None:
+                if values.get("retry") == "true":
+                    problems.append("fix-verify-%s(unexpected-retry)" % name)
+            elif values.get("retry") != want_retry:
+                problems.append("fix-verify-%s(retry=%r)" % (name, values.get("retry")))
+            if want_skip is None:
+                if values.get("skip_forward") == "true":
+                    problems.append("fix-verify-%s(unexpected-skip-forward)" % name)
+            elif values.get("skip_forward") != want_skip:
+                problems.append(
+                    "fix-verify-%s(skip_forward=%r)" % (name, values.get("skip_forward"))
+                )
+            want_verify_posts = (
+                ["/oc fix (auto-retry 1)"] if name == "retry" else []
+            )
+            verify_posts = comment_bodies(log)
+            if verify_posts != want_verify_posts:
+                problems.append(
+                    "fix-verify-%s(posted=%r,want=%r)"
+                    % (name, verify_posts, want_verify_posts)
+                )
+            gate_values = {
+                "actor": "true",
+                "open": "true",
+                "verify_success": "true" if result.returncode == 0 else "false",
+                "retry": values.get("retry", "false"),
+                "skip_forward": values.get("skip_forward", "false"),
+            }
+            try:
+                forward_runs = eval_expr(if_of(forward), gate_values)
+            except ValueError as exc:
+                problems.append(
+                    "fix-forward-%s(unsupported-clause=%s)" % (name, exc)
+                )
+                continue
+            if forward_runs != want_forward:
+                problems.append(
+                    "fix-forward-%s(gate=%r,want=%r)"
+                    % (name, forward_runs, want_forward)
+                )
+                continue
+            if not forward_runs:
+                continue
+            fwd_log = body_log(root, "forward-%s" % name)
+            fwd_result = run_script(
+                forward_body,
+                sandbox_env(mock_dir, {"MOCK_BODY_LOG": fwd_log}),
+                root,
+            )
+            if fwd_result.returncode != 0:
+                problems.append(
+                    "fix-forward-%s(rc=%d)" % (name, fwd_result.returncode)
+                )
+                continue
+            posted = comment_bodies(fwd_log)
+            if posted != ["/oc review"]:
+                problems.append(
+                    "fix-forward-%s(posted=%r,want=['/oc review'])" % (name, posted)
+                )
     except (OSError, subprocess.TimeoutExpired):
         problems.append("fix-behavioral-harness-failure")
     finally:
@@ -23131,15 +23291,66 @@ def simulate_fix(doc, problems):
         return
     scenarios = {
         "closed": (
-            {"actor": "true", "open": "false", "retry": "false", "skip_forward": "false"},
+            {
+                "actor": "true",
+                "open": "false",
+                "retry": "false",
+                "skip_forward": "false",
+                "verify_success": "false",
+            },
             (False, False, False, False, False, False),
         ),
         "open": (
-            {"actor": "true", "open": "true", "retry": "false", "skip_forward": "false"},
+            {
+                "actor": "true",
+                "open": "true",
+                "retry": "false",
+                "skip_forward": "false",
+                "verify_success": "true",
+            },
             (True, True, True, True, True, True),
         ),
+        "retry": (
+            {
+                "actor": "true",
+                "open": "true",
+                "retry": "true",
+                "skip_forward": "false",
+                "verify_success": "true",
+            },
+            (True, True, True, False, True, True),
+        ),
+        # Issue #810: the cap branch and the retry-enumeration failure branch
+        # both exit 1 with neither retry nor skip_forward published. The
+        # forward must stay down on the failed outcome.
+        "cap": (
+            {
+                "actor": "true",
+                "open": "true",
+                "retry": "false",
+                "skip_forward": "false",
+                "verify_success": "false",
+            },
+            (True, True, True, False, True, True),
+        ),
+        "enum-failure": (
+            {
+                "actor": "true",
+                "open": "true",
+                "retry": "false",
+                "skip_forward": "false",
+                "verify_success": "false",
+            },
+            (True, True, True, False, True, True),
+        ),
         "race": (
-            {"actor": "true", "open": "true", "retry": "false", "skip_forward": "true"},
+            {
+                "actor": "true",
+                "open": "true",
+                "retry": "false",
+                "skip_forward": "true",
+                "verify_success": "true",
+            },
             (True, True, True, False, False, False),
         ),
     }
@@ -23840,13 +24051,22 @@ MUTANTS = (
     (
         "fix-forward-guard",
         OPENCODE,
-        "steps.fix_guard.outputs.open == 'true' && steps.verify.outputs.retry",
-        "steps.verify.outputs.retry",
+        "steps.fix_guard.outputs.open == 'true' && steps.verify.outcome == 'success'",
+        "steps.verify.outcome == 'success'",
     ),
     (
         "fix-forward-skip-output",
         OPENCODE,
         " && steps.verify.outputs.skip_forward != 'true'",
+        "",
+    ),
+    # Issue #810: dropping the fail-closed success requirement re-opens the
+    # cap-forward defect (a failed verify with no outputs posts /oc review on
+    # an unchanged head).
+    (
+        "fix-forward-success-gate",
+        OPENCODE,
+        " && steps.verify.outcome == 'success'",
         "",
     ),
     (
@@ -24236,7 +24456,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab base read targets the resolved PR), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab base read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab base read targets the resolved PR), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab base read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), and removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, the per-OS forwarders could post /oc fix on a closed PR, a prefixed second live_pr/linked_pr binding or a live_state override could restore a wrong-target or dead close check, and a linked-issue handoff could land on the issue thread; the pre-fix unguarded shapes are the regression)" "bad"
