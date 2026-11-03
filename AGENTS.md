@@ -154,7 +154,9 @@ Public Surface / Web Track:                                              │
     done work; same push verification and retries.
   - an exact `/oc fix` → FIX mode: applies the reviewer's findings on the
     existing PR branch, must push (empty commit allowed), same verification
-    and up to 3 auto-retries (`/oc fix (auto-retry N)`).
+    and up to 3 auto-retries (`/oc fix (auto-retry N)`). The `/oc review`
+    handoff requires a successful verify, so the cap and the
+    retry-enumeration failure never forward an unchanged head (issue #810).
   - an exact `/oc architect` or `/oc plan` → ARCHITECT mode: drafts architectural blueprints.
   - an exact `/oc research` → RESEARCH mode: produces mathematical/algorithmic specs.
   - an exact `/oc lab` → LAB mode: implements lab infrastructure, fixes workflows, creates agents, and manages models.
