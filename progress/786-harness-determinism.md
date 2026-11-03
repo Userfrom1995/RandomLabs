@@ -179,24 +179,50 @@ Fixer round 7 (2026-11-02, this runner):
   `/bin/true` binary or depends on GNU `sha256sum`: the fixture puts
   portable `true`/`sha256sum` stubs on its PATH (macOS ships neither)
   and passes the stub binary by absolute path. The transcript-path
-  assertion is unchanged, and the compat suite is now green on both
-  hosted platforms instead of deterministically red on Darwin.
+  assertion is unchanged. The fixture itself is portable, but the macOS
+  row then found the empty-`env_args` expansion in `run-linux.sh` (see
+  round 8), so the suite was not yet green on Darwin at this head.
 - `python3 -m unittest discover -s maze-chase/tools/compat/tests`
-  -> 72 tests, OK.
-- `node --test maze-chase/web/e2e/tests/*.test.js` -> 27 tests, all
-  pass (includes the Tester's Chrome command-name regression).
+  -> 72 tests, OK on Linux.
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 27 tests at this
+  head, all pass (29 at the current head, after the later Tester
+  regressions).
 - `git diff --check` -> clean.
+
+Fixer round 8 (2026-11-03, this runner):
+
+- `run-linux.sh` passes its `--env` entries through the bash 3.2 safe
+  expansion `${env_args[@]+"${env_args[@]}"}`, so a run without
+  `--game-env` no longer aborts under macOS `/bin/bash` 3.2 `set -u`
+  before `drive.sh` runs. The transcript-path assertion is unchanged
+  and now reaches the code it pins; a source pin in
+  `test_harness_contract.py` guards the expansion form on Linux, where
+  bash 5 masks the empty-array failure.
+- Corrected the round-7 record (the suite was not green on Darwin at
+  that head; the node count there was 27, 29 at the current head).
+- `web/e2e/README.md` and the runner header now state the
+  response-body contract precisely: `site-e2e.js` drains every body,
+  including the non-OK link branch, because its local `assert` records
+  a failure without aborting the crawl.
+- `python3 -m unittest discover -s maze-chase/tools/compat/tests`
+  -> 73 tests, OK (includes the new bash-3.2 expansion pin).
+- `node --test maze-chase/web/e2e/tests/*.test.js` -> 29 tests, all pass.
+- `bash -n` on `run-linux.sh` and `run-browser-e2e.sh` -> clean;
+  `shellcheck -x` reports only the pre-existing SC2015 info at
+  `run-linux.sh:99`; `git diff --check` -> clean.
+- The macOS path cannot be executed on this runner's bash 5, so the
+  bash-3.2 behavior is delegated to the macOS row on the fixed head.
 
 ## Current step
 
-The macOS tester's first attempt returned fix on `8723172c`: the new
-`TestRunLinuxTranscriptPaths` regression hardcoded `/bin/true` (absent
-on macOS) and GNU `sha256sum`, so the 72-test compat suite was
-deterministically red on Darwin. The Fixer round makes the fixture
-portable without changing the assertion. The Tester approval
-(`8723172c`) and the round-7 review approval (`358d5c4b`) are superseded
-by this test-only fix push; awaiting re-review, a re-bound Tester
-approval, and a fresh macOS row on the settled head.
+The macOS tester's second round returned fix on `022a7677`: the
+transcript-path regression was deterministically red on Darwin because
+`run-linux.sh` expanded an empty `"${env_args[@]}"` under `set -u`,
+which macOS bash 3.2 rejects. Fixer round 8 makes that expansion
+bash-3.2 safe and corrects the record accuracy the same report flagged
+(the round-7 platform claim, the node test count, and the
+response-body wording). Awaiting re-review, a re-bound Tester approval,
+and a fresh macOS row on the settled head.
 
 ## Next steps
 
@@ -358,4 +384,21 @@ approval, and a fresh macOS row on the settled head.
 - Primary verified (fixer round 7): ran the 72-test compat suite and the
   27-test node suite; `git diff --check` clean.
 - Skills (fixer round 7): no skill fits this harness-only task
+  (customize-opencode is for opencode configuration).
+- 2026-11-03 (fixer): applied the macOS tester's second-round finding.
+  `run-linux.sh` expands `env_args` with the bash 3.2 safe
+  `${env_args[@]+"${env_args[@]}"}` form, so a run without `--game-env`
+  no longer dies under macOS bash 3.2 `set -u`. Added a source pin for
+  that form, and corrected the round-7 platform claim, the stale node
+  count (29 at this head), and the response-body wording.
+- Delegation (fixer round 8): explore (bash 3.2 array audit) ->
+  classified every array expansion in the four harness scripts and
+  confirmed the new `+` form; explore (docs/progress audit) -> found
+  the stale node count and the false platform claim, and confirmed
+  that `site-e2e.js`'s `assert` does not abort, so the non-OK branch
+  still drains its body.
+- Primary verified (fixer round 8): read every changed line; ran the
+  73-test compat suite, the 29-test node suite, `bash -n` on both
+  changed shell scripts, `shellcheck -x`, and `git diff --check`.
+- Skills (fixer round 8): no skill fits this harness-only task
   (customize-opencode is for opencode configuration).
