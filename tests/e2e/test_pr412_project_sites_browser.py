@@ -2,8 +2,8 @@
 
 Drives the shipped pages in a real Chromium via Playwright (system chromium or
 a Playwright-managed build). Prism is archived, so its source page under
-archive/prism/ remains the docs-style fixture while the live pages stay
-tor-cli and the landing page. Covers:
+archive/prism/ remains the docs-style fixture while the live sites tor-cli
+and terminal-browser are reached from the landing page. Covers:
 - clean load: zero console errors, zero page errors, zero failed requests
 - responsive layout at 1440 / 1200 / 768 / 390 with no horizontal overflow
 - mobile nav: every anchor reachable, click scrolls its section into view
@@ -324,8 +324,13 @@ class SitesBrowserE2E(unittest.TestCase):
         try:
             page.route("https://userfrom1995.github.io/RandomLabs/**", _fulfill)
             page.goto(self.base + "/index.html", wait_until="networkidle")
-            for proj, frag in (("tor-cli", "torshim"), ("terminal-browser", "Terminal Browser")):
-                link = page.locator(f'a[href$="RandomLabs/{proj}/"]').first
+            for proj, frag in (
+                ("tor-cli", "torshim"),
+                ("terminal-browser", "Terminal Browser"),
+            ):
+                link = page.locator(
+                    f'a[href$="RandomLabs/{proj}/"]', has_text="Website"
+                ).first
                 self.assertTrue(
                     link.is_visible(), f"landing {proj} Website link not visible"
                 )
