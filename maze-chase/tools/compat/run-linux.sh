@@ -217,6 +217,8 @@ exec "$BINARY" --dir "$rundir/config" $tier_flag
 RUNNER
   chmod +x "$session/run-game.sh"
 
+  # macOS ships bash 3.2, whose `set -u` rejects an empty "${arr[@]}";
+  # the `+` form below expands to nothing without naming the empty array.
   local -a env_args=()
   for kv in "${GAME_ENV[@]:-}"; do
     [ -n "$kv" ] && env_args+=(--env "$kv")
@@ -257,7 +259,7 @@ RUNNER
       --resize-wide "$WIDE" --resize-small "$SMALL" \
       --build-commit "$BUILD_COMMIT" --binary-sha256 "$BINARY_SHA256" \
       --sources-dirty "$SOURCES_DIRTY" --pause-select "$PAUSE_SELECT" \
-      "${env_args[@]}" \
+      ${env_args[@]+"${env_args[@]}"} \
       --game-pid-file "$session/game.pid" \
       --transcript "$session/pty.log" || exit_status=$?
   if [ "$exit_status" -eq 0 ]; then
