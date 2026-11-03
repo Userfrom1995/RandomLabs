@@ -275,6 +275,7 @@ jobs:
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
+          GIT_NO_REPLACE_OBJECTS: "1"
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
@@ -317,6 +318,9 @@ jobs:
           # unstaged edits; the untracked list covers new files. Review round
           # 2: the base-to-HEAD inventory is read first, because HEAD-vs-base
           # is the only view that survives a reset of the index and worktree.
+          # GIT_NO_REPLACE_OBJECTS is pinned in this step's env: without it a
+          # replace ref (git replace "$base" HEAD) rewrites every base-side
+          # view to the contaminated head and empties the entire inventory.
           changed_list=$(mktemp) || {
             echo "::error::Cannot allocate the lane inventory; failing closed (issue #807)."
             rm -f /tmp/random-lab-decision.json

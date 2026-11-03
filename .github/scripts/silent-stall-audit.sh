@@ -494,27 +494,82 @@ fi
 # exists. They used to run under a bare `if: always()`, so a crashed run (no
 # decision file) still rewrote and pushed the branch from partial state.
 LAB_WF=".github/workflows/lab.yml"
+# Issue #807 review round 1: the /tmp metadata contract reached `gh pr create`
+# only, so a resumed lab branch could never carry a corrected PR body (the
+# required delegation ledger stayed missing and blocked the review gate). The
+# push step must apply the agent-authored body/title to an existing PR too,
+# as github-actions[bot] via the job token (never the owner PAT), under the
+# same trigger-issue linkage guard as the create path.
+r11_check_lab_wf() {
+  r11_file=$1
+  r11_out=""
+  grep -q 'id: decision-gate' "$r11_file" || r11_out="${r11_out} no-decision-gate-step"
+  r11_gate=$(grep -A8 -F -- "id: decision-gate" "$r11_file" || true)
+  if ! printf '%s\n' "$r11_gate" | grep -q 'random-lab-decision\.json'; then
+    r11_out="${r11_out} decision-gate-ignores-decision-file"
+  fi
+  for r11_name in "Strip owner Co-authored-by trailers from the PR branch" "Push PR branch or direct model updates (PAT-backed)"; do
+    r11_if=$(grep -A8 -F -- "- name: ${r11_name}" "$r11_file" | grep -m1 -E '^[[:space:]]*if:' || true)
+    case "$r11_if" in
+      *"steps.decision-gate.outputs.present == 'true'"*) ;;
+      *) r11_out="${r11_out} step-not-decision-gated:$(echo "$r11_name" | cut -d' ' -f1-2)" ;;
+    esac
+  done
+  r11_push=$(awk '
+    /- name: Push PR branch or direct model updates \(PAT-backed\)/ { in_step=1; print; next }
+    in_step && /^      - name: / { exit }
+    in_step { print }
+  ' "$r11_file")
+  printf '%s\n' "$r11_push" | grep -qF '[ -s /tmp/random-lab-pr-body ]' || r11_out="${r11_out} existing-pr-body-contract-not-read"
+  # Exactly one edit invocation, in this step, on the bot token, as a live
+  # (uncommented) exact command line. A second edit line anywhere (an owner-PAT
+  # decoy), a commented-out line, or a `: ` prefix all fail structurally.
+  r11_edit_count=$(printf '%s\n' "$r11_push" | grep -cF 'gh pr edit' || true)
+  [ "$r11_edit_count" = "1" ] || r11_out="${r11_out} existing-pr-edit-invocation-count=${r11_edit_count}"
+  printf '%s\n' "$r11_push" | grep -F 'gh pr edit' | sed 's/^[[:space:]]*//' | grep -qxF 'GH_TOKEN=${{ github.token }} gh pr edit "$pr" --repo "${{ github.repository }}" "${edit_args[@]}" \' || r11_out="${r11_out} existing-pr-body-update-not-bot-authored"
+  r11_file_edits=$(grep -cF 'gh pr edit' "$r11_file" || true)
+  [ "$r11_file_edits" = "$r11_edit_count" ] || r11_out="${r11_out} existing-pr-edit-outside-push-step"
+  printf '%s\n' "$r11_push" | grep -F 'gh pr edit' | grep -qF 'OPENCODE_PAT' && r11_out="${r11_out} existing-pr-edit-owner-pat"
+  printf '%s\n' "$r11_push" | grep -qF -- '--body "$body"' || r11_out="${r11_out} existing-pr-body-update-missing"
+  printf '%s' "$r11_out"
+}
 r11_bad=""
 if [ ! -f "$LAB_WF" ]; then
   r11_bad=" lab.yml(missing)"
 else
-  grep -q 'id: decision-gate' "$LAB_WF" || r11_bad="${r11_bad} lab.yml(no-decision-gate-step)"
-  gate_block=$(grep -A8 -F -- "id: decision-gate" "$LAB_WF" || true)
-  if ! echo "$gate_block" | grep -q 'random-lab-decision\.json'; then
-    r11_bad="${r11_bad} lab.yml(decision-gate-ignores-decision-file)"
+  r11_result=$(r11_check_lab_wf "$LAB_WF")
+  if [ -n "$r11_result" ]; then
+    r11_bad=" lab.yml(${r11_result})"
   fi
-  for r11_name in "Strip owner Co-authored-by trailers from the PR branch" "Push PR branch or direct model updates (PAT-backed)"; do
-    step_if=$(grep -A8 -F -- "- name: ${r11_name}" "$LAB_WF" | grep -m1 -E '^[[:space:]]*if:' || true)
-    case "$step_if" in
-      *"steps.decision-gate.outputs.present == 'true'"*) ;;
-      *) r11_bad="${r11_bad} lab.yml(step-not-decision-gated:$(echo "$r11_name" | cut -d' ' -f1-2))" ;;
-    esac
-  done
+  r11_mutant=$(mktemp 2>/dev/null || true)
+  r11_mutant2=$(mktemp 2>/dev/null || true)
+  r11_mutant3=$(mktemp 2>/dev/null || true)
+  if [ -z "$r11_mutant" ] || [ -z "$r11_mutant2" ] || [ -z "$r11_mutant3" ]; then
+    r11_bad="${r11_bad} lab.yml(mutation-sandbox-unavailable)"
+  else
+    # Deletion: the edit line is gone.
+    sed '/GH_TOKEN=${{ github.token }} gh pr edit/d' "$LAB_WF" > "$r11_mutant"
+    if [ -z "$(r11_check_lab_wf "$r11_mutant")" ]; then
+      r11_bad="${r11_bad} lab.yml(existing-pr-body-pin-not-load-bearing)"
+    fi
+    # Owner-PAT decoy appended anywhere in the workflow.
+    cp "$LAB_WF" "$r11_mutant2"
+    printf 'GH_TOKEN=${{ secrets.OPENCODE_PAT }} gh pr edit "$pr" --body "$body"\n' >> "$r11_mutant2"
+    if [ -z "$(r11_check_lab_wf "$r11_mutant2")" ]; then
+      r11_bad="${r11_bad} lab.yml(existing-pr-edit-decoy-not-caught)"
+    fi
+    # Commented-out edit line (a present-but-dead assertion used to pass).
+    sed 's|^\([[:space:]]*\)GH_TOKEN=${{ github.token }} gh pr edit|\1# GH_TOKEN=${{ github.token }} gh pr edit|' "$LAB_WF" > "$r11_mutant3"
+    if [ -z "$(r11_check_lab_wf "$r11_mutant3")" ]; then
+      r11_bad="${r11_bad} lab.yml(existing-pr-edit-commented-not-caught)"
+    fi
+    rm -f "$r11_mutant" "$r11_mutant2" "$r11_mutant3"
+  fi
 fi
 if [ -z "$r11_bad" ]; then
-  check "R11" "lab.yml strip and push PAT steps are gated on the written decision file (crashed runs never push)" "ok"
+  check "R11" "lab.yml strip and push PAT steps are gated on the written decision file (crashed runs never push), and the push step applies the agent-authored PR body/title to an existing PR through a bot-token gh pr edit under the same linkage guard, so a corrected delegation ledger is never stranded on the create-only path (issue #807 review round 1)" "ok"
 else
-  check "R11" "post-agent PAT gate missing:${r11_bad} (issue #422 residual: an ungated always() push ships partial state from crashed runs)" "bad"
+  check "R11" "post-agent PAT gate missing:${r11_bad} (issue #422 residual: an ungated always() push ships partial state from crashed runs; issue #807 review round 1: create-only metadata strands the PR body)" "bad"
 fi
 
 # [R12] Actor write gate (issue #428): every /oc-gated agent workflow (any
@@ -8766,6 +8821,9 @@ else
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'id: lane-guard' || r22_bad="${r22_bad} test.yml(lane-guard-id-not-exact)"
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.restore-runner.outcome == 'success'" || r22_bad="${r22_bad} test.yml(lane-guard-if-not-exact)"
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'BASE_SHA: ${{ steps.restore-runner.outputs.base }}' || r22_bad="${r22_bad} test.yml(lane-guard-base-env-not-exact)"
+    # A replace ref (git replace "$base" HEAD) otherwise rewrites every
+    # base-side view to the contaminated head and empties the inventory.
+    printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GIT_NO_REPLACE_OBJECTS: "1"' || r22_bad="${r22_bad} test.yml(lane-guard-replace-refs-not-disabled)"
     printf '%s\n' "$r22_guard_block" | grep -qF "grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)'" || r22_bad="${r22_bad} test.yml(lane-guard-no-protected-pattern)"
     # Issue #807 review round 1: the inventory is NUL-delimited and every
     # failure fails closed, so C-quoted names, staged-only changes, and a
@@ -9091,6 +9149,7 @@ else
     else
       r22_807_reset() {
         git -C "$r22_807_repo" ls-files -z 2>/dev/null | xargs -0 -r git -C "$r22_807_repo" update-index --no-skip-worktree -- 2>/dev/null || true
+        rm -rf "$r22_807_repo/.git/refs/replace"
         git -C "$r22_807_repo" reset --hard -q "$r22_807_base"
         git -C "$r22_807_repo" clean -fdxq
         rm -f "$r22_807_repo/.git/info/exclude"
@@ -9198,6 +9257,17 @@ else
             rm -f "$r22_807_repo/.github/workflows/evil.yml"
             rmdir "$r22_807_repo/.github/workflows" 2>/dev/null || true
             ;;
+          replace)
+            # A replace ref rewrites the base object to the contaminated head,
+            # so every base-side inventory reads empty. The shipped step pins
+            # GIT_NO_REPLACE_OBJECTS=1; the noreplace control proves that pin
+            # is load-bearing.
+            mkdir -p "$r22_807_repo/.github/workflows"
+            printf 'evil\n' > "$r22_807_repo/.github/workflows/evil.yml"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: touch lab"
+            git -C "$r22_807_repo" replace "$r22_807_base" HEAD
+            ;;
           corrupt-index)
             printf 'not-a-git-index\n' > "$r22_807_repo/.git/corrupt-index"
             ;;
@@ -9217,10 +9287,14 @@ else
         esac
         printf '%s\n' "$r22_807_body" > "$r22_807_tmp/guard-$1-$3.sh"
         r22_807_rc=0
+        # Mirror the shipped step env: replace refs are disabled. The
+        # `noreplace` control unsets it and must reproduce the bypass.
+        r22_807_replace_env="GIT_NO_REPLACE_OBJECTS=1"
+        [ "${4:-}" = "noreplace" ] && r22_807_replace_env="-u GIT_NO_REPLACE_OBJECTS"
         if [ "$1" = "corrupt-index" ]; then
-          ( cd "$r22_807_repo" && BASE_SHA="$r22_807_base" GIT_INDEX_FILE="$r22_807_repo/.git/corrupt-index" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+          ( cd "$r22_807_repo" && env ${r22_807_replace_env} BASE_SHA="$r22_807_base" GIT_INDEX_FILE="$r22_807_repo/.git/corrupt-index" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
         else
-          ( cd "$r22_807_repo" && BASE_SHA="$r22_807_base" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+          ( cd "$r22_807_repo" && env ${r22_807_replace_env} BASE_SHA="$r22_807_base" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
         fi
         if [ "$r22_807_rc" -ne "$2" ]; then
           r22_bad="${r22_bad} lane-guard(functional-$1-$3-rc=${r22_807_rc},want=${2})"
@@ -9240,16 +9314,18 @@ else
       r22_807_guard_case untracked 1 keep
       r22_807_guard_case staged 1 keep
       r22_807_guard_case head-only 1 keep
+      r22_807_guard_case replace 1 keep
       r22_807_guard_case corrupt-index 1 keep
       r22_807_guard_case committed 0 weaken
       r22_807_guard_case head-only 0 headmutant
+      r22_807_guard_case replace 0 keep noreplace
       r22_807_guard_case corrupt-index 0 failopen
     fi
   fi
   rm -rf "$r22_807_tmp"
 fi
 if [ -z "$r22_bad" ]; then
-  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree (tracked and untracked files alike) so the end-of-session auto-commit can never stage it onto a project PR even after a .gitignore negation, and a post-agent lane guard with a pinned environment discards any verdict whose run touched a protected lab path using a NUL-delimited, fail-closed inventory that catches C-quoted names, staged-only changes, and an unreadable index (issue #807), with both real bodies executed in a sandbox against the incident shape and mutated bodies proving the fixture load-bearing" "ok"
+  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree (tracked and untracked files alike) so the end-of-session auto-commit can never stage it onto a project PR even after a .gitignore negation, and a post-agent lane guard with a pinned environment discards any verdict whose run touched a protected lab path using a NUL-delimited, fail-closed inventory that catches C-quoted names, staged-only changes, an unreadable index, and a replace-ref rewrite (GIT_NO_REPLACE_OBJECTS pinned and proven load-bearing by a control that reproduces the bypass), with both real bodies executed in a sandbox against the incident shape and mutated bodies proving the fixture load-bearing" "ok"
 else
   check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
 fi
@@ -17340,6 +17416,7 @@ EXPECTED_ARM_LANE_GUARD_ENV = {
     "GIT_EXTERNAL_DIFF": "",
     "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
     "GIT_NAMESPACE": "",
+    "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
     "GIT_SEQUENCE_EDITOR": "/bin/false",
