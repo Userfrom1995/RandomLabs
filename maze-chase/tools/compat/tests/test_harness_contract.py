@@ -662,6 +662,25 @@ class TestRunnerEntrypoints(unittest.TestCase):
                 f"Direct invocation fails with: Permission denied",
             )
 
+    def test_env_expansion_is_safe_on_bash_3_2(self):
+        # macOS /bin/bash is 3.2, where `set -u` rejects an empty
+        # "${arr[@]}" expansion. run-linux.sh always declares env_args,
+        # so a run without --game-env must not abort the drive invocation;
+        # bash 4.4+ masks that failure, hence the source pin here.
+        with open(os.path.join(COMPAT_DIR, "run-linux.sh"),
+                  encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn('${env_args[@]+"${env_args[@]}"}', body)
+        unsafe = [
+            line for line in body.splitlines()
+            if '"${env_args[@]}"' in line and '${env_args[@]+' not in line
+        ]
+        self.assertEqual(
+            unsafe, [],
+            "bash 3.2 rejects an empty \"${env_args[@]}\" under set -u; "
+            "use the ${env_args[@]+\"${env_args[@]}\"} form",
+        )
+
     def test_macos_initial_rejects_extra_separators(self):
         proc = subprocess.run(
             ["bash", os.path.join(COMPAT_DIR, "run-macos.sh"),
