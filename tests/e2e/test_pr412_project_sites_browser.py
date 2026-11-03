@@ -1,7 +1,9 @@
 """Browser E2E tests for PR #412 (Fixes #411): the tor-cli and Prism project sites.
 
 Drives the shipped pages in a real Chromium via Playwright (system chromium or
-a Playwright-managed build), covering:
+a Playwright-managed build). Prism is archived, so its source page under
+archive/prism/ remains the docs-style fixture while the live pages stay
+tor-cli and the landing page. Covers:
 - clean load: zero console errors, zero page errors, zero failed requests
 - responsive layout at 1440 / 1200 / 768 / 390 with no horizontal overflow
 - mobile nav: every anchor reachable, click scrolls its section into view
@@ -33,7 +35,7 @@ except Exception:  # pragma: no cover - optional dependency
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = {
     "tor-cli": "/tor-cli/index.html",
-    "prism": "/prism/index.html",
+    "prism": "/archive/prism/index.html",
 }
 VIEWPORTS = [(1440, 900), (1200, 800), (768, 900), (390, 844)]
 
@@ -301,9 +303,9 @@ class SitesBrowserE2E(unittest.TestCase):
                 ctx.close()
 
     def test_landing_website_links_reach_both_sites(self):
-        """Landing 'Website' links point at the production Pages URLs, and a
-        click on each reaches the page this PR ships (fulfilled locally so the
-        test does not depend on the not-yet-deployed Pages site)."""
+        """Landing links for both live project sites point at the production
+        Pages URLs, and a click on each reaches the matching page (fulfilled
+        locally so the test does not depend on the deployed site)."""
         def _fulfill(route):
             rel = route.request.url.split("RandomLabs/", 1)[1].rstrip("/")
             cand = ROOT / rel
@@ -322,7 +324,7 @@ class SitesBrowserE2E(unittest.TestCase):
         try:
             page.route("https://userfrom1995.github.io/RandomLabs/**", _fulfill)
             page.goto(self.base + "/index.html", wait_until="networkidle")
-            for proj, frag in (("tor-cli", "torshim"), ("prism", "Prism")):
+            for proj, frag in (("tor-cli", "torshim"), ("terminal-browser", "Terminal Browser")):
                 link = page.locator(f'a[href$="RandomLabs/{proj}/"]').first
                 self.assertTrue(
                     link.is_visible(), f"landing {proj} Website link not visible"
