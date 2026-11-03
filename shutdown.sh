@@ -54,10 +54,12 @@ resolve_github_repo() {
         https|http|ssh|git) ;;
         *) return 1 ;;
       esac
-      case "$authority" in
-        *@*) authority="${authority##*@}" ;;
-      esac
-      if [ "$authority" != "github.com" ] && ! [[ "$authority" =~ ^github\.com:[0-9]{1,5}$ ]]; then
+      # Validate the whole unstripped authority in one anchored match. A
+      # query or fragment must never smuggle an `@github.com` suffix past the
+      # host check: `https://evil.invalid?x@github.com/owner/repo` is not
+      # github.com, and stripping to the last `@` would accept it (review
+      # round-4 review finding F1).
+      if ! [[ "$authority" =~ ^([^@/?#[:space:]]+@)?github\.com(:[0-9]{1,5})?$ ]]; then
         return 1
       fi
       ;;
@@ -88,7 +90,7 @@ warn_unresolved_repo() {
 
 REPO="${GITHUB_REPOSITORY:-}"
 if [ -n "$REPO" ] && ! valid_repo_slug "$REPO"; then
-  warn_unresolved_repo "GITHUB_REPOSITORY is not a valid owner/repo slug"
+  echo "warning: GITHUB_REPOSITORY is not a valid owner/repo slug; ignoring it and trying the origin remote."
   REPO=""
 fi
 origin_url="$(git remote get-url origin 2>/dev/null || true)"
@@ -121,7 +123,7 @@ echo "Backup dir:   $BACKUP"
 if [ -n "$REPO" ]; then echo "Target repo:  $REPO"; fi
 echo "Workflows to remove: ${WORKFLOWS[*]}"
 echo "Paths to remove:     ${REMOVE_PATHS[*]}"
-[ "$PURGE" -eq 1 ] && echo "Purge mode:   also deleting OPENCODE_API_KEY / OPENCODE_PAT secrets"
+[ "$PURGE" -eq 1 ] && [ -n "$REPO" ] && echo "Purge mode:   also deleting OPENCODE_API_KEY / OPENCODE_PAT secrets"
 echo
 
 if [ "$MODE" = "check" ]; then
