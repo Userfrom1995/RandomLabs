@@ -40,13 +40,14 @@ requested.
   per success scenario; exact probe target and diagnostic; a dedicated
   child-env assertion for all six scrubbed GitHub keys; GITHUB_REPOSITORY
   precedence in shutdown; docs pins for README and `docs/index.md`.
-- `README.md`, `docs/index.md`, `AGENTS.md`: the Actions-tab route is labeled
-  dispatch-only once the secrets exist, and `--check` combined with a write
-  flag writes only once the lab file checks pass.
+- `README.md`, `docs/index.md`, `docs/index.html`, `LAB.md`: the Actions-tab
+  route is labeled dispatch-only once the secrets exist. `AGENTS.md` carries
+  the `--check` combination precision (a write also needs a resolved
+  target repo).
 
 ## Delegation ledger
 
-- general (runtime resolution audit): ran 67 hermetic assertions with a proven mock `gh`; all nine positive shapes and six negative shapes behaved exactly as specified, with no token leak, no shell execution, and no unexpected calls.
+- general (runtime resolution audit): ran 67 hermetic assertions with a proven mock `gh`; all nine positive shapes and seven negative shapes behaved exactly as specified, with no token leak, no shell execution, and no unexpected calls.
 - general (mutation audit): baseline 16/16; old greedy extraction failed 8 subtests, removing the scrub failed the env test, a 0o644 mock failed 11 tests inertly before any scenario, and widening the host check failed 4 subtests.
 - general (docs truth audit): confirmed all five doc claims against the shipped flag behavior, 16/16 and 9/9 targeted tests, 61/61 landing tests at audit time, zero em dashes/CR/NUL, and no milestone leakage in changed lines.
 - Primary: reviewed the evaluator finding and prior rounds, rewrote both resolvers, added the negative fixtures and full-call assertions, updated the docs, committed the change set, and ran the targeted and landing suites plus syntax checks.
