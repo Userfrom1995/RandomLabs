@@ -48,13 +48,22 @@ page documents the lab that maintains the whole repository.
 ## The review loop
 
 ```text
-Product Track: [Researcher/Architect] ──► [Design Council] ──► Builder ──┐
-Lab Engineer Track: [Auditor/Maintainer] ──► Lab Engineer ───┤
-Curator Track: [Curator] ────────────────────────────────────┴──► Reviewer ──► (clean) ──► Tester (/oc approve-test) ──► Maintainer (/oc maintainer) ──► (routes /oc eval) ──► Evaluator ──► (/oc maintainer on approve-eval) ──► Maintainer merges (rebase, bot identity), closes issues
-                                                             ▲                               │                                                                     │                                              │
-                                                             │                               └─► /oc fix: … ───────────────────────────────────────────────────────┘                                              │
-                                                             │                                                                                                                                                    │
-                                                             └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+Build
+  Researcher / Architect ──► Design Council ──► Builder
+  Auditor / Maintainer ──► Lab Engineer
+  Curator ──► public-surface fixes
+
+Review
+  Build output ──► Reviewer
+  findings ──► Fixer / Lab Engineer (/oc fix) ──► Reviewer
+  clean ──► Tester (/oc test)
+
+Test
+  Tester ──► /oc approve-test ──► Maintainer (/oc maintainer)
+
+Evaluate and merge
+  Maintainer ──► /oc eval ──► Evaluator
+  Evaluator ──► approve-eval ──► Maintainer merges and closes issues
 ```
 
 No pull request reaches `main` without the Reviewer's approval. The standing
