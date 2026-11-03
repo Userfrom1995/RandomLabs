@@ -17,9 +17,11 @@ production `Userfrom1995/RandomLabs` for secret writes, dispatches, and
 purges. That is a new destructive mis-target and is fixed here.
 
 The resolver in both scripts now extracts a slug only from recognized
-github.com origin URLs: HTTPS, HTTP, and `ssh://` (optional userinfo and
-numeric port), `git://` (numeric port only: git treats `user@github.com` as
-the whole hostname, so git:// carries no userinfo), plus scp-style
+github.com origin URLs: HTTPS and HTTP (optional credentialed userinfo and
+numeric port), `ssh://` (optional plain username and numeric port; Git
+percent-decodes the SSH authority, so percent escapes in userinfo are
+rejected), `git://` (numeric port only: git treats `user@github.com` as the
+whole hostname, so git:// carries no userinfo), plus scp-style
 `git@github.com:...`, with an optional trailing slash and one optional `.git`
 suffix. Local paths, `file://` URLs, non-GitHub hosts, host lookalikes,
 `git://` userinfo lookalikes, path-like components, and `.`/`..` are rejected
