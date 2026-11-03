@@ -43,14 +43,15 @@ the three bypass shapes are negative fixtures in both scripts.
   false-warning assertions, and removal of the unused projection helpers.
 - `AGENTS.md`: combined `--check` writes once the lab file and target-repo
   checks pass.
-- `docs/index.html`: the first-run comments wrap at mobile width and the
-  Actions-tab route reads as dispatch-only.
+- `docs/index.html`: the first-run comments are shorter and the Actions-tab
+  route reads as dispatch-only. The code block still scrolls horizontally at
+  390px; no wrapping was added.
 - Round-3 decision note: corrected the negative-fixture count and the
   dispatch-only wording grouping.
 
 ## Delegation ledger
 
-- general (resolver semantics audit): 49/49 shipped-script matrix; all ten positive origin shapes targeted exactly `owner/repo`, twelve negative shapes made zero `gh` calls in both scripts, precedence/fallback/purge-banner behavior matched, and no accepted shape targeted a non-github.com host.
+- general (resolver semantics audit): 49/49 shipped-script matrix; all ten positive origin shapes targeted exactly `owner/repo`, ten negative shapes made zero `gh` calls in both scripts, precedence/fallback/purge-banner behavior matched, and no accepted shape targeted a non-github.com host.
 - general (mutation audit): baseline 20/20; the six round-4 regressions each red the suite (F1 bypass 6 tests, F2a 2, F2b 1, F2c 1, F3 1, F4 1), and the 0o644 mock (15), scrub removal (1), and old greedy extraction (24) guards still hold.
 - general (docs truth audit): confirmed the AGENTS, README, docs/index.md, docs/index.html, and LAB.md claims against live script execution, the HTML block is well-formed, and the changed files carry zero em dashes/CR/NUL/controls; found only a pre-existing 76-character quickstart line and the dated round-3 counts.
 - Primary: fixed both resolvers, the fallback wording, and the purge banner; added the negative fixtures and F3/F4 tests; wrapped the quickstart comments; updated the AGENTS precision; ran the targeted and landing suites, the mutation matrix, syntax checks, and the silent-stall audit.
@@ -64,4 +65,4 @@ the three bypass shapes are negative fixtures in both scripts.
 - `env -u LAB_RUN_NONCE timeout 600 bash .github/scripts/silent-stall-audit.sh` -> 33 passed, 0 failed.
 - `shellcheck setup.sh shutdown.sh` -> only the pre-existing SC2015 in `shutdown.sh`, a line this PR does not change.
 - Independent runtime matrix: the F1 bypass shapes produce zero `gh` calls in both scripts; the F2 fallback paths write/delete against the recognized origin with no false warning; the unresolved purge prints the skip sentence and no purge banner.
-- Mutation matrix: each blocking regression fails the suite alone (see the ledger); no escape found.
+- Mutation matrix: each blocking regression fails the suite alone (see the ledger). The round-4 review later found the conditional-path escapes that the matrix did not cover (F3/F4 single-test reliance, extra `gh` calls on unasserted paths, and the loose route-string check); those are recorded as test-hardening notes, not regressions in the shipped resolver.
