@@ -71,7 +71,9 @@ The CDP suites each expect their own browser. Reusing one Chrome across
 suites leaks storage, service workers, and pending CDP sessions between
 them, which produced boot-gate/rebind failures. A separate intermittent
 site-e2e undici assertion came from unconsumed HTTP response bodies;
-`site-e2e.js` now consumes every response body on every fetch.
+`site-e2e.js` now drains every response body. Its local `assert` records
+a failed status without aborting, so the non-OK link branch still reads
+its body before continuing.
 `web/e2e/run-browser-e2e.sh` isolates
 every suite: one Chrome process, one profile, one debug port, and one
 Node process per script, with a static server on an ephemeral port.

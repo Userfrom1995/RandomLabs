@@ -6,7 +6,8 @@
 # Reusing one Chrome across them leaks storage, service workers, and
 # pending CDP sessions between suites, which showed up as boot-gate and
 # rebind failures. A separate intermittent site-e2e undici assertion came
-# from unconsumed HTTP response bodies; site-e2e now consumes every body.
+# from unconsumed HTTP response bodies; site-e2e now drains every body
+# (its assert records a failure without aborting the crawl).
 # This runner isolates every suite: one browser process, one profile, one
 # debug port, and one Node process per script.
 #
