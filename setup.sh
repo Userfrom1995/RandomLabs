@@ -92,10 +92,16 @@ fi
 # hosts are rejected so a secret write or dispatch can never silently target
 # an unrelated repository (issue #799 evaluator finding F1).
 valid_repo_slug() {
-  local slug="$1"
+  local slug="$1" owner
   [[ "$slug" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
+  # GitHub owners cannot start with a dot, so dot-leading owners such as
+  # `.git` and `...` are path-like text, not repositories.
+  owner="${slug%%/*}"
+  case "$owner" in
+    .*) return 1 ;;
+  esac
   case "$slug" in
-    ./*|../*|*/.|*/..) return 1 ;;
+    */.|*/..) return 1 ;;
   esac
   return 0
 }
@@ -133,7 +139,9 @@ resolve_github_repo() {
     */*) ;;
     *) return 1 ;;
   esac
-  path="${path%/}"
+  # The single trailing slash was already stripped from `url` above. Do not
+  # strip a second one here: `github.com/a//` would otherwise collapse to the
+  # plausible but wrong slug `a/a` (review finding F1, 2026-11-03).
   owner="${path%/*}"
   repo="${path##*/}"
   repo="${repo%.git}"
