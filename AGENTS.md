@@ -46,13 +46,13 @@ Public Surface / Web Track:                                              │
                                                           (issues found)     (approved)
                                                                  │               │
                                                                  ▼               ▼
-                                                   Fixer / Lab Engineer (/oc fix)  Tester (/oc test)
+                                         Fixer (/oc fix) / Lab Engineer (/oc lab)  Tester (/oc test)
                                                                                             │
                                                                             ┌───────────────┴───────────────┐
                                                                         (tests fail)                   (all pass)
                                                                             │                               │
                                                                             ▼                               ▼
-                                                             Fixer / Lab Engineer (/oc fix)    Maintainer (/oc maintainer)
+                                                   Fixer (/oc fix) / Lab Engineer (/oc lab)    Maintainer (/oc maintainer)
                                                                                                             │
                                                                                                     (routes /oc eval)
                                                                                                             │
