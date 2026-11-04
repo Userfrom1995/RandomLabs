@@ -31,6 +31,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -420,6 +421,25 @@ class TestFixedSessionHonestyGates(unittest.TestCase):
                 {"driver": "x11", "geometry": {"resize_exercised": True}}
             ),
             FIXED_SESSION_CHECKPOINTS + RESIZE_CHECKPOINTS,
+        )
+
+    def test_required_checkpoints_match_the_driver_session(self):
+        # The gate is only as honest as its name list: if drive.sh adds or
+        # renames a checkpoint without the collector following, a pass would
+        # either require a checkpoint the driver never captures (every real
+        # row goes partial) or silently ignore one (a blank phase slips
+        # through). Derive the names from the shipped driver source and pin
+        # the union, so drift fails here instead of in a live run.
+        with open(os.path.join(COMPAT_DIR, "drive.sh"),
+                  encoding="utf-8") as fh:
+            source = fh.read()
+        emitted = set(re.findall(
+            r"^[ \t]*checkpoint ([a-z][a-z-]*)[ \t]*$", source, re.MULTILINE
+        ))
+        self.assertEqual(
+            emitted,
+            set(FIXED_SESSION_CHECKPOINTS) | set(RESIZE_CHECKPOINTS),
+            "drive.sh checkpoints and the collector's required list drifted",
         )
 
     def test_readiness_events_parse_into_ints(self):
