@@ -138,11 +138,18 @@
 # while the vendored Run opencode scalar sat 723 bytes under the cap and the
 # audit stayed green; the two incident steps must each exist exactly once,
 # enforced by a strict duplicate-key-rejecting parse plus padded, renamed,
-# duplicated, and malformed fixture self-tests).
-# Wired into auditor.yml as the R1-R33 matrix.
+# duplicated, and malformed fixture self-tests), and the R34 Maintainer
+# quota-wall recovery guard (issue #820: the inline runner's wall marker, the
+# wall-aware intake stand-down that keeps an agent off the blocked egress IP,
+# the bounded two-attempt fresh-run dispatch in one fixed quota-recovery
+# concurrency group, the empty-decision handoff that keeps the byte-pinned
+# verify green, the cap escalation plus red exit, and the #775 token-free
+# escalation notes, pinned structurally and executed against mock gh/sleep
+# fixtures with mutation self-tests).
+# Wired into auditor.yml as the R1-R34 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R33 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R34 audit the whole tree
 # (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -213,12 +220,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R33 PASS] $name: $desc"
+  [R1-R34 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R33 FAIL] $name: $desc"
+  [R1-R34 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -419,11 +426,15 @@ else
   if [ -n "$r9_cap" ] && [ "$r9_cap" -gt 3 ] 2>/dev/null; then
     r9_bad="${r9_bad} script(cap-${r9_cap}-exceeds-3)"
   fi
-  grep -q '/oc maintainer' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-maintainer-escalation)"
+  grep -qF 'Maintainer triage on the lab-health board' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-maintainer-escalation)"
+  grep -qF 'gh issue comment' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-health-board-escalation-post)"
+  if grep -q '/oc maintainer' "$SELFHEAL_SCRIPT"; then
+    r9_bad="${r9_bad} script(inline-trigger-token)"
+  fi
   grep -q 'refusing to fall back to 0' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-phantom-zero-guard)"
 fi
 if [ -z "$r9_bad" ]; then
-  check "R9" "schedule/dispatch arms (curator/auditor/ideate/lab) wired to bounded self-heal with maintainer escalation" "ok"
+  check "R9" "schedule/dispatch arms (curator/auditor/ideate/lab) wired to bounded self-heal with a token-free lab-health maintainer escalation (issue #775)" "ok"
 else
   check "R9" "schedule/dispatch retry parity missing:${r9_bad} (issue #422 B: a crash burns the whole cron cycle)" "bad"
 fi
@@ -858,7 +869,7 @@ else
   [ "$r12_gate_hdr_bad" = "0" ] || r12_bad="${r12_bad} maintainer.yml(gate-conditional-or-tolerated-failure)"
   r12_agent_block=$(r12_main_block "Run Maintainer agent")
   if [ "$(printf '%s\n' "$r12_agent_block" | grep -cE '^[[:space:]]*if:' || true)" != "1" ] \
-     || ! printf '%s\n' "$r12_agent_block" | grep -qxF "        if: steps.actor_gate.outputs.run == 'true'"; then
+     || ! printf '%s\n' "$r12_agent_block" | grep -qxF "        if: steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true'"; then
     r12_bad="${r12_bad} maintainer.yml(agent-not-gated)"
   fi
   r12_verify_block=$(r12_main_block "Verify Maintainer wrote its decision contract (loud failure, issue #591)")
@@ -1633,7 +1644,7 @@ def runner_key_hits(step, kind, gate_ok=False):
         # (the same-file gate is asserted in runner_check).
         allowed = (
             kind == "maintainer"
-            and step.get("if") == "steps.actor_gate.outputs.run == 'true'"
+            and step.get("if") == "steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true'"
             and gate_ok
         )
         if not allowed:
@@ -2715,6 +2726,10 @@ rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$1'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. The line can be a non-fatal per-call paid-title-path 402, so a fresh run is the first recovery; fund the provider plan or escalate to the Owner only if the rejection persists."
 exit 1
 }
+quota_wall_mark() {
+mkdir -p .maintainer 2>/dev/null || true
+printf 'provider-daily-free-usage-wall\n' > .maintainer/quota-wall 2>/dev/null || true
+}
 transient_http_error_terminal() {
 if account_funds_terminal "$1"; then
 return 1
@@ -2776,6 +2791,7 @@ kill -0 "$oc_pid" 2>/dev/null || exit 0
 if free_usage_limit_terminal "$log"; then
 echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
 printf 'quota\n' > "$quota_flag"
+quota_wall_mark
 kill -TERM "$oc_pid"
 kill -TERM "$tee_pid"
 sleep 5
@@ -2828,6 +2844,7 @@ status="${st[0]}"; tee_status="${st[1]}"
 fi
 if [ -s "$quota_flag" ]; then
 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+quota_wall_mark
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 exit 1
 fi
@@ -2851,6 +2868,7 @@ rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 exit 1
 fi
 if free_usage_limit_terminal "$log"; then
+quota_wall_mark
 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
 exit 1
@@ -3249,6 +3267,7 @@ kill -0 "$oc_pid" 2>/dev/null || exit 0
 if free_usage_limit_terminal "$log"; then
 echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
 printf 'quota\n' > "$quota_flag"
+quota_wall_mark
 kill -TERM "$oc_pid"
 kill -TERM "$tee_pid"
 sleep 5
@@ -3293,6 +3312,12 @@ wait "$watch_pid"
 set -e
 R15WATCHEOF
   )
+  # The quota-wall marker call exists only in the Maintainer's inline runner
+  # (issue #820): the composite action has no post-agent recovery step, so its
+  # watchdog prelude is the same block without the marker line.
+  if [ "$label" != "maintainer.yml" ]; then
+    r15_watch_expect=$(printf '%s\n' "$r15_watch_expect" | grep -vxF 'quota_wall_mark' || true)
+  fi
   if [ "$r15_watch_region" != "$r15_watch_expect" ]; then
     r15_bad="${r15_bad} ${label}(watchdog-prelude-not-exact)"
   fi
@@ -11308,6 +11333,7 @@ for index, other in enumerate(target_job.get("steps") or []):
 expected_pre_names = [
     "Checkout repository",
     "Actor write gate (issue",
+    "Quota-wall intake (issue #820)",
     "Stage lab helper scripts from the workflow commit (issue #713)",
     "Configure git identity",
     "Load Maintainer memory (maintainer/logs)",
@@ -11320,6 +11346,7 @@ expected_pre_names = [
     "Add opencode to PATH",
     "Resolve model (bounded fallback ladder)",
     "Run Maintainer agent",
+    "Recover from provider daily free-usage wall (issue #820)",
     "Verify Maintainer wrote its decision contract (loud failure, issue",
     "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)",
     "Emergency-gated commit and push of workflow model updates to main",
@@ -11347,6 +11374,7 @@ allowed_decision_lines = {
     'if os.path.exists(".maintainer/decision.json"):',
     'decisions = json.load(open(".maintainer/decision.json"))',
     'print(f"decision.json unparseable: {e}")',
+    "printf '[]\\n' > .maintainer/decision.json",
 }
 for _index, other in pre_steps:
     for line in (other.get("run") or "").splitlines():
@@ -11568,7 +11596,45 @@ if ! git show "${trusted_sha}:.github/scripts/actor-write-gate.sh" > "$gate_scri
 fi
 test -s "$gate_script" || { echo "::error::Staged actor gate is empty; refusing to run a mutable copy."; exit 1; }
 bash "$gate_script"
-### 2 name=Stage lab helper scripts from the workflow commit (issue #713)
+### 2 name=Quota-wall intake (issue #820) | id=quota_intake | if=always() && steps.actor_gate.outputs.run == 'true' && github.event_name == 'workflow_run' | shell=bash | env={"FAILED_WORKFLOW": "${{ github.event.workflow_run.name }}", "GH_TOKEN": "${{ github.token }}", "RUN_ID": "${{ github.event.workflow_run.id }}", "RUN_URL": "${{ github.event.workflow_run.html_url }}"}
+# Issue #820 proposal 2: a failed run whose agent died on the daily
+# free-usage wall must not summon another Maintainer agent onto the
+# same blocked egress IP. Detect the #754 terminal signature in the
+# failed run's log, post one deduped lab-health note, hand this run a
+# no-op decision list, and stand down (the agent step is gated on the
+# stand_down output). Detector notes: gh run view --log prefixes every
+# line with job and step names, so the match is unanchored; the agent
+# step is continue-on-error, so --log-failed would omit it; and the
+# read is wrapped in a pipefail-off subshell so grep -m1's early exit
+# cannot surface gh's SIGPIPE as a detector error.
+wall=0
+if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.' ); then
+  wall=1
+fi
+if [ "$wall" -ne 1 ]; then
+  echo "No daily free-usage wall signature in failed run $RUN_ID; normal failure triage continues."
+  exit 0
+fi
+echo "::warning::triggering run $RUN_ID died on the provider daily free-usage wall (issue #820); standing down instead of drawing another agent onto the same egress IP."
+mkdir -p .maintainer
+board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
+if [ -n "$board" ] && [ "$board" != "null" ]; then
+  note=$(printf 'Quota-wall intake (issue #820): the failed run %s (%s) ended on the provider daily free-usage allowance (issue #754). This Maintainer run stood down without summoning an agent, because every free rung shares the same per-egress allowance and the runner that just failed almost certainly carries the same blocked IP. A fresh run is the recovery lane. Quota-wall chains are recovered by the bounded fresh-run recovery step; this note is the audit trail.\n\nTriggering run: %s' "$RUN_URL" "$FAILED_WORKFLOW" "$RUN_URL")
+  marker="<!-- quota-wall:${RUN_ID} -->"
+  if gh api "repos/${GITHUB_REPOSITORY}/issues/${board}/comments?per_page=100" --paginate --slurp 2>/dev/null | jq -r '.[][] | .body' | grep -Fq "$marker"; then
+    echo "Quota-wall note already present for failed run $RUN_ID."
+  else
+    body=$(printf '%s\n\n%s' "$note" "$marker")
+    if ! gh issue comment "$board" --body "$body"; then
+      echo "::warning::could not post the quota-wall note to lab-health issue #${board}; continuing the stand-down."
+    fi
+  fi
+else
+  echo "::warning::lab-health board not found; quota-wall stand-down proceeds without a note."
+fi
+printf '[]\n' > .maintainer/decision.json
+echo "stand_down=true" >> "$GITHUB_OUTPUT"
+### 3 name=Stage lab helper scripts from the workflow commit (issue #713)
 # The staged copy lives in a root-owned directory so the agent can
 # never replace the helper a post-agent owner-PAT step executes.
 sudo install -d -o root -g root -m 0755 /opt/lab-scripts
@@ -11617,10 +11683,10 @@ for pair in "model=$opencode_model" "small_model=$opencode_small_model"; do
   fi
 done
 echo "::notice::Staged opencode.json from ${trusted_sha}: small_model='$opencode_small_model' (main model remains the per-lane pin)."
-### 3 name=Configure git identity
+### 4 name=Configure git identity
 git config --global user.name "Hephaestus (Maintainer)"
 git config --global user.email "github-actions[bot]@users.noreply.github.com"
-### 4 name=Load Maintainer memory (maintainer/logs)
+### 5 name=Load Maintainer memory (maintainer/logs)
 mkdir -p .maintainer/memory/logs
 git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || echo "no memory branch yet (first run)"
 for f in STATE.md personality.md REGISTRY.md; do
@@ -11635,7 +11701,7 @@ for d in 0 1 2 3 4 5 6; do
   fi
 done
 ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
-### 5 name=Build run notification
+### 6 name=Build run notification
 {
   echo "WORKFLOW: ${{ github.workflow }}"
   echo "REPO: ${{ github.repository }}"
@@ -11664,9 +11730,9 @@ ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
 } > .maintainer/notification.txt
 echo "--- notification ---"
 cat .maintainer/notification.txt
-### 6 name=Record main SHA before | id=pre_agent
+### 7 name=Record main SHA before | id=pre_agent
 echo "sha=$(git ls-remote origin main | awk '{print $1}')" >> $GITHUB_OUTPUT
-### 7 name=Get opencode version | id=opencode_version | shell=bash | continue-on-error=True | env={"GH_TOKEN": "${{ github.token }}"}
+### 8 name=Get opencode version | id=opencode_version | shell=bash | continue-on-error=True | env={"GH_TOKEN": "${{ github.token }}"}
 # Authenticated (5000 req/hour, per-repo) so shared-runner-IP
 # unauthenticated rate limits (60 req/hour) stop applying.
 # Retry loop with backoff; the `|| true` keeps `pipefail` from
@@ -11683,8 +11749,8 @@ for attempt in 1 2 3; do
 done
 echo "version=${VERSION:-latest}" >> $GITHUB_OUTPUT
 echo "resolved opencode version: ${VERSION:-latest}"
-### 8 name=Cache opencode | id=opencode_cache | uses=actions/cache@v4 | with={"key": "opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode_version.outputs.version }}", "path": "~/.opencode/bin"}
-### 9 name=Verify cached opencode binary (poisoned-cache guard) | id=opencode_verify | shell=bash
+### 9 name=Cache opencode | id=opencode_cache | uses=actions/cache@v4 | with={"key": "opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode_version.outputs.version }}", "path": "~/.opencode/bin"}
+### 10 name=Verify cached opencode binary (poisoned-cache guard) | id=opencode_verify | shell=bash
 # Same guard as the vendored composite action: a poisoned cache
 # entry restores fine but holds no binary, which used to surface
 # as "opencode: command not found" (exit 127) under
@@ -11694,14 +11760,14 @@ if [ -x "$HOME/.opencode/bin/opencode" ]; then
 else
   echo "present=false" >> "$GITHUB_OUTPUT"
 fi
-### 10 name=Install opencode | if=steps.opencode_cache.outputs.cache-hit != 'true' || steps.opencode_verify.outputs.present != 'true' | shell=bash
+### 11 name=Install opencode | if=steps.opencode_cache.outputs.cache-hit != 'true' || steps.opencode_verify.outputs.present != 'true' | shell=bash
 curl -fsSL --retry 3 --retry-delay 10 https://opencode.ai/install | bash
 test -x "$HOME/.opencode/bin/opencode"
-### 11 name=Add opencode to PATH | shell=bash
+### 12 name=Add opencode to PATH | shell=bash
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
-### 12 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
+### 13 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 13 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The checkout is pinned to the same trusted default-branch commit, but use the staged copy as the authoritative prompt; never substitute any other edition.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The checkout is pinned to the same trusted default-branch commit, but use the staged copy as the authoritative prompt; never substitute any other edition.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 if [ "${{ github.event_name }}" = "workflow_run" ]; then
   export GITHUB_EVENT_NAME="workflow_dispatch"
 fi
@@ -11726,6 +11792,14 @@ account_funds_fail() {
   rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
   echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$1'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. The line can be a non-fatal per-call paid-title-path 402, so a fresh run is the first recovery; fund the provider plan or escalate to the Owner only if the rejection persists."
   exit 1
+}
+quota_wall_mark() {
+  # Issue #820: the post-agent recovery step keys the bounded
+  # fresh-run dispatch on this workspace marker. Written before each
+  # canonical class error so the recovery step (and its #775-safe
+  # escalation) always sees the wall even when the attempt is killed.
+  mkdir -p .maintainer 2>/dev/null || true
+  printf 'provider-daily-free-usage-wall\n' > .maintainer/quota-wall 2>/dev/null || true
 }
 transient_http_error_terminal() {
   if account_funds_terminal "$1"; then
@@ -11812,6 +11886,7 @@ for model in $candidates; do
           if free_usage_limit_terminal "$log"; then
             echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
             printf 'quota\n' > "$quota_flag"
+            quota_wall_mark
             kill -TERM "$oc_pid" 2>/dev/null
             kill -TERM "$tee_pid" 2>/dev/null
             sleep 5
@@ -11883,6 +11958,7 @@ for model in $candidates; do
     # can make tee exit nonzero after a deliberate abort.
     if [ -s "$quota_flag" ]; then
       rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+      quota_wall_mark
       echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
       exit 1
     fi
@@ -11920,6 +11996,7 @@ for model in $candidates; do
     # is never advanced: every free rung shares the same per-egress
     # allowance, so a fresh run is the recovery lane.
     if free_usage_limit_terminal "$log"; then
+      quota_wall_mark
       echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
       rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
       exit 1
@@ -12013,7 +12090,42 @@ for model in $candidates; do
 done
 echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
 exit 1
-### 14 name=Verify Maintainer wrote its decision contract (loud failure, issue | id=verify_agent | if=always() | shell=bash | env={"AGENT_GATE": "${{ steps.actor_gate.outputs.run }}", "AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}"}
+### 15 name=Recover from provider daily free-usage wall (issue #820) | id=quota_recovery | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"GH_TOKEN": "${{ github.token }}", "QUOTA_RECOVERY_ATTEMPT": "${{ inputs.quota_recovery }}", "RUN_ID": "${{ github.run_id }}"}
+# Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
+# when it fast-fails on the daily free-usage allowance. A run on that
+# egress IP cannot recover itself, so dispatch a bounded number of
+# fresh runs (each job lands on a new runner and may get a fresh
+# bucket), serialized in the fixed quota-recovery concurrency group,
+# and hand the byte-pinned verify step an empty decision list so this
+# run concludes green. At the cap, escalate once on the lab-health
+# board and exit 1 so the chain stays visibly red instead of silently
+# parking. The notes never contain an inline trigger token (issue
+# #775); the hardcoded trigger step is the only publisher.
+if [ ! -f .maintainer/quota-wall ]; then
+  exit 0
+fi
+attempt="${QUOTA_RECOVERY_ATTEMPT:-0}"
+case "$attempt" in ''|*[!0-9]*) attempt=0 ;; esac
+if [ "$attempt" -ge 2 ]; then
+  echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 2, issue #820); no further self-dispatch. Escalate the provider plan or involve the Owner if it persists."
+  board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
+  if [ -n "$board" ] && [ "$board" != "null" ]; then
+    note=$(printf 'Quota-wall recovery cap (issue #820): run %s/%s ended on the provider daily free-usage wall after %s fresh-run attempts. The bounded self-dispatch cap is reached, so the Maintainer chain halts red instead of looping. A fresh run is the recovery lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" "$attempt")
+    gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
+  else
+    echo "::warning::lab-health board not found; quota-wall cap escalation not posted."
+  fi
+  exit 1
+fi
+next=$((attempt + 1))
+sleep $(( (RANDOM % 30) + 30 ))
+if ! gh workflow run maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main -f quota_recovery="$next" -f reason="quota: fresh runner attempt ${next} after the provider daily free-usage wall (issue #820)"; then
+  echo "::error::could not dispatch quota-wall fresh-run attempt ${next} (issue #820); failing loudly so the chain stays visible."
+  exit 1
+fi
+printf '[]\n' > .maintainer/decision.json
+echo "::notice::dispatched quota-wall fresh-run attempt ${next} (issue #820); this run hands the verify step an empty decision list."
+### 16 name=Verify Maintainer wrote its decision contract (loud failure, issue | id=verify_agent | if=always() | shell=bash | env={"AGENT_GATE": "${{ steps.actor_gate.outputs.run }}", "AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}"}
 # Terminal third outcome (issues #428/#696): an actor-write-gate
 # denial means the agent step never started, so "skipped + no
 # decision file" is a deliberate clean skip, not a crash. This step
@@ -12041,7 +12153,7 @@ if [ -f .maintainer/decision.json ]; then
 fi
 echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
 exit 1
-### 15 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"GH_TOKEN": "${{ github.token }}"}
+### 17 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"GH_TOKEN": "${{ github.token }}"}
 set -euo pipefail
 repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 stray_prs=$(gh pr list --author app/github-actions --state open --json number,headRefName \
@@ -12061,7 +12173,7 @@ while IFS= read -r br; do
   gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
 done < "$branch_list"
 echo "stray cleanup complete"
-### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin"}
+### 18 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin"}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
 if [ -z "$dirty" ]; then
   echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -12133,7 +12245,7 @@ git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ gith
 }
 echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"
 echo "Emergency revival pushed to main as Hephaestus (Maintainer)."
-### 17 name=Commit Maintainer memory (maintainer/logs) | if=always() && steps.actor_gate.outputs.run == 'true'
+### 19 name=Commit Maintainer memory (maintainer/logs) | if=always() && steps.actor_gate.outputs.run == 'true'
 # Issue #647: bounded 3-attempt fetch-recompose-push loop with
 # keep-both log semantics and loud diagnostics. The old single-shot,
 # fully-quiet rebase fallback lost a session's whole memory silently
@@ -12262,7 +12374,7 @@ if [ "$memory_pushed" != "1" ]; then
 fi
 echo "memory pushed to maintainer/logs"
 rm -rf "$bundle"
-### 18 name=Post Maintainer comment | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ github.token }}", "OC_TARGET": "${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}"}
+### 20 name=Post Maintainer comment | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ github.token }}", "OC_TARGET": "${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}"}
 python3 - <<'PY'
 import json, os, subprocess
 repo = os.environ["GITHUB_REPOSITORY"]
@@ -17202,6 +17314,7 @@ EXPECTED_MAINTAINER_STAGE_SHA256 = "0b1f73a35561cb8927b4a1a29c23d9f59ec84e22a3b9
 EXPECTED_MAINTAINER_STEP_NAMES = [
     "Checkout repository",
     "Actor write gate (issue",
+    "Quota-wall intake (issue #820)",
     "Stage lab helper scripts from the workflow commit (issue #713)",
     "Configure git identity",
     "Load Maintainer memory (maintainer/logs)",
@@ -17214,6 +17327,7 @@ EXPECTED_MAINTAINER_STEP_NAMES = [
     "Add opencode to PATH",
     "Resolve model (bounded fallback ladder)",
     "Run Maintainer agent",
+    "Recover from provider daily free-usage wall (issue #820)",
     "Verify Maintainer wrote its decision contract (loud failure, issue",
     "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)",
     "Emergency-gated commit and push of workflow model updates to main",
@@ -17360,7 +17474,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "062fad0ab189267fc45e5ec3b5c90cb6535576e0c0d8fe279ab1ef6d2855a3ae"
+EXPECTED_TEST_PROMPT_SHA256 = "0c1cb7fe99f3fe085ffbc0470c37d81d7737f10b9ab5e98d3c34ea797585814e"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -25079,11 +25193,11 @@ R33APPEND
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4 20001
   r33_expect_bad pad-composite "Run opencode"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R33)" 6 20001
-  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R33)"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R34)" 6 20001
+  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R34)"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R33)" 6 20001
-  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R33)"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R34)" 6 20001
+  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R34)"
   r33_prepare
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yaml" "Run opencode" 4 20001
   r33_expect_bad pad-yaml-action-extension "Run opencode"
@@ -25123,16 +25237,596 @@ case "$r33_out" in
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R33) on ${WF}: ${pass} passed, ${fail} failed."
+# R34 (issue #820): the Maintainer daily free-usage wall is per egress IP, so
+# a run that dies on it cannot recover itself. The inline runner now writes a
+# workspace marker, a pre-agent intake stands a wall-triggered run down, and a
+# post-agent step dispatches at most two fresh runs in a fixed serialized
+# concurrency group. The static shape is parsed from the strict YAML tree; the
+# real intake, recovery, and verify bodies are extracted and executed against
+# a mock gh/sleep so the stand-down handoff, dispatch attempt, jitter, dedupe,
+# cap, and green verify handoff are observable; mutation self-tests prove both
+# the static guard and the behavioral fixtures load-bearing, and every note is
+# asserted free of an inline trigger token (issue #775).
+r34_dir=$(mktemp -d)
+r34_bad=""
+cat > "$r34_dir/static.py" <<'R34PY'
+import json
+import os
+import sys
+
+import yaml
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError:
+            duplicate = False
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping
+)
+
+wf, outdir = sys.argv[1], sys.argv[2]
+bad = []
+try:
+    with open(wf, encoding="utf-8") as handle:
+        doc = yaml.load(handle, Loader=StrictLoader)
+except Exception as exc:  # fail closed
+    print("parse:%s" % str(exc).replace("\n", " ")[:200])
+    sys.exit(1)
+
+os.makedirs(outdir, exist_ok=True)
+
+
+def fail(item):
+    if item not in bad:
+        bad.append(item)
+
+
+if not isinstance(doc, dict):
+    print("workflow-not-mapping")
+    sys.exit(1)
+
+triggers = doc.get("on", doc.get(True))
+inputs = {}
+if isinstance(triggers, dict):
+    dispatch = triggers.get("workflow_dispatch")
+    if isinstance(dispatch, dict) and isinstance(dispatch.get("inputs"), dict):
+        inputs = dispatch["inputs"]
+recovery_input = inputs.get("quota_recovery") if isinstance(inputs, dict) else None
+if not isinstance(recovery_input, dict):
+    fail("quota-recovery-input-missing")
+else:
+    if recovery_input.get("type") != "string":
+        fail("quota-recovery-input-not-string")
+    if recovery_input.get("required") not in (False, "false", None):
+        fail("quota-recovery-input-required")
+
+concurrency = doc.get("concurrency")
+if not isinstance(concurrency, dict):
+    fail("concurrency-missing")
+else:
+    group = concurrency.get("group") or ""
+    if "inputs.quota_recovery" not in group or "'quota-recovery'" not in group:
+        fail("concurrency-quota-branch-missing")
+    if "format('maintainer-{0}'" not in group:
+        fail("concurrency-normal-branch-missing")
+    if "queue" in concurrency:
+        fail("concurrency-queue-override")
+    if concurrency.get("cancel-in-progress") is not False:
+        fail("concurrency-cancel-policy")
+
+jobs = doc.get("jobs")
+job = jobs.get("maintainer") if isinstance(jobs, dict) else None
+if not isinstance(job, dict) or not isinstance(job.get("steps"), list):
+    fail("maintainer-job-missing")
+    print(";".join(bad))
+    sys.exit(1)
+steps = job["steps"]
+
+
+def find(name):
+    hits = [i for i, step in enumerate(steps) if isinstance(step, dict) and step.get("name") == name]
+    if len(hits) != 1:
+        fail("step-not-unique:%s" % name)
+        return None
+    return hits[0]
+
+
+def body(index):
+    if index is None:
+        return ""
+    value = steps[index].get("run")
+    return value if isinstance(value, str) else ""
+
+
+actor_i = find("Actor write gate (issue")
+intake_i = find("Quota-wall intake (issue #820)")
+stage_i = find("Stage lab helper scripts from the workflow commit (issue #713)")
+agent_i = find("Run Maintainer agent")
+recovery_i = find("Recover from provider daily free-usage wall (issue #820)")
+verify_i = find("Verify Maintainer wrote its decision contract (loud failure, issue")
+
+if None not in (actor_i, intake_i, agent_i, recovery_i, verify_i):
+    if stage_i is not None:
+        if not (actor_i < intake_i < stage_i):
+            fail("intake-not-after-actor-gate")
+    elif not (actor_i < intake_i):
+        fail("intake-not-after-actor-gate")
+    if not (intake_i < agent_i):
+        fail("intake-not-before-agent")
+    if not (agent_i < recovery_i < verify_i):
+        fail("recovery-not-between-agent-and-verify")
+
+if intake_i is not None:
+    step = steps[intake_i]
+    if step.get("id") != "quota_intake":
+        fail("intake-id")
+    if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true' && github.event_name == 'workflow_run'":
+        fail("intake-if")
+    env = step.get("env")
+    if not isinstance(env, dict) or set(env) != {"GH_TOKEN", "RUN_ID", "RUN_URL", "FAILED_WORKFLOW"}:
+        fail("intake-env")
+    elif env.get("RUN_ID") != "${{ github.event.workflow_run.id }}":
+        fail("intake-run-id-binding")
+    text = body(intake_i)
+    if text:
+        with open(os.path.join(outdir, "intake.sh"), "w", encoding="utf-8") as handle:
+            handle.write(text)
+    for needle in (
+        'gh run view "$RUN_ID" --log',
+        "set +o pipefail",
+        "grep -m1 -qE",
+        "Free usage limit reached",
+        "stand_down=true",
+        "printf '[]\\n' > .maintainer/decision.json",
+        "gh issue comment",
+        "--paginate --slurp",
+        "quota-wall:${RUN_ID}",
+    ):
+        if needle not in text:
+            fail("intake-missing:%s" % needle)
+    if "/oc" in text:
+        fail("intake-carries-inline-trigger")
+    if "OPENCODE_PAT" in json.dumps(env or {}):
+        fail("intake-carries-owner-pat")
+
+if recovery_i is not None:
+    step = steps[recovery_i]
+    if step.get("id") != "quota_recovery":
+        fail("recovery-id")
+    if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
+        fail("recovery-if")
+    env = step.get("env")
+    if not isinstance(env, dict) or set(env) != {"GH_TOKEN", "QUOTA_RECOVERY_ATTEMPT", "RUN_ID"}:
+        fail("recovery-env")
+    else:
+        if env.get("QUOTA_RECOVERY_ATTEMPT") != "${{ inputs.quota_recovery }}":
+            fail("recovery-attempt-binding")
+        if env.get("RUN_ID") != "${{ github.run_id }}":
+            fail("recovery-run-id-binding")
+    text = body(recovery_i)
+    if text:
+        with open(os.path.join(outdir, "recovery.sh"), "w", encoding="utf-8") as handle:
+            handle.write(text)
+    for needle in (
+        ".maintainer/quota-wall",
+        'if [ "$attempt" -ge 2 ]',
+        "gh workflow run maintainer.yml",
+        "--ref main",
+        '-f quota_recovery="$next"',
+        "printf '[]\\n' > .maintainer/decision.json",
+        "sleep $(( (RANDOM % 30) + 30 ))",
+    ):
+        if needle not in text:
+            fail("recovery-missing:%s" % needle)
+    if "/oc" in text:
+        fail("recovery-carries-inline-trigger")
+    if "OPENCODE_PAT" in text:
+        fail("recovery-carries-owner-pat")
+
+if verify_i is not None:
+    text = body(verify_i)
+    if text:
+        with open(os.path.join(outdir, "verify.sh"), "w", encoding="utf-8") as handle:
+            handle.write(text)
+
+if agent_i is not None:
+    step = steps[agent_i]
+    if step.get("if") != "steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true'":
+        fail("agent-stand-down-gate")
+    text = body(agent_i)
+    lines = [line.strip() for line in text.splitlines()]
+    calls = [i for i, line in enumerate(lines) if line == "quota_wall_mark"]
+    if len(calls) != 3:
+        fail("quota-marker-write-count")
+    helper_head = "quota_wall_mark() {"
+    helper_body = [
+        "mkdir -p .maintainer 2>/dev/null || true",
+        "printf 'provider-daily-free-usage-wall\\n' > .maintainer/quota-wall 2>/dev/null || true",
+        "}",
+    ]
+    helper_index = None
+    for index, line in enumerate(lines):
+        if line == helper_head:
+            helper_index = index
+            break
+    if helper_index is None:
+        fail("quota-marker-helper-missing")
+    else:
+        substantive = [
+            line for line in lines[helper_index + 1:]
+            if line and not line.startswith("#")
+        ]
+        if substantive[:3] != helper_body:
+            fail("quota-marker-helper-not-exact")
+    flag_write = None
+    for index, line in enumerate(lines):
+        if line == 'printf \'quota\\n\' > "$quota_flag"':
+            flag_write = index
+            break
+    if flag_write is None:
+        fail("quota-flag-write-missing")
+    elif not any(call > flag_write for call in calls):
+        fail("watchdog-quota-marker-not-after-flag")
+    quota_gate = None
+    for index, line in enumerate(lines):
+        if line == 'if [ -s "$quota_flag" ]; then':
+            quota_gate = index
+            break
+    error_lines = [
+        i for i, line in enumerate(lines)
+        if line.startswith('echo "::error::provider daily free-usage limit reached')
+    ]
+    if quota_gate is None or len(error_lines) != 2:
+        fail("quota-exit-branches-missing")
+    else:
+        if not [call for call in calls if quota_gate < call < error_lines[0]]:
+            fail("quota-flag-branch-marker-missing")
+        detector_gate = None
+        for index in range(quota_gate, len(lines)):
+            if lines[index] == 'if free_usage_limit_terminal "$log"; then' and index < error_lines[-1]:
+                detector_gate = index
+        if detector_gate is None:
+            fail("quota-detector-branch-missing")
+        elif not [call for call in calls if detector_gate < call < error_lines[-1]]:
+            fail("quota-detector-branch-marker-missing")
+
+if bad:
+    print(";".join(bad))
+    sys.exit(1)
+sys.exit(0)
+R34PY
+if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/out" > "$r34_dir/static.out" 2>&1; then
+  :
+else
+  r34_bad="${r34_bad} static:$(tr -d '\r\n' < "$r34_dir/static.out" | head -c 240)"
+fi
+
+
+mkdir -p "$r34_dir/bin"
+cat > "$r34_dir/bin/gh" <<'R34GH'
+#!/usr/bin/env bash
+set -u
+[ -n "${MOCK_CALLS:-}" ] && printf '%s\n' "$*" >> "$MOCK_CALLS"
+case "${1:-}" in
+  run)
+    if [ "${2:-}" = "view" ]; then
+      [ -n "${MOCK_RUN_LOG:-}" ] && cat "$MOCK_RUN_LOG" 2>/dev/null || true
+      exit 0
+    fi
+    exit 0 ;;
+  api)
+    arg="${2:-}"
+    case "$arg" in
+      *"/comments?"*)
+        if [ "${MOCK_HAS_MARKER:-0}" = "1" ]; then
+          printf '[[{"body":"existing <!-- quota-wall:%s -->"}]]\n' "${MOCK_RUN_ID:-0}"
+        else
+          printf '[[{"body":"unrelated"}]]\n'
+        fi
+        exit 0 ;;
+      *"/issues?"*)
+        [ -n "${MOCK_BOARD:-}" ] && printf '%s\n' "$MOCK_BOARD"
+        exit 0 ;;
+    esac
+    exit 0 ;;
+  issue)
+    if [ "${2:-}" = "comment" ]; then
+      shift 2 || exit 0
+      body=""
+      while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--body" ] && [ "$#" -ge 2 ]; then
+          body="$2"
+          shift 2
+        else
+          shift
+        fi
+      done
+      [ "${MOCK_POST_FAIL:-0}" = "1" ] && exit 1
+      [ -n "${MOCK_POSTED:-}" ] && printf '%s\n---POST---\n' "$body" >> "$MOCK_POSTED"
+      exit 0
+    fi
+    exit 0 ;;
+  workflow)
+    if [ "${2:-}" = "run" ]; then
+      [ -n "${MOCK_DISPATCH:-}" ] && printf '%s\n' "$*" >> "$MOCK_DISPATCH"
+      [ "${MOCK_DISPATCH_FAIL:-0}" = "1" ] && exit 1
+      exit 0
+    fi
+    exit 0 ;;
+esac
+exit 0
+R34GH
+cat > "$r34_dir/bin/sleep" <<'R34SLEEP'
+#!/usr/bin/env bash
+[ -n "${MOCK_SLEEP:-}" ] && printf '%s\n' "$*" >> "$MOCK_SLEEP"
+exit 0
+R34SLEEP
+chmod +x "$r34_dir/bin/gh" "$r34_dir/bin/sleep"
+printf 'unrelated failure\n' > "$r34_dir/log-none"
+printf 'opencode\tagent\tprovider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model m\n' > "$r34_dir/log-wall"
+printf 'AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go\n' > "$r34_dir/log-provider"
+r34_case() {
+  r34_case_name="$1"
+  r34_case_script="$2"
+  r34_case_attempt="${3:-0}"
+  r34_case_marker="${4:-0}"
+  r34_case_log="${5:-}"
+  r34_case_dispatch_fail="${6:-0}"
+  r34_case_marker_file="${7:-0}"
+  r34_case_post_fail="${8:-0}"
+  r34_case_work="$r34_dir/work-$r34_case_name"
+  rm -rf "$r34_case_work"
+  mkdir -p "$r34_case_work"
+  if [ "$r34_case_marker_file" = "1" ]; then
+    mkdir -p "$r34_case_work/.maintainer"
+    printf 'provider-daily-free-usage-wall\n' > "$r34_case_work/.maintainer/quota-wall"
+  fi
+  case "$r34_case_script" in
+    /*) r34_case_path="$r34_case_script" ;;
+    *) r34_case_path="$r34_dir/out/$r34_case_script" ;;
+  esac
+  (
+    cd "$r34_case_work" || exit 99
+    env PATH="$r34_dir/bin:/usr/bin:/bin" HOME="$r34_case_work" \
+      GH_TOKEN=x GITHUB_REPOSITORY=owner/repo GITHUB_SERVER_URL=https://github.com \
+      GITHUB_OUTPUT="$r34_case_work/out" RUN_ID=4242 \
+      RUN_URL="https://github.com/owner/repo/actions/runs/4242" FAILED_WORKFLOW=opencode \
+      QUOTA_RECOVERY_ATTEMPT="$r34_case_attempt" \
+      MOCK_CALLS="$r34_case_work/calls" MOCK_POSTED="$r34_case_work/posted" \
+      MOCK_DISPATCH="$r34_case_work/dispatch" MOCK_SLEEP="$r34_case_work/sleep" \
+      MOCK_RUN_LOG="$r34_case_log" MOCK_BOARD=77 MOCK_HAS_MARKER="$r34_case_marker" \
+      MOCK_DISPATCH_FAIL="$r34_case_dispatch_fail" MOCK_POST_FAIL="$r34_case_post_fail" \
+      MOCK_RUN_ID=4242 \
+      bash --noprofile --norc -eo pipefail "$r34_case_path"
+  ) > "$r34_case_work/stdout" 2> "$r34_case_work/stderr"
+  echo $? > "$r34_case_work/rc"
+}
+r34_has() { grep -qF -- "$1" "$2" 2>/dev/null; }
+r34_posts() { grep -cF -- '---POST---' "$1" 2>/dev/null || true; }
+
+if [ -z "$r34_bad" ]; then
+  r34_case intake-none intake.sh 0 0 "$r34_dir/log-none"
+  w="$r34_dir/work-intake-none"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} intake-none-rc"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} intake-none-wrote-decision"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} intake-none-posted"
+  r34_has "stand_down=true" "$w/out" && r34_bad="${r34_bad} intake-none-stood-down"
+
+  r34_case intake-wall intake.sh 0 0 "$r34_dir/log-wall"
+  w="$r34_dir/work-intake-wall"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} intake-wall-rc"
+  [ "$(cat "$w/.maintainer/decision.json" 2>/dev/null)" = "[]" ] || r34_bad="${r34_bad} intake-wall-no-empty-decision"
+  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} intake-wall-no-stand-down"
+  [ "$(r34_posts "$w/posted")" = "1" ] || r34_bad="${r34_bad} intake-wall-post-count"
+  r34_has "<!-- quota-wall:4242 -->" "$w/posted" || r34_bad="${r34_bad} intake-wall-no-dedupe-marker"
+  r34_has "/oc" "$w/posted" && r34_bad="${r34_bad} intake-wall-inline-trigger"
+  [ -s "$w/calls" ] || r34_bad="${r34_bad} intake-wall-no-gh-calls"
+
+  r34_case intake-provider intake.sh 0 0 "$r34_dir/log-provider"
+  w="$r34_dir/work-intake-provider"
+  [ "$(cat "$w/.maintainer/decision.json" 2>/dev/null)" = "[]" ] || r34_bad="${r34_bad} intake-provider-no-empty-decision"
+  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} intake-provider-no-stand-down"
+
+  r34_case intake-dedupe intake.sh 0 1 "$r34_dir/log-wall"
+  w="$r34_dir/work-intake-dedupe"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} intake-dedupe-duplicate-post"
+  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} intake-dedupe-no-stand-down"
+
+  r34_case intake-post-fail intake.sh 0 0 "$r34_dir/log-wall" 0 0 1
+  w="$r34_dir/work-intake-post-fail"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} intake-post-fail-rc"
+  [ "$(cat "$w/.maintainer/decision.json" 2>/dev/null)" = "[]" ] || r34_bad="${r34_bad} intake-post-fail-lost-stand-down"
+
+  r34_case recovery-none recovery.sh 0 0 "" 0 0
+  w="$r34_dir/work-recovery-none"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} recovery-none-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} recovery-none-dispatched"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} recovery-none-wrote-decision"
+
+  r34_case recovery-first recovery.sh 0 0 "" 0 1
+  w="$r34_dir/work-recovery-first"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} recovery-first-rc"
+  [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} recovery-first-dispatch-count"
+  r34_has "quota_recovery=1" "$w/dispatch" || r34_bad="${r34_bad} recovery-first-attempt"
+  r34_has "--ref main" "$w/dispatch" || r34_bad="${r34_bad} recovery-first-ref"
+  r34_has "maintainer.yml" "$w/dispatch" || r34_bad="${r34_bad} recovery-first-workflow"
+  [ "$(cat "$w/.maintainer/decision.json" 2>/dev/null)" = "[]" ] || r34_bad="${r34_bad} recovery-first-no-empty-decision"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} recovery-first-posted"
+  [ "$(wc -l < "$w/sleep" 2>/dev/null || echo 0)" = "1" ] || r34_bad="${r34_bad} recovery-first-jitter-count"
+  r34_jitter=$(cat "$w/sleep" 2>/dev/null || true)
+  case "$r34_jitter" in
+    3[0-9]|4[0-9]|5[0-9]) ;;
+    *) r34_bad="${r34_bad} recovery-first-jitter-range" ;;
+  esac
+
+  r34_case recovery-second recovery.sh 1 0 "" 0 1
+  w="$r34_dir/work-recovery-second"
+  r34_has "quota_recovery=2" "$w/dispatch" || r34_bad="${r34_bad} recovery-second-attempt"
+
+  r34_case recovery-cap recovery.sh 2 0 "" 0 1
+  w="$r34_dir/work-recovery-cap"
+  [ "$(cat "$w/rc")" = "1" ] || r34_bad="${r34_bad} recovery-cap-not-red"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} recovery-cap-dispatched"
+  [ "$(r34_posts "$w/posted")" = "1" ] || r34_bad="${r34_bad} recovery-cap-post-count"
+  r34_has "Quota-wall recovery cap" "$w/posted" || r34_bad="${r34_bad} recovery-cap-note"
+  r34_has "/oc" "$w/posted" && r34_bad="${r34_bad} recovery-cap-inline-trigger"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} recovery-cap-wrote-decision"
+
+  r34_case recovery-dispatch-fail recovery.sh 0 0 "" 1 1
+  w="$r34_dir/work-recovery-dispatch-fail"
+  [ "$(cat "$w/rc")" = "1" ] || r34_bad="${r34_bad} recovery-dispatch-fail-not-red"
+  [ -s "$w/dispatch" ] || r34_bad="${r34_bad} recovery-dispatch-fail-not-attempted"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} recovery-dispatch-fail-wrote-decision"
+
+  w="$r34_dir/work-recovery-first"
+  if ( cd "$w" && env AGENT_GATE=true AGENT_OUTCOME=success bash -e "$r34_dir/out/verify.sh" ) > "$w/verify.out" 2>&1; then
+    :
+  else
+    r34_bad="${r34_bad} recovery-handoff-verify-not-green"
+  fi
+  mkdir -p "$r34_dir/work-verify-control"
+  if ( cd "$r34_dir/work-verify-control" && env AGENT_GATE=true AGENT_OUTCOME=success bash -e "$r34_dir/out/verify.sh" ) > "$r34_dir/work-verify-control/out" 2>&1; then
+    r34_bad="${r34_bad} verify-control-not-red"
+  fi
+fi
+
+# Mutation self-tests: every one of these rewrites the reviewed shape the way
+# a future "cleanup" might, and the static checker must reject each; the two
+# behavioral mutants prove the wall and cap fixtures depend on the real
+# detector and threshold rather than on a hardcoded script.
+r34_mutate() {
+  if ! python3 - "$MAIN_WF" "$1" "$2" "$3" <<'R34MUT'
+import sys
+src, dst, old, new = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+text = open(src, encoding='utf-8').read()
+if old not in text:
+    raise SystemExit('mutant anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R34MUT
+  then
+    r34_bad="${r34_bad} mutant-anchor-missing:$1"
+    return 1
+  fi
+}
+r34_mutant() {
+  r34_mutant_name="$1"
+  r34_mutant_path="$2"
+  mkdir -p "$r34_dir/mut-$r34_mutant_name"
+  if [ ! -f "$r34_mutant_path" ]; then
+    r34_bad="${r34_bad} mutant-${r34_mutant_name}-file-missing"
+    return
+  fi
+  if python3 -I "$r34_dir/static.py" "$r34_mutant_path" "$r34_dir/mut-$r34_mutant_name" > "$r34_dir/mut-$r34_mutant_name/static" 2>&1; then
+    r34_bad="${r34_bad} mutant-${r34_mutant_name}-not-caught"
+  fi
+}
+mkdir -p "$r34_dir/mutants"
+r34_mutate "$r34_dir/mutants/input.yml" '      quota_recovery:
+        description: "Internal: quota-wall recovery attempt number (do not set manually)"
+        required: false
+        type: string
+' '      quota_recovery_removed:
+        description: "removed"
+        required: false
+        type: string
+'
+r34_mutant input "$r34_dir/mutants/input.yml"
+r34_mutate "$r34_dir/mutants/group.yml" "inputs.quota_recovery && 'quota-recovery' || " ""
+r34_mutant group "$r34_dir/mutants/group.yml"
+r34_mutate "$r34_dir/mutants/intake-if.yml" "if: always() && steps.actor_gate.outputs.run == 'true' && github.event_name == 'workflow_run'" "if: always() && steps.actor_gate.outputs.run == 'true'"
+r34_mutant intake-if "$r34_dir/mutants/intake-if.yml"
+r34_mutate "$r34_dir/mutants/stand-down.yml" " && steps.quota_intake.outputs.stand_down != 'true'" ""
+r34_mutant stand-down "$r34_dir/mutants/stand-down.yml"
+r34_mutate "$r34_dir/mutants/recovery-name.yml" '      - name: "Recover from provider daily free-usage wall (issue #820)"' '      - name: "Recovery removed (issue #820)"'
+r34_mutant recovery-name "$r34_dir/mutants/recovery-name.yml"
+r34_mutate "$r34_dir/mutants/cap.yml" 'if [ "$attempt" -ge 2 ]; then' 'if [ "$attempt" -ge 9 ]; then'
+r34_mutant cap "$r34_dir/mutants/cap.yml"
+r34_mutate "$r34_dir/mutants/marker.yml" '                      quota_wall_mark' '                      :'
+r34_mutant marker "$r34_dir/mutants/marker.yml"
+r34_mutate "$r34_dir/mutants/trigger.yml" 'Quota-wall intake (issue #820): the failed run' 'Quota-wall intake (issue #820) /oc: the failed run'
+r34_mutant trigger "$r34_dir/mutants/trigger.yml"
+r34_mutate "$r34_dir/mutants/ref.yml" 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main' 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref test'
+r34_mutant ref "$r34_dir/mutants/ref.yml"
+
+r34_mutate "$r34_dir/mutants/cap-behavior.yml" 'if [ "$attempt" -ge 2 ]; then' 'if [ "$attempt" -ge 9 ]; then'
+mkdir -p "$r34_dir/mut-cap-behavior"
+if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/cap-behavior.yml" "$r34_dir/mut-cap-behavior" > "$r34_dir/mut-cap-behavior/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-cap-behavior-not-caught"
+fi
+if [ -f "$r34_dir/mut-cap-behavior/recovery.sh" ]; then
+  cp "$r34_dir/mut-cap-behavior/recovery.sh" "$r34_dir/out/recovery-cap9.sh"
+  r34_case recovery-cap-mutant recovery-cap9.sh 2 0 "" 0 1
+  w="$r34_dir/work-recovery-cap-mutant"
+  [ -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-cap-behavior-not-observable"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} mutant-cap-behavior-rc"
+else
+  r34_bad="${r34_bad} mutant-cap-behavior-not-extracted"
+fi
+r34_mutate "$r34_dir/mutants/detector-behavior.yml" 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.' 'NEVER_MATCHES_ANYTHING_XYZ'
+mkdir -p "$r34_dir/mut-detector-behavior"
+if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/detector-behavior.yml" "$r34_dir/mut-detector-behavior" > "$r34_dir/mut-detector-behavior/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-detector-behavior-not-caught"
+fi
+if [ -f "$r34_dir/mut-detector-behavior/intake.sh" ]; then
+  cp "$r34_dir/mut-detector-behavior/intake.sh" "$r34_dir/out/intake-mutant.sh"
+  r34_case intake-detector-mutant intake-mutant.sh 0 0 "$r34_dir/log-wall"
+  w="$r34_dir/work-intake-detector-mutant"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} mutant-detector-behavior-not-observable"
+  r34_has "stand_down=true" "$w/out" && r34_bad="${r34_bad} mutant-detector-behavior-still-stood-down"
+else
+  r34_bad="${r34_bad} mutant-detector-behavior-not-extracted"
+fi
+r34_mutate "$r34_dir/mutants/trigger-behavior.yml" 'Quota-wall intake (issue #820): the failed run' 'Quota-wall intake (issue #820) /oc: the failed run'
+mkdir -p "$r34_dir/mut-trigger-behavior"
+if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/trigger-behavior.yml" "$r34_dir/mut-trigger-behavior" > "$r34_dir/mut-trigger-behavior/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-trigger-behavior-not-caught"
+fi
+if [ -f "$r34_dir/mut-trigger-behavior/intake.sh" ]; then
+  cp "$r34_dir/mut-trigger-behavior/intake.sh" "$r34_dir/out/intake-trigger-mutant.sh"
+  r34_case intake-trigger-mutant intake-trigger-mutant.sh 0 0 "$r34_dir/log-wall"
+  w="$r34_dir/work-intake-trigger-mutant"
+  r34_has "/oc" "$w/posted" || r34_bad="${r34_bad} mutant-trigger-behavior-not-observable"
+else
+  r34_bad="${r34_bad} mutant-trigger-behavior-not-extracted"
+fi
+
+case "$r34_bad" in
+  "")
+    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded fresh-run chain and intercepted by wall-aware intake: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature in the triggering run log (real gh run view --log, unanchored for the job/step prefix, pipefail-off early-exit guard, provider form included), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches at most two fresh runs through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation and exits 1; every escalation note is asserted free of an inline /oc token (issue #775); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical wall, provider form, dedupe, post-failure, attempt 0/1/cap, dispatch-failure, and green/red handoff fixtures, and mutation self-tests prove the static pins and the wall/cap/token fixtures load-bearing" "ok"
+    ;;
+  *)
+    check "R34" "Maintainer quota-wall recovery or wall-aware intake missing/bypassable:${r34_bad} (issue #820: a per-egress-IP wall cannot recover on the same runner, so a bounded fresh-run chain and an intake stand-down are the recovery lane; issue #775: escalation notes must carry no inline trigger token)" "bad"
+    ;;
+esac
+rm -rf "$r34_dir"
+
+summary="Silent-stall regression audit (R1-R34) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R33)
+  body="## Silent-stall regression audit FAILED (R1-R34)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free escalation notes, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
