@@ -200,13 +200,21 @@ def make_fixed_session_run_dir(root, *, driver="x11", resize=False,
     return root
 
 
+_WINDOWS_UNSET = object()
+
+
 def make_windows_run_dir(root, *, cols=100, rows=40, omit=(),
-                         uncaptured=(), build=True, geometry=True):
+                         uncaptured=(), build=True, geometry=True,
+                         build_values=None, exit_value=_WINDOWS_UNSET,
+                         geometry_value=_WINDOWS_UNSET):
     """Build a run directory shaped like run-windows.ps1's session.
 
     Windows rows carry no pty transcript by design, so every checkpoint
     proves itself with a capture; the metadata carries the measured
     console geometry and build identity the runner records before launch.
+    ``build_values``, ``exit_value``, and ``geometry_value`` let a test
+    replace those blocks with hostile shapes (a malformed identity, a
+    non-zero exit, a non-dict geometry) to pin the fail-closed gates.
     """
     session = os.path.join(root, "session")
     shots = os.path.join(session, "screenshots")
@@ -227,10 +235,15 @@ def make_windows_run_dir(root, *, cols=100, rows=40, omit=(),
         "exit": {"code": 0, "killed": False, "game_exited": True,
                  "process_exited": True},
     }
+    if exit_value is not _WINDOWS_UNSET:
+        meta["exit"] = exit_value
+    if geometry_value is not _WINDOWS_UNSET:
+        meta["geometry"] = geometry_value
     if build:
+        values = build_values or {}
         meta["build"] = {
-            "commit": "a" * 40,
-            "binary_sha256": "b" * 64,
+            "commit": values.get("commit", "a" * 40),
+            "binary_sha256": values.get("binary_sha256", "b" * 64),
             "sources_dirty": False,
         }
     with open(os.path.join(session, "meta.json"), "w", encoding="utf-8") as fh:
@@ -1984,12 +1997,76 @@ class TestWindowsHonestyGates(unittest.TestCase):
             f"missing geometry reason in {row['notes']}",
         )
 
+    def test_malformed_geometry_is_partial_not_a_crash(self):
+        # The docstring promises a malformed measurement is None; a
+        # string or list container used to raise AttributeError and take
+        # collect.py down without writing a row.
+        for index, value in enumerate((
+            "100x40",
+            {"measured": ["100", "40"]},
+            {"measured": "100x40"},
+            [],
+        )):
+            row = self._collect(tag=f"bad-geometry-{index}",
+                                geometry_value=value)
+            self.assertEqual(row["disposition"], "partial", value)
+            self.assertTrue(
+                any("no measured console geometry" in note
+                    for note in row["notes"]),
+                f"missing geometry reason in {row['notes']}",
+            )
+
     def test_missing_build_identity_is_partial(self):
         row = self._collect(build=False)
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
             any("no build identity" in note for note in row["notes"]),
             f"missing build reason in {row['notes']}",
+        )
+
+    def test_malformed_build_identity_is_partial(self):
+        # A non-empty but malformed identity is not provenance: the
+        # committed-bundle audit already requires a 40-hex commit and a
+        # 64-hex SHA-256, and the runtime gate must be equally strict.
+        for index, values in enumerate((
+            {"commit": "not-a-sha"},
+            {"binary_sha256": "zzz"},
+            {"commit": "A" * 40},
+        )):
+            row = self._collect(
+                tag=f"bad-build-{index}", build_values=values
+            )
+            self.assertEqual(row["disposition"], "partial", values)
+            self.assertTrue(
+                any("no build identity" in note for note in row["notes"]),
+                f"missing build reason in {row['notes']}",
+            )
+            self.assertIs(row["build"].get("recorded"), False, values)
+
+    def test_non_zero_exit_cannot_pass(self):
+        row = self._collect(exit_value={
+            "code": 1, "killed": False, "game_exited": True,
+            "process_exited": True,
+        })
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("zero exit code" in note for note in row["notes"]),
+            f"missing exit reason in {row['notes']}",
+        )
+
+    def test_killed_session_cannot_pass(self):
+        row = self._collect(exit_value={
+            "code": 0, "killed": True, "game_exited": True,
+            "process_exited": True,
+        })
+        self.assertEqual(row["disposition"], "partial")
+
+    def test_missing_exit_record_cannot_pass(self):
+        row = self._collect(exit_value=None)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("zero exit code" in note for note in row["notes"]),
+            f"missing exit reason in {row['notes']}",
         )
 
     def test_missing_checkpoint_capture_is_partial(self):
@@ -2083,6 +2160,34 @@ class TestRunnerPortability(unittest.TestCase):
             self.assertEqual(proc.returncode, 2, (name, flag, proc.stderr))
             self.assertIn("COLSxROWS", proc.stderr, (name, flag))
 
+    def test_runners_reject_a_flag_without_its_value(self):
+        # Under `set -u` the bare `$2` assignment died with exit 1 and
+        # "unbound variable", bypassing the documented usage exit 2.
+        if not POSIX:
+            self.skipTest("the runners are bash scripts")
+        cases = (
+            ("run-linux.sh", "--emulator"),
+            ("run-linux.sh", "--tier"),
+            ("run-linux.sh", "--outdir"),
+            ("run-linux.sh", "--binary"),
+            ("run-linux.sh", "--initial"),
+            ("run-linux.sh", "--wide"),
+            ("run-linux.sh", "--small"),
+            ("run-linux.sh", "--game-env"),
+            ("run-linux.sh", "--row-name"),
+            ("run-macos.sh", "--emulator"),
+            ("run-macos.sh", "--tier"),
+            ("run-macos.sh", "--initial"),
+            ("run-macos.sh", "--binary"),
+        )
+        for name, flag in cases:
+            proc = subprocess.run(
+                ["bash", os.path.join(COMPAT_DIR, name), flag],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 2, (name, flag, proc.stderr))
+            self.assertIn("requires a value", proc.stderr, (name, flag))
+
 
 PWSH = shutil.which("pwsh")
 
@@ -2112,6 +2217,7 @@ class TestWindowsInitialValidation(unittest.TestCase):
             "x64": "COLSxROWS",
             "100X40": "COLSxROWS",
             "100 x 40": "COLSxROWS",
+            "100x40\n": "COLSxROWS",
             "99999999999999999999x40": "out of range",
         }
         for value, expected in cases.items():
@@ -2126,6 +2232,30 @@ class TestWindowsInitialValidation(unittest.TestCase):
             proc = self.run_initial(value)
             self.assertEqual(proc.returncode, 2, (value, proc.stderr))
             self.assertIn("playable floor", proc.stderr, (value, proc.stderr))
+
+
+class TestWindowsLaunchCommandOrder(unittest.TestCase):
+    """`--size` is a global wt option and must precede `new-tab`.
+
+    Windows Terminal parses `new-tab --size 100,40 pwsh ...` as a tab
+    commandline starting with `100,40`: the session runner never starts,
+    no game.pid is written, and the row is unverified on every host.
+    """
+
+    def test_size_precedes_the_new_tab_subcommand(self):
+        with open(os.path.join(COMPAT_DIR, "run-windows.ps1"),
+                  encoding="utf-8") as fh:
+            body = fh.read()
+        start = body.index("Start-Process wt -ArgumentList @(")
+        block = body[start:body.index(") -PassThru", start)]
+        self.assertIn("'--size'", block)
+        self.assertIn("'new-tab'", block)
+        self.assertLess(
+            block.index("'--size'"), block.index("'new-tab'"),
+            "Windows Terminal treats a --size after new-tab as the tab's "
+            "commandline; the global option must come first",
+        )
+        self.assertIn("'--size', \"$InitialCols,$InitialRows\"", block)
 
 
 class TestProbeGraphicsArguments(unittest.TestCase):
