@@ -70,7 +70,9 @@ $RequiredCheckpoints = @(
 # regex alone would accept 99999999999999999999x40 and the cast would throw).
 $InitialCols = 0
 $InitialRows = 0
-if ($Initial -cnotmatch '^[0-9]+x[0-9]+$') {
+# Absolute anchors: .NET `$` matches before a trailing newline, so
+# `100x40\n` must be malformed exactly like the bash parser treats it.
+if ($Initial -cnotmatch '\A[0-9]+x[0-9]+\z') {
   Fail 2 "run-windows.ps1: -Initial must be COLSxROWS (got: $Initial)"
 }
 $InitialParts = $Initial -csplit 'x'
@@ -299,9 +301,12 @@ if (`$measuredCols -gt 0 -and `$measuredRows -gt 0) {
         Write-Unverified $Emu 'Windows Terminal (wt) is not installed on this host'
         return
       }
+      # --size is a top-level `wt` option, not a `new-tab` option: after
+      # the subcommand Windows Terminal treats it as the tab's commandline
+      # (the tab would run `100,40 pwsh ...` and write no game.pid).
       $proc = Start-Process wt -ArgumentList @(
-        'new-tab', '--title', 'maze-chase-compat',
         '--size', "$InitialCols,$InitialRows",
+        'new-tab', '--title', 'maze-chase-compat',
         'pwsh', '-NoProfile', '-File', ('"{0}"' -f $runner)
       ) -PassThru
     }
