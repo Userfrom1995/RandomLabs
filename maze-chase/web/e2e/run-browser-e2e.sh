@@ -18,12 +18,13 @@
 #   web/e2e/run-browser-e2e.sh --chrome PATH|NAME  # explicit Chrome binary or command
 #   web/e2e/run-browser-e2e.sh --plan              # print the per-suite plan
 #
-# Defaults: starts a static server on 127.0.0.1:<ephemeral> rooted at the
-# maze-chase/ directory, finds Chrome (the CHROME environment variable as a
-# path or command name, or a platform candidate), and runs
-# boot-gate-e2e.js, browser-e2e.js, tester-rebind-lifecycle.js,
-# tester-audio-e2e.js, and site-e2e.js in that order. Requires node 22+
-# (built-in WebSocket) and python3 (for the static server and a free debug port).
+# Defaults: starts serve-site.js (an HTTP/1.1 keep-alive static server) on
+# 127.0.0.1:<ephemeral> rooted at the maze-chase/ directory, finds Chrome
+# (the CHROME environment variable as a path or command name, or a platform
+# candidate), and runs boot-gate-e2e.js, browser-e2e.js,
+# tester-rebind-lifecycle.js, tester-audio-e2e.js, and site-e2e.js in that
+# order. Requires node 22+ (built-in WebSocket) and python3 (free-port
+# allocation).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -145,7 +146,7 @@ node -e 'process.exit(typeof WebSocket === "undefined" ? 1 : 0)' || {
   exit 3
 }
 command -v python3 >/dev/null 2>&1 || {
-  echo "run-browser-e2e.sh: python3 is required for the static server" >&2
+  echo "run-browser-e2e.sh: python3 is required to allocate ports" >&2
   exit 3
 }
 
@@ -243,29 +244,11 @@ trap 'stop TERM 143' TERM
 start_server() {
   local url_file="$SCRATCH/server-url"
   local server_log="$SCRATCH/server.log"
-  python3 - "$WEB_ROOT" >"$url_file" 2>"$server_log" <<'PY' &
-import http.server
-import os
-import socketserver
-import sys
-
-os.chdir(sys.argv[1])
-
-
-class QuietHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *_args):
-        pass
-
-
-class Server(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True
-    daemon_threads = True
-
-
-with Server(("127.0.0.1", 0), QuietHandler) as httpd:
-    print("http://127.0.0.1:%d/" % httpd.server_address[1], flush=True)
-    httpd.serve_forever()
-PY
+  # HTTP/1.1 keep-alive matters here: python3 -m http.server speaks
+  # HTTP/1.0 and Node 22's undici client aborted mid-crawl with an
+  # internal Parser.finish assertion (issue #792).
+  node "$SCRIPT_DIR/serve-site.js" --root "$WEB_ROOT" --port 0 \
+    >"$url_file" 2>"$server_log" &
   SERVER_PID=$!
   local tries=0
   while [ ! -s "$url_file" ] && [ "$tries" -lt 100 ]; do
@@ -278,7 +261,16 @@ PY
     return 1
   fi
   BASE_URL="$(head -n 1 "$url_file")"
-  echo "server: $BASE_URL (root $WEB_ROOT)"
+  if ! node -e '
+    fetch(process.argv[1], { signal: AbortSignal.timeout(3000) })
+      .then((response) => process.exit(response.ok ? 0 : 1))
+      .catch(() => process.exit(1));
+  ' "$BASE_URL" >/dev/null 2>&1; then
+    echo "run-browser-e2e.sh: static server did not answer at $BASE_URL" >&2
+    cat "$server_log" >&2 || true
+    return 1
+  fi
+  echo "server: $BASE_URL (root $WEB_ROOT, keep-alive)"
 }
 
 wait_for_debug_port() { # port pid

@@ -362,7 +362,7 @@ test('--help prints the complete usage header', () => {
   // truncation fails loudly.
   const proc = run(['--help']);
   assert.equal(proc.status, 0, proc.stderr);
-  assert.match(proc.stdout, /static server and a free debug port\)\./);
+  assert.match(proc.stdout, /allocation\)\./);
   assert.doesNotMatch(proc.stdout, /\(for the\s*$/m);
 });
 
@@ -503,10 +503,13 @@ test('a Chrome command name resolves through PATH', () => {
   fs.writeFileSync(nodeStub, [
     '#!/usr/bin/env bash',
     'if [ "$1" = "-e" ]; then exit 0; fi',
+    'case "$*" in',
+    '  *serve-site.js*) exec %s "$@" ;;',
+    'esac',
     'printf "%s\\n" "$*" >> "$ARGV_LOG"',
     'exit 0',
     '',
-  ].join('\n'), { mode: 0o755 });
+  ].join('\n').replace('%s', process.execPath), { mode: 0o755 });
   const chromeStub = path.join(dir, 'google-chrome');
   fs.writeFileSync(chromeStub, [
     '#!/usr/bin/env bash',
