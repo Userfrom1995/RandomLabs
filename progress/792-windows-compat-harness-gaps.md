@@ -60,3 +60,34 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
   crawl. Verification: 86 compat unit tests pass, 37 node tests pass,
   `render-docs --check` clean, `pwsh` parse clean, `bash -n` clean.
   PR #821 is open for review.
+
+- 2026-11-05 (fixer, review round 1): F2's `-Initial` validation exited 1
+  behind a terminating `Write-Error` and threw on Int32 overflow; the fix
+  uses one `Fail` helper (`[Console]::Error.WriteLine` plus `exit`) for the
+  geometry, platform, dependency, and binary checks, and `[int]::TryParse`
+  with case-sensitive `-cnotmatch`/`-csplit` (`100X40` is malformed like the
+  bash parser). `docs/release.md` now states the browser E2E runner starts
+  its own HTTP/1.1 keep-alive `web/e2e/serve-site.js` (python3 only
+  allocates ports), and `release.html` is regenerated. The build pass
+  recorded no delegation ledger, so this fix pass runs the remaining
+  above-threshold work through the protocol and records the real ledger:
+  - Delegation ledger (fix pass, 3 areas):
+    - general: pwsh `-Initial` validation matrix -> reproduced rc 1 from
+      terminating `Write-Error`, confirmed `TryParse` rejects Int32
+      overflow, supplied the fixed matrix (rc 2).
+    - explore: stale E2E serving references -> only `release.md:34` and
+      generated `release.html:60` were E2E-stale; manual-play
+      `http.server` references stay.
+    - explore: delegation ledger and skills precedent -> required fields
+      and house-style examples from `progress/783`, `785`, `786`.
+    - general: full verification suite -> 88 compat tests OK, 37 node
+      tests pass, render-docs 15/424, `bash -n` clean, pwsh parse clean.
+    - explore: diff audit against F1/F2/F3 -> F2/F3 closed; flagged F1
+      still open (now addressed by this entry).
+  - Primary verified: read `run-windows.ps1:36-114`, applied and ran the
+    pwsh matrix (malformed, below-floor, overflow, and uppercase inputs
+    exit 2; valid 100x40 reaches the platform check with exit 3),
+    regenerated `release.html`, and added the pwsh-gated
+    `TestWindowsInitialValidation`.
+  - Skills: no registry skill fits a compatibility-harness repair
+    (`customize-opencode` is for opencode configuration); no skill loaded.
