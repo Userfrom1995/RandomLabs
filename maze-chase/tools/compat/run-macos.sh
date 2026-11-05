@@ -43,10 +43,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [[ ! "$INITIAL" =~ ^[0-9]+x[0-9]+$ ]]; then
-  echo "run-macos.sh: --initial must be COLSxROWS (got: $INITIAL)" >&2
-  exit 2
-fi
+# shellcheck source=tools/compat/run-options.sh
+. "$SCRIPT_DIR/run-options.sh"
+compat_validate_geometry run-macos.sh --initial "$INITIAL" || exit $?
 
 [ "$(uname -s)" = "Darwin" ] || { echo "run-macos.sh: this runner is not macOS" >&2; exit 3; }
 for dep in python3 jq; do

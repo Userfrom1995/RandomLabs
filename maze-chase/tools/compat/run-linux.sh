@@ -69,6 +69,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# shellcheck source=tools/compat/run-options.sh
+. "$SCRIPT_DIR/run-options.sh"
+compat_validate_geometry run-linux.sh --initial "$INITIAL" || exit $?
+compat_validate_geometry run-linux.sh --wide "$WIDE" || exit $?
+compat_validate_geometry run-linux.sh --small "$SMALL" || exit $?
+
 for dep in python3 jq; do
   command -v "$dep" >/dev/null || { echo "run-linux.sh: missing dependency: $dep" >&2; exit 3; }
 done
