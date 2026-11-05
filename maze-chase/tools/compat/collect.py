@@ -174,8 +174,12 @@ def measured_console_geometry(meta):
     game launches. A missing, malformed, or non-positive measurement is
     None so a pass cannot rest on an unknown geometry.
     """
-    geometry = meta.get("geometry") or {}
-    measured = geometry.get("measured") or {}
+    geometry = meta.get("geometry")
+    if not isinstance(geometry, dict):
+        return None
+    measured = geometry.get("measured")
+    if not isinstance(measured, dict):
+        return None
     cols = measured.get("cols")
     rows = measured.get("rows")
     if isinstance(cols, bool) or isinstance(rows, bool):
@@ -916,9 +920,9 @@ def main():
     build_recorded = bool(
         isinstance(build, dict)
         and isinstance(build.get("commit"), str)
-        and build.get("commit").strip()
+        and re.fullmatch(r"[0-9a-f]{40}", build["commit"].strip())
         and isinstance(build.get("binary_sha256"), str)
-        and build.get("binary_sha256").strip()
+        and re.fullmatch(r"[0-9a-f]{64}", build["binary_sha256"].strip())
     )
     if not build_recorded:
         # Provenance is part of the evidence: a bundle that cannot name
@@ -1379,6 +1383,19 @@ def main():
             windows_notes.append(
                 "recorded unverified by collect.py: "
                 + result["unverified_reason"]
+            )
+        exit_info = meta.get("exit")
+        exit_ok = (
+            isinstance(exit_info, dict)
+            and exit_info.get("killed") is False
+            and exit_info.get("code") == 0
+        )
+        if args.result == "pass" and not exit_ok:
+            if disposition == "pass":
+                disposition = "partial"
+            windows_notes.append(
+                "the Windows pass proposal records no clean zero-code game "
+                "exit; a pass requires a zero exit code"
             )
         if args.result == "pass" and not build_recorded:
             if disposition == "pass":
