@@ -428,15 +428,116 @@ else
   fi
   grep -qF 'Maintainer triage on the lab-health board' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-maintainer-escalation)"
   grep -qF 'gh issue comment' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-health-board-escalation-post)"
-  if grep -q '/oc maintainer' "$SELFHEAL_SCRIPT"; then
-    r9_bad="${r9_bad} script(inline-trigger-token)"
-  fi
   grep -q 'refusing to fall back to 0' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-phantom-zero-guard)"
 fi
+
+# Issue #775: machine escalation notes are posted with the owner PAT, and the
+# general lane's gate is contains-based (a mid-body /oc or /opencode wakes it),
+# so the notes must never carry an inline trigger token. Pin the self-heal and
+# curator cap bodies exactly and ban both trigger spellings anywhere in them;
+# mutation self-tests prove the exact-body pins and both token bans catch a
+# rewritten body or a reintroduced token.
+R9_SELFHEAL_NOTE='--body "Schedule/dispatch self-heal exhausted for ${WF}: $1 Manual triage required (Maintainer triage on the lab-health board; no inline trigger token is posted, issue #775)."'
+R9_CURATOR_NOTE='::error::Curator crashed after 3 auto-retries on #$issue_num. Maintainer triage required on the lab-health board; no inline trigger token is posted (issue #775).'
+r9_note_problems() {
+  local script="$1" curator="$2" tags="" line count
+  if [ ! -f "$script" ]; then
+    tags="${tags} selfheal(missing)"
+  else
+    if ! grep -qF -- "$R9_SELFHEAL_NOTE" "$script"; then
+      tags="${tags} selfheal(escalation-note-not-exact)"
+    fi
+    if grep -qE '/(oc|opencode)([^A-Za-z0-9_-]|$)' "$script"; then
+      tags="${tags} selfheal(inline-trigger-token)"
+    fi
+  fi
+  if [ ! -f "$curator" ]; then
+    tags="${tags} curator(missing)"
+  else
+    count=$(grep -cF -- '::error::Curator crashed after 3 auto-retries' "$curator" 2>/dev/null || true)
+    if [ "${count:-0}" != "1" ]; then
+      tags="${tags} curator(cap-note-count-${count:-0})"
+    fi
+    line=$(grep -F -- '::error::Curator crashed after 3 auto-retries' "$curator" 2>/dev/null || true)
+    if ! printf '%s\n' "$line" | grep -qF -- "$R9_CURATOR_NOTE"; then
+      tags="${tags} curator(cap-note-not-exact)"
+    fi
+    if printf '%s\n' "$line" | grep -qE '/(oc|opencode)([^A-Za-z0-9_-]|$)'; then
+      tags="${tags} curator(cap-note-inline-trigger)"
+    fi
+  fi
+  printf '%s' "$tags"
+}
+r9_note_tags=$(r9_note_problems "$SELFHEAL_SCRIPT" ".github/workflows/curator.yml")
+r9_bad="${r9_bad}${r9_note_tags}"
+
+r9_st_dir=$(mktemp -d)
+if ! python3 - "$SELFHEAL_SCRIPT" "$r9_st_dir/selfheal-token.sh" <<'R9SELFMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = "no inline trigger token is posted, issue #775)."
+new = "no inline trigger token is posted, issue #775). /oc maintainer"
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R9SELFMUT
+then
+  r9_bad="${r9_bad} self-test(selfheal-token-anchor-missing)"
+elif [ -z "$(r9_note_problems "$r9_st_dir/selfheal-token.sh" ".github/workflows/curator.yml")" ]; then
+  r9_bad="${r9_bad} self-test(selfheal-token-not-caught)"
+fi
+if ! python3 - "$SELFHEAL_SCRIPT" "$r9_st_dir/selfheal-body.sh" <<'R9SELFMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = "Manual triage required (Maintainer triage on the lab-health board; no inline trigger token is posted, issue #775)."
+new = "Manual triage required (Maintainer triage on the lab-health board)."
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R9SELFMUT
+then
+  r9_bad="${r9_bad} self-test(selfheal-body-anchor-missing)"
+elif [ -z "$(r9_note_problems "$r9_st_dir/selfheal-body.sh" ".github/workflows/curator.yml")" ]; then
+  r9_bad="${r9_bad} self-test(selfheal-body-not-pinned)"
+fi
+if ! python3 - ".github/workflows/curator.yml" "$r9_st_dir/curator-token.yml" <<'R9SELFMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = "no inline trigger token is posted (issue #775)."
+new = "no inline trigger token is posted (issue #775). /opencode maintainer"
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R9SELFMUT
+then
+  r9_bad="${r9_bad} self-test(curator-token-anchor-missing)"
+elif [ -z "$(r9_note_problems "$SELFHEAL_SCRIPT" "$r9_st_dir/curator-token.yml")" ]; then
+  r9_bad="${r9_bad} self-test(curator-token-not-caught)"
+fi
+if ! python3 - ".github/workflows/curator.yml" "$r9_st_dir/curator-body.yml" <<'R9SELFMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = "Maintainer triage required on the lab-health board; no inline trigger token is posted (issue #775)."
+new = "Maintainer triage required on the lab-health board."
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R9SELFMUT
+then
+  r9_bad="${r9_bad} self-test(curator-body-anchor-missing)"
+elif [ -z "$(r9_note_problems "$SELFHEAL_SCRIPT" "$r9_st_dir/curator-body.yml")" ]; then
+  r9_bad="${r9_bad} self-test(curator-body-not-pinned)"
+fi
+rm -rf "$r9_st_dir"
+
 if [ -z "$r9_bad" ]; then
-  check "R9" "schedule/dispatch arms (curator/auditor/ideate/lab) wired to bounded self-heal with a token-free lab-health maintainer escalation (issue #775)" "ok"
+  check "R9" "schedule/dispatch arms (curator/auditor/ideate/lab) wired to bounded self-heal with exact token-free lab-health escalation bodies (self-heal cap note pinned, curator cap note pinned, no inline /oc or /opencode; issue #775)" "ok"
 else
-  check "R9" "schedule/dispatch retry parity missing:${r9_bad} (issue #422 B: a crash burns the whole cron cycle)" "bad"
+  check "R9" "schedule/dispatch retry parity missing:${r9_bad} (issue #422 B: a crash burns the whole cron cycle; issue #775: machine escalation bodies must be exact and token-free)" "bad"
 fi
 
 # [R10] Expression-injection guard (issue #422 residual): a free-form input
@@ -3063,11 +3164,11 @@ r15_freetier_pins() {
   printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 600 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(free-usage-limit-detector-not-pipefail-safe-tail-600)"
   printf '%s\n' "$fn" | grep -qF 'Free usage limit reached\.( Subscribe to OpenCode Go to keep going: https://opencode\.ai/go| Free models work in OpenCode \(https://opencode\.ai\); subscribe to OpenCode Go to keep going: https://opencode\.ai/go)\.?$' || r15_bad="${r15_bad} ${label}(no-anchored-free-usage-limit-terminal-form)"
   [ "$(grep -cE '^[[:space:]]*if free_usage_limit_terminal "\$log"; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(free-usage-limit-detector-not-wired-twice)"
-  [ "$(grep -cF 'provider daily free-usage limit reached' "$f" || true)" = "3" ] || r15_bad="${r15_bad} ${label}(no-canonical-free-usage-limit-message)"
+  [ "$(grep -cE '^[[:space:]]*echo "::(warning|error)::provider daily free-usage limit reached' "$f" || true)" = "3" ] || r15_bad="${r15_bad} ${label}(no-canonical-free-usage-limit-message)"
   [ "$(grep -cF 'quota_flag="${log}.quota"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag)"
   [ "$(grep -cE '^[[:space:]]*if \[ -s "\$quota_flag" \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag-branch)"
   [ "$(grep -cF 'printf '"'"'quota\n'"'"' > "$quota_flag"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-free-usage-limit-flag-write)"
-  n=$(grep -A2 -F 'provider daily free-usage limit reached' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  n=$(grep -A2 -E '^[[:space:]]*echo "::error::provider daily free-usage limit reached' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
   [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(free-usage-limit-fast-fail-not-unconditional-exit-1)"
   # Review finding 2: the account detector matches a line that can sit far
   # above the end of a long provider dump, so it uses the same wider bounded
@@ -11602,13 +11703,21 @@ bash "$gate_script"
 # same blocked egress IP. Detect the #754 terminal signature in the
 # failed run's log, post one deduped lab-health note, hand this run a
 # no-op decision list, and stand down (the agent step is gated on the
-# stand_down output). Detector notes: gh run view --log prefixes every
-# line with job and step names, so the match is unanchored; the agent
-# step is continue-on-error, so --log-failed would omit it; and the
-# read is wrapped in a pipefail-off subshell so grep -m1's early exit
-# cannot surface gh's SIGPIPE as a detector error.
+# stand_down output). Detector notes: gh run view --log renders the
+# runner's canonical fast-fail echo as a ##[error]/##[warning]
+# annotation line, and ONLY that rendered annotation is matched. The
+# log also echoes every step's whole run: script (ANSI-colored) and
+# the agent transcript, so an unanchored substring (the canonical
+# text, the provider's raw AI_APICallError line, or a quoted fixture)
+# matches every failed run's source echo and would stand a non-wall
+# failure down (real failed-run logs at 2026-11-04T08:01:43Z and
+# 18:41:43Z show the source echo before any terminal output). The
+# agent step is continue-on-error, so --log-failed would omit the
+# annotation too; and the read is wrapped in a pipefail-off subshell
+# so grep -m1's early exit cannot surface gh's SIGPIPE as a detector
+# error.
 wall=0
-if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.' ); then
+if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE '##\[(error|warning)\]provider daily free-usage limit reached.*FreeUsageLimitError, issue #754\)' ); then
   wall=1
 fi
 if [ "$wall" -ne 1 ]; then
@@ -25245,8 +25354,10 @@ esac
 # real intake, recovery, and verify bodies are extracted and executed against
 # a mock gh/sleep so the stand-down handoff, dispatch attempt, jitter, dedupe,
 # cap, and green verify handoff are observable; mutation self-tests prove both
-# the static guard and the behavioral fixtures load-bearing, and every note is
-# asserted free of an inline trigger token (issue #775).
+# the static guard and the behavioral fixtures load-bearing, and the intake and
+# recovery notes are asserted free of an inline /oc or /opencode token (issue
+# #775; the periodic-arm self-heal and curator cap bodies are pinned token-free
+# by R9).
 r34_dir=$(mktemp -d)
 r34_bad=""
 cat > "$r34_dir/static.py" <<'R34PY'
@@ -25388,11 +25499,20 @@ if intake_i is not None:
     if text:
         with open(os.path.join(outdir, "intake.sh"), "w", encoding="utf-8") as handle:
             handle.write(text)
+    # Issue #820 review round 1: pin the detector to the runner's rendered
+    # fast-fail annotation exactly. gh run view --log echoes every step's whole
+    # run: script and the agent transcript, so the canonical text alone, the
+    # provider's raw line, or a quoted fixture would match a non-wall failure's
+    # source echo (real failed-run logs at 2026-11-04T08:01:43Z and 18:41:43Z
+    # carry the canonical source line before any terminal output).
+    intake_detector = (
+        "grep -m1 -qE '##\\[(error|warning)\\]provider daily free-usage "
+        "limit reached.*FreeUsageLimitError, issue #754\\)'"
+    )
     for needle in (
         'gh run view "$RUN_ID" --log',
         "set +o pipefail",
-        "grep -m1 -qE",
-        "Free usage limit reached",
+        intake_detector,
         "stand_down=true",
         "printf '[]\\n' > .maintainer/decision.json",
         "gh issue comment",
@@ -25401,8 +25521,11 @@ if intake_i is not None:
     ):
         if needle not in text:
             fail("intake-missing:%s" % needle)
-    if "/oc" in text:
-        fail("intake-carries-inline-trigger")
+    if "Free usage limit reached" in text:
+        fail("intake-carries-unanchored-provider-form")
+    for trigger in ("/oc", "/opencode"):
+        if trigger in text:
+            fail("intake-carries-inline-trigger:%s" % trigger)
     if "OPENCODE_PAT" in json.dumps(env or {}):
         fail("intake-carries-owner-pat")
 
@@ -25435,8 +25558,9 @@ if recovery_i is not None:
     ):
         if needle not in text:
             fail("recovery-missing:%s" % needle)
-    if "/oc" in text:
-        fail("recovery-carries-inline-trigger")
+    for trigger in ("/oc", "/opencode"):
+        if trigger in text:
+            fail("recovery-carries-inline-trigger:%s" % trigger)
     if "OPENCODE_PAT" in text:
         fail("recovery-carries-owner-pat")
 
@@ -25580,8 +25704,10 @@ exit 0
 R34SLEEP
 chmod +x "$r34_dir/bin/gh" "$r34_dir/bin/sleep"
 printf 'unrelated failure\n' > "$r34_dir/log-none"
-printf 'opencode\tagent\tprovider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model m\n' > "$r34_dir/log-wall"
-printf 'AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go\n' > "$r34_dir/log-provider"
+printf 'opencode\tagent\t2026-11-05T00:00:00.0000000Z ##[error]provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model m\n' > "$r34_dir/log-wall"
+printf 'opencode\tagent\t2026-11-05T00:00:00.0000000Z ##[warning]provider daily free-usage limit reached on model m (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog.\n' > "$r34_dir/log-warning"
+printf 'opencode\tagent\t2026-11-05T00:00:00.0000000Z AI_APICallError: Free usage limit reached. Subscribe to OpenCode Go to keep going: https://opencode.ai/go\n' > "$r34_dir/log-provider"
+printf 'opencode\tagent\t2026-11-05T00:00:00.0000000Z \033[36;1m      echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model m"\033[0m\n' > "$r34_dir/log-source"
 r34_case() {
   r34_case_name="$1"
   r34_case_script="$2"
@@ -25637,12 +25763,29 @@ if [ -z "$r34_bad" ]; then
   [ "$(r34_posts "$w/posted")" = "1" ] || r34_bad="${r34_bad} intake-wall-post-count"
   r34_has "<!-- quota-wall:4242 -->" "$w/posted" || r34_bad="${r34_bad} intake-wall-no-dedupe-marker"
   r34_has "/oc" "$w/posted" && r34_bad="${r34_bad} intake-wall-inline-trigger"
+  r34_has "/opencode" "$w/posted" && r34_bad="${r34_bad} intake-wall-inline-trigger-opencode"
   [ -s "$w/calls" ] || r34_bad="${r34_bad} intake-wall-no-gh-calls"
 
+  r34_case intake-warning intake.sh 0 0 "$r34_dir/log-warning"
+  w="$r34_dir/work-intake-warning"
+  [ "$(cat "$w/.maintainer/decision.json" 2>/dev/null)" = "[]" ] || r34_bad="${r34_bad} intake-warning-no-empty-decision"
+  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} intake-warning-no-stand-down"
+
+  # Non-wall logs that merely CONTAIN the canonical text or the provider's raw
+  # line (the echoed run: script, a transcript, or a quoting test step) must
+  # not stand the run down: the detector matches only the runner's rendered
+  # ##[error]/##[warning] fast-fail annotation.
   r34_case intake-provider intake.sh 0 0 "$r34_dir/log-provider"
   w="$r34_dir/work-intake-provider"
-  [ "$(cat "$w/.maintainer/decision.json" 2>/dev/null)" = "[]" ] || r34_bad="${r34_bad} intake-provider-no-empty-decision"
-  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} intake-provider-no-stand-down"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} intake-provider-stood-down"
+  r34_has "stand_down=true" "$w/out" && r34_bad="${r34_bad} intake-provider-stood-down"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} intake-provider-posted"
+
+  r34_case intake-source intake.sh 0 0 "$r34_dir/log-source"
+  w="$r34_dir/work-intake-source"
+  [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} intake-source-stood-down"
+  r34_has "stand_down=true" "$w/out" && r34_bad="${r34_bad} intake-source-stood-down"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} intake-source-posted"
 
   r34_case intake-dedupe intake.sh 0 1 "$r34_dir/log-wall"
   w="$r34_dir/work-intake-dedupe"
@@ -25687,6 +25830,7 @@ if [ -z "$r34_bad" ]; then
   [ "$(r34_posts "$w/posted")" = "1" ] || r34_bad="${r34_bad} recovery-cap-post-count"
   r34_has "Quota-wall recovery cap" "$w/posted" || r34_bad="${r34_bad} recovery-cap-note"
   r34_has "/oc" "$w/posted" && r34_bad="${r34_bad} recovery-cap-inline-trigger"
+  r34_has "/opencode" "$w/posted" && r34_bad="${r34_bad} recovery-cap-inline-trigger-opencode"
   [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} recovery-cap-wrote-decision"
 
   r34_case recovery-dispatch-fail recovery.sh 0 0 "" 1 1
@@ -25762,6 +25906,10 @@ r34_mutate "$r34_dir/mutants/marker.yml" '                      quota_wall_mark'
 r34_mutant marker "$r34_dir/mutants/marker.yml"
 r34_mutate "$r34_dir/mutants/trigger.yml" 'Quota-wall intake (issue #820): the failed run' 'Quota-wall intake (issue #820) /oc: the failed run'
 r34_mutant trigger "$r34_dir/mutants/trigger.yml"
+r34_mutate "$r34_dir/mutants/trigger-opencode.yml" 'Quota-wall intake (issue #820): the failed run' 'Quota-wall intake (issue #820) /opencode: the failed run'
+r34_mutant trigger-opencode "$r34_dir/mutants/trigger-opencode.yml"
+r34_mutate "$r34_dir/mutants/recovery-trigger-opencode.yml" 'Quota-wall recovery cap (issue #820): run' 'Quota-wall recovery cap (issue #820) /opencode: run'
+r34_mutant recovery-trigger-opencode "$r34_dir/mutants/recovery-trigger-opencode.yml"
 r34_mutate "$r34_dir/mutants/ref.yml" 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main' 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref test'
 r34_mutant ref "$r34_dir/mutants/ref.yml"
 
@@ -25779,7 +25927,7 @@ if [ -f "$r34_dir/mut-cap-behavior/recovery.sh" ]; then
 else
   r34_bad="${r34_bad} mutant-cap-behavior-not-extracted"
 fi
-r34_mutate "$r34_dir/mutants/detector-behavior.yml" 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.' 'NEVER_MATCHES_ANYTHING_XYZ'
+r34_mutate "$r34_dir/mutants/detector-behavior.yml" '##\[(error|warning)\]provider daily free-usage limit reached.*FreeUsageLimitError, issue #754\)' 'NEVER_MATCHES_ANYTHING_XYZ'
 mkdir -p "$r34_dir/mut-detector-behavior"
 if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/detector-behavior.yml" "$r34_dir/mut-detector-behavior" > "$r34_dir/mut-detector-behavior/static" 2>&1; then
   r34_bad="${r34_bad} mutant-detector-behavior-not-caught"
@@ -25792,6 +25940,24 @@ if [ -f "$r34_dir/mut-detector-behavior/intake.sh" ]; then
   r34_has "stand_down=true" "$w/out" && r34_bad="${r34_bad} mutant-detector-behavior-still-stood-down"
 else
   r34_bad="${r34_bad} mutant-detector-behavior-not-extracted"
+fi
+# Prove the two negative fixtures (a raw provider quote and the echoed run:
+# script) are load-bearing: the pre-fix unanchored form must stand both down.
+r34_mutate "$r34_dir/mutants/detector-provider-behavior.yml" '##\[(error|warning)\]provider daily free-usage limit reached.*FreeUsageLimitError, issue #754\)' 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.'
+mkdir -p "$r34_dir/mut-detector-provider-behavior"
+if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/detector-provider-behavior.yml" "$r34_dir/mut-detector-provider-behavior" > "$r34_dir/mut-detector-provider-behavior/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-detector-provider-behavior-not-caught"
+fi
+if [ -f "$r34_dir/mut-detector-provider-behavior/intake.sh" ]; then
+  cp "$r34_dir/mut-detector-provider-behavior/intake.sh" "$r34_dir/out/intake-provider-mutant.sh"
+  r34_case intake-provider-mutant intake-provider-mutant.sh 0 0 "$r34_dir/log-provider"
+  w="$r34_dir/work-intake-provider-mutant"
+  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} mutant-detector-provider-fixture-not-load-bearing"
+  r34_case intake-source-mutant intake-provider-mutant.sh 0 0 "$r34_dir/log-source"
+  w="$r34_dir/work-intake-source-mutant"
+  r34_has "stand_down=true" "$w/out" || r34_bad="${r34_bad} mutant-detector-source-fixture-not-load-bearing"
+else
+  r34_bad="${r34_bad} mutant-detector-provider-behavior-not-extracted"
 fi
 r34_mutate "$r34_dir/mutants/trigger-behavior.yml" 'Quota-wall intake (issue #820): the failed run' 'Quota-wall intake (issue #820) /oc: the failed run'
 mkdir -p "$r34_dir/mut-trigger-behavior"
@@ -25806,13 +25972,26 @@ if [ -f "$r34_dir/mut-trigger-behavior/intake.sh" ]; then
 else
   r34_bad="${r34_bad} mutant-trigger-behavior-not-extracted"
 fi
+r34_mutate "$r34_dir/mutants/trigger-opencode-behavior.yml" 'Quota-wall intake (issue #820): the failed run' 'Quota-wall intake (issue #820) /opencode: the failed run'
+mkdir -p "$r34_dir/mut-trigger-opencode-behavior"
+if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/trigger-opencode-behavior.yml" "$r34_dir/mut-trigger-opencode-behavior" > "$r34_dir/mut-trigger-opencode-behavior/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-trigger-opencode-behavior-not-caught"
+fi
+if [ -f "$r34_dir/mut-trigger-opencode-behavior/intake.sh" ]; then
+  cp "$r34_dir/mut-trigger-opencode-behavior/intake.sh" "$r34_dir/out/intake-trigger-opencode-mutant.sh"
+  r34_case intake-trigger-opencode-mutant intake-trigger-opencode-mutant.sh 0 0 "$r34_dir/log-wall"
+  w="$r34_dir/work-intake-trigger-opencode-mutant"
+  r34_has "/opencode" "$w/posted" || r34_bad="${r34_bad} mutant-trigger-opencode-behavior-not-observable"
+else
+  r34_bad="${r34_bad} mutant-trigger-opencode-behavior-not-extracted"
+fi
 
 case "$r34_bad" in
   "")
-    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded fresh-run chain and intercepted by wall-aware intake: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature in the triggering run log (real gh run view --log, unanchored for the job/step prefix, pipefail-off early-exit guard, provider form included), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches at most two fresh runs through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation and exits 1; every escalation note is asserted free of an inline /oc token (issue #775); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical wall, provider form, dedupe, post-failure, attempt 0/1/cap, dispatch-failure, and green/red handoff fixtures, and mutation self-tests prove the static pins and the wall/cap/token fixtures load-bearing" "ok"
+    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded fresh-run chain and intercepted by wall-aware intake: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature in the triggering run log (real gh run view --log, exact rendered ##[error]/##[warning] fast-fail annotation, pipefail-off early-exit guard; the echoed run: script and a quoted provider line are negative fixtures), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches at most two fresh runs through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation and exits 1; the intake and recovery notes are asserted free of an inline /oc or /opencode token (issue #775; the self-heal and curator cap bodies are pinned token-free by R9); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical error and warning, source-echo, provider-quote, dedupe, post-failure, attempt 0/1/cap, dispatch-failure, and green/red handoff fixtures, and mutation self-tests prove the static pins and the wall/cap/token fixtures load-bearing" "ok"
     ;;
   *)
-    check "R34" "Maintainer quota-wall recovery or wall-aware intake missing/bypassable:${r34_bad} (issue #820: a per-egress-IP wall cannot recover on the same runner, so a bounded fresh-run chain and an intake stand-down are the recovery lane; issue #775: escalation notes must carry no inline trigger token)" "bad"
+    check "R34" "Maintainer quota-wall recovery or wall-aware intake missing/bypassable:${r34_bad} (issue #820: a per-egress-IP wall cannot recover on the same runner, so a bounded fresh-run chain and an intake stand-down are the recovery lane, and only the runner's rendered fast-fail annotation may trigger the stand-down; issue #775: the intake and recovery escalation notes must carry no inline /oc or /opencode token; the periodic-arm bodies are pinned by R9)" "bad"
     ;;
 esac
 rm -rf "$r34_dir"
@@ -25826,7 +26005,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free escalation notes, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the runner's rendered fast-fail annotation, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
