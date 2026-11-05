@@ -13,6 +13,10 @@ on:
         description: "Issue to focus on (optional)"
         required: false
         type: string
+      quota_recovery:
+        description: "Internal: quota-wall recovery attempt number (do not set manually)"
+        required: false
+        type: string
       reason:
         description: "Why this run was triggered (e.g. approve: PR #N)"
         required: false
@@ -53,7 +57,12 @@ concurrency:
   # opencode-test, opencode-eval, lab, ideate, curator, auditor,
   # opencode-recover) which sets queue: max, this group keeps the default
   # single pending slot. Audit rule R14 guards this explicit decision.
-  group: maintainer-${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || 'global' }}
+  # Issue #820: every quota-wall recovery run joins one fixed group, so the
+  # bounded fresh-run chain is serialized (a second recovery can never race the
+  # first) and the 20-minute schedule tick can never supersede a pending
+  # recovery. The normal lanes keep the per-target group and the deliberate
+  # single-slot superseding above.
+  group: ${{ inputs.quota_recovery && 'quota-recovery' || format('maintainer-{0}', inputs.pr_number || github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || 'global') }}
   cancel-in-progress: false
 
 jobs:
@@ -128,6 +137,54 @@ jobs:
           fi
           test -s "$gate_script" || { echo "::error::Staged actor gate is empty; refusing to run a mutable copy."; exit 1; }
           bash "$gate_script"
+
+      - name: "Quota-wall intake (issue #820)"
+        id: quota_intake
+        shell: bash
+        if: always() && steps.actor_gate.outputs.run == 'true' && github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          FAILED_WORKFLOW: ${{ github.event.workflow_run.name }}
+        run: |
+          # Issue #820 proposal 2: a failed run whose agent died on the daily
+          # free-usage wall must not summon another Maintainer agent onto the
+          # same blocked egress IP. Detect the #754 terminal signature in the
+          # failed run's log, post one deduped lab-health note, hand this run a
+          # no-op decision list, and stand down (the agent step is gated on the
+          # stand_down output). Detector notes: gh run view --log prefixes every
+          # line with job and step names, so the match is unanchored; the agent
+          # step is continue-on-error, so --log-failed would omit it; and the
+          # read is wrapped in a pipefail-off subshell so grep -m1's early exit
+          # cannot surface gh's SIGPIPE as a detector error.
+          wall=0
+          if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.' ); then
+            wall=1
+          fi
+          if [ "$wall" -ne 1 ]; then
+            echo "No daily free-usage wall signature in failed run $RUN_ID; normal failure triage continues."
+            exit 0
+          fi
+          echo "::warning::triggering run $RUN_ID died on the provider daily free-usage wall (issue #820); standing down instead of drawing another agent onto the same egress IP."
+          mkdir -p .maintainer
+          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$board" ] && [ "$board" != "null" ]; then
+            note=$(printf 'Quota-wall intake (issue #820): the failed run %s (%s) ended on the provider daily free-usage allowance (issue #754). This Maintainer run stood down without summoning an agent, because every free rung shares the same per-egress allowance and the runner that just failed almost certainly carries the same blocked IP. A fresh run is the recovery lane. Quota-wall chains are recovered by the bounded fresh-run recovery step; this note is the audit trail.\n\nTriggering run: %s' "$RUN_URL" "$FAILED_WORKFLOW" "$RUN_URL")
+            marker="<!-- quota-wall:${RUN_ID} -->"
+            if gh api "repos/${GITHUB_REPOSITORY}/issues/${board}/comments?per_page=100" --paginate --slurp 2>/dev/null | jq -r '.[][] | .body' | grep -Fq "$marker"; then
+              echo "Quota-wall note already present for failed run $RUN_ID."
+            else
+              body=$(printf '%s\n\n%s' "$note" "$marker")
+              if ! gh issue comment "$board" --body "$body"; then
+                echo "::warning::could not post the quota-wall note to lab-health issue #${board}; continuing the stand-down."
+              fi
+            fi
+          else
+            echo "::warning::lab-health board not found; quota-wall stand-down proceeds without a note."
+          fi
+          printf '[]\n' > .maintainer/decision.json
+          echo "stand_down=true" >> "$GITHUB_OUTPUT"
 
       - name: "Stage lab helper scripts from the workflow commit (issue #713)"
         run: |
@@ -450,7 +507,7 @@ jobs:
         # trigger actor skips the agent BEFORE the CLI's own permission
         # assert can crash into a noise comment. R15 permits exactly this one
         # conditional form on this step (see silent-stall-audit.sh).
-        if: steps.actor_gate.outputs.run == 'true'
+        if: steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true'
         continue-on-error: true
         timeout-minutes: 60
         shell: bash
@@ -515,6 +572,14 @@ jobs:
             rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
             echo "::error::provider rejected the call for insufficient account funds (account-level rejection, issue #754) on model '$1'; this is not a transient 429/5xx, so it is never retried and never advances the ladder. The line can be a non-fatal per-call paid-title-path 402, so a fresh run is the first recovery; fund the provider plan or escalate to the Owner only if the rejection persists."
             exit 1
+          }
+          quota_wall_mark() {
+            # Issue #820: the post-agent recovery step keys the bounded
+            # fresh-run dispatch on this workspace marker. Written before each
+            # canonical class error so the recovery step (and its #775-safe
+            # escalation) always sees the wall even when the attempt is killed.
+            mkdir -p .maintainer 2>/dev/null || true
+            printf 'provider-daily-free-usage-wall\n' > .maintainer/quota-wall 2>/dev/null || true
           }
           transient_http_error_terminal() {
             if account_funds_terminal "$1"; then
@@ -601,6 +666,7 @@ jobs:
                     if free_usage_limit_terminal "$log"; then
                       echo "::warning::provider daily free-usage limit reached on model '$model' (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog."
                       printf 'quota\n' > "$quota_flag"
+                      quota_wall_mark
                       kill -TERM "$oc_pid" 2>/dev/null
                       kill -TERM "$tee_pid" 2>/dev/null
                       sleep 5
@@ -672,6 +738,7 @@ jobs:
               # can make tee exit nonzero after a deliberate abort.
               if [ -s "$quota_flag" ]; then
                 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
+                quota_wall_mark
                 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
                 exit 1
               fi
@@ -709,6 +776,7 @@ jobs:
               # is never advanced: every free rung shares the same per-egress
               # allowance, so a fresh run is the recovery lane.
               if free_usage_limit_terminal "$log"; then
+                quota_wall_mark
                 echo "::error::provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model '$model'; every free rung shares the same per-egress allowance, so this is not retryable on the same model or ladder and the stall retry is not consumed. Fresh-run recovery: a re-dispatch lands on a new runner and may get a fresh bucket; the provider's retry-after header, when present, is diagnostic only and never a park horizon. Escalate the provider plan if it persists."
                 rm -f "$log" "$fifo" "$hang_flag" "$quota_flag"
                 exit 1
@@ -802,6 +870,50 @@ jobs:
           done
           echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
           exit 1
+
+      - name: "Recover from provider daily free-usage wall (issue #820)"
+        id: quota_recovery
+        shell: bash
+        if: always() && steps.actor_gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUOTA_RECOVERY_ATTEMPT: ${{ inputs.quota_recovery }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
+          # when it fast-fails on the daily free-usage allowance. A run on that
+          # egress IP cannot recover itself, so dispatch a bounded number of
+          # fresh runs (each job lands on a new runner and may get a fresh
+          # bucket), serialized in the fixed quota-recovery concurrency group,
+          # and hand the byte-pinned verify step an empty decision list so this
+          # run concludes green. At the cap, escalate once on the lab-health
+          # board and exit 1 so the chain stays visibly red instead of silently
+          # parking. The notes never contain an inline trigger token (issue
+          # #775); the hardcoded trigger step is the only publisher.
+          if [ ! -f .maintainer/quota-wall ]; then
+            exit 0
+          fi
+          attempt="${QUOTA_RECOVERY_ATTEMPT:-0}"
+          case "$attempt" in ''|*[!0-9]*) attempt=0 ;; esac
+          if [ "$attempt" -ge 2 ]; then
+            echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 2, issue #820); no further self-dispatch. Escalate the provider plan or involve the Owner if it persists."
+            board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
+            if [ -n "$board" ] && [ "$board" != "null" ]; then
+              note=$(printf 'Quota-wall recovery cap (issue #820): run %s/%s ended on the provider daily free-usage wall after %s fresh-run attempts. The bounded self-dispatch cap is reached, so the Maintainer chain halts red instead of looping. A fresh run is the recovery lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" "$attempt")
+              gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
+            else
+              echo "::warning::lab-health board not found; quota-wall cap escalation not posted."
+            fi
+            exit 1
+          fi
+          next=$((attempt + 1))
+          sleep $(( (RANDOM % 30) + 30 ))
+          if ! gh workflow run maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main -f quota_recovery="$next" -f reason="quota: fresh runner attempt ${next} after the provider daily free-usage wall (issue #820)"; then
+            echo "::error::could not dispatch quota-wall fresh-run attempt ${next} (issue #820); failing loudly so the chain stays visible."
+            exit 1
+          fi
+          printf '[]\n' > .maintainer/decision.json
+          echo "::notice::dispatched quota-wall fresh-run attempt ${next} (issue #820); this run hands the verify step an empty decision list."
 
       - name: Verify Maintainer wrote its decision contract (loud failure, issue #591)
         id: verify_agent

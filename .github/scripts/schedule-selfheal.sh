@@ -54,7 +54,7 @@ escalate() {
   health=$(health_issue)
   if [ -n "$health" ] && [ "$health" != "null" ]; then
     gh issue comment "$health" --repo "$GITHUB_REPOSITORY" \
-      --body "Schedule/dispatch self-heal exhausted for ${WF}: $1 Manual triage required. /oc maintainer" \
+      --body "Schedule/dispatch self-heal exhausted for ${WF}: $1 Manual triage required (Maintainer triage on the lab-health board; no inline trigger token is posted, issue #775)." \
       2>/dev/null || echo "::warning::Could not post the escalation to the lab-health board."
   else
     echo "::warning::No open lab-health board found; relying on the workflow_run failure trigger."
