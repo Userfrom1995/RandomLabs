@@ -50,27 +50,31 @@ SMALL="80x24"
 GAME_ENV=()
 ROW_NAME=""
 
+# shellcheck source=tools/compat/run-options.sh
+. "$SCRIPT_DIR/run-options.sh"
+
+require_value() {
+  compat_require_value run-linux.sh "$1" "$2" || exit $?
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --emulator) EMULATOR="$2"; shift 2 ;;
-    --tier) TIER="$2"; shift 2 ;;
-    --outdir) OUTDIR="$2"; shift 2 ;;
-    --binary) BINARY="$2"; shift 2 ;;
+    --emulator) require_value --emulator "$#"; EMULATOR="$2"; shift 2 ;;
+    --tier) require_value --tier "$#"; TIER="$2"; shift 2 ;;
+    --outdir) require_value --outdir "$#"; OUTDIR="$2"; shift 2 ;;
+    --binary) require_value --binary "$#"; BINARY="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD="true"; shift ;;
     --install-deps) INSTALL_DEPS="true"; shift ;;
     --keep) KEEP="true"; shift ;;
-    --initial) INITIAL="$2"; shift 2 ;;
-    --wide) WIDE="$2"; shift 2 ;;
-    --small) SMALL="$2"; shift 2 ;;
-    --game-env) GAME_ENV+=("$2"); shift 2 ;;
-    --row-name) ROW_NAME="$2"; shift 2 ;;
+    --initial) require_value --initial "$#"; INITIAL="$2"; shift 2 ;;
+    --wide) require_value --wide "$#"; WIDE="$2"; shift 2 ;;
+    --small) require_value --small "$#"; SMALL="$2"; shift 2 ;;
+    --game-env) require_value --game-env "$#"; GAME_ENV+=("$2"); shift 2 ;;
+    --row-name) require_value --row-name "$#"; ROW_NAME="$2"; shift 2 ;;
     --help|-h) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "run-linux.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-
-# shellcheck source=tools/compat/run-options.sh
-. "$SCRIPT_DIR/run-options.sh"
 compat_validate_geometry run-linux.sh --initial "$INITIAL" || exit $?
 compat_validate_geometry run-linux.sh --wide "$WIDE" || exit $?
 compat_validate_geometry run-linux.sh --small "$SMALL" || exit $?
