@@ -160,7 +160,7 @@ jobs:
               exit 0
             fi
             echo "::error::Curator still dead after 4 attempts on #$issue_num. Notifying Maintainer and failing closed."
-            gh issue comment "$issue_num" --repo "${{ github.repository }}" --body "::error::Curator crashed after 3 auto-retries on #$issue_num. /oc maintainer" || true
+            gh issue comment "$issue_num" --repo "${{ github.repository }}" --body "::error::Curator crashed after 3 auto-retries on #$issue_num. Maintainer triage required on the lab-health board; no inline trigger token is posted (issue #775)." || true
             exit 1
           fi
 
