@@ -153,13 +153,21 @@ jobs:
           # same blocked egress IP. Detect the #754 terminal signature in the
           # failed run's log, post one deduped lab-health note, hand this run a
           # no-op decision list, and stand down (the agent step is gated on the
-          # stand_down output). Detector notes: gh run view --log prefixes every
-          # line with job and step names, so the match is unanchored; the agent
-          # step is continue-on-error, so --log-failed would omit it; and the
-          # read is wrapped in a pipefail-off subshell so grep -m1's early exit
-          # cannot surface gh's SIGPIPE as a detector error.
+          # stand_down output). Detector notes: gh run view --log renders the
+          # runner's canonical fast-fail echo as a ##[error]/##[warning]
+          # annotation line, and ONLY that rendered annotation is matched. The
+          # log also echoes every step's whole run: script (ANSI-colored) and
+          # the agent transcript, so an unanchored substring (the canonical
+          # text, the provider's raw AI_APICallError line, or a quoted fixture)
+          # matches every failed run's source echo and would stand a non-wall
+          # failure down (real failed-run logs at 2026-11-04T08:01:43Z and
+          # 18:41:43Z show the source echo before any terminal output). The
+          # agent step is continue-on-error, so --log-failed would omit the
+          # annotation too; and the read is wrapped in a pipefail-off subshell
+          # so grep -m1's early exit cannot surface gh's SIGPIPE as a detector
+          # error.
           wall=0
-          if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE 'FreeUsageLimitError, issue #754\) on model|(AI_APICallError: |APIError: |Error: )?Free usage limit reached\.' ); then
+          if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE '##\[(error|warning)\]provider daily free-usage limit reached.*FreeUsageLimitError, issue #754\)' ); then
             wall=1
           fi
           if [ "$wall" -ne 1 ]; then

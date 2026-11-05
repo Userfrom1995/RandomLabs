@@ -1336,12 +1336,16 @@ fast-fail exit (both the watchdog cut and the post-attempt detector), and two
 hardcoded Maintainer steps use that marker. A pre-agent intake step runs
 after the actor gate on `workflow_run` events, reads the triggering failed
 run's `gh run view --log` (never `--log-failed`, because the agent step is
-`continue-on-error`; the match is unanchored because `--log` prefixes every
-line with job and step, and the read is wrapped in a pipefail-off subshell so
-`grep -m1`'s early exit cannot surface `gh`'s SIGPIPE), and on the #754
-signature stands the run down: one lab-health note keyed by the triggering
-run id, an empty `.maintainer/decision.json`, and `stand_down=true` on the
-agent step's gate. A post-agent recovery step dispatches at most two fresh
+`continue-on-error`). `--log` echoes every step's entire `run:` script and
+the agent transcript, so an unanchored substring would match the source echo
+of the detector itself, a quoted provider line, or any transcript mention and
+stand a non-wall failure down; the detector therefore matches ONLY the
+rendered `##[error]`/`##[warning]provider daily free-usage limit reached ...
+(FreeUsageLimitError, issue #754)` annotation the runner emits for a real
+fast-fail. The read is wrapped in a pipefail-off subshell so `grep -m1`'s
+early exit cannot surface `gh`'s SIGPIPE. On the annotation it stands the run
+down: one lab-health note keyed by the triggering run id, an empty
+`.maintainer/decision.json`, and `stand_down=true` on the agent step's gate. A post-agent recovery step dispatches at most two fresh
 runs (each a new job on a new runner, so it may get a fresh bucket), sleeps a
 30-60 second jitter, passes the attempt number through the `quota_recovery`
 dispatch input, and hands the byte-pinned verify step an empty decision list
@@ -1349,10 +1353,16 @@ so the dispatch concludes green; at the cap it posts one lab-health
 escalation and exits 1 so the chain is visibly red. Recovery runs join one
 fixed `quota-recovery` concurrency group so the chain is serialized and a
 schedule tick can never supersede a pending recovery; the normal lanes keep
-the per-target single-slot superseding group. The escalation notes carry no
+the per-target single-slot superseding group. GitHub keeps only one pending
+run per group, so a second chain's recovery dispatch can replace a
+still-pending recovery run: the red-at-cap guarantee is per chain, and the
+next 20-minute schedule tick re-arms recovery. The escalation notes carry no
 inline trigger token (issue #775; the hardcoded trigger step is the only
-publisher), and R34 in `.github/scripts/silent-stall-audit.sh` pins the
-input, concurrency branch, marker writes and ordering, step placement, and
+publisher): R9 pins the self-heal and curator cap-note bodies exactly and
+bans `/oc`/`/opencode` anywhere in them, R34 pins the intake and recovery
+notes the same way, and the R34 fixtures prove a source echo and a quoted
+provider line are negatives (never a stand-down). R34 also pins the input,
+concurrency branch, marker writes and ordering and step placement, and
 executes the real intake and recovery bodies against mock `gh`/`sleep`
 across wall, non-wall, dedupe, attempt 0/1/cap, dispatch-failure, and
 trigger-token-free note fixtures with mutation self-tests.
@@ -1578,7 +1588,9 @@ The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 decision file was written, the run re-dispatches its own workflow exactly once
 (bounded `selfheal_retry` input), then posts a Maintainer-triage escalation
 note on the lab-health board at the cap (no inline trigger token, issue
-#775). The counter and the forwarded issue number reach
+#775; R9 pins the exact self-heal body and the curator cap body and bans
+both trigger spellings anywhere in them). The counter and the forwarded
+issue number reach
 the shell only through `env:` mappings, never as an inline `${{ }}` expansion
 inside a `run:` block (audit R10). The older comment arms keep their
 auto-retry caps (`opencode.yml`, `opencode-review.yml`, and the curator's
@@ -1761,8 +1773,8 @@ remote tip).
   The schedule arms (`curator`, `auditor`) and the dispatched arms
   (`curator`, `auditor`, `ideator`, `lab`) additionally
   self-heal once (`.github/scripts/schedule-selfheal.sh`) and escalate to
-  `/oc maintainer` at the cap, so a crash never burns an entire cron cycle
-  unnoticed. Dispatch inputs reach PAT-backed shell steps only as env data,
+  the lab-health board at the cap (no inline trigger token, issue #775), so
+  a crash never burns an entire cron cycle silently. Dispatch inputs reach PAT-backed shell steps only as env data,
   and a crashed lab run never strips or pushes its branch. These rules are
   statically enforced by R8-R11 in
   `.github/scripts/silent-stall-audit.sh`.
