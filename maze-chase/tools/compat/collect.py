@@ -70,6 +70,13 @@ FIXED_SESSION_CHECKPOINTS = (
 )
 RESIZE_CHECKPOINTS = ("resized-wide", "too-small", "refit")
 TRANSCRIPT_DRIVERS = ("x11", "macos")
+# The Windows runner drives the same fixed session with no pty transcript,
+# so it proves each checkpoint through its capture instead of its bytes.
+WINDOWS_SESSION_CHECKPOINTS = FIXED_SESSION_CHECKPOINTS
+# The game's playable floor (crates/terminal/src/layout.rs): a console below
+# either bound paints the too-small card and never starts a round.
+WINDOWS_MIN_COLS = 62
+WINDOWS_MIN_ROWS = 35
 
 CSI_RE = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
 OSC_RE = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
@@ -123,9 +130,10 @@ def required_checkpoints(meta):
     """The checkpoints the fixed session must have proved before a pass.
 
     Only transcript-driven sessions (the X11 and macOS drivers) run the
-    fixed choreography. Windows rows carry no pty transcript by design
-    and are graded from the process record and captures, and unverified
-    rows use the `none` driver; neither has this shape.
+    transcript gate below. Windows rows carry no pty transcript by design,
+    so their checkpoint proof is capture-only and lives in
+    `windows_capture_gaps()`; unverified rows use the `none` driver and
+    have neither shape.
     """
     driver = str(meta.get("driver") or "")
     if driver not in TRANSCRIPT_DRIVERS:
@@ -135,6 +143,48 @@ def required_checkpoints(meta):
     if geometry.get("resize_exercised") is True:
         names.extend(RESIZE_CHECKPOINTS)
     return tuple(names)
+
+
+def windows_capture_gaps(phases):
+    """Fixed-session checkpoints a Windows pass failed to capture.
+
+    Windows rows have no transcript, so a checkpoint cannot prove itself
+    with bytes: each one must be present in the event stream and carry a
+    decodable capture that entered the bundle. Returns
+    `(missing, uncaptured)` name lists.
+    """
+    by_name = {}
+    for phase in phases:
+        by_name.setdefault(str(phase.get("name", "")).lower(), []).append(phase)
+    missing = []
+    uncaptured = []
+    for name in WINDOWS_SESSION_CHECKPOINTS:
+        matches = by_name.get(name, [])
+        if not matches:
+            missing.append(name)
+        elif any(not phase.get("screenshot") for phase in matches):
+            uncaptured.append(name)
+    return missing, uncaptured
+
+
+def measured_console_geometry(meta):
+    """The measured console size in cells (cols, rows), or None.
+
+    run-windows.ps1 records the session console's measured size before the
+    game launches. A missing, malformed, or non-positive measurement is
+    None so a pass cannot rest on an unknown geometry.
+    """
+    geometry = meta.get("geometry") or {}
+    measured = geometry.get("measured") or {}
+    cols = measured.get("cols")
+    rows = measured.get("rows")
+    if isinstance(cols, bool) or isinstance(rows, bool):
+        return None
+    if not isinstance(cols, int) or not isinstance(rows, int):
+        return None
+    if cols <= 0 or rows <= 0:
+        return None
+    return cols, rows
 
 
 def readiness_from_events(events):
@@ -802,6 +852,7 @@ def main():
         return 1
     with open(meta_path, "r", encoding="utf-8") as fh:
         meta = json.load(fh)
+    driver = str(meta.get("driver") or "")
 
     events_path = os.path.join(session, "events.log")
     events = parse_events(events_path) if os.path.isfile(events_path) else []
@@ -862,13 +913,14 @@ def main():
 
     tier = observed_tier(transcript)
     build = meta.get("build")
-    if not (
+    build_recorded = bool(
         isinstance(build, dict)
         and isinstance(build.get("commit"), str)
         and build.get("commit").strip()
         and isinstance(build.get("binary_sha256"), str)
         and build.get("binary_sha256").strip()
-    ):
+    )
+    if not build_recorded:
         # Provenance is part of the evidence: a bundle that cannot name
         # the commit and binary that produced it says so instead of
         # implying the current tree generated it. An empty or partial
@@ -1292,6 +1344,70 @@ def main():
             "recorded unverified by collect.py: "
             + result["unverified_reason"]
         )
+    # Windows honesty (issue #792): Windows rows have no pty transcript,
+    # so a pass cannot rest on checkpoint byte counts or read the
+    # too-small card's own text back. A Windows pass requires (a) a
+    # measured console geometry at or above the game's 62x35 playable
+    # floor, (b) a decodable capture for every fixed-session checkpoint,
+    # and (c) a recorded build identity. A measured-too-small console is
+    # unverified: the host only painted the too-small card, which is not
+    # gameplay. Unknown geometry is partial (the capture set exists but
+    # the playable size is unproven), and a missing checkpoint or build
+    # identity is partial with the exact gap named.
+    if (driver == "windows" or args.os_name == "windows") and args.result in (
+        "pass",
+        "partial",
+    ):
+        windows_notes = []
+        geometry = measured_console_geometry(meta)
+        if geometry is None:
+            if disposition == "pass":
+                disposition = "partial"
+            windows_notes.append(
+                "the run metadata records no measured console geometry; a "
+                "Windows pass requires proof the window was at least "
+                f"{WINDOWS_MIN_COLS}x{WINDOWS_MIN_ROWS}"
+            )
+        elif geometry[0] < WINDOWS_MIN_COLS or geometry[1] < WINDOWS_MIN_ROWS:
+            disposition = "unverified"
+            result["unverified_reason"] = (
+                f"the console window measured {geometry[0]}x{geometry[1]}, "
+                f"below the game's {WINDOWS_MIN_COLS}x{WINDOWS_MIN_ROWS} "
+                "playable floor; the session never rendered gameplay, and "
+                "a capture of the too-small card alone is not a pass"
+            )
+            windows_notes.append(
+                "recorded unverified by collect.py: "
+                + result["unverified_reason"]
+            )
+        if args.result == "pass" and not build_recorded:
+            if disposition == "pass":
+                disposition = "partial"
+            windows_notes.append(
+                "the run metadata carries no build identity; a Windows pass "
+                "must name the commit and binary that produced it"
+            )
+        if args.result == "pass":
+            missing, uncaptured = windows_capture_gaps(result["phases"])
+            if missing or uncaptured:
+                if disposition == "pass":
+                    disposition = "partial"
+                reasons = []
+                if missing:
+                    reasons.append(
+                        "missing required checkpoint(s): "
+                        + ", ".join(missing)
+                    )
+                if uncaptured:
+                    reasons.append(
+                        "required checkpoint(s) produced no decodable "
+                        "capture: " + ", ".join(uncaptured)
+                    )
+                windows_notes.append(
+                    "a Windows pass requires every fixed-session checkpoint "
+                    "capture; " + "; ".join(reasons)
+                )
+        notes.extend(windows_notes)
     result["disposition"] = disposition
     result["notes"] = notes
 

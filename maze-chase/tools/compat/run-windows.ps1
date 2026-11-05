@@ -17,25 +17,57 @@
 # set; the evidence is the screenshots plus that process record, and the
 # row notes say so.
 #
+# Every row records the measured console geometry (in cells) before the
+# game launches, plus the build identity (commit, binary SHA-256, dirty
+# flag). A `pass` requires a console at or above the game's 62x35 playable
+# floor and a decodable capture for every fixed-session checkpoint; a
+# window that only painted the too-small card is `unverified`, never a
+# pass (issue #792: a 110x30 host was signed as a pass before this).
+#
 # Usage:
 #   pwsh -File tools/compat/run-windows.ps1                    # both terminals
 #   pwsh -File tools/compat/run-windows.ps1 -Emulator conhost  # one terminal
+#   pwsh -File tools/compat/run-windows.ps1 -Initial 100x40    # requested console size
 #   pwsh -File tools/compat/run-windows.ps1 -SkipBuild         # reuse the release binary
 #
 # Requirements: Windows 10/11 with a desktop session, PowerShell 7+
-# (pwsh), cargo on PATH for builds, python3 and jq on PATH.
+# (pwsh), cargo on PATH for builds, python3 and jq on PATH, and git on
+# PATH to record the build commit.
 [CmdletBinding()]
 param(
   [ValidateSet('all', 'windows-terminal', 'conhost')]
   [string]$Emulator = 'all',
   [ValidateSet('auto', 'kitty', 'sixel', 'truecolor', 'legacy')]
   [string]$Tier = 'auto',
+  [string]$Initial = '100x40',
   [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
 
 $Script:ValidCaptures = 0
+$Script:CapturedCheckpoints = @{}
+
+# The game's playable floor (crates/terminal/src/layout.rs). A smaller
+# request can never produce a pass, so reject it before building.
+$MinCols = 62
+$MinRows = 35
+$RequiredCheckpoints = @(
+  'title', 'playing', 'paused', 'title-return', 'help', 'scores', 'settings'
+)
+
+if ($Initial -notmatch '^[0-9]+x[0-9]+$') {
+  Write-Error "run-windows.ps1: -Initial must be COLSxROWS (got: $Initial)"
+  exit 2
+}
+$InitialParts = $Initial -split 'x'
+$InitialCols = [int]$InitialParts[0]
+$InitialRows = [int]$InitialParts[1]
+if ($InitialCols -lt $MinCols -or $InitialRows -lt $MinRows) {
+  Write-Error ("run-windows.ps1: -Initial ${Initial} is below the game's " +
+    "${MinCols}x${MinRows} playable floor")
+  exit 2
+}
 
 $Arch = switch ($env:PROCESSOR_ARCHITECTURE) {
   'AMD64' { 'x86_64' }
@@ -53,7 +85,7 @@ if ($env:OS -ne 'Windows_NT') {
   exit 3
 }
 
-foreach ($dep in @('python3', 'jq')) {
+foreach ($dep in @('python3', 'jq', 'git')) {
   if (-not (Get-Command $dep -ErrorAction SilentlyContinue)) {
     Write-Error "run-windows.ps1: missing dependency: $dep"
     exit 3
@@ -69,6 +101,40 @@ if (-not $SkipBuild) {
 if (-not (Test-Path $Binary)) {
   Write-Error "run-windows.ps1: binary not found: $Binary"
   exit 3
+}
+
+# Build identity (issue #792): a pass must name the commit and the exact
+# binary that produced it. A reused --skip-build binary can predate the
+# checkout, so the SHA-256 is authoritative (collect.py copies both fields
+# into `build`). A failure here is recorded as a missing identity and the
+# collector refuses a pass without it; the harness never guesses.
+$BuildCommit = $null
+$BuildDirty = $null
+Push-Location $RepoRoot
+try {
+  $commitOut = @(& git rev-parse HEAD 2>$null)
+  if ($LASTEXITCODE -eq 0 -and $commitOut.Count -gt 0 -and $commitOut[0].Trim()) {
+    $BuildCommit = $commitOut[0].Trim()
+  }
+  $dirtyOut = @(& git status --porcelain -- Cargo.toml Cargo.lock crates 2>$null)
+  if ($LASTEXITCODE -eq 0) {
+    $BuildDirty = [bool]($dirtyOut | Where-Object { $_.Trim() })
+  }
+} catch {
+  Write-Host "build identity: git lookup failed: $($_.Exception.Message)"
+} finally {
+  Pop-Location
+}
+$BuildSha = $null
+try {
+  $BuildSha = (Get-FileHash -Algorithm SHA256 -Path $Binary).Hash.ToLower()
+} catch {
+  Write-Host "build identity: binary hash failed: $($_.Exception.Message)"
+}
+$BuildIdentity = [ordered]@{
+  commit = $BuildCommit
+  binary_sha256 = $BuildSha
+  sources_dirty = $BuildDirty
 }
 
 $Stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
@@ -87,7 +153,13 @@ function Write-Unverified {
     runner = @{ host = $env:COMPUTERNAME; id = 'compat-harness' }
     started_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     ended_at = $null
-    geometry = @{}; duration_s = 0; exit = $null
+    geometry = @{
+      requested = @{ cols = $InitialCols; rows = $InitialRows }
+      measured = @{}
+      resize_exercised = $false
+    }
+    build = $BuildIdentity
+    duration_s = 0; exit = $null
     notes = @('recorded as unverified by run-windows.ps1',
               'no pty transcript exists on Windows: piping stdout would break the game''s terminal check; evidence is the screenshots plus the game process record')
   }
@@ -170,6 +242,37 @@ function Invoke-Run {
 `$env:HOME = '$runDirSlashQ/home'
 `$env:MAZE_CHASE_TRACE = '$sessionSlashQ/trace.jsonl'
 [Console]::Title = 'maze-chase-compat'
+# Size the console to the requested playable geometry before the game
+# calls crossterm::terminal::size(). The console owner still has the last
+# word, so the row records the measured window size, not the request.
+`$resizeError = `$null
+`$measuredCols = `$null
+`$measuredRows = `$null
+try {
+  `$bufCols = [Math]::Max([Console]::BufferWidth, $InitialCols)
+  `$bufRows = [Math]::Max([Console]::BufferHeight, $InitialRows)
+  if (`$bufCols -ne [Console]::BufferWidth -or `$bufRows -ne [Console]::BufferHeight) {
+    [Console]::SetBufferSize(`$bufCols, `$bufRows)
+  }
+  [Console]::SetWindowSize($InitialCols, $InitialRows)
+} catch {
+  `$resizeError = `$_.Exception.Message
+}
+try {
+  `$measuredCols = [Console]::WindowWidth
+  `$measuredRows = [Console]::WindowHeight
+} catch {
+  `$resizeError = 'measure: ' + `$_.Exception.Message
+}
+`$geometry = [ordered]@{
+  requested = @{ cols = $InitialCols; rows = $InitialRows }
+  measured = @{}
+  resize_error = `$resizeError
+}
+if (`$measuredCols -gt 0 -and `$measuredRows -gt 0) {
+  `$geometry.measured = @{ cols = `$measuredCols; rows = `$measuredRows }
+}
+`$geometry | ConvertTo-Json -Depth 4 | Set-Content -Path '$sessionSlashQ/geometry.json'
 `$gameArgs = @('--dir', '$runDirSlashQ/config'$tierArgs)
 `$gameArgs = `$gameArgs | ForEach-Object { if (`$_ -match '\s') { '"' + `$_ + '"' } else { `$_ } }
 `$game = Start-Process -FilePath '$binaryQ' -ArgumentList `$gameArgs -PassThru -NoNewWindow
@@ -187,6 +290,7 @@ function Invoke-Run {
       }
       $proc = Start-Process wt -ArgumentList @(
         'new-tab', '--title', 'maze-chase-compat',
+        '--size', "$InitialCols,$InitialRows",
         'pwsh', '-NoProfile', '-File', ('"{0}"' -f $runner)
       ) -PassThru
     }
@@ -197,6 +301,7 @@ function Invoke-Run {
     }
   }
   $Script:ValidCaptures = 0
+  $Script:CapturedCheckpoints = @{}
 
   Start-Sleep -Seconds 3
   # Find the terminal window by title (Windows Terminal honors --title;
@@ -238,6 +343,7 @@ public class WinFind {
     } catch { $ok = $false }
     if ($ok) {
       $Script:ValidCaptures++
+      $Script:CapturedCheckpoints[$name] = $true
       # Log the run-directory-relative path, never the scratch root: the
       # committed events.log must match the Linux logs (collect.py
       # resolves the relative path against the run directory).
@@ -314,6 +420,36 @@ public class WinFind {
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
   }
 
+  # The session runner measured the game's console before the game
+  # launched. The request can be silently narrowed by the console owner
+  # (the 110x30 incident), so only the measurement can prove the floor.
+  $geometryFile = Join-Path $session 'geometry.json'
+  $measuredCols = $null
+  $measuredRows = $null
+  $resizeError = $null
+  if (Test-Path $geometryFile) {
+    try {
+      $geometryInfo = Get-Content -Path $geometryFile -Raw | ConvertFrom-Json
+      if ($geometryInfo.resize_error) { $resizeError = [string]$geometryInfo.resize_error }
+      $rawCols = $geometryInfo.measured.cols
+      $rawRows = $geometryInfo.measured.rows
+      $parsedCols = 0
+      $parsedRows = 0
+      if ([int]::TryParse([string]$rawCols, [ref]$parsedCols) -and
+          [int]::TryParse([string]$rawRows, [ref]$parsedRows) -and
+          $parsedCols -gt 0 -and $parsedRows -gt 0) {
+        $measuredCols = $parsedCols
+        $measuredRows = $parsedRows
+      }
+    } catch {
+      $resizeError = 'geometry read: ' + $_.Exception.Message
+    }
+  }
+  $measuredGeometry = @{}
+  if ($measuredCols -and $measuredRows) {
+    $measuredGeometry = @{ cols = $measuredCols; rows = $measuredRows }
+  }
+
   $endedAt = (Get-Date).ToUniversalTime()
   $meta = [ordered]@{
     emulator = $Emu; emulator_version = 'system'; os = 'windows'; arch = $Arch
@@ -323,17 +459,19 @@ public class WinFind {
     started_at = $startedAt.ToString('yyyy-MM-ddTHH:mm:ssZ')
     ended_at = $endedAt.ToString('yyyy-MM-ddTHH:mm:ssZ')
     geometry = @{
-      requested = $null
-      measured = @{}
+      requested = @{ cols = $InitialCols; rows = $InitialRows }
+      measured = $measuredGeometry
       resize_exercised = $false
+      resize_error = $resizeError
     }
+    build = $BuildIdentity
     duration_s = [int]($endedAt - $startedAt).TotalSeconds
     exit = @{ code = $gameExitCode; killed = $killed; game_exited = $gameExited; process_exited = $gameExited }
     notes = @(
       'session driven by run-windows.ps1 (SendKeys + window capture)',
       'the game shares the session runner console (Start-Process -NoNewWindow); no pty transcript exists on Windows because piping stdout would break the game''s terminal check',
-      'graded from the game process (game.pid plus game.exit) and the capture set: a pass requires a zero exit code and at least one valid PNG capture',
-      'the terminal host owns the window geometry: no size is requested, and the captures record what the host provided'
+      'graded from the game process (game.pid plus game.exit), the measured console geometry, the fixed-session capture set, and the build identity: a pass requires a zero exit code, a console at or above 62x35, every checkpoint capture, and a recorded commit plus binary SHA-256',
+      'the session runner requested the console size and recorded what the console owner actually granted; the measurement, not the request, is authoritative'
     )
   }
   $meta | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $session 'meta.json')
@@ -362,6 +500,26 @@ public class WinFind {
   } elseif ($Script:ValidCaptures -lt 1) {
     $result = 'partial'
     $reason = 'no checkpoint capture produced a valid PNG; the session is recorded without render evidence'
+  } elseif (-not $measuredCols) {
+    $result = 'partial'
+    $reason = 'the session did not record a measured console geometry; a Windows pass requires proof the window was at least 62x35'
+  } elseif ($measuredCols -lt $MinCols -or $measuredRows -lt $MinRows) {
+    $result = 'unverified'
+    $reason = ("the console window measured ${measuredCols}x${measuredRows}, " +
+      "below the game's ${MinCols}x${MinRows} playable floor; the session " +
+      'painted the too-small card, not gameplay')
+  } elseif (-not $BuildCommit -or -not $BuildSha) {
+    $result = 'partial'
+    $reason = 'the build identity could not be recorded (git commit or binary SHA-256 missing); a pass must name the commit and binary'
+  } else {
+    $missing = @($RequiredCheckpoints | Where-Object {
+      -not $Script:CapturedCheckpoints.ContainsKey($_)
+    })
+    if ($missing.Count -gt 0) {
+      $result = 'partial'
+      $reason = 'required checkpoint capture(s) missing: ' + ($missing -join ', ') +
+        '; a Windows pass requires every fixed-session checkpoint'
+    }
   }
   if ($reason) {
     & python3 (Join-Path $ScriptDir 'collect.py') --run-dir $runDir --emulator $Emu `
