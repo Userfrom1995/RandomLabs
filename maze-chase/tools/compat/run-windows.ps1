@@ -45,6 +45,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Write-Error is a terminating error under $ErrorActionPreference = 'Stop',
+# so it exits 1 before the intended `exit <code>` runs. Fail writes plain
+# stderr and exits with the documented code.
+function Fail {
+  param([int]$Code, [string]$Message)
+  [Console]::Error.WriteLine($Message)
+  exit $Code
+}
+
 $Script:ValidCaptures = 0
 $Script:CapturedCheckpoints = @{}
 
@@ -56,17 +65,22 @@ $RequiredCheckpoints = @(
   'title', 'playing', 'paused', 'title-return', 'help', 'scores', 'settings'
 )
 
-if ($Initial -notmatch '^[0-9]+x[0-9]+$') {
-  Write-Error "run-windows.ps1: -Initial must be COLSxROWS (got: $Initial)"
-  exit 2
+# -cnotmatch/-csplit are case-sensitive like the bash runners' parser: `100X40`
+# is malformed, not a 100x40 request. TryParse rejects Int32 overflow (the
+# regex alone would accept 99999999999999999999x40 and the cast would throw).
+$InitialCols = 0
+$InitialRows = 0
+if ($Initial -cnotmatch '^[0-9]+x[0-9]+$') {
+  Fail 2 "run-windows.ps1: -Initial must be COLSxROWS (got: $Initial)"
 }
-$InitialParts = $Initial -split 'x'
-$InitialCols = [int]$InitialParts[0]
-$InitialRows = [int]$InitialParts[1]
+$InitialParts = $Initial -csplit 'x'
+if (-not [int]::TryParse($InitialParts[0], [ref]$InitialCols) -or
+    -not [int]::TryParse($InitialParts[1], [ref]$InitialRows)) {
+  Fail 2 "run-windows.ps1: -Initial values are out of range (got: $Initial)"
+}
 if ($InitialCols -lt $MinCols -or $InitialRows -lt $MinRows) {
-  Write-Error ("run-windows.ps1: -Initial ${Initial} is below the game's " +
+  Fail 2 ("run-windows.ps1: -Initial ${Initial} is below the game's " +
     "${MinCols}x${MinRows} playable floor")
-  exit 2
 }
 
 $Arch = switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -81,14 +95,12 @@ $RepoRoot  = (Resolve-Path (Join-Path $ScriptDir '../..')).Path
 $EvidenceDir = Join-Path $ScriptDir 'evidence'
 
 if ($env:OS -ne 'Windows_NT') {
-  Write-Error 'run-windows.ps1: this runner is not Windows'
-  exit 3
+  Fail 3 'run-windows.ps1: this runner is not Windows'
 }
 
 foreach ($dep in @('python3', 'jq', 'git')) {
   if (-not (Get-Command $dep -ErrorAction SilentlyContinue)) {
-    Write-Error "run-windows.ps1: missing dependency: $dep"
-    exit 3
+    Fail 3 "run-windows.ps1: missing dependency: $dep"
   }
 }
 
@@ -99,8 +111,7 @@ if (-not $SkipBuild) {
   try { cargo build --release -p maze-chase-terminal } finally { Pop-Location }
 }
 if (-not (Test-Path $Binary)) {
-  Write-Error "run-windows.ps1: binary not found: $Binary"
-  exit 3
+  Fail 3 "run-windows.ps1: binary not found: $Binary"
 }
 
 # Build identity (issue #792): a pass must name the commit and the exact

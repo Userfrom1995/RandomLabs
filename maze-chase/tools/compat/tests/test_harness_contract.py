@@ -2084,6 +2084,50 @@ class TestRunnerPortability(unittest.TestCase):
             self.assertIn("COLSxROWS", proc.stderr, (name, flag))
 
 
+PWSH = shutil.which("pwsh")
+
+
+class TestWindowsInitialValidation(unittest.TestCase):
+    """A bad -Initial exits 2, never the Write-Error default of 1.
+
+    ``$ErrorActionPreference = 'Stop'`` turns Write-Error into a terminating
+    error, so the old script exited 1 before its ``exit 2``; a raw Int32 cast
+    also threw on oversized values the regex accepted.
+    """
+
+    def run_initial(self, value):
+        return subprocess.run(
+            [PWSH, "-NoProfile", "-File",
+             os.path.join(COMPAT_DIR, "run-windows.ps1"),
+             "-Initial", value],
+            capture_output=True, text=True, timeout=60,
+        )
+
+    def test_malformed_and_overflow_exit_2(self):
+        if not PWSH:
+            self.skipTest("pwsh is not installed")
+        cases = {
+            "100x40x50": "COLSxROWS",
+            "143x": "COLSxROWS",
+            "x64": "COLSxROWS",
+            "100X40": "COLSxROWS",
+            "100 x 40": "COLSxROWS",
+            "99999999999999999999x40": "out of range",
+        }
+        for value, expected in cases.items():
+            proc = self.run_initial(value)
+            self.assertEqual(proc.returncode, 2, (value, proc.stderr))
+            self.assertIn(expected, proc.stderr, (value, proc.stderr))
+
+    def test_below_floor_exit_2(self):
+        if not PWSH:
+            self.skipTest("pwsh is not installed")
+        for value in ("61x40", "100x30"):
+            proc = self.run_initial(value)
+            self.assertEqual(proc.returncode, 2, (value, proc.stderr))
+            self.assertIn("playable floor", proc.stderr, (value, proc.stderr))
+
+
 class TestProbeGraphicsArguments(unittest.TestCase):
     """The probe experiment must run under its documented invocation.
 
