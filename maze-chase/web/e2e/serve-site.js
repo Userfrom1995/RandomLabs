@@ -105,6 +105,9 @@ function main() {
   if (!rootStat.isDirectory()) usage(`root is not a directory: ${options.root}`);
 
   const root = fs.realpathSync(options.root);
+  // `root + path.sep` would be `//` for a root filesystem; a trailing
+  // separator is already the prefix there.
+  const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
   const sockets = new Set();
 
   const server = http.createServer((request, response) => {
@@ -126,7 +129,7 @@ function main() {
     }
 
     let file = path.resolve(root, `.${target.startsWith('/') ? target : `/${target}`}`);
-    if (file !== root && !file.startsWith(`${root}${path.sep}`)) {
+    if (file !== root && !file.startsWith(rootPrefix)) {
       response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('forbidden\n');
       return;
@@ -136,6 +139,18 @@ function main() {
     try {
       stat = fs.statSync(file);
       if (stat.isDirectory()) {
+        // A directory without its trailing slash must redirect before
+        // serving index.html: relative links in the document would
+        // otherwise resolve against the parent path. Reuse the raw path
+        // so an encoded directory name survives the redirect.
+        if (!target.endsWith('/')) {
+          const rawTarget = request.url.split('?')[0];
+          response.writeHead(301, {
+            location: rawTarget.endsWith('/') ? rawTarget : `${rawTarget}/`,
+          });
+          response.end();
+          return;
+        }
         file = path.join(file, 'index.html');
         stat = fs.statSync(file);
       }
@@ -152,7 +167,7 @@ function main() {
     }
     try {
       const real = fs.realpathSync(file);
-      if (real !== root && !real.startsWith(`${root}${path.sep}`)) {
+      if (real !== root && !real.startsWith(rootPrefix)) {
         response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
         response.end('forbidden\n');
         return;

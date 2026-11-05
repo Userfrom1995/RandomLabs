@@ -30,6 +30,8 @@ function makeRoot() {
   fs.writeFileSync(path.join(root, 'site.css'), 'body { color: rgb(1, 2, 3); }\n');
   fs.mkdirSync(path.join(root, 'docs'));
   fs.writeFileSync(path.join(root, 'docs', 'index.html'), '<!doctype html><title>docs</title>\n');
+  fs.mkdirSync(path.join(root, 'pct%dir'));
+  fs.writeFileSync(path.join(root, 'pct%dir', 'index.html'), '<!doctype html><title>pct</title>\n');
   fs.writeFileSync(path.join(root, 'asset.wasm'), Buffer.from([0x00, 0x61, 0x73, 0x6d]));
   return root;
 }
@@ -115,6 +117,22 @@ test('serves files, directories, and wasm over keep-alive', async (t) => {
   const docs = await request(`${base}docs/`, { agent });
   assert.equal(docs.status, 200);
   assert.match(docs.body.toString(), /<title>docs<\/title>/);
+
+  // A directory without its trailing slash must redirect before serving
+  // index.html, so the document's relative links resolve against it.
+  const docsRedirect = await request(`${base}docs`, { agent });
+  assert.equal(docsRedirect.status, 301);
+  assert.equal(docsRedirect.headers.location, '/docs/');
+  assert.equal(docsRedirect.body.length, 0);
+
+  // The redirect reuses the raw request path, so an encoded directory
+  // name is not decoded twice (which would 403 on the next request).
+  const pctRedirect = await request(`${base}pct%25dir`, { agent });
+  assert.equal(pctRedirect.status, 301);
+  assert.equal(pctRedirect.headers.location, '/pct%25dir/');
+  const pct = await request(`${base}${pctRedirect.headers.location}`, { agent });
+  assert.equal(pct.status, 200);
+  assert.match(pct.body.toString(), /<title>pct<\/title>/);
 
   const wasm = await request(`${base}asset.wasm`, { agent });
   assert.equal(wasm.status, 200);
@@ -209,9 +227,29 @@ test('bad usage exits 2', () => {
   }
 });
 
+test('a filesystem root is served without a doubled separator', async (t) => {
+  const root = path.parse(os.tmpdir()).root;
+  // `/` would short-circuit the root-equality check, so probe a nested
+  // file: pre-fix the guard compared against `root + path.sep` (`//` for
+  // `/`) and every path under the filesystem root came back 403.
+  const probe = ['etc/hostname', 'etc/hosts', 'etc/passwd'].find(
+    (relative) => fs.existsSync(path.join(root, relative)),
+  );
+  if (!probe) {
+    t.skip(`no readable probe under the filesystem root: ${root}`);
+    return;
+  }
+  const server = startServer(root, ['--quiet']);
+  t.after(() => server.child.kill('SIGKILL'));
+  const base = await server.url;
+  const response = await request(`${base}${probe}`);
+  assert.equal(response.status, 200);
+});
+
 test('site-e2e drains bodies and requests fresh connections', () => {
   const source = fs.readFileSync(path.join(E2E_DIR, 'site-e2e.js'), 'utf8');
   assert.match(source, /headers: \{ connection: 'close' \}/);
+  assert.match(source, /signal: AbortSignal\.timeout\(10000\)/);
   assert.match(source, /async function fetchQuietly/);
   assert.match(source, /is fetchable/);
 });

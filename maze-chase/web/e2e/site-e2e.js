@@ -141,11 +141,13 @@ function assert(condition, message) {
 // suites crawl many URLs, and an unconsumed keep-alive body made Node
 // 22's undici client abort mid-crawl with an internal Parser.finish
 // assertion (issue #792). A request failure is recorded as a failed
-// assertion and never aborts the rest of the crawl.
+// assertion and never aborts the rest of the crawl; the timeout keeps a
+// server that connects but never responds from stalling it forever.
 async function fetchQuietly(url, { text = false } = {}) {
   const response = await fetch(url, {
     redirect: 'follow',
     headers: { connection: 'close' },
+    signal: AbortSignal.timeout(10000),
   });
   const body = text ? await response.text() : await response.arrayBuffer();
   return { response, body };
