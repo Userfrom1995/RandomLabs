@@ -1327,6 +1327,36 @@ scenario with no ladder advance, and `account-funds` variants proving
 exactly one attempt and no HTTP retry, all under the production pipefail
 shell form.
 
+Because the allowance is per egress IP, a Maintainer run that dies on the
+wall cannot recover itself: the 20-minute schedule kept drawing fresh agents
+onto the same blocked IP, and twelve consecutive runs failed between
+2026-11-04T08:01:43Z and 2026-11-05T00:13:13Z (issue #820). The inline
+runner now writes `.maintainer/quota-wall` immediately before each quota
+fast-fail exit (both the watchdog cut and the post-attempt detector), and two
+hardcoded Maintainer steps use that marker. A pre-agent intake step runs
+after the actor gate on `workflow_run` events, reads the triggering failed
+run's `gh run view --log` (never `--log-failed`, because the agent step is
+`continue-on-error`; the match is unanchored because `--log` prefixes every
+line with job and step, and the read is wrapped in a pipefail-off subshell so
+`grep -m1`'s early exit cannot surface `gh`'s SIGPIPE), and on the #754
+signature stands the run down: one lab-health note keyed by the triggering
+run id, an empty `.maintainer/decision.json`, and `stand_down=true` on the
+agent step's gate. A post-agent recovery step dispatches at most two fresh
+runs (each a new job on a new runner, so it may get a fresh bucket), sleeps a
+30-60 second jitter, passes the attempt number through the `quota_recovery`
+dispatch input, and hands the byte-pinned verify step an empty decision list
+so the dispatch concludes green; at the cap it posts one lab-health
+escalation and exits 1 so the chain is visibly red. Recovery runs join one
+fixed `quota-recovery` concurrency group so the chain is serialized and a
+schedule tick can never supersede a pending recovery; the normal lanes keep
+the per-target single-slot superseding group. The escalation notes carry no
+inline trigger token (issue #775; the hardcoded trigger step is the only
+publisher), and R34 in `.github/scripts/silent-stall-audit.sh` pins the
+input, concurrency branch, marker writes and ordering, step placement, and
+executes the real intake and recovery bodies against mock `gh`/`sleep`
+across wall, non-wall, dedupe, attempt 0/1/cap, dispatch-failure, and
+trigger-token-free note fixtures with mutation self-tests.
+
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
 proven arm-wide (relocating any counter into the rung loop fails
@@ -1546,8 +1576,9 @@ The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
 `.github/scripts/schedule-selfheal.sh`: when the agent step fails and no
 decision file was written, the run re-dispatches its own workflow exactly once
-(bounded `selfheal_retry` input), then escalates with `/oc maintainer` on the
-lab-health board at the cap. The counter and the forwarded issue number reach
+(bounded `selfheal_retry` input), then posts a Maintainer-triage escalation
+note on the lab-health board at the cap (no inline trigger token, issue
+#775). The counter and the forwarded issue number reach
 the shell only through `env:` mappings, never as an inline `${{ }}` expansion
 inside a `run:` block (audit R10). The older comment arms keep their
 auto-retry caps (`opencode.yml`, `opencode-review.yml`, and the curator's
@@ -1595,7 +1626,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R33), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R34), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 

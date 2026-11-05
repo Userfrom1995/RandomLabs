@@ -66,7 +66,14 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
      it → stand down with a log note. Cooldown: no second dispatch for the
      same workflow+branch signature within 30 minutes (check STATE.md/log
      timestamps). Otherwise route lab/continue/fix/ping as the failure
-     demands. Never re-dispatch into a flap.
+     demands. Never re-dispatch into a flap. **Quota-wall failures (issue
+     #820):** the daily free-usage allowance is per egress IP, so a run that
+     ended on the #754 wall is intercepted before you start (the intake step
+     stands this run down and posts one lab-health note) or recovered by the
+     bounded fresh-run step after your run (up to two attempts in the fixed
+     `quota-recovery` group). Do not dispatch a same-IP agent for a wall
+     failure; only the recovery-cap escalation needs your attention, and none
+     of these notes carry an inline trigger token (issue #775).
    - **Trigger-list self-audit:** every run, compare the `workflows:`
      allowlist in `.github/workflows/maintainer.yml` against live workflow
      `name:` fields. Any added/renamed workflow missing from the list →
