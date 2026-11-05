@@ -1,42 +1,39 @@
 # STATE
 
-Last updated: 2026-11-05T07:03Z by run 41984139299. Wake: the 07:00Z schedule tick. Decision: exactly one fresh `eval` #804 on `0872b94c` after the shared cooldown (last eval wall death 06:29:18Z, eligible ~06:59Z; no newer eval trigger on the thread). The #821 review round died on the provider wall at 06:57:28Z and its auto-retry run 41983905539 is live; the new #822 lab PR (host for #820 and #775) has its review run 41983515319 live. `main` is `86570af18a6bfef572da05d5bfe5af61d894eb86`, Pages green on it.
+Last updated: 2026-11-05T07:06Z by run 41984458060. Wake: the pr-trigger `/oc maintainer` on #822 at 07:02:40Z. Decision: `[]` - three healthy live lanes (#822 review, #821 review auto-retry, #804 eval plus one queued duplicate), zero held runs, allowlist 19/19, `main` unchanged. The only new fact is that the #804 eval was dispatched twice after the cooldown (triage run 07:02:20Z, schedule run 07:03:07Z); the eval workflow serializes them per PR, and the newer trigger is the binding one.
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and post hardcoded PAT triggers that route work to the right agent. I never post `/oc` comments myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 07:00-07:03Z)
+## Right now (surveyed 07:03-07:06Z)
 
-- **main** = `86570af18a6bfef572da05d5bfe5af61d894eb86` (`git ls-remote` matches). Its Pages deploy (41978432604) is green at 06:09:01Z; no main push since.
-- **Open PRs**: #822, #821, #804, #745. **Open issues**: 21.
-- **Trigger allowlist**: exact 19/19 (20 repo workflow names minus the deliberately self-excluded `maintainer`; Dependabot/Dependency Graph/pages-build-deployment are GitHub dynamic names). No lab fix needed.
-- **#822 (new, lab)**: "lab: recover the Maintainer from the provider daily free-usage wall (#820, #775)", head `b8b270100730530dd22d812ccfa5262d909a5c90`, 3 commits, MERGEABLE/UNSTABLE (preview and held checks pending), workflow-touching (`maintainer.yml`, `curator.yml`, `auditor.yml`, `opencode.yml`, `maintainer.md`, `tester.md`, `schedule-selfheal.sh`, `silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`), body `Closes #820`, `Closes #775`. Lab run 41978422369 finished at 06:53:54Z with a clean tree. Owner `/oc review` 06:54:06Z; review run 41983515319 live since 06:54:11Z. Three held runs on the branch (pages 41983514977, opencode-pr-trigger 41983514964, maintainer 41983514944) await the hardcoded approve sweep in this run.
-- **#821**: head `f3364c7c5a9e94df61ffc113fadacfa256959eb9`, CLEAN/MERGEABLE, body `Closes #792`, product-only diff. Review run 41980291044 served about 32 minutes and died on the provider wall at 06:57:28Z (`FreeUsageLimitError`, no published verdict; the verify step discarded the unpublished decision and posted `/oc review (auto-retry 1)` at 06:57:44Z). Auto-retry run 41983905539 is live since 06:57:52Z. Native rows stay deferred until the Tester lane settles.
-- **#804** (host PR for #798): head `0872b94cfba3fcce16fbd99168a8956023354b4e`, CLEAN/MERGEABLE, workflow-touching. Review round 7 and the read-only infrastructure Tester approved this head; owner marker 6624239389 at 06:27:09Z on 11-04 with handoff 6624239738 and no newer fix or rejection. The eval run 41978421059 (dispatched 06:08:21Z) served about 21 minutes and died on the wall at 06:29:18Z with no verdict or marker. Its failure-triage run 41980742985 has been in its agent step since 06:29:26Z (unusually long) and has posted nothing; this run dispatches exactly one fresh eval after the cooldown.
+- **main** = `86570af18a6bfef572da05d5bfe5af61d894eb86` (`git ls-remote` matches). Pages preview redeploy 41984455890 green at 07:02:41Z; both the #821 and #822 previews are green; no main push since the 06:04Z #788 merge.
+- **Open PRs**: #822, #821, #804, #745. **Open issues**: 21. #820 and #775 are open only until #822 merges.
+- **Trigger allowlist**: exact 19/19 (23 live names minus the deliberately self-excluded `maintainer`, plus Dependabot Updates, Dependency Graph, and pages-build-deployment which are GitHub dynamic names). No lab fix needed.
+- **#822 (lab, host for #820/#775)**: head `b8b270100730530dd22d812ccfa5262d909a5c90`, CLEAN/MERGEABLE, 3 commits, workflow-touching (`maintainer.yml`, `curator.yml`, `auditor.yml`, `opencode.yml`, `maintainer.md`, `tester.md`, `schedule-selfheal.sh`, `silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`), body `Closes #820`, `Closes #775`. Review 41983515319 live since 06:54:11Z (healthy). The three held 06:54 runs were cleared by the approve sweep and all checks report pass.
+- **#821 (product, closes #792)**: head `f3364c7c5a9e94df61ffc113fadacfa256959eb9`, CLEAN/MERGEABLE. Review auto-retry 41983905539 live since 06:57:53Z after 41980291044 died on the wall at 06:57:28Z with no published verdict (crash-parity retry posted 06:57:44Z). Native rows stay deferred until the Tester lane settles.
+- **#804 (lab, host for #798)**: head `0872b94cfba3fcce16fbd99168a8956023354b4e` unchanged, CLEAN/MERGEABLE, workflow-touching. Review round 7 and the read-only infrastructure Tester approved this head; owner marker 6624239389 at 06:27:09Z on 11-04 with handoff 6624239738, no newer fix or rejection, no eval marker. Two fresh evals are now queued after the shared cooldown: 41984422510 (in progress since 07:02:25Z, trigger 07:02:20Z from triage run 41980742985) and 41984512495 (pending, trigger 07:03:07Z from schedule run 41984139299). Per-PR `queue: max` serialises them; the first is trigger-stale, so its marker publisher will refuse and the second is the effective binding pass.
 - **#745**: parked CONFLICTING/DIRTY at `7a04fa4a96e1982ac307ca40973fed29379def0b`, behind #803.
-- **Wall watch**: active. Deaths today: the #821 review at 06:57:28Z and the #804 eval at 06:29:18Z. This is the #754 per-egress daily free-usage class: fresh-run recovery only, `retry-after` diagnostic only, no lab dispatch (the #822 fix is in review), no ladder advance, no park.
-- **Held runs**: 3 `action_required`, all on the new #822 branch (listed above). The four documented inert queued runs remain (36101155868, 36101155851, 36101155844, 37344324101).
-- **Failures**: only `opencode-eval` 41978421059 in the newest 200. The #821 review auto-retried through its own gate, so it shows green at job level.
-- **Pending maintainer runs**: 41983932151 (`workflow_run`, 06:58:02Z) is queued behind this run by the single pending slot; it will re-survey fresh and stand down or act on anything new.
-- **Curator / Auditor**: last runs green (curator 05:40Z, auditor 05:36Z); the next curator 6-hour tick is due around 11:40Z. The auditor's daily report is green with #820 as its only new finding.
+- **Held runs**: zero `action_required`. The four documented inert queued runs remain (36101155868, 36101155851, 36101155844, 37344324101).
+- **Failures**: no `failure` or `timed_out` run in the newest 200. Eight `maintainer workflow_run` runs at 07:02:25-07:02:34Z show `cancelled`: deliberate single-pending-slot superseding in the `maintainer-main` group (issue #601), not a failure signature; every Maintainer run re-surveys fresh.
+- **Wall watch**: active. Today's deaths: the #821 review at 06:57:28Z and the #804 eval at 06:29:18Z. This is the #754 per-egress daily free-usage class: fresh-run recovery only, `retry-after` diagnostic only, no lab dispatch, no ladder advance, no park. The durable fix is PR #822.
+- **Curator / Auditor**: last runs green (curator 05:40Z, auditor 05:36Z); next curator tick around 11:40Z. No re-dispatch.
 - **Model watch**: pin `opencode/deepseek-v4.1-flash-free` on all knobs; ladder 3/3 live and free. The wall deaths are quota, not model retirement.
 - **Untriaged sweep**: none. #822 closes #820/#775; #821 closes #792; #804 closes #798; #745 follows #803; the remaining issues hold recorded queue positions or are parked trackers (#582 Phase 6, #657/#655/#659/#661/#677/#678/#683, #742/#773/#774/#812/#814/#815).
-- **Pages**: main deploy green on `86570af1`; the #821 preview is current on `f3364c7c`; the #822 preview deploy is held behind the approve sweep.
 
 ## The live lanes (do not duplicate)
 
-1. **#804 eval recovery**: one fresh `eval` on `0872b94c` dispatched by this run (cooldown expired 06:59:18Z). On `approve-eval`, the eval workflow publishes the owner-authored head-bound marker and the maintainer handoff; the hardcoded PAT sweep then merges the workflow-touching PR (`--rebase`, fallback `--merge`, branch kept) and closes #798. On `fix`, route `lab` with the findings and re-bind the review/tester/eval chain to the new head. Watch for a possible duplicate dispatch from the long-running triage run 41980742985.
-2. **#822 lab**: review 41983515319 live. On approval the review workflow forwards `/oc test` (read-only infrastructure Tester), then the binding eval, then the PAT sweep. It closes #820 and #775. Expect no rebase yet (it is the first infra lane to reach the merge gate; #804 shares the audit script, so whichever lands second rebases).
-3. **#821 product**: review auto-retry 1 live. On approval the workflow forwards `/oc test`; on findings it forwards `/oc fix`. Then the Tester lane, then native rows (`test-windows` first for this Windows-specific PR, plus `test-linux`/`test-macos` for the shared parser/runner edits), then the binding eval on the settled head, then the merge and the #792 closure.
+1. **#804 eval pair**: 41984422510 live, 41984512495 queued. The trigger-fresh second pass is the binding one. On `approve-eval`, verify the owner-authored head-bound marker is newer than tester verdict 6624239389 and the latest eval trigger and is not superseded; the PAT sweep merges the workflow-touching PR (`--rebase`, fallback `--merge`, branch kept) and closes #798. On `fix`, route `lab` with the findings and re-bind the review/tester/eval chain to the new head. Do not dispatch a third eval while either run is live.
+2. **#822 lab**: review 41983515319 live. On approval the review workflow forwards `/oc test` (read-only infrastructure Tester), then the binding eval, then the PAT sweep. It closes #820 and #775. #804 shares `silent-stall-audit.sh`, `AGENTS.md`, and `LAB.md`, so whichever lands second rebases and re-gates.
+3. **#821 product**: review auto-retry 41983905539 live. On approval the workflow forwards `/oc test`; on findings it forwards `/oc fix` (product code, fix is valid). Then the Tester lane, then native rows (`test-windows` first for this Windows-specific PR, plus `test-linux`/`test-macos` for the shared parser/runner edits), then the binding eval on the settled head, then the merge and the #792 closure.
 4. **#745** stays parked behind #803; #742 closes with #745.
-5. **#788 / #786**: merged and closed; Pages on `86570af1` verified green. Only triage post-merge failures.
 
 ## The #804 chain
 
 1. Head `0872b94c` is CLEAN/MERGEABLE on the post-#788 main; the file lanes did not overlap with #788.
 2. Review round 7 approved at 06:02:06Z; the read-only infrastructure Tester approved at 06:27:03Z (owner-authored `/oc approve-test` 6624239389 at 06:27:09Z, handoff 6624239738). No newer fix or rejection.
-3. Three binding evals have died on the wall (41786203805, 41793225566, 41978421059). The fresh dispatch from this run is the designed recovery after the shared cooldown.
+3. Four binding evals have died on the wall (41786203805, 41793225566, 41978421059) or are in flight; the duplicate pair dispatched after the 06:59:18Z cooldown is the designed fresh-run recovery.
 4. After approval: verify the marker chain (owner-authored, head-bound `0872b94c`, newer than the tester verdict and the latest eval trigger, not superseded), let the PAT sweep merge, confirm #798 closes and Pages is green.
 
 ## The #822 chain
@@ -47,7 +44,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## The serialized infra queue
 
-1. #804 is the live merge-bound infra lane; #822 is the exceptional parallel resilience lane (different core surface, adds R34). Whichever lands second rebases (shared `silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`).
+1. #804 and #822 are the live merge-bound infra lanes. Whichever lands second rebases (shared `silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`) and re-gates.
 2. After #804 and #822 merge: reconcile #812 and #815 against the new main and dispatch one scoped audit pass (drop anything that landed; #815 overlaps #804's R17 work; #812's R32 forward-target gap may overlap #822's R34).
 3. Then #814 baseline fail-open, sequenced with #803 (same fix-lane verify region/counters).
 4. Then #803 after the #804/#788 evidence, then #745, then #742 closes with #745.
@@ -56,15 +53,15 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 ## Loose ends board
 
 1. **#820 / #775**: the fix is PR #822, in review. The owner capacity decision (fund OpenCode Go, raise the allowance, or lower the Maintainer cadence) remains open.
-2. **#821**: review auto-retry 1 live after the wall death; native rows and eval follow the Tester.
-3. **#804**: fresh eval dispatched; then the marker chain, the PAT sweep, the #798 closure.
+2. **#821**: review auto-retry 1 live; native rows and eval follow the Tester.
+3. **#804**: two serialized evals queued; then the marker chain, the PAT sweep, the #798 closure.
 4. **#745**: parked CONFLICTING at `7a04fa4a`, behind #803.
 5. **#812**: held behind #804; includes the R32 forward-target gap and the dead `outcome=skipped` note.
 6. **#814**: held behind #803; coordinate the same verify region.
 7. **#815**: held behind #804 (direct R17 overlap); the Auditor reproduced `31 passed, 2 failed` with an ambient `LAB_RUN_NONCE`.
 8. **#817 / #819 merged leftovers**: the deferred Curator docs pass (handoff arrows, return routes, duplicate tor-cli anchor) and the deferred Lab Engineer docs pass (AGENTS.md/LAB.md infrastructure-routing prose) still wait behind the infra queue.
 9. **#773 / #774**: valid docs/setup gaps from the audit; deferred behind the live lanes.
-10. **Pages**: `86570af1` green; the #821 preview current; the #822 preview held pending approval.
+10. **Pages**: main and both previews green; the #822 preview cleared its held check.
 11. **Cron watch**: Maintainer schedules remain best-effort; event wakes deliver. Watch item, not a production stop.
 12. **Wall watch**: active; fresh-run recovery only. #822 is the durable mitigation.
 13. **Queued-run anomaly**: four permanently queued runs with no jobs; inert, recorded for the Auditor.
@@ -86,7 +83,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Next run
 
-1. Read the #804 eval verdict. On `approve-eval`, verify the owner-authored, head-bound marker chain and let the PAT sweep merge the workflow-touching PR with the branch kept, then confirm the #798 closure and Pages. On `fix`, route `lab`. If the fresh eval dies on the wall again, count the attempts and take the next fresh-run slot after the cooldown; do not duplicate the live eval or the triage run 41980742985.
+1. Read whichever #804 eval finishes first; expect the trigger-fresh second pass to be the binding one. On `approve-eval`, verify the owner-authored, head-bound marker chain and let the PAT sweep merge the workflow-touching PR with the branch kept, then confirm the #798 closure and Pages. On `fix`, route `lab`. If both evals die on the wall, count the attempts and take the next fresh-run slot after the cooldown; do not dispatch a third pass while any eval is live.
 2. Read the #822 review verdict. On approval the workflow forwards `/oc test`; on findings the review workflow forces `/oc lab` (infrastructure PR). Then the binding eval and the PAT sweep; confirm #820 and #775 close and Pages is green.
 3. Read the #821 review auto-retry verdict. On approval the workflow forwards `/oc test`; on findings it forwards `/oc fix` (product PR). On the tester-approval wake dispatch `test-windows` first plus `test-linux`/`test-macos`, sequence the binding eval after the rows settle, then merge and close #792.
 4. Verify Pages after any merge; re-check held runs and the four permanently queued runs.
@@ -96,9 +93,9 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Open questions
 
-1. Does the fresh #804 eval finish its verdict before the wall drains the bucket, and does the long-running triage run 41980742985 leave it unduplicated?
-2. Does #821's review auto-retry 1 survive the wall and approve cleanly, or return findings to the Fixer?
-3. Does #822's review approve cleanly so the resilience fix can reach the eval and the PAT sweep?
+1. Does the first (trigger-stale) #804 eval waste the bucket or die on the wall before the trigger-fresh second pass runs?
+2. Does #822's review approve cleanly so the resilience fix can reach the Tester, the eval, and the PAT sweep?
+3. Does #821's review auto-retry 1 survive the wall and approve cleanly, or return findings to the Fixer?
 4. Does the Windows native row reproduce the new pass contract end to end on a real Windows host (#821)?
 5. Will the Owner take the capacity decision (fund OpenCode Go or raise the allowance, or approve a lower Maintainer cadence)?
 6. Does `pages.yml` stay green through the next merge cycle?
