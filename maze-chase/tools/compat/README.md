@@ -43,9 +43,11 @@ reason. There are no guessed rows.
   missing build identity is `partial`. A row whose game process never
   started is `unverified` with the reason.
 - `run-options.sh` - shared option validation sourced by `run-linux.sh`
-  and `run-macos.sh`, so both runners reject a malformed geometry flag
-  (`--initial`, `--wide`, `--small`) with the same `COLSxROWS` message
-  and exit 2.
+  and `run-macos.sh`. `run-linux.sh` validates `--initial`, `--wide`, and
+  `--small`; `run-macos.sh` validates `--initial` (it has no resize
+  flags), and both reject a malformed `COLSxROWS` value with the same
+  message and exit 2. A value-taking flag with no value is also a usage
+  error (exit 2), never an unbound-variable death.
 - `drive.sh` - shared scripted-session driver. Launches one emulator
   command, waits up to 30 seconds for the X11 window (the macOS driver
   has no window lookup and relies on the readiness wait instead), waits

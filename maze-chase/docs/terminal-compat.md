@@ -26,7 +26,7 @@ exercised resizes) to be present, non-empty, and captured; a driver that
 sees no transcript output within its bounded readiness wait records a
 `readiness-timeout` and the row is `unverified`, never a blank-session
 pass. A Windows `pass` is graded without a transcript: the row must
-record the measured console geometry the runner set and prove every
+record the measured console geometry the console granted and prove every
 fixed-session checkpoint with a decodable capture. A console measured
 below the game's 62x35 playable floor is `unverified` (the only rendered
 content is the too-small card, never gameplay), and unknown geometry, a

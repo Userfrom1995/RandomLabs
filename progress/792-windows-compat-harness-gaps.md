@@ -8,7 +8,7 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
 ## Defects
 
 - W1: `run-windows.ps1` recorded `disposition: pass` from a 110x30 host
-  that only ever painted the too-small card (95 report comment
+  that only ever painted the too-small card (issue #657 report comment
   6532711345). The collector's too-small gate reads the transcript, and
   Windows rows have none by design, so the card alone signed a pass.
 - W2: the compat unit suite was not Windows-portable: `probe-graphics.py`
@@ -89,5 +89,34 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
     exit 2; valid 100x40 reaches the platform check with exit 3),
     regenerated `release.html`, and added the pwsh-gated
     `TestWindowsInitialValidation`.
+  - Skills: no registry skill fits a compatibility-harness repair
+    (`customize-opencode` is for opencode configuration); no skill loaded.
+
+- 2026-11-05 (fixer, review round 2): addressed N1-N10 from the second
+  review. `run-windows.ps1` now passes the global `wt --size` option
+  before `new-tab` (N1), anchors `-Initial` with `\A...\z` so a trailing
+  newline is malformed like the bash parser (N7), and its argument order
+  is pinned by `TestWindowsLaunchCommandOrder`. `collect.py` validates
+  the build identity formats at runtime (N2), treats non-dict geometry
+  containers as unknown instead of crashing (N3), and enforces the
+  documented clean zero-code game exit on a Windows pass (N4). The
+  transcript runners reject a value-taking flag with no value at exit 2
+  via `compat_require_value` (N6). `site-e2e.js` bounds each fetch with
+  a 10 s timeout (N8), and `serve-site.js` fixes the root-filesystem
+  prefix plus slashless-directory redirects with the raw request path
+  (N10). README wording (N5), the #657 citation, and the granted-geometry
+  wording (N9) are corrected; `terminal-compat.html` is regenerated.
+  - Delegation ledger (fix pass 2, four areas):
+    - general: collector Windows gates (N2/N3/N4) -> all pass; 14/14
+      honesty tests and 20 independent fixture checks; only non-blocking
+      notes (whitespace strip, `0.0 == 0` equality).
+    - general: web E2E server/crawl (N8/N10) -> pass; found the root-FS
+      regression test was non-load-bearing and the redirect decoded an
+      encoded directory name, both fixed in this pass.
+    - general: runner parsing (N1/N6/N7) -> pass; all value-taking flags
+      exit 2, trailing-newline parity holds, pwsh parse clean.
+  - Primary verified: read every changed diff, ran 95 compat tests,
+    38 node tests, `render-docs --check` (15 docs, 424 links), `bash -n`
+    and shellcheck (only the pre-existing SC2015), and the pwsh matrix.
   - Skills: no registry skill fits a compatibility-harness repair
     (`customize-opencode` is for opencode configuration); no skill loaded.
