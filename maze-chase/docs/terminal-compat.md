@@ -25,7 +25,12 @@ checkpoint (`title`, `playing`, `paused`, `title-return`, `help`,
 exercised resizes) to be present, non-empty, and captured; a driver that
 sees no transcript output within its bounded readiness wait records a
 `readiness-timeout` and the row is `unverified`, never a blank-session
-pass.
+pass. A Windows `pass` is graded without a transcript: the row must
+record the measured console geometry the runner set and prove every
+fixed-session checkpoint with a decodable capture. A console measured
+below the game's 62x35 playable floor is `unverified` (the only rendered
+content is the too-small card, never gameplay), and unknown geometry, a
+missing checkpoint capture, or a missing build identity is `partial`.
 
 ## Executed rows (Linux, published rc.1 artifacts)
 
@@ -59,7 +64,8 @@ with no decodable playing capture at all, so a menu-only capture set can
 never sign one. On Linux and macOS, a `pass` whose transcript never names
 the active video tier is refused outright, because the bitmap gates are
 keyed on the observed tier (Windows rows carry no transcript by design and
-are graded from the process record and the capture set). The pause hub
+are graded from the process record, the measured console geometry, the
+capture set, and the build identity). The pause hub
 deliberately freezes the 55%-dimmed board with the actors exempt, so a
 current paused capture is allowed to carry sprite pixels and sit between
 55% and 100% one color: the collector requires the PAUSED card paint in
