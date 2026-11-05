@@ -1,6 +1,6 @@
 # 792 - Windows compatibility harness gaps
 
-Status: in-progress
+Status: complete
 Issue: #792 (Refs #655, #786)
 Branch: opencode/issue792-20261105060842
 Scope: test harness only. No shipped game, site, or workflow behavior change.
@@ -39,7 +39,7 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
       lifecycle, and a `Connection: close`/drain/continue client path in
       `site-e2e.js` so a request failure can never abort the crawl
 - [x] Docs and harness tests updated
-- [ ] Full verification recorded, PR opened
+- [x] Full verification recorded, PR opened (PR #821)
 
 ## Agent log
 
@@ -59,3 +59,4 @@ Scope: test harness only. No shipped game, site, or workflow behavior change.
   `Connection: close`, and records a failed fetch without aborting the
   crawl. Verification: 86 compat unit tests pass, 37 node tests pass,
   `render-docs --check` clean, `pwsh` parse clean, `bash -n` clean.
+  PR #821 is open for review.
