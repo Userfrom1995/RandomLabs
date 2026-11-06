@@ -47,6 +47,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: write
+  checks: read
 
 concurrency:
   # Deliberately single-slot, superseding by design (issue #601): every
@@ -150,24 +151,29 @@ jobs:
         run: |
           # Issue #820 proposal 2: a failed run whose agent died on the daily
           # free-usage wall must not summon another Maintainer agent onto the
-          # same blocked egress IP. Detect the #754 terminal signature in the
-          # failed run's log, post one deduped lab-health note, hand this run a
-          # no-op decision list, and stand down (the agent step is gated on the
-          # stand_down output). Detector notes: gh run view --log renders the
-          # runner's canonical fast-fail echo as a ##[error]/##[warning]
-          # annotation line, and ONLY that rendered annotation is matched. The
-          # log also echoes every step's whole run: script (ANSI-colored) and
-          # the agent transcript, so an unanchored substring (the canonical
-          # text, the provider's raw AI_APICallError line, or a quoted fixture)
-          # matches every failed run's source echo and would stand a non-wall
-          # failure down (real failed-run logs at 2026-11-04T08:01:43Z and
-          # 18:41:43Z show the source echo before any terminal output). The
-          # agent step is continue-on-error, so --log-failed would omit the
-          # annotation too; and the read is wrapped in a pipefail-off subshell
-          # so grep -m1's early exit cannot surface gh's SIGPIPE as a detector
-          # error.
+          # same blocked egress IP. Detect the #754 terminal signature from the
+          # failed run's CHECK-RUN ANNOTATIONS (issue #820 review round 3),
+          # post one deduped lab-health note, hand this run a no-op decision
+          # list, and stand down (the agent step is gated on the stand_down
+          # output). The job log is never read: reading it echoes every step's
+          # whole run: script (ANSI-colored), the agent transcript, and a
+          # transcript that quotes the rendered ##[error] line, so a log grep
+          # cannot distinguish the runner's own fast-fail from a source echo or
+          # a quoted fixture (the claimed transcript negative fixture did not
+          # exist). The runner converts the canonical ::error::/::warning::
+          # commands into real check-run annotations, exposed by the checks API
+          # (needs checks: read, granted above); only an annotation whose
+          # message starts with the canonical fast-fail phrase and carries the
+          # #754 marker matches, so no transcript echo can spoof the signal.
+          # Annotations are read for every job of the triggering run (a wall
+          # annotation can land on any matrix arm), and the read is wrapped in
+          # a pipefail-off subshell so grep -m1's early exit cannot surface
+          # gh's SIGPIPE as a detector error.
           wall=0
-          if ( set +o pipefail; gh run view "$RUN_ID" --log 2>/dev/null | grep -m1 -qE '##\[(error|warning)\]provider daily free-usage limit reached.*FreeUsageLimitError, issue #754\)' ); then
+          if ( set +o pipefail; gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/jobs" --paginate --jq '.jobs[].id' 2>/dev/null | while read -r job_id; do
+                [ -n "$job_id" ] || continue
+                gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" --paginate --jq '.[].message' 2>/dev/null || true
+              done | grep -m1 -qE '^provider daily free-usage limit reached.*FreeUsageLimitError, issue #754\)' ); then
             wall=1
           fi
           if [ "$wall" -ne 1 ]; then
@@ -180,7 +186,7 @@ jobs:
           if [ -n "$board" ] && [ "$board" != "null" ]; then
             note=$(printf 'Quota-wall intake (issue #820): the failed run %s (%s) ended on the provider daily free-usage allowance (issue #754). This Maintainer run stood down without summoning an agent, because every free rung shares the same per-egress allowance and the runner that just failed almost certainly carries the same blocked IP. A fresh run is the recovery lane. Quota-wall chains are recovered by the bounded fresh-run recovery step; this note is the audit trail.\n\nTriggering run: %s' "$RUN_URL" "$FAILED_WORKFLOW" "$RUN_URL")
             marker="<!-- quota-wall:${RUN_ID} -->"
-            if gh api "repos/${GITHUB_REPOSITORY}/issues/${board}/comments?per_page=100" --paginate --slurp 2>/dev/null | jq -r '.[][] | .body' | grep -Fq "$marker"; then
+            if gh api "repos/${GITHUB_REPOSITORY}/issues/${board}/comments?per_page=100" --paginate --slurp 2>/dev/null | jq -r '.[][] | select(.user.login == "github-actions[bot]") | .body' | grep -Fq "$marker"; then
               echo "Quota-wall note already present for failed run $RUN_ID."
             else
               body=$(printf '%s\n\n%s' "$note" "$marker")
@@ -887,6 +893,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           QUOTA_RECOVERY_ATTEMPT: ${{ inputs.quota_recovery }}
           RUN_ID: ${{ github.run_id }}
+          # Env indirection: a forged or stale marker is only actionable when
+          # the agent step actually failed, so a marker left by a successful
+          # run can never trigger a recovery dispatch.
+          AGENT_OUTCOME: ${{ steps.maintainer_run.outcome }}
         run: |
           # Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
           # when it fast-fails on the daily free-usage allowance. A run on that
@@ -898,11 +908,37 @@ jobs:
           # board and exit 1 so the chain stays visibly red instead of silently
           # parking. The notes never contain an inline trigger token (issue
           # #775); the hardcoded trigger step is the only publisher.
+          #
+          # Marker trust (issue #820 review round 3): the agent step shares the
+          # workspace, so a marker alone is not proof. Require the runner's
+          # exact marker content AND a failed agent outcome, and treat an
+          # unexpected input as the cap (never reset it to 0, which would make
+          # an out-of-range input loop forever). A re-run of a recovery run
+          # (github.run_attempt > 1) is skipped so rerunning cannot multiply
+          # the fresh-run chain; dispatch a new run manually instead.
           if [ ! -f .maintainer/quota-wall ]; then
             exit 0
           fi
+          marker=$(cat .maintainer/quota-wall 2>/dev/null || true)
+          case "$marker" in
+            provider-daily-free-usage-wall) ;;
+            *)
+              echo "::warning::unexpected .maintainer/quota-wall content (not the runner's quota fast-fail marker); no recovery dispatched."
+              exit 0
+              ;;
+          esac
+          if [ "${AGENT_OUTCOME:-}" != "failure" ]; then
+            echo "::warning::.maintainer/quota-wall is present but the agent step outcome is '${AGENT_OUTCOME:-unknown}' (not failure); no recovery dispatched."
+            exit 0
+          fi
           attempt="${QUOTA_RECOVERY_ATTEMPT:-0}"
-          case "$attempt" in ''|*[!0-9]*) attempt=0 ;; esac
+          case "$attempt" in
+            0|1|2) ;;
+            *)
+              echo "::warning::unexpected quota_recovery input '${attempt}'; treating it as the cap."
+              attempt=2
+              ;;
+          esac
           if [ "$attempt" -ge 2 ]; then
             echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 2, issue #820); no further self-dispatch. Escalate the provider plan or involve the Owner if it persists."
             board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
@@ -914,8 +950,12 @@ jobs:
             fi
             exit 1
           fi
+          if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then
+            echo "::warning::quota-wall recovery is a re-run (run attempt ${GITHUB_RUN_ATTEMPT}); not dispatching a duplicate fresh run (issue #820)."
+            exit 0
+          fi
           next=$((attempt + 1))
-          sleep $(( (RANDOM % 30) + 30 ))
+          sleep $(( (RANDOM % 31) + 30 ))
           if ! gh workflow run maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main -f quota_recovery="$next" -f reason="quota: fresh runner attempt ${next} after the provider daily free-usage wall (issue #820)"; then
             echo "::error::could not dispatch quota-wall fresh-run attempt ${next} (issue #820); failing loudly so the chain stays visible."
             exit 1
