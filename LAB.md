@@ -1203,7 +1203,10 @@ alongside maintainer 39104695066, whose attempt 1 died the same way at
 `Service Unavailable` / `Gateway Timeout` phrases, and (issue #717) the
 retryable upstream-endpoint form `AI_APICallError: Upstream request failed:
 Endpoint is unavailable.` (statusCode 429, `type: server_error`; matched by
-its bounded `Upstream request failed: ` phrase family). Both runner paths
+its bounded `Upstream request failed: ` phrase family) and (issue #828) the
+gateway's overloaded wording `Upstream request failed: [overloaded] the
+server is overloaded; retry shortly` (statusCode 429, `isRetryable: true`;
+the same family admits the bracketed token and semicolon). Both runner paths
 retry the SAME model exactly once per arm on an
 anchored terminal line of that shape (same tail + column-0 form as the
 #591/#620 detectors, so the summary line, a transcript echo, an out-of-family
