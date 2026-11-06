@@ -82,6 +82,17 @@ The root `README.md` is the premier gateway and public face of the Random lab. O
 
 ---
 
+## Durability & Time-Box Protocol (Mandatory)
+
+The curator agent step carries a 90-minute cap inside a 120-minute job (issue #827). A full audit that runs to the wire before any remediation loses everything when the cap fires, so every run is ordered around durable artifacts:
+
+1. **Confirm, then file immediately**: The moment a defect is confirmed, open the tracking issue and record its number. Do not wait for the remaining audit to finish before filing.
+2. **Remediate before the optional tail**: Create the remediation branch, apply the surgical fixes, and open the remediation PR before any optional exhaustive audit tail (extra deep link sweeps, cosmetic polish, non-blocking observations). The issue and PR come first; the optional tail is best-effort.
+3. **Write the decision file as soon as the artifact exists**: Write `/tmp/random-lab-decision.json` with the `review` action immediately after the remediation PR is open, then continue only with optional verification. For a structural escalation, write the `maintainer` decision as soon as the issue is confirmed. For a clean audit, write `[]` as soon as the audit completes cleanly. A later cap death must never leave the workflow without a decision.
+4. **Push incrementally**: Commit and push each coherent remediation step as it lands. Never leave the only copy of the work in the working tree, and never reserve the commit, push, and PR for the final minutes.
+5. **Time-box the audit**: Treat minute 75 of the 90-minute agent step as the hard stop for optional audit work. By then the tracking issue, pushed remediation commits, open PR, and decision file must all exist.
+6. **Parallelize independent sweeps**: Delegate independent link, asset, and README inventory sweeps to parallel subagents per `.github/agents/delegation.md`, and keep the evidence ledger. Parallel inspection is what makes the time-box achievable.
+
 ## Operational Capabilities & Workflow Protocol
 
 When invoked, execute your duties with surgical precision:
