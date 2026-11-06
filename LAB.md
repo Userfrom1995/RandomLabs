@@ -1334,38 +1334,52 @@ onto the same blocked IP, and twelve consecutive runs failed between
 runner now writes `.maintainer/quota-wall` immediately before each quota
 fast-fail exit (both the watchdog cut and the post-attempt detector), and two
 hardcoded Maintainer steps use that marker. A pre-agent intake step runs
-after the actor gate on `workflow_run` events, reads the triggering failed
-run's `gh run view --log` (never `--log-failed`, because the agent step is
-`continue-on-error`). `--log` echoes every step's entire `run:` script and
-the agent transcript, so an unanchored substring would match the source echo
-of the detector itself, a quoted provider line, or any transcript mention and
-stand a non-wall failure down; the detector therefore matches ONLY the
-rendered `##[error]`/`##[warning]provider daily free-usage limit reached ...
-(FreeUsageLimitError, issue #754)` annotation the runner emits for a real
-fast-fail. The read is wrapped in a pipefail-off subshell so `grep -m1`'s
-early exit cannot surface `gh`'s SIGPIPE. On the annotation it stands the run
-down: one lab-health note keyed by the triggering run id, an empty
-`.maintainer/decision.json`, and `stand_down=true` on the agent step's gate. A post-agent recovery step dispatches at most two fresh
-runs (each a new job on a new runner, so it may get a fresh bucket), sleeps a
-30-60 second jitter, passes the attempt number through the `quota_recovery`
+after the actor gate on `workflow_run` events and reads the triggering failed
+run's CHECK-RUN ANNOTATIONS through the checks API (jobs enumerated, then
+`check-runs/<job>/annotations`; `checks: read`), never the job log (issue
+#820 review round 3). The log echoes every step's entire `run:` script, the
+agent transcript, and a transcript that quotes the rendered `##[error]` line,
+so a log grep cannot distinguish the runner's own fast-fail from a source
+echo or a quoted fixture (the claimed transcript negative fixture did not
+exist). The runner converts its canonical `::error::`/`::warning::` commands
+into real annotations, and only an annotation whose message starts with the
+canonical `provider daily free-usage limit reached ... (FreeUsageLimitError,
+issue #754)` phrase matches. The read is wrapped in a pipefail-off subshell
+so `grep -m1`'s early exit cannot surface `gh`'s SIGPIPE. On the annotation it
+stands the run down: one lab-health note keyed by the triggering run id, an
+empty `.maintainer/decision.json`, and `stand_down=true` on the agent step's
+gate. A post-agent recovery step dispatches at most two fresh runs (each a
+new job on a new runner, so it may get a fresh bucket), sleeps a 30-60 second
+inclusive jitter, passes the attempt number through the `quota_recovery`
 dispatch input, and hands the byte-pinned verify step an empty decision list
 so the dispatch concludes green; at the cap it posts one lab-health
-escalation and exits 1 so the chain is visibly red. Recovery runs join one
-fixed `quota-recovery` concurrency group so the chain is serialized and a
+escalation and exits 1 so the chain is visibly red. A marker is only trusted
+with the runner's exact content and a failed agent outcome, an out-of-range
+attempt input is clamped to the cap (never reset to 0), and a rerun of a
+recovery run dispatches nothing. Recovery runs join one fixed
+`quota-recovery` concurrency group so the chain is serialized and a
 schedule tick can never supersede a pending recovery; the normal lanes keep
 the per-target single-slot superseding group. GitHub keeps only one pending
 run per group, so a second chain's recovery dispatch can replace a
 still-pending recovery run: the red-at-cap guarantee is per chain, and the
 next 20-minute schedule tick re-arms recovery. The escalation notes carry no
 inline trigger token (issue #775; the hardcoded trigger step is the only
-publisher): R9 pins the self-heal and curator cap-note bodies exactly and
-bans `/oc`/`/opencode` anywhere in them, R34 pins the intake and recovery
-notes the same way, and the R34 fixtures prove a source echo and a quoted
-provider line are negatives (never a stand-down). R34 also pins the input,
-concurrency branch, marker writes and ordering and step placement, and
-executes the real intake and recovery bodies against mock `gh`/`sleep`
-across wall, non-wall, dedupe, attempt 0/1/cap, dispatch-failure, and
-trigger-token-free note fixtures with mutation self-tests.
+publisher): R9 pins the self-heal and curator cap-note bodies exactly (the
+whole curator comment line, closing quote included) and bans
+`/oc`/`/opencode` in the general gate's wake shape
+(`(^|[[:space:]])/(oc|opencode)`, so ` /oc-maintainer` and ` /ocfoo` are
+caught), R34 pins the intake and recovery notes the same way, and the R34
+fixtures prove a transcript that quotes the rendered annotation, a source
+echo, a quoted provider line, and a raw-provider annotation are negatives
+(never a stand-down). R34 also pins the input, concurrency branch, marker
+writes and ordering and step placement, and the marker-content, outcome,
+clamp, and rerun guards, and executes the real intake and recovery bodies
+against mock `gh`/`sleep` across wall (check-run error and warning
+annotations), non-wall, transcript/source/provider negatives,
+bot-only dedupe, spoofed dedupe, attempt 0/1/cap/overflow/non-numeric,
+bad-marker, success-marker, rerun, dispatch-failure, and trigger-token-free
+note fixtures with mutation self-tests (the annotation-to-log mutant proves
+the transcript fixture load-bearing).
 
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
