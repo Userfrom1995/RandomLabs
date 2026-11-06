@@ -77,14 +77,17 @@
 # survived, so every arm's agent cap must leave real headroom under its job
 # cap and the macOS/Windows arms must salvage a signed partial report through
 # the strict shared poster behind a provenance banner while the fail-closed
-# verify still concludes the run red), and the R25 lab/fix agent cap-headroom
-# guard (issue #701: after the per-OS arms were fixed, the lab arm's
-# 90-minute cap under a 120-minute job killed lab rounds 18 on #654 and 14 on
-# #670, and the fix arm's 60-minute cap under a 120-minute job killed three
-# consecutive fix sessions on #693, all with no decision file and nothing
-# pushed, so the lab arm now runs 150 minutes under a 180-minute job and the
-# fix arm 120 under 180, each leaving at least 20 minutes of post-agent
-# headroom for the verify/push/forward chain), and the R26 create-issue dedupe
+# verify still concludes the run red), and the R25 lab/fix/curator agent
+# cap-headroom guard (issue #701: after the per-OS arms were fixed, the lab
+# arm's 90-minute cap under a 120-minute job killed lab rounds 18 on #654 and
+# 14 on #670, and the fix arm's 60-minute cap under a 120-minute job killed
+# three consecutive fix sessions on #693, all with no decision file and
+# nothing pushed, so the lab arm now runs 150 minutes under a 180-minute job
+# and the fix arm 120 under 180, each leaving at least 20 minutes of
+# post-agent headroom for the verify/push/forward chain; issue #827 then
+# lost a curator pass at its 60-minute cap under a 75-minute job one minute
+# after the audit completed and the tracking issue was filed, so the curator
+# arm now runs 90 under 120, also mutation-self-tested), and the R26 create-issue dedupe
 # guard (issue #668: two concurrent per-target Maintainer ticks independently filed
 # the same finding as #665/#666 because the hardcoded create_issue handler
 # never compared titles; it now queries open issues before `gh issue create`,
@@ -10346,23 +10349,29 @@ else
   check "R24" "per-OS cap headroom or partial-report salvage missing:${r24_bad} (issue #692: a 90-minute agent cap under a 120-minute job left no artifacts after a cap death)" "bad"
 fi
 
-# [R25] Lab and fix agent cap headroom (issue #701): after issue #692 fixed
-# the per-OS arms, the lab and fix arms still ran near-wire caps and lost
-# near-complete work three times in one morning. Lab round 18 on #654 (run
-# 39208513680) and round 14 on #670 (run 39212805887) both died at the
-# 90-minute lab agent cap under the 120-minute job with no decision file, and
-# three consecutive fix sessions on #693 (runs 39203327749, 39203442325,
-# 39208619311) died at the 60-minute fix agent cap with the edits nearly
-# complete and unpushed; in every case the fail-closed verify correctly
-# refused to publish partial state and the runner discarded the session.
+# [R25] Lab, fix, and curator agent cap headroom (issues #701, #827): after
+# issue #692 fixed the per-OS arms, the lab and fix arms still ran near-wire
+# caps and lost near-complete work three times in one morning. Lab round 18
+# on #654 (run 39208513680) and round 14 on #670 (run 39212805887) both died
+# at the 90-minute lab agent cap under the 120-minute job with no decision
+# file, and three consecutive fix sessions on #693 (runs 39203327749,
+# 39203442325, 39208619311) died at the 60-minute fix agent cap with the
+# edits nearly complete and unpushed; in every case the fail-closed verify
+# correctly refused to publish partial state and the runner discarded the
+# session. Issue #827 repeated the class on the curator arm: the 06:00Z
+# self-heal pass completed the audit and filed #825, then died at the
+# 60-minute cap under the 75-minute job one minute after creating its local
+# remediation branch, with no commit, push, PR, or decision file.
 # Properties:
 #   1. the lab arm's agent-step cap is at least 150 minutes under a job cap
 #      of at least 180 minutes;
 #   2. the fix arm's agent-step cap is at least 120 minutes under a job cap
 #      of at least 180 minutes;
-#   3. each agent step leaves at least 20 minutes of headroom under its job
-#      cap, so the post-agent chain (verify, strip, push, forward) still runs
-#      after a worst-case cap death.
+#   3. the curator arm's agent-step cap is at least 90 minutes under a job
+#      cap of at least 120 minutes;
+#   4. each agent step leaves at least 20 minutes of headroom under its job
+#      cap, so the post-agent chain (verify, strip, push, forward, self-heal)
+#      still runs after a worst-case cap death.
 # The rule extracts the real job block and the canonical step block from
 # each workflow file and fails loudly when a cap is missing, non-numeric, or
 # lowered. Escape classes found in adversarial verification are closed:
@@ -10385,7 +10394,12 @@ fi
 #     following job with an uppercase id cannot be swallowed into the block;
 #   - an optional trailing YAML comment after the digits is tolerated (the
 #     established style keeps comments above the key, but this costs
-#     nothing).
+#     nothing);
+#   - mutation self-tests (issue #827) copy each real workflow and lower the
+#     agent cap, the job cap, and (with both minimums still satisfied) the
+#     headroom one at a time; each mutant must be caught with its expected
+#     error class and the pristine copy must stay clean, so the new curator
+#     assertion cannot be satisfied by a dead check.
 r25_bad=""
 wf_job_block() {
   awk -v job="  $2:" '
@@ -10433,16 +10447,102 @@ r25_check_arm() {
     [ "$job_cap" -ge $((agent_cap + 20)) ] || r25_bad="${r25_bad} ${tag}(headroom=$((job_cap - agent_cap))min,want>=20)"
   fi
 }
+r25_mutate_agent_timeout() {
+  local wf="$1" step="$2" value="$3"
+  awk -v step="      - name: ${step}" -v value="$value" '
+    $0 == step { in_step = 1 }
+    in_step && /^      - / && $0 != step { in_step = 0 }
+    in_step && /^        timeout-minutes:/ {
+      sub(/[0-9]+[[:space:]]*$/, value)
+      print
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_mutate_job_timeout() {
+  local wf="$1" job="$2" value="$3"
+  awk -v job="  ${job}:" -v value="$value" '
+    $0 == job { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_-]+:$/ && $0 != job { in_job = 0 }
+    in_job && /^    timeout-minutes:/ {
+      sub(/[0-9]+[[:space:]]*$/, value)
+      print
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_selftest_arm() {
+  local wf="$1" job="$2" step="$3" agent_min="$4" job_min="$5" tag="$6"
+  local dir saved
+  [ -f "$wf" ] || return
+  dir=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$dir" ]; then
+    r25_bad="${r25_bad} ${tag}(selftest-tmp-unavailable)"
+    return
+  fi
+  saved="$r25_bad"
+
+  cp "$wf" "$dir/pristine.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/pristine.yml" ]; then
+    r25_bad=""
+    r25_check_arm "$dir/pristine.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-pristine-not-clean)"
+  fi
+
+  cp "$wf" "$dir/mut-agent.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/mut-agent.yml" ]; then
+    r25_mutate_agent_timeout "$dir/mut-agent.yml" "$step" $((agent_min - 1))
+    r25_bad=""
+    r25_check_arm "$dir/mut-agent.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"agent-cap="*) ;;
+      *) saved="${saved} ${tag}(selftest-agent-cap-not-caught)" ;;
+    esac
+  fi
+
+  cp "$wf" "$dir/mut-job.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/mut-job.yml" ]; then
+    r25_mutate_job_timeout "$dir/mut-job.yml" "$job" $((job_min - 1))
+    r25_bad=""
+    r25_check_arm "$dir/mut-job.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"job-cap="*) ;;
+      *) saved="${saved} ${tag}(selftest-job-cap-not-caught)" ;;
+    esac
+  fi
+
+  cp "$wf" "$dir/mut-headroom.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/mut-headroom.yml" ]; then
+    r25_mutate_job_timeout "$dir/mut-headroom.yml" "$job" "$job_min"
+    r25_mutate_agent_timeout "$dir/mut-headroom.yml" "$step" $((job_min - 19))
+    r25_bad=""
+    r25_check_arm "$dir/mut-headroom.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"headroom="*) ;;
+      *) saved="${saved} ${tag}(selftest-headroom-not-caught)" ;;
+    esac
+  fi
+
+  r25_bad="$saved"
+  rm -rf "$dir"
+}
 OPENCODE_WF="$(dirname "$WF")/opencode.yml"
 if [ ! -f "$OPENCODE_WF" ] && [ -f ".github/workflows/opencode.yml" ]; then
   OPENCODE_WF=".github/workflows/opencode.yml"
 fi
+CURATOR_WF=".github/workflows/curator.yml"
 r25_check_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
 r25_check_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
+r25_check_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
+r25_selftest_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
+r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
+r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180 and the fix agent cap is >= 120 under a job cap >= 180, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, and caps are canonical decimal literals (no quotes, anchors, or leading zeros) (issue #701)" "ok"
+  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm (issues #701, #827)" "ok"
 else
-  check "R25" "lab/fix cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire)" "bad"
+  check "R25" "lab/fix/curator cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch)" "bad"
 fi
 
 # [R26] Create-issue dedupe guard (issue #668): Maintainer concurrency is
@@ -26396,7 +26496,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
