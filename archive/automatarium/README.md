@@ -124,7 +124,7 @@ and CLI error handling.
 
 ## Further reading
 
-- [`docs/`](../docs/) — rendered documentation site (also served on GitHub
+- [`docs/`](../../docs/) — rendered documentation site (also served on GitHub
   Pages under `/docs/`).
-- [`ideas/2026-08-08-automatarium-cellular-automata.md`](../ideas/2026-08-08-automatarium-cellular-automata.md)
+- [`ideas/2026-08-08-automatarium-cellular-automata.md`](../../ideas/2026-08-08-automatarium-cellular-automata.md)
   — the writeup for this build.

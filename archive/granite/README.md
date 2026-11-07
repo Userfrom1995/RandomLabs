@@ -94,4 +94,4 @@ granite/
 
 ## License
 
-MIT — see the repository root [`LICENSE`](../LICENSE).
+MIT — see the repository root [`LICENSE`](../../LICENSE).
