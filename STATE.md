@@ -1,42 +1,42 @@
 # STATE
 
-Last updated: 2026-11-07T02:16Z by run 42325903139 (schedule tick after the daily free-usage wall reset: the 13-hour outage that killed every model-backed lane on 2026-11-06 is over, and four stalled lanes were re-dispatched: #804 lab repair of the invalid workflow file, #829 lab applying the review findings, #830 fresh review, #821 fresh review). Next-run priorities: read the four new runs, then the post-merge infra queue.
+Last updated: 2026-11-07T03:18Z by run 42332517446 (the #804 repair intake: the repair landed a valid, rebased head, the #804/#829/#830 reviews are live, and the #821 review died on the wall and was given one fresh head-bound pass). Next-run priorities: read the three live reviews, then the #821 fresh review, then the post-merge infra queue.
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and post hardcoded PAT triggers that route work to the right agent. I never post `/oc` comments myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 01:47-02:15Z on 2026-11-07)
+## Right now (surveyed 03:08-03:18Z on 2026-11-07)
 
-- **main** = `7a23aa2bdc2a3431116c58ddc0b8d11de0aab685` (`git ls-remote` verified). #822's rebase merge landed at 2026-11-06T10:18:56Z after its fresh binding eval 42189719229 succeeded at 10:18:30Z; #820 and #775 closed at 10:18:58-59Z. Pages deploy 42201773446 is SUCCESS at 10:19:24Z on this tip.
-- **Open PRs** (5): #830 `9cba85b8af2474df4b21683e193d46ba35470974` MERGEABLE/CLEAN (`Closes #828`); #829 `6e47d2d9a526fb999c10ee793299948915634640` CONFLICTING/DIRTY (`Closes #827`); #821 `dce109e4479b3cf2801a1b0127ea98778e58c398` MERGEABLE/CLEAN (`Closes #792`); #804 `6af0cbd77dc14bb4282e30044be3da484fb5be4b` CONFLICTING/DIRTY (`Closes #798`); #745 `7a04fa4a` CONFLICTING/DIRTY, parked behind #803.
-- **The wall outage**: every model-backed lane died on the provider daily free-usage wall (#754) from after the 09:57Z session on 2026-11-06 until the midnight-UTC reset. The quota-recovery chain capped at 13:59Z, 16:54Z, 22:03Z, and 22:55Z; memory in the window was marker-only and STATE stayed at the 09:57Z text. The 01:11Z recover schedule succeeded and this 01:47Z tick is the first live agent session since 09:57Z.
-- **#804 (infrastructure, host for `Closes #798`)**: head `6af0cbd7` changed at 10:07Z with the proxy/TLS env pins from the second Lab Engineer pass (42192921917, success), but push-validation 42200186707 failed with no jobs because GitHub rejects `.github/workflows/opencode-peros-test.yml` on this head. Root cause: 14 step env maps on the three per-OS jobs carry case-insensitively duplicate proxy keys (ALL_PROXY plus all_proxy, HTTP_PROXY plus http_proxy, HTTPS_PROXY plus https_proxy, NO_PROXY plus no_proxy). The follow-up review 42200193868 died on the wall at 10:08Z. The branch conflicts with main in `.github/scripts/silent-stall-audit.sh` and `LAB.md`. Approvals are stale (tester 2026-11-05T09:40:27Z and eval fix 2026-11-06T05:34Z, both on `17b11d32`). This run dispatched exactly one Lab Engineer repair pass (de-duplicate each env map to one spelling per key, keep the helper unset lists for lowercase coverage, rebase onto `7a23aa2b` preserving both main's #822 content and the reviewed hardening, update the R17 pins, audit 34/34, push).
-- **#829 (infrastructure, `Closes #827`)**: head `6e47d2d9` unchanged, now CONFLICTING/DIRTY. The review at 10:07:40Z returned `needs fixes -> lab`: F1 the R25 mutation helpers at `.github/scripts/silent-stall-audit.sh:10153,10166` cannot rewrite the inline-comment timeout shape R25 tolerates (corrected `sub` regex supplied); F2 the PR's delegation ledger lacks the required one-line skills note (`.github/agents/delegation.md:77-79`). The `/oc lab` at 10:07:50Z died in run 42200276385 at 10:08:47Z on the wall. This run dispatched exactly one fix-and-rebase Lab Engineer pass.
-- **#830 (infrastructure, `Closes #828`)**: head `9cba85b8` unchanged, MERGEABLE/CLEAN. Every review attempt (initial plus auto-retries 1-3, 10:13-10:16Z) died within seconds on the wall and the terminal failure posted `/oc maintainer` at 10:19:18Z. The lifetime review budget is spent. I re-ran the merged-tree audit of main `7a23aa2b` plus this branch: 34/34, so no rebase is needed. This run dispatched exactly one fresh head-bound review.
-- **#821 (product, `Closes #792`)**: head `dce109e4` unchanged, MERGEABLE/CLEAN. The fresh head-bound review 42198518022 died on the wall at about 10:11Z, after the fifth review had capped at 90 minutes at 09:39Z. The review budget is spent. This run dispatched exactly one fresh head-bound review.
+- **main** = `7a23aa2bdc2a3431116c58ddc0b8d11de0aab685` (`git ls-remote` verified, unchanged). Pages deploy 42332517433 is SUCCESS at 03:07:28Z on this tip.
+- **Open PRs** (5): #830 `4c804eeed213d22c0e6e87105c931fd11e1b4e4f` MERGEABLE/CLEAN (`Closes #828`, rebased exactly onto the main tip); #829 `72f52cd7e0073a6c926c63b78f1321633c8fca67` CONFLICTING/DIRTY (`Closes #827`); #821 `dce109e4479b3cf2801a1b0127ea98778e58c398` MERGEABLE/CLEAN (`Closes #792`); #804 `411f5c6e3981c00025e4a17eb765ec5c27ed7e26` MERGEABLE/CLEAN (`Closes #798`, rebased exactly onto the main tip); #745 `7a04fa4a` CONFLICTING/DIRTY, parked behind #803.
+- **#804 (infrastructure, host for `Closes #798`)**: head `411f5c6e` is the repair: a single `lab:` commit at 03:05:54Z, base `7a23aa2b`, 11 files +5095/-175. Lab Engineer run 42328804653 completed SUCCESS at 03:07:24Z after about 45 minutes. I verified the pushed tree: every workflow YAML parses, `.github/workflows/opencode-peros-test.yml` has exactly the `test-linux`/`test-macos`/`test-windows` jobs, and zero env maps carry case-insensitively duplicate keys anywhere in the workflow tree, so the invalid-workflow class from push validation 42200186707 is closed. The App-token wrapper's upstream-mismatch push error at 03:07:08Z is the expected workflow-branch noise; the PAT-backed push landed the head. The `/oc review` handoff posted at 03:07:20Z and review run 42332509616 has been running since 03:07:25Z; the pending duplicate review run 42332517536 is the clone from the `/oc maintainer` comment, which the review job gate skips. Approvals are stale (tester 2026-11-05T09:40:27Z and eval fix 2026-11-06T05:34Z, both on `17b11d32`).
+- **#829 (infrastructure, `Closes #827`)**: head `72f52cd7` is the lab fix at 02:37:42Z: the R25 mutant regex now tolerates commented-out timeouts plus the commented-timeout fixtures, and the delegation-ledger skills note is added. The PR is still CONFLICTING/DIRTY and merge-base is `e806f0c8`, so the #822 landing is absent; a rebase onto `7a23aa2b` must precede any merge. Review run 42330224757 has been running since 02:38:16Z.
+- **#830 (infrastructure, `Closes #828`)**: head `4c804eee` (four commits; the last two at 03:04:48Z), MERGEABLE/CLEAN, rebased exactly onto main `7a23aa2b`. The body now carries the delegation ledger and the skills note, which was the review's only blocking finding. The wrapper App-token push was rejected non-fast-forward at 03:12:27Z and the PAT push landed the head; the `/oc review` handoff posted at 03:12:38Z and review run 42332933916 has been running since 03:12:44Z. The `/oc maintainer` clone 42332941135 is skip-only.
+- **#821 (product, `Closes #792`)**: head `dce109e4` unchanged, MERGEABLE/CLEAN (behind main, no conflicts). The fresh head-bound review run 42328811093 served about 19 minutes and died at 02:40:55Z on the provider daily free-usage wall (`FreeUsageLimitError`, #754) after the midnight reset. It published no verdict and no report; the fail-closed verify refused a fifth attempt because the thread's lifetime auto-retry budget is spent (1 initial plus 3 auto-retries). This run dispatched exactly one fresh head-bound review after the 03:11:03Z cooldown.
 - **#825**: blocked on the #827 curator-cap fix; no curator dispatch before #829 merges.
 - **#745**: parked CONFLICTING/DIRTY at `7a04fa4a96e1982ac307ca40973fed29379def0b`, behind #803.
 - **#828 / #827 / #798 / #792**: their tracking issues stay open with their PRs (#830/#829/#804/#821 respectively).
-- **Trigger allowlist**: exact 19/19 against the 19 repo-owned live names outside the self-excluded `maintainer`. No lab fix needed.
-- **Held runs**: zero `action_required`. The four documented inert queued runs remain (37344324101, 36101155868, 36101155851, 36101155844). No other run is in progress.
-- **Model watch**: pin `opencode/deepseek-v4.1-flash-free` on both knobs; the ladder is 3/3 live at the last check (`mimo-v2.6-flash-free`, `glm-5.3-flash-free`). The outage was the wall, not a retirement.
-- **Cap watch**: no new cap death in this window. The #821 review 90-minute cap burned once at 09:39Z; it gets one fresh pass now and a `lab` headroom fix if it repeats. The curator cap fix is in #829; the eval cap fix is already in #822/main.
-- **Concurrent wakes**: a maintainer `workflow_run` clone at 01:11:36Z was skipped by its event gate; the 01:11:14Z recover schedule succeeded. Keep-both memory remains expected under the queue semantics.
+- **Trigger allowlist**: exact 19/19 against the 19 repo-owned live names outside the self-excluded `maintainer`.
+- **Held runs**: zero `action_required`. The four documented inert queued runs remain (37344324101, 36101155868, 36101155851, 36101155844).
+- **Model watch**: pin `opencode/deepseek-v4.1-flash-free` on both knobs; the ladder is 3/3 live at the last check (`mimo-v2.6-flash-free`, `glm-5.3-flash-free`). The outage class is the wall, not a retirement.
+- **Cap watch**: no new cap death in this window. The curator cap fix is in #829; the #821 review 90-minute cap is on watch (one fresh pass now, `lab` if it repeats); the eval cap fix is already in main.
+- **Concurrent wakes**: the `/oc maintainer` comment on #830 at 03:12:44Z produced cancelled and skip-only maintainer clones under the superseding single-slot policy; the 03:07:28 run is the authoritative session. Keep-both memory remains expected under the queue semantics.
+- **Wall watch**: the #821 review death at 02:40:55Z is the first wall death since the midnight reset, after 19 minutes of real work. The other lanes in the window worked (#804 repair 02:21-03:07, #829 fix 02:21-02:38, #830 review 02:21-02:50, #830 lab 02:50-03:12), so this was a per-runner egress bucket exhaustion, not a global outage. Fresh-run recovery remains correct; if the new #821 runner dies within seconds, stop the fresh passes and escalate the capacity ask.
 
 ## The live lanes (do not duplicate)
 
-1. **#804 lab repair** (dispatched 02:16Z on `6af0cbd7`): fix the invalid workflow (case-insensitive duplicate proxy env keys), rebase onto `7a23aa2b` preserving both main's #822 content and the reviewed B1-B7/N10-N12 plus env-seam pins, update the R17 pins, audit 34/34, push. On its push the review cycle restarts, then the Tester and the binding Evaluator; on `approve-eval` the PAT sweep merges and #798 closes. Never `fix`/`continue`.
-2. **#829 lab fix** (dispatched 02:16Z on `6e47d2d9`): apply F1 (corrected R25 `sub` regex plus the commented-timeout fixture) and F2 (delegation-ledger skills note), rebase onto `7a23aa2b` keeping both main's #822 content and this PR's R25 changes, audit 34/34, push. Then review, Tester, eval, PAT sweep; on approve #827 closes, then one `curate` on #825.
-3. **#830 fresh review** (dispatched 02:16Z on `9cba85b8`): the merged-tree audit is clean and the branch is MERGEABLE, so approval should forward the Tester. Then the eval and the PAT sweep; #828 closes on approve.
-4. **#821 fresh review** (dispatched 02:16Z on `dce109e4`): on approval the workflow forwards the Tester; then `test-windows` first plus `test-linux`/`test-macos`, the binding eval on the settled head, the in-session merge (`--rebase --match-head-commit`, fallback `--merge`, never `--delete-branch`), and the #792 closure. On findings exactly one `fix`. If it caps again, dispatch `lab` for review-arm headroom.
+1. **#804 review** (live 03:07:25Z on `411f5c6e`): the repair closed the invalid workflow with a valid rebased head. On approval the workflow forwards `/oc test` (read-only, the diff touches `.github/workflows/`), then the Tester, then the binding Evaluator; on `approve-eval` the PAT sweep merges and #798 closes. Never `fix`/`continue`.
+2. **#829 review** (live 02:38:16Z on `72f52cd7`): on a verdict, the next lab pass rebases onto `7a23aa2b` and applies any findings (the rebase is mandatory: the branch still conflicts); then a fresh review, the Tester, the eval, the PAT sweep; on approve #827 closes, then one `curate` on #825.
+3. **#830 review** (live 03:12:44Z on `4c804eee`): the ledger and skills note are in the body and the branch is rebased onto main. On approval the Tester, then the eval and the PAT sweep; #828 closes.
+4. **#821 fresh review** (dispatched on `dce109e4`): on approval the workflow forwards the Tester; then `test-windows` first plus `test-linux`/`test-macos`, the binding eval on the settled head, the in-session merge (`--rebase --match-head-commit`, fallback `--merge`, never `--delete-branch`), and the #792 closure. On findings exactly one `fix`. If it caps again, dispatch `lab` for review-arm headroom.
 5. **#825**: blocked on the #829 merge; no curator dispatch before the cap fix lands.
 6. **#745**: parked behind #803.
 
 ## The serialized infra queue
 
-1. #804 repair (live), then review, Tester, eval, PAT merge, #798 closes.
-2. #829 repair (live), then review, Tester, eval, PAT merge, #827 closes, then one `curate` on #825.
+1. #804 review (live), then Tester, eval, PAT merge, #798 closes.
+2. #829 review (live), then the rebase lab pass (after the verdict), a fresh review, Tester, eval, PAT merge, #827 closes, then one `curate` on #825.
 3. #830 review (live), then Tester, eval, PAT merge, #828 closes.
 4. After #804/#829/#830 merge: reconcile #812/#815 plus the #822 round-4 residuals (R9 case-insensitive and quoted-body token hardening plus decoy-comment extraction, `schedule-selfheal.sh` raw `selfheal_retry` input interpolation, R34 jobs/dedupe/jq/log-ban coverage, and the AGENTS.md/LAB.md/maintainer.yml doc claims) and the #804 env-seam lessons into one scoped audit pass.
 5. Then #814 baseline fail-open, sequenced with #803 (same fix-lane verify region/counters).
@@ -46,13 +46,13 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 ## Loose ends board
 
 1. **#822**: merged at 10:18:56Z on `7a23aa2b`; #820 and #775 closed; Pages green on the new tip. CLOSED OUT.
-2. **#827 (live, lab repair dispatched)**: canonical curator-cap fix; then one `curate` on #825 after it merges.
+2. **#827 (live, review)**: canonical curator-cap fix on `72f52cd7`; the rebase lands after the verdict; then one `curate` on #825 after it merges.
 3. **#825 (blocked)**: archived README relative links and dead hosted build links; no branch/PR; remediation blocked on the #829 merge.
-4. **#804 (live, lab repair dispatched)**: invalid workflow on head `6af0cbd7` (case-insensitive duplicate proxy env keys), conflicts in `.github/scripts/silent-stall-audit.sh` and `LAB.md`, stale tester/eval approvals; the repair pass owns all of it.
-5. **#830 (live, fresh review dispatched)**: review budget spent on the wall; merged-tree audit 34/34; approval forwards the Tester.
-6. **#821 (live, fresh review dispatched)**: review budget spent on the wall; on approval the Tester, native rows with `test-windows` first, the binding eval, the merge, and the #792 closure. If it caps again, `lab` for review headroom.
+4. **#804 (live, review)**: head `411f5c6e` is the valid rebased repair (single `lab:` commit, 11 files +5095/-175, CLEAN/MERGEABLE); the invalid-workflow class from push validation 42200186707 is closed; the stale tester/eval approvals on `17b11d32` cannot gate it; review 42332509616 is live.
+5. **#830 (live, review)**: the delegation ledger and skills note are added and the branch is rebased onto `7a23aa2b` at `4c804eee`; review 42332933916 is live; on approval the Tester, the eval, and the PAT sweep, closing #828.
+6. **#821 (live, fresh review dispatched)**: the review budget is spent on the wall; the fresh pass runs on `dce109e4`; on approval the Tester (native rows with `test-windows` first), the binding eval, the merge, and the #792 closure. If it caps, `lab` for review headroom.
 7. **The 2026-11-06 wall outage**: no lane recovered in-run; the midnight-UTC reset reopened the lab. The recovery/intake chain behaved as designed (bounded, loud at the cap). The Owner capacity decision remains the critical path while the wall recurs daily.
-8. **#828 overloaded-detector fix**: in review via #830; on approval the Tester and eval follow and #828 closes.
+8. **#828 overloaded-detector fix**: in review via #830 on `4c804eee`; on approval the Tester and eval follow and #828 closes.
 9. **#745**: parked CONFLICTING at `7a04fa4a`, behind #803.
 10. **#812**: held behind the infra queue; includes the R32 forward-target gap and the dead `outcome=skipped` note.
 11. **#814**: held behind #803; coordinate the same verify region.
@@ -60,7 +60,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 13. **#817 / #819 merged leftovers**: the deferred Curator docs pass (handoff arrows, return routes, duplicate tor-cli anchor) and the deferred Lab Engineer docs pass (AGENTS.md/LAB.md infrastructure-routing prose) still wait behind the infra queue.
 14. **#773 / #774**: valid docs/setup gaps from the audit; deferred behind the live lanes.
 15. **#804 env-seam lesson**: GitHub compares workflow env keys case-insensitively, so pinning both cases in one map makes the file invalid. The helper unset lists cover the lowercase variants; every future env pin must keep one spelling per key and validate the whole tree with a case-insensitive uniqueness check.
-16. **Pages**: green on `7a23aa2b` (42201773446, 10:19:24Z). CLOSED OUT.
+16. **Pages**: green on `7a23aa2b` (42332517433, 03:07:28Z). CLOSED OUT.
 17. **Curator lane**: cap fix in #829; no curator dispatch before it merges and the cooldown clears.
 18. **Cron watch**: Maintainer schedule ticks remain best-effort; event wakes deliver. The outage window showed intake stand-downs and recovery dispatches rather than lost work.
 19. **Wall watch**: the quota wall is per-egress-IP and recurring. The intake stands a run down only on the canonical check-run annotation; after the reset one fresh pass per lane is correct. If new runners die within seconds, stop the fresh passes and escalate the capacity ask.
@@ -90,10 +90,10 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Next run
 
-1. **#804**: read the lab repair. On its push the review restarts; then the Tester and the binding eval; on approve the PAT sweep merges and #798 closes. If the repair caps or fails, split the lane structurally (invalid-workflow fix first, rebase second) rather than repeating it.
-2. **#829**: read the lab fix. On its push the review restarts; then the Tester, the eval, and the PAT merge; on approve #827 closes and dispatch exactly one `curate` on #825.
-3. **#830**: read the fresh review. On approval the workflow forwards the Tester, then the eval and the PAT sweep; #828 closes. On `lab`, route lab only.
-4. **#821**: read the fresh review. On approval the workflow forwards the Tester; then `test-windows` first plus the native rows, the binding eval on the settled head, the in-session merge, and the #792 closure. On findings exactly one `fix`. If it caps again, dispatch `lab` for review-arm headroom.
+1. **#804**: read the review on `411f5c6e`. On approval the read-only Tester, then the binding eval on the settled head, then the PAT sweep; #798 closes. On `lab`, route lab only.
+2. **#829**: read the review on `72f52cd7`. On a verdict, the next lab pass rebases onto `7a23aa2b` and applies any findings; then a fresh review, the Tester, the eval, and the PAT merge; on approve #827 closes and dispatch exactly one `curate` on #825. Do not dispatch the rebase while the review is live.
+3. **#830**: read the review on `4c804eee`. On approval the Tester, then the eval and the PAT sweep; #828 closes. On `lab`, route lab only.
+4. **#821**: read the fresh review on `dce109e4`. On approval the workflow forwards the Tester; then `test-windows` first plus the native rows, the binding eval on the settled head, the in-session merge, and the #792 closure. On findings exactly one `fix`. If it caps again, dispatch `lab` for review-arm headroom. On a wall death, respect the cooldown and one fresh pass; if the new runners die within seconds, stop and escalate.
 5. **#825**: no dispatch until #829 merges.
 6. Re-check held runs and the four permanently queued runs.
 7. After the infra merges: reconcile #812/#815 plus the #822 round-4 residuals and the #804 env-seam lessons into one scoped audit pass; then the deferred docs follow-ups (#773/#774); then #814 with #803; then #803, #745 (and #742 closes).
@@ -102,8 +102,8 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Open questions
 
-1. Does the #804 lab repair clear the invalid workflow and the rebase conflicts in one pass, so the review/Tester/eval chain can restart on a valid head?
-2. Does the #829 lab apply F1 and F2 and merge main's #822 content cleanly, unblocking the #825 curator remediation?
-3. Does the fresh #830 review finish inside the 90-minute cap and approve `9cba85b8`, closing #828 through the PAT sweep?
-4. Does the fresh #821 review return a verdict on `dce109e4`, and does the product lane then pass the Tester and the binding eval?
+1. Does the #804 review approve `411f5c6e` and let the Tester and eval chain restart on the valid head?
+2. Does the #829 review return a verdict, and does the next lab pass rebase cleanly onto `7a23aa2b`, unblocking the #825 curator remediation?
+3. Does the #830 review approve `4c804eee` after the ledger fix, closing #828 through the PAT sweep?
+4. Does the fresh #821 review survive the wall long enough to return a verdict on `dce109e4`, and does the product lane then pass the Tester and the binding eval?
 5. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or lower the Maintainer cadence)? This remains the critical path while the daily wall recurs.
