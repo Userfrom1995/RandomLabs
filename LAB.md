@@ -151,7 +151,11 @@ Public Surface / Web Track:                                              │
   when the live path is unreadable, with a transient write-and-restore
   between the endpoint samples recorded as a review-gated boundary, so a
   killed audit never leaves fixture bytes on the live
-  `/tmp/random-lab-decision.json`). Round 13 also
+  `/tmp/random-lab-decision.json`).   The audit also scans its own source for a redirect into the four live
+  contract paths, with positive and negative self-tests and an explicit
+  allowlist for the R24 pinned salvage literal, so a future fixture cannot
+  reintroduce the leftover-fixture class (review run 41447464417).
+Round 13 also
   pins each per-OS agent step's
   `with.prompt` scalar by exact SHA-256 and each arm's exact ordered step
   sequence, and a staging
@@ -190,6 +194,7 @@ Public Surface / Web Track:                                              │
   regression-guards the cap shape and the salvage wiring (the salvage run
   body is pinned line-for-line; its step name must be unique across the
   workflow file, and step-level YAML overrides are banned).
+- **Per-OS tester commit-scope sanitization (issue #798)**: the per-OS
 - **Lab, fix, review, and curator agent cap headroom (issues #701, #827,
   #843)**: the lab agent step runs 150 minutes under a 180-minute job, the
   fix agent step 120 under 180, the review agent step 150 under 180 (issue
@@ -1107,7 +1112,7 @@ personality, CHANGELOG) is direct-commit.
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `auditor.yml` | The Auditor: daily schedule, manual dispatch, or `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`; the workflow posts the signed verdict as an owner-PAT comment, publishes the canonical `eval-verdict: approve-eval` marker for the PAT merge sweep on approval (issue #713), and its hardcoded PAT step hands off with `/oc maintainer`; the Maintainer decides merge, fix, or lab |
-| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
+| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); after the agent, each arm strips leaked owner trailers and enforces the project test-lane scope before the decision forward (issue #798); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 PR-head gates (`opencode-review.yml`, `opencode-test.yml`, `opencode-eval.yml`,
@@ -1795,7 +1800,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R34), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R34), phase thread target resolution, build push attribution, per-OS findings poster and tester commit-scope guard, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
