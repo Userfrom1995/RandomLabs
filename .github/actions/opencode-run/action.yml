@@ -28,10 +28,10 @@ branding:
 # Per-lane model selection stays an input (the previous flexible setup).
 # opencode.json in the repository root is still staged from the maintained
 # default-branch commit and loaded via OPENCODE_CONFIG so the CLI's paid
-# built-in small model (gpt-5.4-nano) is never used on PR-gated lanes, where
-# OPENCODE_DISABLE_PROJECT_CONFIG would otherwise ignore the root file. The
-# staged config supplies `small_model`; the main model remains the per-lane
-# `model` input below.
+# built-in small model (gpt-5.4-nano) is never used on any agent lane: every
+# lane sets OPENCODE_DISABLE_PROJECT_CONFIG (issue #831), which makes the CLI
+# ignore the checked-out root file. The staged config supplies `small_model`;
+# the main model remains the per-lane `model` input below.
 inputs:
   model:
     description: "Model to use"
@@ -141,7 +141,7 @@ runs:
     - name: Stage the maintained opencode config (small-model guard)
       id: opencode_config
       shell: bash
-      # The PR-gated lanes keep OPENCODE_DISABLE_PROJECT_CONFIG so a PR cannot
+      # Every agent lane keeps OPENCODE_DISABLE_PROJECT_CONFIG so a PR cannot
       # inject project config, and without an explicit config file the CLI
       # falls back to its built-in paid small model (gpt-5.4-nano), which
       # died with "Insufficient account funds" (HTTP 402) on review run
