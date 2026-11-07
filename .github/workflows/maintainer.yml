@@ -545,10 +545,11 @@ jobs:
           OPENCODE_CONFIG: ${{ runner.temp }}/lab-config/opencode.json
           # Issue #831: never auto-load project config/instructions/plugins
           # from the checked-out tree. A pull_request wake-up is checked out
-          # to the PR merge head by the CLI's GitHub bootstrap before the
-          # session starts; the authoritative prompt is the staged trusted
-          # copy named above, and the grant above keeps its
-          # external_directory read and the /tmp contract files reachable.
+          # to the PR head branch (or the fork's head branch) by the CLI's
+          # GitHub bootstrap before the session starts; the authoritative
+          # prompt is the staged trusted copy named above, and the grant above
+          # keeps its external_directory read and the /tmp contract files
+          # reachable.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           VARIANT: max
           MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
