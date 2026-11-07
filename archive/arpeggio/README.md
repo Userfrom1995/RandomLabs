@@ -108,7 +108,7 @@ and envelope behavior, WAV header correctness, and CLI error handling.
 
 ## Further reading
 
-- [`docs/`](../docs/) — rendered documentation site (also served on GitHub
+- [`docs/`](../../docs/) — rendered documentation site (also served on GitHub
   Pages under `/docs/`).
-- [`ideas/2026-08-08-arpeggio-markov-melody-composer.md`](../ideas/2026-08-08-arpeggio-markov-melody-composer.md)
+- [`ideas/2026-08-08-arpeggio-markov-melody-composer.md`](../../ideas/2026-08-08-arpeggio-markov-melody-composer.md)
   — the writeup for this build.
