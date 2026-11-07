@@ -274,11 +274,17 @@ Public Surface / Web Track:                                              │
   `actor-write-gate.sh` SHA pin is retired (workspace execution now fails
   closed as handler-pre-script-unexpected), and a new R30 mutant reverting
   the approve read to `${GITHUB_SHA}` must trip
-  `untrusted-helper-invocation`. Round 27 pinned the workspace itself:
-  the checkout runs `ref: ${{ github.event.repository.default_branch }}`,
-  so the CLI's auto-loaded `AGENTS.md`, `opencode.json`, and plugins have
-  the staged prompt's trusted provenance instead of the
-  `refs/pull/<N>/merge` tree a `pull_request` event checks out by default.
+  `untrusted-helper-invocation`. Round 27 pinned the pre-agent
+  workspace: the checkout runs `ref: ${{ github.event.repository.default_branch }}`,
+  so the actor gate, the staged helpers, and the staged prompt read the
+  trusted commit instead of the `refs/pull/<N>/merge` tree a
+  `pull_request` event checks out by default. That does not protect the
+  agent session: `opencode github run` checks out the PR head for
+  `pull_request`, `pull_request_review_comment`, and PR-thread
+  `issue_comment` wake-ups, so every agent arm sets
+  `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` plus the supported
+  `OPENCODE_PERMISSION` grant and never auto-loads the checked-out tree's
+  `AGENTS.md`, `opencode.json`, or plugins (issue #831; canary-verified).
   R30 pins the checkout's exact `{name, uses, with}` surface and a mutant
   removing or redirecting the ref must trip `checkout-with-not-exact`,
   while R26's pre-handler manifest pins the new `with` map and envelope.
@@ -896,7 +902,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 - Focuses on E2E functionality, dynamic simulation, and performance of the running application (headless Playwright/Puppeteer browser tests for web UI; stress, fuzz, and memory checks for engines/CLIs).
 - **Test Authoring & Commit Authorization**: Authorized to author permanent regression and E2E test suites in project test directories (`tests/`, `e2e/`, etc.) and commit them directly to the PR branch under `tester: ...`.
 - **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester writes a signed findings report; the workflow's owner-PAT step posts that report and the hardcoded forward step posts `/oc fix` → the Fixer runs. The report never leads with a trigger (issue #713 round 17).
-- **Agent bootstrap token scope (issue #743)**: the Tester agent never posts its verdict itself; its token holds `issues: write` and `pull-requests: write` so `opencode github run` can react to the triggering comment and post its session summary at exit (a PR-thread comment is a pull-request resource for App authorization, so issues write plus pull-requests read still returned 403 on runs 39843594629 and 39843603743), while a hardcoded owner-PAT step publishes the signed report and the `/oc approve-test` marker (issue #713). The review and eval lanes follow the same split: issues and pull-requests write for the PR-thread CLI bootstrap, owner-authored verdicts for publication; contents stays read on review and eval and write on test and per-OS only for tester commits, so no lane can merge (merging requires Contents write). The staged system prompts live outside the workspace under `$RUNNER_TEMP/lab-prompts/`, so the same lanes now carry `OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'`: the project-config opt-out disables the repo `opencode.json` `permission.external_directory` allow, and without the env grant an unattended session asked for the staged-prompt read and was killed by the #653 watchdog after 600 silent seconds (review run 39852524926). The Maintainer arm carries the same grant, so the opt-out planned in issue #745 cannot reintroduce the ask; R31 pins the grant, the opt-out, and the earlier same-job staging step for every staged-prompt agent, mutation-self-tests their removal or weakening, and executes the shipped value through the real `opencode debug config` loader when the CLI is available, with an ask-default control.
+- **Agent bootstrap token scope (issue #743)**: the Tester agent never posts its verdict itself; its token holds `issues: write` and `pull-requests: write` so `opencode github run` can react to the triggering comment and post its session summary at exit (a PR-thread comment is a pull-request resource for App authorization, so issues write plus pull-requests read still returned 403 on runs 39843594629 and 39843603743), while a hardcoded owner-PAT step publishes the signed report and the `/oc approve-test` marker (issue #713). The review and eval lanes follow the same split: issues and pull-requests write for the PR-thread CLI bootstrap, owner-authored verdicts for publication; contents stays read on review and eval and write on test and per-OS only for tester commits, so no lane can merge (merging requires Contents write). The staged system prompts live outside the workspace under `$RUNNER_TEMP/lab-prompts/`, so the same lanes now carry `OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'`: the project-config opt-out disables the repo `opencode.json` `permission.external_directory` allow, and without the env grant an unattended session asked for the staged-prompt read and was killed by the #653 watchdog after 600 silent seconds (review run 39852524926). The Maintainer arm carries the same grant, and issue #831 lands the opt-out on it and every other agent arm; R31 pins the grant and the opt-out on every comment-triggered agent step plus the earlier same-job staging step for every staged-prompt agent, mutation-self-tests their removal or weakening, and executes the shipped value through the real `opencode debug config` loader when the CLI is available, with an ask-default control.
 - **Infrastructure PR Guard**: If the diff touches `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, the Tester operates strictly read-only (never commits/pushes), validates infrastructure dynamically, and routes issues to `/oc lab`.
 - If clean and all tests pass, the Tester commits any new test suites, pushes, and writes its signed approval report; the workflow publishes `/oc approve-test` -> the test workflow notifies the Maintainer (`/oc maintainer`), which routes the binding Evaluator gate (`/oc eval`) and merges after `approve-eval`.
 
@@ -1045,7 +1051,12 @@ runner (and the per-OS findings poster) with the workflow-commit copy, and sets
 `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` so a PR-head `AGENTS.md` or
 `opencode.json` is never loaded; restored artifacts are hidden from the
 clean-tree gates via `.git/info/exclude`, and a missing workflow-commit copy
-fails the step RED. The PR-head editions are never executed, so a PR can no
+fails the step RED. Every other comment-triggered agent arm (the Maintainer
+inline arm, lab, opencode.yml's modes, curator, auditor, ideate, recover)
+carries the same opt-out plus the supported `OPENCODE_PERMISSION` grant,
+because `opencode github run` checks out the PR head for `pull_request` and
+PR-thread `issue_comment` wake-ups even when the pre-agent checkout was
+pinned to a trusted ref (issue #831; R31 pins the pair). The PR-head editions are never executed, so a PR can no
 longer rewrite its own reviewer/tester instructions to post a forged eval
 marker (issue #713). The runner is replaced even when the head carries one, so
 the old trust-the-present-head-copy early exit is gone (issue #430's restore
