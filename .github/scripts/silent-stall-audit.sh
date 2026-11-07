@@ -10404,7 +10404,15 @@ fi
 #     digits (issue #829 review F1), so the mutation helpers must rewrite the
 #     same grammar the checker tolerates; a helper that only matches a line
 #     ending in digits would no-op on a valid `timeout-minutes: 90  # ...`
-#     line and fail its own self-test loudly instead of passing a dead check.
+#     line and fail its own self-test loudly instead of passing a dead check;
+#   - the pre-comment helpers treat an already-commented target line as a
+#     successful find (issues #829 Tester F1 and Reviewer round-4 advisory 1):
+#     the self-test builds a pre-commented copy with an independent sed pass,
+#     requires the helpers to leave it byte-identical and the checker to stay
+#     clean on it, catches a helper that fails to insert the marker on a bare
+#     line, and still catches a lowered cap on the pre-commented grammar, so
+#     neither a nonzero exit on the tolerated shape nor a literal no-op can
+#     silently satisfy the tolerance guard.
 r25_bad=""
 wf_job_block() {
   awk -v job="  $2:" '
@@ -10483,9 +10491,9 @@ r25_comment_agent_timeout() {
   awk -v step="      - name: ${step}" '
     $0 == step { in_step = 1 }
     in_step && /^      - / && $0 != step { in_step = 0 }
-    in_step && /^        timeout-minutes:/ && $0 !~ /#/ {
+    in_step && /^        timeout-minutes:/ {
       found = 1
-      print $0 "  # issue #827 hard stop"
+      if ($0 !~ /#/) { print $0 "  # issue #827 hard stop" } else { print }
       next
     }
     { print }
@@ -10497,9 +10505,9 @@ r25_comment_job_timeout() {
   awk -v job="  ${job}:" '
     $0 == job { in_job = 1 }
     in_job && /^  [A-Za-z0-9_-]+:$/ && $0 != job { in_job = 0 }
-    in_job && /^    timeout-minutes:/ && $0 !~ /#/ {
+    in_job && /^    timeout-minutes:/ {
       found = 1
-      print $0 "  # issue #827 hard stop"
+      if ($0 !~ /#/) { print $0 "  # issue #827 hard stop" } else { print }
       next
     }
     { print }
@@ -10508,7 +10516,7 @@ r25_comment_job_timeout() {
 }
 r25_selftest_arm() {
   local wf="$1" job="$2" step="$3" agent_min="$4" job_min="$5" tag="$6"
-  local dir saved
+  local dir saved commented_job commented_step
   [ -f "$wf" ] || return
   dir=$(mktemp -d 2>/dev/null || true)
   if [ -z "$dir" ]; then
@@ -10526,16 +10534,75 @@ r25_selftest_arm() {
 
   # The checker tolerates an inline YAML comment after the timeout digits, so
   # a commented pristine copy must stay clean and every mutant below is
-  # rewritten on that same commented grammar (issue #829 review F1).
+  # rewritten on that same commented grammar (issue #829 review F1). The
+  # helpers must also actually insert the marker on a bare line: a literal
+  # no-op that exits 0 would silently retire the tolerance guard (issue #829
+  # Reviewer round-4 advisory 1).
   cp "$wf" "$dir/commented.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/commented.yml" ]; then
     r25_comment_job_timeout "$dir/commented.yml" "$job" \
       || saved="${saved} ${tag}(selftest-job-comment-missing)"
     r25_comment_agent_timeout "$dir/commented.yml" "$step" \
       || saved="${saved} ${tag}(selftest-agent-comment-missing)"
+    commented_job=$(wf_job_block "$dir/commented.yml" "$job")
+    printf '%s\n' "$commented_job" | grep -qE '^    timeout-minutes:[[:space:]]*[0-9]+[[:space:]]*#' \
+      || saved="${saved} ${tag}(selftest-job-comment-not-inserted)"
+    commented_step=$(printf '%s\n' "$commented_job" | awk -v tag="      - name: ${step}" '
+      $0 == tag { s=1; print; next }
+      s && $0 ~ /^      - / { exit }
+      s { print }')
+    printf '%s\n' "$commented_step" | grep -qE '^        timeout-minutes:[[:space:]]*[0-9]+[[:space:]]*#' \
+      || saved="${saved} ${tag}(selftest-agent-comment-not-inserted)"
     r25_bad=""
     r25_check_arm "$dir/commented.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
     [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-commented-not-clean)"
+  fi
+
+  # A pre-commented copy built independently of the helpers under test: the
+  # helpers must treat an already-commented target line as a successful find
+  # (issue #829 Tester F1) and leave the file byte-identical, the checker must
+  # stay clean on that grammar, and both mutation helpers must still catch a
+  # lowered cap on it.
+  awk '
+    /^    timeout-minutes: [0-9]+$/ { print $0 "  # issue #827 hard stop"; next }
+    /^        timeout-minutes: [0-9]+$/ { print $0 "  # issue #827 hard stop"; next }
+    { print }
+  ' "$wf" > "$dir/precommented.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/precommented.yml" ]; then
+    cp "$dir/precommented.yml" "$dir/precommented.ref" 2>/dev/null \
+      || saved="${saved} ${tag}(selftest-copy-failed)"
+    r25_comment_job_timeout "$dir/precommented.yml" "$job" \
+      || saved="${saved} ${tag}(selftest-job-comment-missing)"
+    r25_comment_agent_timeout "$dir/precommented.yml" "$step" \
+      || saved="${saved} ${tag}(selftest-agent-comment-missing)"
+    if [ -f "$dir/precommented.ref" ] && ! cmp -s "$dir/precommented.yml" "$dir/precommented.ref"; then
+      saved="${saved} ${tag}(selftest-precommented-rewritten)"
+    fi
+    r25_bad=""
+    r25_check_arm "$dir/precommented.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-precommented-not-clean)"
+
+    cp "$dir/precommented.yml" "$dir/premut-job.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+    if [ -f "$dir/premut-job.yml" ]; then
+      r25_mutate_job_timeout "$dir/premut-job.yml" "$job" $((job_min - 1))
+      r25_bad=""
+      r25_check_arm "$dir/premut-job.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+      case "$r25_bad" in
+        *"job-cap="*) ;;
+        *) saved="${saved} ${tag}(selftest-precommented-job-cap-not-caught)" ;;
+      esac
+    fi
+
+    cp "$dir/precommented.yml" "$dir/premut-agent.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+    if [ -f "$dir/premut-agent.yml" ]; then
+      r25_mutate_agent_timeout "$dir/premut-agent.yml" "$step" $((agent_min - 1))
+      r25_bad=""
+      r25_check_arm "$dir/premut-agent.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+      case "$r25_bad" in
+        *"agent-cap="*) ;;
+        *) saved="${saved} ${tag}(selftest-precommented-agent-cap-not-caught)" ;;
+      esac
+    fi
   fi
 
   cp "$wf" "$dir/mut-agent.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
@@ -10595,7 +10662,7 @@ r25_selftest_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
 r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
 r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm on both the plain and the inline-commented timeout shapes the checker accepts (issues #701, #827, #829)" "ok"
+  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829)" "ok"
 else
   check "R25" "lab/fix/curator cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch)" "bad"
 fi
