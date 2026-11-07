@@ -12280,7 +12280,7 @@ test -x "$HOME/.opencode/bin/opencode"
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 ### 13 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The checkout is pinned to the same trusted default-branch commit, but use the staged copy as the authoritative prompt; never substitute any other edition.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups, so project config and instructions are explicitly disabled (issue #831).\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 if [ "${{ github.event_name }}" = "workflow_run" ]; then
   export GITHUB_EVENT_NAME="workflow_dispatch"
 fi
@@ -15239,6 +15239,11 @@ AGENT_ENV = {
     "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}",
     "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}",
     "GITHUB_TOKEN": "${{ github.token }}",
+    # Issue #831: the PR-head checkout is untrusted and the CLI may check it
+    # out after the pre-agent checkout, so every agent lane disables project
+    # config and keeps its /tmp contract files reachable with the grant.
+    "OPENCODE_DISABLE_PROJECT_CONFIG": "true",
+    "OPENCODE_PERMISSION": '{"external_directory":{"*":"allow"}}',
 }
 # The baseline body is pinned exactly: its output lines alone can be
 # kept while the values are forced (for example branch="main"), or the
@@ -22610,6 +22615,21 @@ fi
 # `pull-requests: read`, so either read-only pin can never silently return.
 # Non-comment triggers (schedule, dispatch) are exempt because the CLI only
 # reacts to comment events.
+#
+# Issue #831: `opencode github run` checks out the PR head for pull_request,
+# pull_request_review_comment, and issue_comment-on-a-PR wake-ups (schedule
+# and workflow_dispatch get a generated branch with no PR checkout), so the
+# CLI's project-config auto-loader would otherwise merge the checked-out
+# tree's AGENTS.md, opencode.json, and .opencode plugins into the session. A
+# canary run proved all three load under the staged OPENCODE_CONFIG alone.
+# Every comment-triggered agent step therefore carries
+# `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` plus the exact
+# OPENCODE_PERMISSION external_directory grant (the opt-out disables the
+# repo-staged permission, and the /tmp contract files plus any staged prompt
+# must stay reachable), including the arms whose prompt lives in the
+# workspace. The Maintainer's inline arm carries the same pair. Each lane is
+# mutation-self-tested for a removed or re-enabled opt-out and a removed or
+# weakened grant.
 r31_out=$(python3 -I - <<'PY'
 import copy
 import glob
@@ -22820,36 +22840,29 @@ def validate_doc(doc, label, require_agent=False, pr_thread=False):
                             % (label, job_name, event, request, "issues-or-prs-read")
                         )
             env = step.get("env")
+            # Issue #831: every comment-triggered agent step runs with the
+            # project-config opt-out, so a PR head can never auto-inject
+            # AGENTS.md/opencode.json/plugins, and carries the supported
+            # external_directory grant so its /tmp contract files and any
+            # staged prompt stay reachable under that opt-out. This covers
+            # the non-staged-prompt arms too (lab, opencode.yml's modes,
+            # curator, auditor, ideate, recover), not just the #713 lanes.
+            if not isinstance(env, dict):
+                problems.append("%s:%s(agent-env-missing)" % (label, job_name))
+            else:
+                if env.get("OPENCODE_DISABLE_PROJECT_CONFIG") != "true":
+                    problems.append(
+                        "%s:%s(project-config-enabled)" % (label, job_name)
+                    )
+                if env.get("OPENCODE_PERMISSION") != STAGED_PROMPT_PERMISSION:
+                    problems.append(
+                        "%s:%s(permission-not-exact)" % (label, job_name)
+                    )
             prompt_name = staged_prompt_name(step)
-            if prompt_name:
-                if (
-                    not isinstance(env, dict)
-                    or env.get("OPENCODE_PERMISSION") != STAGED_PROMPT_PERMISSION
-                ):
-                    problems.append(
-                        "%s:%s(staged-prompt-permission-not-exact)"
-                        % (label, job_name)
-                    )
-                if (
-                    not isinstance(env, dict)
-                    or env.get("OPENCODE_DISABLE_PROJECT_CONFIG") != "true"
-                ):
-                    problems.append(
-                        "%s:%s(staged-prompt-project-config-enabled)"
-                        % (label, job_name)
-                    )
-                if not staging_step_before(steps, index, prompt_name):
-                    problems.append(
-                        "%s:%s(staged-prompt-not-staged-before-agent)"
-                        % (label, job_name)
-                    )
-            elif (
-                isinstance(env, dict)
-                and "OPENCODE_PERMISSION" in env
-                and env.get("OPENCODE_PERMISSION") != STAGED_PROMPT_PERMISSION
-            ):
+            if prompt_name and not staging_step_before(steps, index, prompt_name):
                 problems.append(
-                    "%s:%s(permission-override-not-exact)" % (label, job_name)
+                    "%s:%s(staged-prompt-not-staged-before-agent)"
+                    % (label, job_name)
                 )
     if require_agent and found == 0:
         problems.append("%s(agent-step-missing)" % label)
@@ -22860,8 +22873,9 @@ def validate_maintainer_bootstrap(doc, label):
     # The Maintainer runs opencode inline rather than through the composite
     # action, so the cohort loop cannot see it. Its prompt is staged from the
     # trusted default-branch commit into the same external directory, and it
-    # must carry the same grant so a future project-config opt-out (issue #745)
-    # cannot reintroduce the ask deadlock.
+    # must carry the same grant plus the exact project-config opt-out so a
+    # pull_request wake-up can never inject the checked-out tree's project
+    # config (issue #831).
     problems = []
     if not isinstance(doc, dict):
         return ["%s(yaml-not-mapping)" % label]
@@ -22885,8 +22899,7 @@ def validate_maintainer_bootstrap(doc, label):
         return ["%s(agent-env-missing)" % label]
     if env.get("OPENCODE_PERMISSION") != STAGED_PROMPT_PERMISSION:
         problems.append("%s(staged-prompt-permission-not-exact)" % label)
-    opt_out = env.get("OPENCODE_DISABLE_PROJECT_CONFIG")
-    if opt_out is not None and opt_out != "true":
+    if env.get("OPENCODE_DISABLE_PROJECT_CONFIG") != "true":
         problems.append("%s(project-config-not-disabled)" % label)
     if any(
         isinstance(value, str) and "secrets.OPENCODE_PAT" in value
@@ -22977,6 +22990,13 @@ def mutate_reenable_project_config(doc):
             env["OPENCODE_DISABLE_PROJECT_CONFIG"] = "false"
 
 
+def mutate_remove_project_config(doc):
+    for step in each_agent_step(doc):
+        env = step.get("env")
+        if isinstance(env, dict):
+            env.pop("OPENCODE_DISABLE_PROJECT_CONFIG", None)
+
+
 def mutate_remove_staging(doc):
     jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
     for job in jobs.values():
@@ -23023,6 +23043,12 @@ def mutate_maintainer_reenable_project_config(doc):
         env["OPENCODE_DISABLE_PROJECT_CONFIG"] = "false"
 
 
+def mutate_maintainer_remove_project_config(doc):
+    env = maintainer_agent_env(doc)
+    if env is not None:
+        env.pop("OPENCODE_DISABLE_PROJECT_CONFIG", None)
+
+
 def mutate_maintainer_unstage_prompt(doc):
     env = maintainer_agent_env(doc)
     if env is not None and isinstance(env.get("PROMPT"), str):
@@ -23057,6 +23083,10 @@ def synth(wf_perms, job_perms):
             {
                 "uses": "./.github/actions/opencode-run",
                 "with": {"use_github_token": True},
+                "env": {
+                    "OPENCODE_DISABLE_PROJECT_CONFIG": "true",
+                    "OPENCODE_PERMISSION": STAGED_PROMPT_PERMISSION,
+                },
             }
         ]
     }
@@ -23227,6 +23257,10 @@ try:
                 "self-test-staged-prompt-project-config-not-caught",
             ),
             (
+                mutate_remove_project_config,
+                "self-test-staged-prompt-project-config-removed-not-caught",
+            ),
+            (
                 mutate_remove_staging,
                 "self-test-staged-prompt-staging-removed-not-caught",
             ),
@@ -23251,6 +23285,36 @@ try:
             problems.append("%s(parse:%s)" % (path, type(exc).__name__))
             continue
         problems.extend(validate_doc(doc, path))
+        # Issue #831: the opt-out and grant requirement is load-bearing on
+        # every comment-triggered agent lane, including the arms whose prompt
+        # lives in the workspace (lab, opencode.yml's modes, curator,
+        # auditor, ideate, recover). Each mutation must fail this rule alone.
+        active_events = [
+            event for event in workflow_events(doc) if event in COMMENT_EVENTS
+        ]
+        if active_events and any(True for _step in each_agent_step(doc)):
+            for mutator, marker in (
+                (
+                    mutate_remove_project_config,
+                    "self-test-project-config-removed-not-caught",
+                ),
+                (
+                    mutate_reenable_project_config,
+                    "self-test-project-config-reenabled-not-caught",
+                ),
+                (
+                    mutate_drop_permission,
+                    "self-test-agent-permission-removed-not-caught",
+                ),
+                (
+                    mutate_weaken_permission,
+                    "self-test-agent-permission-weakened-not-caught",
+                ),
+            ):
+                mutated = copy.deepcopy(doc)
+                mutator(mutated)
+                if not validate_doc(mutated, path):
+                    problems.append("%s(%s)" % (path, marker))
     # opencode.yml is the pull_request_review_comment lane: prove its
     # reaction requirement is load-bearing too.
     opencode_path = ".github/workflows/opencode.yml"
@@ -23294,6 +23358,10 @@ try:
                     "self-test-maintainer-project-config-not-caught",
                 ),
                 (
+                    mutate_maintainer_remove_project_config,
+                    "self-test-maintainer-project-config-removed-not-caught",
+                ),
+                (
                     mutate_maintainer_unstage_prompt,
                     "self-test-maintainer-prompt-not-staged-not-caught",
                 ),
@@ -23334,10 +23402,10 @@ PY
 )
 case "$r31_out" in
   OK)
-    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every agent step carrying a staged \$RUNNER_TEMP/lab-prompts system prompt (the four #713 lanes plus the Maintainer's inline arm) must carry the exact OPENCODE_PERMISSION external_directory grant with the project-config opt-out and a same-job staging step earlier in the list, mutation-self-tested for a removed or weakened grant, a re-enabled project config, and removed staging, and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #743 follow-on)" "ok"
+    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config/instructions/plugins while /tmp contract files and staged prompts stay reachable; the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
     ;;
   *)
-    check "R31" "agent bootstrap token scope or staged-prompt reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; the pre-fix review/test/eval/per-OS/Maintainer pins are the regression)" "bad"
+    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json/plugins unless the opt-out is set on every agent arm; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
     ;;
 esac
 
