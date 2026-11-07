@@ -281,8 +281,10 @@ Public Surface / Web Track:                                              │
   `pull_request` event checks out by default. That does not protect the
   agent session: `opencode github run` checks out the PR head for
   `pull_request`, `pull_request_review_comment`, and PR-thread
-  `issue_comment` wake-ups, so every agent arm sets
-  `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` plus the supported
+  `issue_comment` wake-ups, while `schedule` and `workflow_dispatch`
+  wake-ups get a generated `opencode/dispatch-*` or
+  `opencode/schedule-*` branch and never check out a PR, so every agent
+  arm sets `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` plus the supported
   `OPENCODE_PERMISSION` grant and never auto-loads the checked-out tree's
   `AGENTS.md`, `opencode.json`, or plugins (issue #831; canary-verified).
   R30 pins the checkout's exact `{name, uses, with}` surface and a mutant
@@ -1054,9 +1056,11 @@ clean-tree gates via `.git/info/exclude`, and a missing workflow-commit copy
 fails the step RED. Every other comment-triggered agent arm (the Maintainer
 inline arm, lab, opencode.yml's modes, curator, auditor, ideate, recover)
 carries the same opt-out plus the supported `OPENCODE_PERMISSION` grant,
-because `opencode github run` checks out the PR head for `pull_request` and
-PR-thread `issue_comment` wake-ups even when the pre-agent checkout was
-pinned to a trusted ref (issue #831; R31 pins the pair). The PR-head editions are never executed, so a PR can no
+because `opencode github run` checks out the PR head for `pull_request`,
+`pull_request_review_comment`, and PR-thread `issue_comment` wake-ups even
+when the pre-agent checkout was pinned to a trusted ref, while `schedule`
+and `workflow_dispatch` runs never check out a PR (issue #831; R31 pins the
+pair). The PR-head editions are never executed, so a PR can no
 longer rewrite its own reviewer/tester instructions to post a forged eval
 marker (issue #713). The runner is replaced even when the head carries one, so
 the old trust-the-present-head-copy early exit is gone (issue #430's restore
