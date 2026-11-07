@@ -45,6 +45,10 @@ EVIDENCE_DIR = os.path.join(COMPAT_DIR, "evidence")
 COLLECT_PY = os.path.join(COMPAT_DIR, "collect.py")
 PROBE_PY = os.path.join(COMPAT_DIR, "probe-graphics.py")
 
+# The harness unit suite itself must run on the Windows tester host
+# (issue #792): POSIX-only assertions are gated, not silently assumed.
+POSIX = os.name != "nt"
+
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
 
 
@@ -193,6 +197,74 @@ def make_fixed_session_run_dir(root, *, driver="x11", resize=False,
         fh.write("\n".join(events) + "\n")
     with open(os.path.join(session, "pty.log"), "wb") as fh:
         fh.write(bytes(transcript))
+    return root
+
+
+_WINDOWS_UNSET = object()
+
+
+def make_windows_run_dir(root, *, cols=100, rows=40, omit=(),
+                         uncaptured=(), build=True, geometry=True,
+                         build_values=None, exit_value=_WINDOWS_UNSET,
+                         geometry_value=_WINDOWS_UNSET):
+    """Build a run directory shaped like run-windows.ps1's session.
+
+    Windows rows carry no pty transcript by design, so every checkpoint
+    proves itself with a capture; the metadata carries the measured
+    console geometry and build identity the runner records before launch.
+    ``build_values``, ``exit_value``, and ``geometry_value`` let a test
+    replace those blocks with hostile shapes (a malformed identity, a
+    non-zero exit, a non-dict geometry) to pin the fail-closed gates.
+    """
+    session = os.path.join(root, "session")
+    shots = os.path.join(session, "screenshots")
+    os.makedirs(shots, exist_ok=True)
+    meta = {
+        "emulator_version": "test",
+        "arch": "x86_64",
+        "driver": "windows",
+        "transcript": None,
+        "requested_tier": "auto",
+        "geometry": {
+            "requested": {"cols": 100, "rows": 40},
+            "measured": {"cols": cols, "rows": rows} if geometry else {},
+            "resize_exercised": False,
+        },
+        "extra_env": [],
+        "runner": {"host": "test", "id": "compat-harness"},
+        "exit": {"code": 0, "killed": False, "game_exited": True,
+                 "process_exited": True},
+    }
+    if exit_value is not _WINDOWS_UNSET:
+        meta["exit"] = exit_value
+    if geometry_value is not _WINDOWS_UNSET:
+        meta["geometry"] = geometry_value
+    if build:
+        values = build_values or {}
+        meta["build"] = {
+            "commit": values.get("commit", "a" * 40),
+            "binary_sha256": values.get("binary_sha256", "b" * 64),
+            "sources_dirty": False,
+        }
+    with open(os.path.join(session, "meta.json"), "w", encoding="utf-8") as fh:
+        json.dump(meta, fh)
+    events = []
+    for index, name in enumerate(FIXED_SESSION_CHECKPOINTS):
+        if name in omit:
+            continue
+        shot = (
+            None
+            if name in uncaptured
+            else f"session/screenshots/{name}.png"
+        )
+        events.append(f"{100 + index}\tcheckpoint\t{name}\t0\t{shot or ''}")
+        if shot:
+            pixels = bytes([20 + index * 5] * 12)
+            with open(os.path.join(shots, f"{name}.png"), "wb") as fh:
+                fh.write(make_rgb_png(2, 2, pixels))
+    events.append("900\texit\texited=true killed=false\t0\t")
+    with open(os.path.join(session, "events.log"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(events) + "\n")
     return root
 
 
@@ -466,6 +538,7 @@ class TestFixedSessionHonestyGates(unittest.TestCase):
         self.assertIsNone(module.readiness_from_events([]))
 
 
+@unittest.skipUnless(POSIX, "drive.sh requires a POSIX shell")
 class TestDriveReadiness(unittest.TestCase):
     """The real drive.sh first-output wait, exercised with --driver none.
 
@@ -670,6 +743,8 @@ class TestRunnerEntrypoints(unittest.TestCase):
     """The README's bare-path commands must be executable as shown."""
 
     def test_documented_runners_are_executable(self):
+        if not POSIX:
+            self.skipTest("NTFS has no POSIX mode bits to assert")
         for name in ("run-linux.sh", "run-macos.sh"):
             path = os.path.join(COMPAT_DIR, name)
             mode = os.stat(path).st_mode & 0o777
@@ -701,21 +776,8 @@ class TestRunnerEntrypoints(unittest.TestCase):
             "use the ${env_args[@]+\"${env_args[@]}\"} form",
         )
 
-    def test_macos_initial_rejects_extra_separators(self):
-        proc = subprocess.run(
-            ["bash", os.path.join(COMPAT_DIR, "run-macos.sh"),
-             "--initial", "100x40x50"],
-            capture_output=True, text=True,
-        )
-        self.assertEqual(proc.returncode, 2, proc.stderr)
-        self.assertIn("COLSxROWS", proc.stderr)
-        with open(os.path.join(COMPAT_DIR, "run-macos.sh"),
-                  encoding="utf-8") as fh:
-            body = fh.read()
-        self.assertIn(r"=~ ^[0-9]+x[0-9]+$", body)
-        self.assertNotIn("[0-9]*x[0-9]*", body)
 
-
+@unittest.skipUnless(POSIX, "the transcript-path fixture runs bash")
 class TestRunLinuxTranscriptPaths(unittest.TestCase):
     """run-linux.sh must hand drive.sh a transcript the launch will write.
 
@@ -734,6 +796,8 @@ class TestRunLinuxTranscriptPaths(unittest.TestCase):
         os.makedirs(compat)
         shutil.copy2(os.path.join(COMPAT_DIR, "run-linux.sh"),
                      os.path.join(compat, "run-linux.sh"))
+        shutil.copy2(os.path.join(COMPAT_DIR, "run-options.sh"),
+                     os.path.join(compat, "run-options.sh"))
         self.record = os.path.join(self.tmp, "drive-argv.txt")
         with open(os.path.join(compat, "drive.sh"), "w",
                   encoding="utf-8") as fh:
@@ -1132,13 +1196,10 @@ class TestCollectorHonestyGates(unittest.TestCase):
         # Windows rows carry no pty transcript by design (run-windows.ps1)
         # and are graded from the process record plus the capture set, so
         # the tier-observation gate must not misgrade every Windows pass.
-        run_dir = make_run_dir(
+        # The full Windows contract (geometry, every checkpoint capture,
+        # build identity) is exercised in TestWindowsHonestyGates.
+        run_dir = make_windows_run_dir(
             os.path.join(self.tmp, "run-windows-notier"),
-            screenshot_name="playing.png",
-            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [126, 217, 87]),
-            transcript=b"",
-            checkpoint="playing",
-            meta_extra={"transcript": None},
         )
         evidence = os.path.join(self.tmp, "evidence-windows-notier")
         proc = run_collect(run_dir, evidence, "--result", "pass",
@@ -1151,8 +1212,8 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertIsNone(row["tier_observed"])
         self.assertEqual(
             row["disposition"], "pass",
-            "a Windows pass with no transcript was misgraded by the "
-            "tier-observation gate",
+            "a complete Windows row with no transcript was misgraded by "
+            "the tier-observation gate",
         )
         self.assertFalse(
             any("never named the active video tier" in note
@@ -1867,6 +1928,334 @@ class TestCollectorHonestyGates(unittest.TestCase):
             any("expected exactly one" in note for note in row["notes"]),
             f"missing paused-count reason in {row['notes']}",
         )
+
+
+class TestWindowsHonestyGates(unittest.TestCase):
+    """A Windows pass must prove gameplay, not just a PNG (issue #792).
+
+    Windows rows have no pty transcript, so the collector's transcript
+    gates cannot run. The 110x30 incident signed a pass from a single
+    too-small-card capture; these tests pin the replacement contract:
+    measured console geometry at or above 62x35, every fixed-session
+    checkpoint capture, and a recorded build identity.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="compat-windows-gates-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _collect(self, result="pass", **kwargs):
+        run_dir = make_windows_run_dir(
+            os.path.join(self.tmp, "run-" + kwargs.pop("tag", "default")),
+            **kwargs
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", result,
+                           os_name="windows")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_complete_windows_session_stays_pass(self):
+        row = self._collect()
+        self.assertEqual(row["disposition"], "pass")
+        self.assertEqual(row["build"]["commit"], "a" * 40)
+        self.assertEqual(
+            row["geometry"]["measured"], {"cols": 100, "rows": 40}
+        )
+
+    def test_floor_geometry_is_still_a_pass(self):
+        row = self._collect(cols=62, rows=35)
+        self.assertEqual(row["disposition"], "pass")
+
+    def test_narrow_console_is_unverified(self):
+        row = self._collect(cols=61, rows=40)
+        self.assertEqual(row["disposition"], "unverified")
+        self.assertIn("61x40", row["unverified_reason"])
+        self.assertIn("62x35", row["unverified_reason"])
+        self.assertTrue(
+            any("too-small card" in note for note in row["notes"]),
+            f"missing too-small reason in {row['notes']}",
+        )
+
+    def test_short_console_is_unverified(self):
+        row = self._collect(cols=110, rows=30)
+        self.assertEqual(row["disposition"], "unverified")
+        self.assertIn("110x30", row["unverified_reason"])
+
+    def test_proposed_partial_below_the_floor_becomes_unverified(self):
+        row = self._collect(result="partial", cols=80, rows=24)
+        self.assertEqual(row["disposition"], "unverified")
+
+    def test_unknown_geometry_is_partial(self):
+        row = self._collect(geometry=False)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("no measured console geometry" in note
+                for note in row["notes"]),
+            f"missing geometry reason in {row['notes']}",
+        )
+
+    def test_malformed_geometry_is_partial_not_a_crash(self):
+        # The docstring promises a malformed measurement is None; a
+        # string or list container used to raise AttributeError and take
+        # collect.py down without writing a row.
+        for index, value in enumerate((
+            "100x40",
+            {"measured": ["100", "40"]},
+            {"measured": "100x40"},
+            [],
+        )):
+            row = self._collect(tag=f"bad-geometry-{index}",
+                                geometry_value=value)
+            self.assertEqual(row["disposition"], "partial", value)
+            self.assertTrue(
+                any("no measured console geometry" in note
+                    for note in row["notes"]),
+                f"missing geometry reason in {row['notes']}",
+            )
+
+    def test_missing_build_identity_is_partial(self):
+        row = self._collect(build=False)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("no build identity" in note for note in row["notes"]),
+            f"missing build reason in {row['notes']}",
+        )
+
+    def test_malformed_build_identity_is_partial(self):
+        # A non-empty but malformed identity is not provenance: the
+        # committed-bundle audit already requires a 40-hex commit and a
+        # 64-hex SHA-256, and the runtime gate must be equally strict.
+        for index, values in enumerate((
+            {"commit": "not-a-sha"},
+            {"binary_sha256": "zzz"},
+            {"commit": "A" * 40},
+        )):
+            row = self._collect(
+                tag=f"bad-build-{index}", build_values=values
+            )
+            self.assertEqual(row["disposition"], "partial", values)
+            self.assertTrue(
+                any("no build identity" in note for note in row["notes"]),
+                f"missing build reason in {row['notes']}",
+            )
+            self.assertIs(row["build"].get("recorded"), False, values)
+
+    def test_non_zero_exit_cannot_pass(self):
+        row = self._collect(exit_value={
+            "code": 1, "killed": False, "game_exited": True,
+            "process_exited": True,
+        })
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("zero exit code" in note for note in row["notes"]),
+            f"missing exit reason in {row['notes']}",
+        )
+
+    def test_killed_session_cannot_pass(self):
+        row = self._collect(exit_value={
+            "code": 0, "killed": True, "game_exited": True,
+            "process_exited": True,
+        })
+        self.assertEqual(row["disposition"], "partial")
+
+    def test_missing_exit_record_cannot_pass(self):
+        row = self._collect(exit_value=None)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("zero exit code" in note for note in row["notes"]),
+            f"missing exit reason in {row['notes']}",
+        )
+
+    def test_missing_checkpoint_capture_is_partial(self):
+        row = self._collect(omit=("settings",))
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("missing required checkpoint(s): settings" in note
+                for note in row["notes"]),
+            f"missing checkpoint reason in {row['notes']}",
+        )
+
+    def test_uncaptured_checkpoint_is_partial(self):
+        row = self._collect(uncaptured=("paused",))
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("no decodable capture: paused" in note
+                for note in row["notes"]),
+            f"uncaptured checkpoint reason in {row['notes']}",
+        )
+
+
+class TestRunnerPortability(unittest.TestCase):
+    """The compat harness and its unit suite run on all three OS hosts."""
+
+    def read(self, *parts):
+        with open(os.path.join(COMPAT_DIR, *parts), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_probe_has_no_module_level_termios_import(self):
+        body = self.read("probe-graphics.py")
+        head = body.split("def main(", 1)[0]
+        self.assertNotIn("\nimport termios", head)
+        self.assertNotIn("\nimport tty", head)
+        self.assertIn("import termios", body)
+
+    def test_both_runners_source_the_shared_geometry_parser(self):
+        parser = self.read("run-options.sh")
+        self.assertIn(r"=~ ^[0-9]+x[0-9]+$", parser)
+        self.assertIn("COLSxROWS", parser)
+        linux = self.read("run-linux.sh")
+        macos = self.read("run-macos.sh")
+        for name, body in (("run-linux.sh", linux), ("run-macos.sh", macos)):
+            self.assertIn('. "$SCRIPT_DIR/run-options.sh"', body, name)
+            self.assertIn("compat_validate_geometry", body, name)
+        for flag in ("--initial", "--wide", "--small"):
+            self.assertIn(
+                f'compat_validate_geometry run-linux.sh {flag}', linux
+            )
+        self.assertIn(
+            'compat_validate_geometry run-macos.sh --initial', macos
+        )
+        # The macOS runner's inline copy is gone: one parser, one message.
+        self.assertNotIn(r"=~ ^[0-9]+x[0-9]+$", macos)
+
+    def test_geometry_parser_rejects_malformed_values(self):
+        if not POSIX:
+            self.skipTest("the runners are bash scripts")
+        parser = os.path.join(COMPAT_DIR, "run-options.sh")
+        script = (
+            '. "$1"\n'
+            'compat_validate_geometry unit-test --initial "$2"\n'
+            'exit $?\n'
+        )
+        for value in ("100x40x50", "143x", "x64", "100X40", "100 x 40", ""):
+            proc = subprocess.run(
+                ["bash", "-c", script, "bash", parser, value],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 2, (value, proc.stderr))
+            self.assertIn("COLSxROWS", proc.stderr, value)
+        proc = subprocess.run(
+            ["bash", "-c", script, "bash", parser, "100x40"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_runners_reject_malformed_geometry_before_platform_checks(self):
+        if not POSIX:
+            self.skipTest("the runners are bash scripts")
+        cases = (
+            ("run-linux.sh", "--initial"),
+            ("run-linux.sh", "--wide"),
+            ("run-linux.sh", "--small"),
+            ("run-macos.sh", "--initial"),
+        )
+        for name, flag in cases:
+            proc = subprocess.run(
+                ["bash", os.path.join(COMPAT_DIR, name), flag, "100x40x50"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 2, (name, flag, proc.stderr))
+            self.assertIn("COLSxROWS", proc.stderr, (name, flag))
+
+    def test_runners_reject_a_flag_without_its_value(self):
+        # Under `set -u` the bare `$2` assignment died with exit 1 and
+        # "unbound variable", bypassing the documented usage exit 2.
+        if not POSIX:
+            self.skipTest("the runners are bash scripts")
+        cases = (
+            ("run-linux.sh", "--emulator"),
+            ("run-linux.sh", "--tier"),
+            ("run-linux.sh", "--outdir"),
+            ("run-linux.sh", "--binary"),
+            ("run-linux.sh", "--initial"),
+            ("run-linux.sh", "--wide"),
+            ("run-linux.sh", "--small"),
+            ("run-linux.sh", "--game-env"),
+            ("run-linux.sh", "--row-name"),
+            ("run-macos.sh", "--emulator"),
+            ("run-macos.sh", "--tier"),
+            ("run-macos.sh", "--initial"),
+            ("run-macos.sh", "--binary"),
+        )
+        for name, flag in cases:
+            proc = subprocess.run(
+                ["bash", os.path.join(COMPAT_DIR, name), flag],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 2, (name, flag, proc.stderr))
+            self.assertIn("requires a value", proc.stderr, (name, flag))
+
+
+PWSH = shutil.which("pwsh")
+
+
+class TestWindowsInitialValidation(unittest.TestCase):
+    """A bad -Initial exits 2, never the Write-Error default of 1.
+
+    ``$ErrorActionPreference = 'Stop'`` turns Write-Error into a terminating
+    error, so the old script exited 1 before its ``exit 2``; a raw Int32 cast
+    also threw on oversized values the regex accepted.
+    """
+
+    def run_initial(self, value):
+        return subprocess.run(
+            [PWSH, "-NoProfile", "-File",
+             os.path.join(COMPAT_DIR, "run-windows.ps1"),
+             "-Initial", value],
+            capture_output=True, text=True, timeout=60,
+        )
+
+    def test_malformed_and_overflow_exit_2(self):
+        if not PWSH:
+            self.skipTest("pwsh is not installed")
+        cases = {
+            "100x40x50": "COLSxROWS",
+            "143x": "COLSxROWS",
+            "x64": "COLSxROWS",
+            "100X40": "COLSxROWS",
+            "100 x 40": "COLSxROWS",
+            "100x40\n": "COLSxROWS",
+            "99999999999999999999x40": "out of range",
+        }
+        for value, expected in cases.items():
+            proc = self.run_initial(value)
+            self.assertEqual(proc.returncode, 2, (value, proc.stderr))
+            self.assertIn(expected, proc.stderr, (value, proc.stderr))
+
+    def test_below_floor_exit_2(self):
+        if not PWSH:
+            self.skipTest("pwsh is not installed")
+        for value in ("61x40", "100x30"):
+            proc = self.run_initial(value)
+            self.assertEqual(proc.returncode, 2, (value, proc.stderr))
+            self.assertIn("playable floor", proc.stderr, (value, proc.stderr))
+
+
+class TestWindowsLaunchCommandOrder(unittest.TestCase):
+    """`--size` is a global wt option and must precede `new-tab`.
+
+    Windows Terminal parses `new-tab --size 100,40 pwsh ...` as a tab
+    commandline starting with `100,40`: the session runner never starts,
+    no game.pid is written, and the row is unverified on every host.
+    """
+
+    def test_size_precedes_the_new_tab_subcommand(self):
+        with open(os.path.join(COMPAT_DIR, "run-windows.ps1"),
+                  encoding="utf-8") as fh:
+            body = fh.read()
+        start = body.index("Start-Process wt -ArgumentList @(")
+        block = body[start:body.index(") -PassThru", start)]
+        self.assertIn("'--size'", block)
+        self.assertIn("'new-tab'", block)
+        self.assertLess(
+            block.index("'--size'"), block.index("'new-tab'"),
+            "Windows Terminal treats a --size after new-tab as the tab's "
+            "commandline; the global option must come first",
+        )
+        self.assertIn("'--size', \"$InitialCols,$InitialRows\"", block)
 
 
 class TestProbeGraphicsArguments(unittest.TestCase):

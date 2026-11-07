@@ -28,11 +28,26 @@ reason. There are no guessed rows.
   through PowerShell keystroke injection and .NET screen capture. It
   never pipes the game's stdout (the game refuses a non-terminal stdout
   on Windows), so there is no pty transcript: the game shares the session
-  runner's own console (`Start-Process -NoNewWindow`) and each row is
-  graded from the game's own process (pid plus exit code files written by
-  the session runner) and the capture set. A pass requires a zero exit
-  code and at least one valid PNG capture; a row whose game process never
+  runner's own console (`Start-Process -NoNewWindow`). Before launching
+  the game it requests `-Initial` (default 100x40, must be at least
+  62x35) and records the console owner's actual measured window size in
+  `session/geometry.json`, plus the build identity (commit, binary
+  SHA-256, dirty flag) in the run metadata. Each row is graded from the
+  game's own process (pid plus exit code files written by the session
+  runner), that measurement, the capture set, and the build identity: a
+  pass requires a zero exit code, a measured console at or above the
+  game's 62x35 playable floor, a decodable capture for every
+  fixed-session checkpoint, and the build identity. A console that
+  measured below the floor painted the too-small card, not gameplay, so
+  the row is `unverified`; unknown geometry, a missing checkpoint, or a
+  missing build identity is `partial`. A row whose game process never
   started is `unverified` with the reason.
+- `run-options.sh` - shared option validation sourced by `run-linux.sh`
+  and `run-macos.sh`. `run-linux.sh` validates `--initial`, `--wide`, and
+  `--small`; `run-macos.sh` validates `--initial` (it has no resize
+  flags), and both reject a malformed `COLSxROWS` value with the same
+  message and exit 2. A value-taking flag with no value is also a usage
+  error (exit 2), never an unbound-variable death.
 - `drive.sh` - shared scripted-session driver. Launches one emulator
   command, waits up to 30 seconds for the X11 window (the macOS driver
   has no window lookup and relies on the readiness wait instead), waits
@@ -52,7 +67,9 @@ reason. There are no guessed rows.
   It verifies capability claims when a row's environment proof skips the
   in-game probe (see the Ghostty note in `../docs/terminal.md`); the
   committed captures, their exact commands, and their hashes live in
-  `probe-captures/`.
+  `probe-captures/`. `termios`/`tty` are imported only after the tty
+  check, so the module is importable on Windows (exit 4 means the
+  platform has no POSIX terminal control).
 - `collect.py` - turns a run directory into one evidence JSON: transcript
   hash and byte totals, synchronized-frame stats, Kitty/Sixel protocol
   counters (full chunked payload totals), first-transmit PNG dimensions,
@@ -113,6 +130,9 @@ tools/compat/run-linux.sh --install-deps
 # one emulator, reuse an existing release binary
 tools/compat/run-linux.sh --emulator kitty --skip-build
 
+# Windows, requested console size (must be at least 62x35)
+pwsh -File tools/compat/run-windows.ps1 -Emulator conhost -Initial 100x40
+
 # forced-tier probes (recorded as their own rows; pause-select moves the
 # pause cursor so the second row of an emulator has a distinct capture)
 MAZE_CHASE_COMPAT_PAUSE_SELECT=1 \
@@ -126,12 +146,26 @@ MAZE_CHASE_COMPAT_XTERM_FLAGS="-ti vt340 -bg black -fg white" \
 
 Requirements: `python3`, `jq`, `xdotool`, ImageMagick (`import`), and
 `Xvfb` on headless Linux; `osascript`/`screencapture` on macOS;
-PowerShell plus .NET on Windows. `--install-deps` reaches the configured
+PowerShell plus .NET and `git` on Windows. `--install-deps` reaches the configured
 apt sources, including the third-party community PPA
 `ppa:mkasberg/ghostty-ubuntu` that builds Ghostty for Ubuntu (Ghostty is
 not in the distribution archive); `cargo build` fetches the workspace's
 crates. The harness writes nothing else outside its scratch and evidence
 directories.
+
+## Tests
+
+The contract suite is platform-neutral and runs on every host, including
+the Windows tester:
+
+```sh
+python3 -m unittest discover -s tools/compat/tests
+```
+
+POSIX-only cases (`drive.sh`, mode bits, the bash runner entrypoints) skip
+on Windows, and `probe-graphics.py` imports its POSIX terminal modules
+only when it actually probes a tty, so importing the module never fails on
+a Windows host.
 
 ## Evidence format
 
@@ -169,10 +203,12 @@ Honesty rules the harness enforces mechanically:
   because every bitmap gate above is keyed on that observation and cannot
   run without it. On
   Windows, where the pty transcript deliberately
-  does not exist, a row is graded from the game's own pid plus exit code
-  and the capture set: a pass requires a zero exit code and at least one
-  valid PNG capture, and a row whose game process never started is
-  `unverified` with the reason.
+  does not exist, a row is graded from the game's own pid plus exit code,
+  the measured console geometry, the capture set, and the build identity:
+  a pass requires a zero exit code, a console at or above 62x35, every
+  fixed-session checkpoint capture, and the commit plus binary SHA-256,
+  and a row whose game process never started or whose console measured
+  below the floor is `unverified` with the reason.
 - A transcript-driven (`x11` or `macos`) `pass` must prove the fixed
   session rendered. Every fixed checkpoint (`title`, `playing`,
   `paused`, `title-return`, `help`, `scores`, `settings`, plus
@@ -182,9 +218,16 @@ Honesty rules the harness enforces mechanically:
   uncaptured checkpoint is downgraded to `partial` with the reason. A
   `readiness-timeout` event is graded `unverified` (the terminal never
   painted its first frame, so there are no rendered checkpoints). Windows
-  rows carry no transcript by design and are graded from the process
-  record plus the capture set, so the fixed-session gate does not apply
-  there.
+  rows carry no transcript by design, so the collector applies the same
+  fixed-session set capture-only: every checkpoint must be present with a
+  decodable capture, else a proposed pass is `partial`. Independently, a
+  Windows pass requires a measured console geometry at or above 62x35
+  (a measured-too-small host is `unverified`, because the only rendered
+  content is the too-small card) and a recorded build identity
+  (`commit` plus `binary_sha256`); unknown geometry, a missing capture, or
+  a missing identity downgrades a pass to `partial`. A pass with no
+  transcript can therefore never be signed by the too-small card alone
+  (issue #792: a 110x30 host was recorded as a pass before this gate).
 - `build` copies the run metadata (`commit`, `binary_sha256`,
   `sources_dirty`): `commit` is the checkout when the row ran, and a
   `--skip-build` run can reuse a binary built at an earlier commit, so

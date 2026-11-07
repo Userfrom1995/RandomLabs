@@ -8,7 +8,7 @@
 //
 // Usage: node web/e2e/tester-audio-e2e.js [page-url] [debug-port]
 //   page-url defaults to http://127.0.0.1:8931/index.html
-//   (serve maze-chase/ first: `python3 -m http.server 8931` inside it)
+//   (serve maze-chase/ first: `node web/e2e/serve-site.js --port 8931` inside it)
 //   debug-port defaults to 9331: launch chromium first with
 //   `--headless=new --remote-debugging-port=9331 --window-size=1280,900 <page-url>`
 const DEBUG_PORT = Number(process.argv[3] || 9331);

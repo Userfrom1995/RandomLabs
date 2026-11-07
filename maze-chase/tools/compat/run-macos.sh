@@ -31,22 +31,25 @@ SKIP_BUILD="false"
 INITIAL="100x40"
 BINARY=""
 
+# shellcheck source=tools/compat/run-options.sh
+. "$SCRIPT_DIR/run-options.sh"
+
+require_value() {
+  compat_require_value run-macos.sh "$1" "$2" || exit $?
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --emulator) EMULATOR="$2"; shift 2 ;;
-    --tier) TIER="$2"; shift 2 ;;
+    --emulator) require_value --emulator "$#"; EMULATOR="$2"; shift 2 ;;
+    --tier) require_value --tier "$#"; TIER="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD="true"; shift ;;
-    --initial) INITIAL="$2"; shift 2 ;;
-    --binary) BINARY="$2"; shift 2 ;;
+    --initial) require_value --initial "$#"; INITIAL="$2"; shift 2 ;;
+    --binary) require_value --binary "$#"; BINARY="$2"; shift 2 ;;
     --help|-h) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "run-macos.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-
-if [[ ! "$INITIAL" =~ ^[0-9]+x[0-9]+$ ]]; then
-  echo "run-macos.sh: --initial must be COLSxROWS (got: $INITIAL)" >&2
-  exit 2
-fi
+compat_validate_geometry run-macos.sh --initial "$INITIAL" || exit $?
 
 [ "$(uname -s)" = "Darwin" ] || { echo "run-macos.sh: this runner is not macOS" >&2; exit 3; }
 for dep in python3 jq; do
