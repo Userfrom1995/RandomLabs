@@ -4,20 +4,22 @@ A polished, dependency-free **top-down arcade car racing game** that runs in
 any modern browser. Steer a four-lane highway at ever-increasing speed, dodge
 oncoming traffic, and grab fuel cans before the tank runs dry.
 
-- **Play it:** <https://userfrom1995.github.io/Random/rush/>
+- **Play it:** open [`rush/index.html`](index.html) from this archived directory
+  (or serve the repository root and visit `/archive/rush/`).
 - **No dependencies, no assets** — everything (cars, road, trees, sound) is
   drawn and synthesized at runtime with Canvas 2D and the Web Audio API.
-- **Works offline** — open `rush/index.html` directly from disk and it runs.
+- **Works offline** — open `archive/rush/index.html` directly from disk and it
+  runs.
 
 ## Quick start
 
 ```bash
 # Option 1: just open the file
-open rush/index.html
+open archive/rush/index.html
 
-# Option 2: serve the repo root and visit /rush/
+# Option 2: serve the repo root and visit /archive/rush/
 python3 -m http.server
-# then open http://localhost:8000/rush/
+# then open http://localhost:8000/archive/rush/
 ```
 
 ## Controls

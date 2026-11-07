@@ -3,9 +3,11 @@
 A living solar system in your browser, rendered from scratch with **WebGL**
 and **TypeScript** — no game engine, no three.js, no external dependencies
 beyond the TypeScript toolchain used to compile it. Open
-[`orrery/index.html`](index.html) and fly to Jupiter.
+[`index.html`](index.html) and fly to Jupiter.
 
-[▶ Run it](https://userfrom1995.github.io/Random/orrery/) — hosted on GitHub Pages.
+[Run it](index.html) from this archived directory (serve the repository root
+and visit `/archive/orrery/`); the hosted Pages copy was retired with the
+archive.
 
 ## What it does
 
@@ -89,4 +91,4 @@ src/
 
 ## License
 
-MIT — see the repository root [`LICENSE`](../LICENSE).
+MIT — see the repository root [`LICENSE`](../../LICENSE).

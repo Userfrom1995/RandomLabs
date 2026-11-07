@@ -116,7 +116,7 @@ with a fixed seed, and CLI validation/error handling.
 
 ## Further reading
 
-- [`docs/`](../docs/) — rendered documentation site (also served on GitHub
+- [`docs/`](../../docs/) — rendered documentation site (also served on GitHub
   Pages under `/docs/`).
-- [`ideas/2026-08-08-homunculus-genetic-algorithm.md`](../ideas/2026-08-08-homunculus-genetic-algorithm.md)
+- [`ideas/2026-08-08-homunculus-genetic-algorithm.md`](../../ideas/2026-08-08-homunculus-genetic-algorithm.md)
   — the writeup for this build.
