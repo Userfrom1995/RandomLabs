@@ -137,7 +137,7 @@ fi
 # Post the in-memory snapshot, never re-read the /tmp file at post time:
 # a background writer could otherwise replace the body after the nonce and
 # sign-off checks (issue #713 round 18).
-response=$(gh api "repos/${repo}/issues/${target}/comments" --raw-field body="$expected_body" 2>&1) || {
+response=$(gh api --hostname github.com "repos/${repo}/issues/${target}/comments" --raw-field body="$expected_body" 2>&1) || {
   echo "::error::post-peros-findings.sh: posting the ${os_label} findings report to #${target} failed: ${response}"
   exit 1
 }
@@ -148,7 +148,7 @@ if [ -z "$comment_id" ]; then
   exit 1
 fi
 
-fetched=$(gh api "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
+fetched=$(gh api --hostname github.com "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
   echo "::error::post-peros-findings.sh: could not re-fetch posted findings comment ${comment_id}: ${fetched}"
   exit 1
 }

@@ -138,14 +138,25 @@
 # while the vendored Run opencode scalar sat 723 bytes under the cap and the
 # audit stayed green; the two incident steps must each exist exactly once,
 # enforced by a strict duplicate-key-rejecting parse plus padded, renamed,
-# duplicated, and malformed fixture self-tests), and the R34 Maintainer
+# duplicated, and malformed fixture self-tests), the R34 Maintainer
 # quota-wall recovery guard (issue #820: the inline runner's wall marker, the
 # wall-aware intake stand-down that keeps an agent off the blocked egress IP,
 # the bounded two-attempt fresh-run dispatch in one fixed quota-recovery
 # concurrency group, the empty-decision handoff that keeps the byte-pinned
 # verify green, the cap escalation plus red exit, and the #775 token-free
 # escalation notes, pinned structurally and executed against mock gh/sleep
-# fixtures with mutation self-tests).
+# fixtures with mutation self-tests), and the R34 per-OS tester commit-scope
+# sanitization guard (issue #798: every per-OS arm captures the pre-agent
+# branch tip, strips leaked owner co-author trailers with the trusted shared
+# helper, and enforces the test-lane scope with the trusted guard, all after
+# the agent and before the decision forward, so a tester auto-commit can never
+# ship a protected-path edit or an out-of-lane change; the real extracted
+# bodies are executed against a local bare origin with two mutation controls,
+# and the Quality Council env-seam fix is proven with a decoy proxy: the
+# helpers unset proxy/TLS redirections, the step env pins the uppercase
+# spellings empty, the control never contacts the proxy, the unset-removal
+# mutant contacts it and fails closed with the real tip intact, and every
+# owner-PAT step's effective env records no Authorization leak).
 # Wired into auditor.yml as the R1-R34 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
@@ -5546,7 +5557,7 @@ else
     if [ -z "$r17_post_line" ] || [ -z "$r17_fwd_line" ] || [ "$r17_post_line" -ge "$r17_fwd_line" ]; then
       r17_bad="${r17_bad} arm-${r17_os}(post-not-before-forward)"
     fi
-    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Forward ${r17_os_tag} tester decision" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'" '
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Forward ${r17_os_tag} tester decision" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'" '
       done { next }
       $0 == "- name: " tag { seq=1; seen=1; next }
       seq == 2 && $0 ~ /^- name: / { done=1; next }
@@ -5565,10 +5576,19 @@ else
     # that executes an agent-rewritten copy would let the arm conclude green
     # with the report never posted or post arbitrary content with the PAT.
     r17_post_expected=$(printf '%s\n' \
-      'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then' \
-      'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true' \
+      'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""' \
+      'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then' \
+      'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."' \
+      'exit 1' \
       'fi' \
-      'poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""' \
+      'if ! chmod 700 "$gh_cfg"; then' \
+      'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."' \
+      'exit 1' \
+      'fi' \
+      'export GH_CONFIG_DIR="$gh_cfg"' \
+      'trap '\''rm -rf "$gh_cfg"'\'' EXIT' \
+      'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true' \
+      'poster=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/post-peros-findings.sh?ref=${GITHUB_SHA}" 2>/dev/null) || poster=""' \
       'if [ -z "$poster" ]; then' \
       'echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."' \
       'exit 1' \
@@ -5661,15 +5681,27 @@ else
       s { print }
       s && $0 == "          fi" { exit }')
     r17_cr_action=$(printf '%s\n' "$r17_cr_block" | sed 's/^[[:space:]]*//' | grep -xF -- "action=\$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo \"\")" | head -n1)
+    # Issue #798 follow-up (PR #804 maintainer triage): this fixture used to
+    # back up, overwrite, and restore the harness's LIVE contract path
+    # /tmp/random-lab-decision.json. A provider wall that killed a session
+    # mid-audit left the fixture decision behind, and the next review's verify
+    # gate correctly rejected it as a foreign nonce (review run 41447464417).
+    # The fixture now executes the shipped read lines against a decision file
+    # inside this sandbox, so even a mid-fixture death can never plant a
+    # contract artifact. The only edit to the shipped lines is the file path,
+    # and the extracted block must still carry the live path so the
+    # substitution is proven to target the real read.
+    r17_live_decision="/tmp/random-lab-decision.json"
+    r17_decision_path="$r17_cr_tmp/decision.json"
+    if ! printf '%s\n' "$r17_cr_check" "$r17_cr_action" | grep -qF -- "$r17_live_decision"; then
+      r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-lost-live-path)"
+    fi
+    r17_cr_check=$(printf '%s\n' "$r17_cr_check" | sed "s#${r17_live_decision}#${r17_decision_path}#g")
+    r17_cr_action=$(printf '%s\n' "$r17_cr_action" | sed "s#${r17_live_decision}#${r17_decision_path}#g")
     if [ -z "$r17_cr_check" ] || [ -z "$r17_cr_action" ]; then
       r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-not-found)"
     else
-      r17_decision_had=0
-      if [ -e /tmp/random-lab-decision.json ]; then
-        r17_decision_had=1
-        cp /tmp/random-lab-decision.json "$r17_cr_tmp/decision.backup"
-      fi
-      printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > /tmp/random-lab-decision.json
+      printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > "$r17_decision_path"
 
       mkdir -p "$r17_cr_tmp/cr-bin"
       cat > "$r17_cr_tmp/cr-bin/jq" <<'R17_CR_JQ'
@@ -5700,7 +5732,7 @@ R17_CR_JQ
         fi
         {
           printf '%s\n' '#!/usr/bin/env bash' 'set -u'
-          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' < /tmp/random-lab-decision.json 2>/dev/null || true)'
+          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' < '"$r17_decision_path"' 2>/dev/null || true)'
           printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
           printf '%s\n' '  exit 1'
           printf '%s\n' 'fi'
@@ -5738,7 +5770,7 @@ R17_MSYS_JQ
         fi
         {
           printf '%s\n' '#!/usr/bin/env bash' 'set -u'
-          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' /tmp/random-lab-decision.json 2>/dev/null || true)'
+          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' '"$r17_decision_path"' 2>/dev/null || true)'
           printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
           printf '%s\n' '  exit 1'
           printf '%s\n' 'fi'
@@ -5750,15 +5782,65 @@ R17_MSYS_JQ
           r17_bad="${r17_bad} nonce-msys-fixture(path-control-did-not-fail)"
         fi
       fi
-
-      if [ "$r17_decision_had" -eq 1 ]; then
-        cp "$r17_cr_tmp/decision.backup" /tmp/random-lab-decision.json
-      else
-        rm -f /tmp/random-lab-decision.json
-      fi
     fi
     rm -rf "$r17_cr_tmp"
   fi
+fi
+# Issue #798 follow-up: the audit itself must never write the harness's live
+# contract artifacts (/tmp/random-lab-decision.json and
+# /tmp/random-lab-findings.md). A functional fixture that redirects into them
+# can plant a foreign-nonce decision file (or a stale findings report) if a
+# provider wall kills the session mid-audit, and the next run's verify gate
+# then rejects a valid handoff. The fixtures above execute sandbox copies;
+# this scan keeps any future fixture honest, with a self-test proving the
+# pattern is load-bearing and does not flag a read.
+r17_contract_write_pattern='>>?[[:space:]]*["'"'"']?/tmp/random-lab-(decision\.json|findings\.md|report\.md|findings-salvage\.md)'
+# Issue #798 review B4: the R24 pin necessarily embeds the salvage-path write
+# in its expected-body literal; that one exact line is allowlisted (the literal
+# is compared byte-for-byte, so any other write to the live path still fails).
+r17_contract_allow_re='^[[:space:]]*} > /tmp/random-lab-findings-salvage\.md$'
+r17_contract_scan_dir=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r17_contract_scan_dir" ] || [ ! -d "$r17_contract_scan_dir" ]; then
+  r17_bad="${r17_bad} live-contract-write-scan(sandbox-unavailable)"
+else
+  printf 'echo x %s /tmp/random-lab-decision.json\n' '>>' > "$r17_contract_scan_dir/positive-decision.txt"
+  printf 'echo x %s /tmp/random-lab-findings.md\n' '>' > "$r17_contract_scan_dir/positive-findings.txt"
+  printf 'echo x %s /tmp/random-lab-report.md\n' '>' > "$r17_contract_scan_dir/positive-report.txt"
+  printf 'echo x %s /tmp/random-lab-findings-salvage.md\n' '>>' > "$r17_contract_scan_dir/positive-salvage.txt"
+  printf 'jq -r .action < /tmp/random-lab-decision.json\n' > "$r17_contract_scan_dir/negative-read.txt"
+  printf 'cat /tmp/random-lab-report.md /tmp/random-lab-findings-salvage.md\n' > "$r17_contract_scan_dir/negative-args.txt"
+  grep -qE "$r17_contract_write_pattern" "$r17_contract_scan_dir/positive-decision.txt" || r17_bad="${r17_bad} live-contract-write-scan(self-test-decision)"
+  grep -qE "$r17_contract_write_pattern" "$r17_contract_scan_dir/positive-findings.txt" || r17_bad="${r17_bad} live-contract-write-scan(self-test-findings)"
+  grep -qE "$r17_contract_write_pattern" "$r17_contract_scan_dir/positive-report.txt" || r17_bad="${r17_bad} live-contract-write-scan(self-test-report)"
+  grep -qE "$r17_contract_write_pattern" "$r17_contract_scan_dir/positive-salvage.txt" || r17_bad="${r17_bad} live-contract-write-scan(self-test-salvage)"
+  if grep -qE "$r17_contract_write_pattern" "$r17_contract_scan_dir/negative-read.txt"; then
+    r17_bad="${r17_bad} live-contract-write-scan(self-test-read-false-positive)"
+  fi
+  if grep -qE "$r17_contract_write_pattern" "$r17_contract_scan_dir/negative-args.txt"; then
+    r17_bad="${r17_bad} live-contract-write-scan(self-test-args-false-positive)"
+  fi
+  # Build the fixture path at runtime so this self-test block does not itself
+  # look like a live-contract write to the audit-source scan below.
+  r17_salvage_path=/tmp/random-lab-findings-salvage.md
+  printf '} > %s\n' "$r17_salvage_path" > "$r17_contract_scan_dir/allowlisted.txt"
+  printf 'echo x; } > %s\n' "$r17_salvage_path" > "$r17_contract_scan_dir/not-allowlisted.txt"
+  if [ -n "$(grep -E "$r17_contract_write_pattern" "$r17_contract_scan_dir/allowlisted.txt" | grep -vE "$r17_contract_allow_re")" ]; then
+    r17_bad="${r17_bad} live-contract-write-scan(self-test-allowlist-not-exact)"
+  fi
+  if [ -z "$(grep -E "$r17_contract_write_pattern" "$r17_contract_scan_dir/not-allowlisted.txt" | grep -vE "$r17_contract_allow_re")" ]; then
+    r17_bad="${r17_bad} live-contract-write-scan(self-test-allowlist-overbroad)"
+  fi
+  rm -rf "$r17_contract_scan_dir"
+fi
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  if grep -E "$r17_contract_write_pattern" "${BASH_SOURCE[0]}" 2>/dev/null | grep -qvE "$r17_contract_allow_re"; then
+    r17_bad="${r17_bad} live-contract-write-in-audit-source"
+  fi
+else
+  # Fail closed: an unreadable or piped source cannot prove the audit is
+  # write-free, and a silent skip would let a future fixture reintroduce the
+  # live-path write unnoticed.
+  r17_bad="${r17_bad} live-contract-write-scan(source-unavailable)"
 fi
 if [ ! -f "$R17_SCRIPT" ]; then
   r17_bad="${r17_bad} post-peros-findings.sh(missing)"
@@ -5771,6 +5853,10 @@ else
   grep -qF 'if [ "$fetched_last" != "$signoff" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-post-fetch-signoff-check)"
   grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
   grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
+  # Issue #798 review N4: the owner-PAT poster pins the API host so a
+  # workspace GH_HOST or config rewrite cannot redirect the token.
+  grep -qF 'gh api --hostname github.com "repos/${repo}/issues/${target}/comments"' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-post-host-pin)"
+  grep -qF 'gh api --hostname github.com "repos/${repo}/issues/comments/${comment_id}"' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-fetch-host-pin)"
   grep -qF 'Verified owner-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
   # Issue #713 round 16: the parallel tester lane anchors its verdict to the
   # first line of an owner-authored post, so the findings poster must refuse
@@ -6027,14 +6113,18 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="da8c6020fde54db844f4b683a16c17643549ec8ee2ee0e0d21e6bb3652949783" \
-  R17_MACOS_PROMPT_SHA="5531c3aa0c86ca7e8dfbfbc9f719fce7fc4f2642c4421f120decfa3c9ebcda0f" \
-  R17_WINDOWS_PROMPT_SHA="5e3b1ee33d71180f334b7a0cddda391cb77172bb84ff87eae35c6195731e8b80" \
+  R17_LINUX_PROMPT_SHA="9ec0d137d568144ea831f95c04998f7f38c15b48b230a078177a37651ff4640e" \
+  R17_MACOS_PROMPT_SHA="af1450ca94c04b4cd6d18754dbd207cd53447aba6d9ec16de6a72d5da7710689" \
+  R17_WINDOWS_PROMPT_SHA="377668b4d5cefb18852d8563bb907ae25ea2e186239410442ffc106b6843c983" \
   R17_LINUX_AGENT_PROMPT_SHA="b94cdb8c0dfab79e7f1ae1f29d5df0a5c897e873820db1c55e02c6194be3b5a0" \
   R17_MACOS_AGENT_PROMPT_SHA="5e055d83797453c62224290eb6832cf584f3bffff4238830a1a2796951dc9ff5" \
   R17_WINDOWS_AGENT_PROMPT_SHA="d5fa487dce7bd7b82229c69c68b170eb956598abe65313f63173bebc0beb5404" \
+  R17_ANCHOR_BLOCK_SHA="241fb36c37c7b5a96a9e3acafb997c97271c29ec0974da0ac6707c917cbdbe61" \
   R17_GATE_BLOCK_SHA="6e53d7337e64f289668809158a2eb5cf401ed53c415e0f2791788a5b0ccf71bb" \
   R17_RESTORE_BLOCK_SHA="799a06adc38e6fece750aaff51f5376a5f14e15e2d12f2ee9f6645f2c2a7e662" \
+  R17_BASELINE_BLOCK_SHA="d542381d2064778c3b4095625b080c08eb016e77948d3ad7cd6f5b1aed29a45c" \
+  R17_STRIP_BLOCK_SHA="511e6ad1723bb68d50be5a1a29e9ef10fd2dfc642e65809979542291c8246ab4" \
+  R17_SCOPE_BLOCK_SHA="0d83f2469844240d4dafab1b040c8c832842c40ef24f2264133c87e67abfc9b7" \
   python3 -I - <<'R17STAGEPY'
 import copy
 import hashlib
@@ -6046,8 +6136,27 @@ import yaml
 PEROS = ".github/workflows/opencode-peros-test.yml"
 GATE_NAME = "Actor write gate (issue"
 RESTORE_NAME = "Restore the vendored runner and findings poster from the workflow commit"
+ANCHOR_BLOCK_SHA = os.environ["R17_ANCHOR_BLOCK_SHA"]
 GATE_BLOCK_SHA = os.environ["R17_GATE_BLOCK_SHA"]
 RESTORE_BLOCK_SHA = os.environ["R17_RESTORE_BLOCK_SHA"]
+BASELINE_BLOCK_SHA = os.environ["R17_BASELINE_BLOCK_SHA"]
+STRIP_BLOCK_SHA = os.environ["R17_STRIP_BLOCK_SHA"]
+SCOPE_BLOCK_SHA = os.environ["R17_SCOPE_BLOCK_SHA"]
+ANCHOR_NAME = "Resolve the per-OS PR trust anchor (issue #798)"
+BASELINE_NAME = "Capture the pre-agent branch baseline (issue #798)"
+STRIP_NAME = "Strip owner Co-authored-by trailers from the per-OS branch (issue #798)"
+SCOPE_NAME = "Enforce the per-OS tester commit scope (issue #798)"
+SANITIZE_GATE = (
+    "always() && steps.actor_gate.outputs.run == 'true' && "
+    "steps.pre_agent_baseline.outcome == 'success'"
+)
+FORWARD_GATE = (
+    "always() && steps.actor_gate.outputs.run == 'true' && "
+    "steps.verify-test.outcome == 'success' && "
+    "steps.strip_trailers.outcome == 'success' && "
+    "steps.scope_guard.outcome == 'success' && "
+    "steps.findings.outcome == 'success'"
+)
 EXPECTED = (
     ("test-linux", "Linux", "test", "tester-linux.md",
      os.environ["R17_LINUX_BLOCK_SHA"], os.environ["R17_LINUX_PROMPT_SHA"],
@@ -6069,13 +6178,17 @@ EXPECTED_STEP_NAMES = {
     "test-linux": [
         "Get target ref",
         "Checkout repository",
+        "Resolve the per-OS PR trust anchor (issue #798)",
         "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Stage the Linux tester system prompt from the workflow commit",
         "Actor write gate (issue",
         "Configure git identity",
         "Clear runtime decision and findings",
         "Restore the vendored runner and findings poster from the workflow commit",
+        "Capture the pre-agent branch baseline (issue #798)",
         "Run Linux tester agent",
+        "Strip owner Co-authored-by trailers from the per-OS branch (issue #798)",
+        "Enforce the per-OS tester commit scope (issue #798)",
         "Verify test decided, else fail closed",
         "Post Linux tester findings report",
         "Forward Linux tester decision",
@@ -6083,13 +6196,17 @@ EXPECTED_STEP_NAMES = {
     "test-macos": [
         "Get target ref",
         "Checkout repository",
+        "Resolve the per-OS PR trust anchor (issue #798)",
         "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Stage the macOS tester system prompt from the workflow commit",
         "Actor write gate (issue",
         "Configure git identity",
         "Clear runtime decision and findings",
         "Restore the vendored runner and findings poster from the workflow commit",
+        "Capture the pre-agent branch baseline (issue #798)",
         "Run macOS tester agent",
+        "Strip owner Co-authored-by trailers from the per-OS branch (issue #798)",
+        "Enforce the per-OS tester commit scope (issue #798)",
         "Verify test decided, else fail closed",
         "Salvage partial macOS findings report after a crashed or capped agent run (issue",
         "Post macOS tester findings report",
@@ -6098,13 +6215,17 @@ EXPECTED_STEP_NAMES = {
     "test-windows": [
         "Get target ref",
         "Checkout repository",
+        "Resolve the per-OS PR trust anchor (issue #798)",
         "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Stage the Windows tester system prompt from the workflow commit",
         "Actor write gate (issue",
         "Configure git identity",
         "Clear runtime decision and findings",
         "Restore the vendored runner and findings poster from the workflow commit",
+        "Capture the pre-agent branch baseline (issue #798)",
         "Run Windows tester agent",
+        "Strip owner Co-authored-by trailers from the per-OS branch (issue #798)",
+        "Enforce the per-OS tester commit scope (issue #798)",
         "Verify test decided, else fail closed",
         "Salvage partial Windows findings report after a crashed or capped agent run (issue",
         "Post Windows tester findings report",
@@ -6143,6 +6264,100 @@ def stage_name(label):
 # and each consumer so a one-line revert to the ambient PATH fails the audit.
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
+# Issue #798 review N4: every per-OS owner-PAT post-agent step (findings,
+# forward, salvage) runs after the untrusted agent, so the step env must pin
+# the interpreter/config seams the runner applies from $GITHUB_ENV as well as
+# the trusted PATH. The exact maps are load-bearing; the mutation self-tests
+# below swap a key and require the validator to fail.
+OWNER_PAT_ENV = {
+    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "GH_HOST": "github.com",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
+    # Issue #798 Quality Council env-seam finding: every post-agent
+    # trust-boundary step must pin the uppercase proxy/TLS redirections empty
+    # in its env map and unset the lowercase spellings in its body (GitHub
+    # rejects a map whose keys differ only by case), so an agent-exported
+    # HTTPS_PROXY/ALL_PROXY/SSL_CERT_FILE/GIT_SSL_* value from $GITHUB_ENV can
+    # never route a trusted fetch through a decoy proxy (which can serve a
+    # clean decoy branch) or leak the owner PAT to a local proxy.
+    "ALL_PROXY": "",
+    "CURL_CA_BUNDLE": "",
+    "GIT_PROXY_COMMAND": "",
+    "GIT_SSL_CAINFO": "",
+    "GIT_SSL_CAPATH": "",
+    "GIT_SSL_NO_VERIFY": "",
+    "HTTP_PROXY": "",
+    "HTTPS_PROXY": "",
+    "NO_PROXY": "",
+    "SSL_CERT_DIR": "",
+    "SSL_CERT_FILE": "",
+}
+EXPECTED_FINDINGS_ENV = dict(
+    OWNER_PAT_ENV,
+    TARGET="${{ github.event.issue.number }}",
+    PATH=TRUSTED_PATH_EXPR,
+)
+EXPECTED_FORWARD_ENV = dict(
+    OWNER_PAT_ENV,
+    PATH=TRUSTED_PATH_EXPR,
+    HEAD_REF="${{ steps.pr-info.outputs.head_ref }}",
+    MSYS_NO_PATHCONV="1",
+)
+# Issue #798 review B1/B2: every owner-PAT step (findings, salvage, and
+# forward) must start from a fresh, private gh config directory instead of the
+# agent-writable static path, and the findings poster must be read from this
+# run's workflow commit through the API. The whole-region block pins stay the
+# load-bearing guards; these needles make the security property visible and
+# catch a body regenerated in lockstep with a regression.
+PAT_PROXY_UNSET = (
+    "unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true"
+)
+GH_CFG_PRELUDE = (
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    "trap 'rm -rf \"$gh_cfg\"' EXIT",
+)
+PEROS_POSTER_FETCH = (
+    'gh api --hostname github.com -H "Accept: application/vnd.github.raw" '
+    '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/post-peros-findings.sh'
+    '?ref=${GITHUB_SHA}"'
+)
+PEROS_GIT_PLUMBING_RE = re.compile(
+    r"(^|[;&|(]|\s)git\s+(cat-file|fetch|show|config)\b"
+)
+
+
+def owner_pat_body_problems(step, kind):
+    out = []
+    run = step.get("run") if isinstance(step, dict) else None
+    if not isinstance(run, str):
+        return ["%s-body-missing" % kind]
+    for needle in GH_CFG_PRELUDE:
+        if needle not in run:
+            out.append("%s-no-fresh-gh-config" % kind)
+    if PAT_PROXY_UNSET not in run:
+        out.append("%s-no-lowercase-proxy-unset" % kind)
+    command_text = "\n".join(
+        line for line in run.splitlines() if not line.strip().startswith("#")
+    )
+    if PEROS_GIT_PLUMBING_RE.search(command_text):
+        out.append("%s-git-plumbing" % kind)
+    if kind in ("post", "salvage") and PEROS_POSTER_FETCH not in run:
+        out.append("%s-poster-not-api" % kind)
+    return out
+
+
 # Issue #763: macOS /bin/bash is 3.2.57, which cannot parse a case statement
 # inside a command substitution, so the capture step died at parse time before
 # the agent ever ran. The path and mode filters now use bash-3.2-safe if tests
@@ -6219,8 +6434,41 @@ TRUSTED_PATH_RECURSION_NEEDLES = (
 )
 
 
+
+def env_case_duplicates(doc):
+    """Reject any env map whose keys differ only by case.
+
+    GitHub rejects a workflow whose env mapping carries case-insensitively
+    duplicate keys (the push validation for issue #798's head failed with no
+    jobs), while PyYAML keeps both exact-case keys. Mirror that file check
+    locally over every env mapping anywhere in the parsed document.
+    """
+    found = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "env" and isinstance(value, dict):
+                    seen = {}
+                    for env_key in value:
+                        folded = str(env_key).casefold()
+                        if folded in seen:
+                            found.append(
+                                "peros-staging(%s:env-case-duplicate:%s/%s)"
+                                % (path, seen[folded], env_key)
+                            )
+                        seen[folded] = env_key
+                walk(value, path + "/" + str(key))
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, path + "[%d]" % index)
+
+    walk(doc, "root")
+    return found
+
+
 def validate(doc, expected):
-    out = []
+    out = env_case_duplicates(doc)
     jobs = (doc or {}).get("jobs") if isinstance(doc, dict) else None
     if not isinstance(jobs, dict):
         return ["peros-staging(jobs-not-mapping)"]
@@ -6340,6 +6588,58 @@ def validate(doc, expected):
             and not (checkouts[0] < path_hits[0] < stage_index)
         ):
             out.append("peros-staging(%s:trusted-path-order)" % label)
+        anchors = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == ANCHOR_NAME
+        ]
+        if len(anchors) != 1:
+            out.append(
+                "peros-staging(%s:anchor-step-count=%d)"
+                % (label, len(anchors))
+            )
+        else:
+            anchor = steps[anchors[0]]
+            anchor_run = anchor.get("run")
+            expected_anchor_env = {
+                "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+                "THREAD": "${{ github.event.issue.number }}",
+                "EVENT_IS_PR": "${{ github.event.issue.pull_request.html_url }}",
+                "EXPECTED_BRANCH": "${{ steps.pr-info.outputs.head_ref }}",
+                "REPO": "${{ github.repository }}",
+            }
+            if (
+                set(anchor) != {"name", "id", "shell", "env", "run"}
+                or anchor.get("id") != "peros_pr"
+                or anchor.get("shell") != "bash"
+                or anchor.get("env") != expected_anchor_env
+            ):
+                out.append(
+                    "peros-staging(%s:anchor-step-keys)" % label
+                )
+            if (
+                not isinstance(anchor_run, str)
+                or normalized_sha(anchor_run) != ANCHOR_BLOCK_SHA
+            ):
+                out.append(
+                    "peros-staging(%s:anchor-block-not-exact)" % label
+                )
+            elif (
+                'if [ "$branch" != "$EXPECTED_BRANCH" ]; then'
+                not in anchor_run
+                or 'echo "pr_number=$pr_number"' not in anchor_run
+            ):
+                out.append(
+                    "peros-staging(%s:anchor-not-verified)" % label
+                )
+            if (
+                len(checkouts) == 1
+                and len(path_hits) == 1
+                and not (checkouts[0] < anchors[0] < path_hits[0])
+            ):
+                out.append(
+                    "peros-staging(%s:anchor-order)" % label
+                )
         if len(actors) == 1:
             actor = steps[actors[0]]
             actor_run = actor.get("run")
@@ -6388,6 +6688,8 @@ def validate(doc, expected):
             # supported OPENCODE_PERMISSION grant or the unattended session
             # stalls on an external_directory "ask".
             "OPENCODE_PERMISSION": '{"external_directory":{"*":"allow"}}',
+            "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+            "GIT_COMMITTER_NAME": "The %s Tester" % label,
         }
         if not isinstance(env, dict) or env != expected_agent_env:
             out.append("peros-staging(%s:agent-env-not-exact)" % label)
@@ -6419,6 +6721,212 @@ def validate(doc, expected):
             out.append("peros-staging(%s:agent-prompt-not-exact)" % label)
         if file_sha256(".github/agents/%s" % prompt) != prompt_sha:
             out.append("peros-prompts(%s:unreviewed)" % prompt)
+        # Issue #798: the per-OS arms run the vendored runner with
+        # use_github_token, and the CLI auto-commits the session's dirty
+        # workspace inside the agent step. A post-agent sanitizer pair (the
+        # trusted trailer strip plus the commit-scope guard) must therefore
+        # run between the agent and the verify, and the forward gate must
+        # require both to succeed. Pin the exact keys, ids, gates, env maps,
+        # and normalized run bodies, and pin the ordering, so a removed,
+        # weakened, reordered, or token-swapped sanitizer fails the audit.
+        def step_hits(step_name):
+            return [
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and step.get("name") == step_name
+            ]
+
+        baseline_hits = step_hits(BASELINE_NAME)
+        strip_hits = step_hits(STRIP_NAME)
+        scope_hits = step_hits(SCOPE_NAME)
+        verify_hits = step_hits("Verify test decided, else fail closed")
+        if len(baseline_hits) != 1:
+            out.append(
+                "peros-staging(%s:baseline-step-count=%d)"
+                % (label, len(baseline_hits))
+            )
+        else:
+            baseline = steps[baseline_hits[0]]
+            baseline_run = baseline.get("run")
+            if (
+                set(baseline) != {"name", "id", "if", "run"}
+                or baseline.get("id") != "pre_agent_baseline"
+                or baseline.get("if") != "steps.actor_gate.outputs.run == 'true'"
+            ):
+                out.append("peros-staging(%s:baseline-step-keys)" % label)
+            if (
+                not isinstance(baseline_run, str)
+                or normalized_sha(baseline_run) != BASELINE_BLOCK_SHA
+            ):
+                out.append("peros-staging(%s:baseline-block-not-exact)" % label)
+            elif (
+                'baseline=$(git rev-parse --verify HEAD 2>/dev/null) || baseline=""'
+                not in baseline_run
+                or 'echo "sha=$baseline" >> "$GITHUB_OUTPUT"'
+                not in baseline_run
+                or 'if git cat-file -e "HEAD:PEROS_SCOPE_VIOLATION" 2>/dev/null; then'
+                not in baseline_run
+            ):
+                out.append("peros-staging(%s:baseline-not-captured)" % label)
+        if len(strip_hits) != 1:
+            out.append(
+                "peros-staging(%s:strip-step-count=%d)" % (label, len(strip_hits))
+            )
+        else:
+            strip_step = steps[strip_hits[0]]
+            strip_run = strip_step.get("run")
+            expected_strip_env = {
+                "BASH_ENV": "/dev/null",
+                "ENV": "/dev/null",
+                "GH_TOKEN": "${{ github.token }}",
+                "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+                "GIT_ASKPASS": "/bin/false",
+                "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com",
+                "GIT_AUTHOR_NAME": "github-actions[bot]",
+                "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "github-actions[bot]",
+                "GIT_CONFIG_COUNT": "0",
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_SYSTEM": "/dev/null",
+                "GIT_EDITOR": "/bin/false",
+                "GIT_EXTERNAL_DIFF": "",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_PAGER": "/bin/cat",
+                "GIT_SEQUENCE_EDITOR": "/bin/false",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_TEMPLATE_DIR": "/dev/null",
+                "LD_AUDIT": "",
+                "LD_LIBRARY_PATH": "",
+                "LD_PRELOAD": "",
+                "ALL_PROXY": "",
+                "CURL_CA_BUNDLE": "",
+                "GIT_PROXY_COMMAND": "",
+                "GIT_SSL_CAINFO": "",
+                "GIT_SSL_CAPATH": "",
+                "GIT_SSL_NO_VERIFY": "",
+                "HTTP_PROXY": "",
+                "HTTPS_PROXY": "",
+                "NO_PROXY": "",
+                "SSL_CERT_DIR": "",
+                "SSL_CERT_FILE": "",
+                "PATH": TRUSTED_PATH_EXPR,
+                "TMPDIR": "/tmp",
+                "PEROS_ANCHOR": "1",
+                "PR_CROSS_REPO": "${{ steps.peros_pr.outputs.cross_repo }}",
+                "PR_HEAD_REPO": "${{ steps.peros_pr.outputs.head_repo }}",
+                "PR_NUMBER": "${{ steps.peros_pr.outputs.pr_number }}",
+                "REMOTE_URL": "${{ github.server_url }}/${{ github.repository }}",
+                "BASELINE_SHA": "${{ steps.pre_agent_baseline.outputs.sha }}",
+                "HEAD_REF": "${{ steps.peros_pr.outputs.branch }}",
+            }
+            if (
+                set(strip_step) != {"name", "id", "if", "env", "run"}
+                or strip_step.get("id") != "strip_trailers"
+                or strip_step.get("if") != SANITIZE_GATE
+                or strip_step.get("env") != expected_strip_env
+            ):
+                out.append("peros-staging(%s:strip-step-keys)" % label)
+            if (
+                not isinstance(strip_run, str)
+                or normalized_sha(strip_run) != STRIP_BLOCK_SHA
+            ):
+                out.append("peros-staging(%s:strip-block-not-exact)" % label)
+            elif (
+                'git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh"'
+                not in strip_run
+                or "printf '%s\\n' \"$strip\" | bash -s" not in strip_run
+            ):
+                out.append(
+                    "peros-staging(%s:strip-not-trusted-read)" % label
+                )
+        if len(scope_hits) != 1:
+            out.append(
+                "peros-staging(%s:scope-step-count=%d)" % (label, len(scope_hits))
+            )
+        else:
+            scope_step = steps[scope_hits[0]]
+            scope_run = scope_step.get("run")
+            expected_scope_env = {
+                "BASH_ENV": "/dev/null",
+                "ENV": "/dev/null",
+                "GH_TOKEN": "${{ github.token }}",
+                "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+                "GIT_ASKPASS": "/bin/false",
+                "GIT_CONFIG_COUNT": "0",
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_SYSTEM": "/dev/null",
+                "GIT_EDITOR": "/bin/false",
+                "GIT_EXTERNAL_DIFF": "",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_PAGER": "/bin/cat",
+                "GIT_SEQUENCE_EDITOR": "/bin/false",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_TEMPLATE_DIR": "/dev/null",
+                "LD_AUDIT": "",
+                "LD_LIBRARY_PATH": "",
+                "LD_PRELOAD": "",
+                "ALL_PROXY": "",
+                "CURL_CA_BUNDLE": "",
+                "GIT_PROXY_COMMAND": "",
+                "GIT_SSL_CAINFO": "",
+                "GIT_SSL_CAPATH": "",
+                "GIT_SSL_NO_VERIFY": "",
+                "HTTP_PROXY": "",
+                "HTTPS_PROXY": "",
+                "NO_PROXY": "",
+                "SSL_CERT_DIR": "",
+                "SSL_CERT_FILE": "",
+                "PATH": TRUSTED_PATH_EXPR,
+                "TMPDIR": "/tmp",
+                "BASELINE_SHA": "${{ steps.pre_agent_baseline.outputs.sha }}",
+                "PEROS_ANCHOR": "1",
+                "PEROS_OS": label.lower(),
+                "PR_CROSS_REPO": "${{ steps.peros_pr.outputs.cross_repo }}",
+                "PR_HEAD_REPO": "${{ steps.peros_pr.outputs.head_repo }}",
+                "PR_NUMBER": "${{ steps.peros_pr.outputs.pr_number }}",
+                "HEAD_REF": "${{ steps.peros_pr.outputs.branch }}",
+                "REMOTE_URL": "${{ github.server_url }}/${{ github.repository }}",
+            }
+            if (
+                set(scope_step) != {"name", "id", "if", "env", "run"}
+                or scope_step.get("id") != "scope_guard"
+                or scope_step.get("if") != SANITIZE_GATE
+                or scope_step.get("env") != expected_scope_env
+            ):
+                out.append("peros-staging(%s:scope-step-keys)" % label)
+            if (
+                not isinstance(scope_run, str)
+                or normalized_sha(scope_run) != SCOPE_BLOCK_SHA
+            ):
+                out.append("peros-staging(%s:scope-block-not-exact)" % label)
+            elif (
+                'git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh"'
+                not in scope_run
+                or 'bash -s -- "$BASELINE_SHA" "$PEROS_OS"' not in scope_run
+            ):
+                out.append(
+                    "peros-staging(%s:scope-not-trusted-read)" % label
+                )
+        if (
+            len(baseline_hits) == 1
+            and len(strip_hits) == 1
+            and len(scope_hits) == 1
+            and len(verify_hits) == 1
+            and len(restores) == 1
+        ):
+            if not (restores[0] < baseline_hits[0] < agent_index):
+                out.append("peros-staging(%s:baseline-order)" % label)
+            if not (
+                agent_index
+                < strip_hits[0]
+                < scope_hits[0]
+                < verify_hits[0]
+            ):
+                out.append("peros-staging(%s:sanitize-order)" % label)
+        else:
+            out.append("peros-staging(%s:sanitize-order-unverifiable)" % label)
         post_name = "Post %s tester findings report" % label
         post_hits = [
             step
@@ -6430,10 +6938,16 @@ def validate(doc, expected):
         else:
             post_env = post_hits[0].get("env")
             if (
-                not isinstance(post_env, dict)
-                or post_env.get("PATH") != TRUSTED_PATH_EXPR
+                set(post_hits[0]) != {"name", "id", "if", "env", "run"}
+                or post_hits[0].get("id") != "findings"
+                or not isinstance(post_env, dict)
+                or post_env != EXPECTED_FINDINGS_ENV
             ):
-                out.append("peros-staging(%s:post-path-not-trusted)" % label)
+                out.append("peros-staging(%s:post-env-not-exact)" % label)
+            out.extend(
+                "peros-staging(%s:%s)" % (label, problem)
+                for problem in owner_pat_body_problems(post_hits[0], "post")
+            )
         forward_name = "Forward %s tester decision" % label
         forward_hits = [
             step
@@ -6448,12 +6962,23 @@ def validate(doc, expected):
         else:
             forward_env = forward_hits[0].get("env")
             if (
-                not isinstance(forward_env, dict)
-                or forward_env.get("PATH") != TRUSTED_PATH_EXPR
+                set(forward_hits[0]) != {"name", "if", "env", "run"}
+                or not isinstance(forward_env, dict)
+                or forward_env != EXPECTED_FORWARD_ENV
             ):
                 out.append(
-                    "peros-staging(%s:forward-path-not-trusted)" % label
+                    "peros-staging(%s:forward-env-not-exact)" % label
                 )
+            if forward_hits[0].get("if") != FORWARD_GATE:
+                out.append(
+                    "peros-staging(%s:forward-gate-not-exact)" % label
+                )
+            out.extend(
+                "peros-staging(%s:%s)" % (label, problem)
+                for problem in owner_pat_body_problems(
+                    forward_hits[0], "forward"
+                )
+            )
         if label != "Linux":
             salvage_hits = [
                 step
@@ -6471,12 +6996,20 @@ def validate(doc, expected):
             else:
                 salvage_env = salvage_hits[0].get("env")
                 if (
-                    not isinstance(salvage_env, dict)
-                    or salvage_env.get("PATH") != TRUSTED_PATH_EXPR
+                    set(salvage_hits[0]) != {"name", "id", "if", "env", "run"}
+                    or salvage_hits[0].get("id") != "salvage"
+                    or not isinstance(salvage_env, dict)
+                    or salvage_env != EXPECTED_FINDINGS_ENV
                 ):
                     out.append(
-                        "peros-staging(%s:salvage-path-not-trusted)" % label
+                        "peros-staging(%s:salvage-env-not-exact)" % label
                     )
+                out.extend(
+                    "peros-staging(%s:%s)" % (label, problem)
+                    for problem in owner_pat_body_problems(
+                        salvage_hits[0], "salvage"
+                    )
+                )
     return out
 
 
@@ -6490,6 +7023,12 @@ except Exception as exc:
 
 if isinstance(doc, dict):
     problems.extend(validate(doc, EXPECTED))
+    with open(PEROS, encoding="utf-8") as handle:
+        peros_text = handle.read()
+    # Issue #798 review B1: no static GH_CONFIG_DIR mapping may survive at any
+    # level; every owner-PAT step creates its own private directory at runtime.
+    if re.search(r'(?m)^\s*["\']?GH_CONFIG_DIR["\']?\s*:', peros_text):
+        problems.append("peros-staging(static-gh-config-dir-key)")
     # Mutation self-tests: a removed staging step, a reverted agent prompt
     # reference, a rewritten staging body, a dropped project-config opt-out, a
     # gate reverted to the PR-head copy, and a rewritten restore body must each
@@ -6560,12 +7099,263 @@ if isinstance(doc, dict):
             step["run"] = step.get("run", "") + "true\n"
     if not any("restore-block-not-exact" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-restore-rewritten)")
+    # Issue #798: a removed, weakened, reordered, or token-swapped sanitizer
+    # must fail the validator alone.
+    mutant = copy.deepcopy(doc)
+    mutant["jobs"]["test-linux"]["steps"] = [
+        step
+        for step in mutant["jobs"]["test-linux"]["steps"]
+        if not (isinstance(step, dict) and step.get("name") == BASELINE_NAME)
+    ]
+    if not any(
+        "baseline-step-count=0" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-baseline-removed)")
+    mutant = copy.deepcopy(doc)
+    mutant["jobs"]["test-macos"]["steps"] = [
+        step
+        for step in mutant["jobs"]["test-macos"]["steps"]
+        if not (isinstance(step, dict) and step.get("name") == STRIP_NAME)
+    ]
+    if not any("strip-step-count=0" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-strip-removed)")
+    mutant = copy.deepcopy(doc)
+    mutant["jobs"]["test-windows"]["steps"] = [
+        step
+        for step in mutant["jobs"]["test-windows"]["steps"]
+        if not (isinstance(step, dict) and step.get("name") == SCOPE_NAME)
+    ]
+    if not any("scope-step-count=0" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "strip_trailers":
+            step["env"]["https_proxy"] = ""
+    if not any(
+        "env-case-duplicate" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-env-case-duplicate-missed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["if"] = "always()"
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-gate-weakened)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "strip_trailers":
+            step["env"]["GH_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
+    if not any("strip-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-strip-token-swapped)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["env"]["PEROS_OS"] = "linux"
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-os-swapped)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["run"] = step.get("run", "") + "true\n"
+    if not any("scope-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-body-rewritten)")
+    mutant = copy.deepcopy(doc)
+    mutant_steps = mutant["jobs"]["test-macos"]["steps"]
+    strip_index = next(
+        index
+        for index, step in enumerate(mutant_steps)
+        if isinstance(step, dict) and step.get("name") == STRIP_NAME
+    )
+    scope_index = next(
+        index
+        for index, step in enumerate(mutant_steps)
+        if isinstance(step, dict) and step.get("name") == SCOPE_NAME
+    )
+    mutant_steps[strip_index], mutant_steps[scope_index] = (
+        mutant_steps[scope_index],
+        mutant_steps[strip_index],
+    )
+    if not any("sanitize-order" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-sanitize-reordered)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["continue-on-error"] = True
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-masked)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == "Forward Linux tester decision":
+            step["if"] = step["if"].replace(
+                " && steps.scope_guard.outcome == 'success'", ""
+            )
+    if not any("forward-gate-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-forward-gate-weakened)")
+    # Issue #798 review N4: a weakened owner-PAT env map on any of the three
+    # post-agent steps must fail the validator alone.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["env"]["BASH_ENV"] = "/tmp/evil-bash-env"
+    if not any("post-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-post-env-weakened)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if (
+            isinstance(step, dict)
+            and step.get("name") == "Forward macOS tester decision"
+        ):
+            step["env"]["GH_HOST"] = "evil.example"
+    if not any("forward-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-forward-env-weakened)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "salvage":
+            step["env"]["LD_PRELOAD"] = "/tmp/evil.so"
+    if not any("salvage-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-salvage-env-weakened)")
+    # Issue #798 Quality Council env-seam finding: the proxy/TLS pins on the
+    # sanitizer steps and on every owner-PAT step are load-bearing. Removing
+    # one pin from each class must fail the validator alone, otherwise an
+    # agent-exported HTTPS_PROXY/SSL_CERT_FILE can route the trusted fetch to a
+    # decoy branch or leak the owner PAT to a local proxy.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "strip_trailers":
+            step["env"].pop("HTTPS_PROXY", None)
+    if not any("strip-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-strip-proxy-pin-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["env"].pop("GIT_SSL_NO_VERIFY", None)
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-proxy-pin-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["env"].pop("ALL_PROXY", None)
+    if not any("post-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-pat-proxy-pin-removed)")
+    # Issue #798 review B1/B2: the fresh-config prelude, the API poster read,
+    # and the absence of git plumbing are each load-bearing.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["env"]["GH_CONFIG_DIR"] = "${{ runner.temp }}/random-lab-gh-config"
+    if not any("post-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-static-gh-config-restored)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["run"] = step["run"].replace(
+                'if ! chmod 700 "$gh_cfg"; then\n', ""
+            )
+    if not any("post-no-fresh-gh-config" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-gh-config-prelude-weakened)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "salvage":
+            step["run"] = re.sub(
+                r'poster=\$\(gh api[^\n]*',
+                'poster=$(git cat-file -p '
+                '"deadbeef:.github/scripts/post-peros-findings.sh" 2>/dev/null) '
+                '|| poster=""',
+                step["run"],
+                count=1,
+            )
+    mutant_problems = validate(mutant, EXPECTED)
+    for marker in ("salvage-git-plumbing", "salvage-poster-not-api"):
+        if not any(marker in p for p in mutant_problems):
+            problems.append(
+                "peros-staging(self-test-%s)" % marker.replace("-", " ")
+            )
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if (
+            isinstance(step, dict)
+            and step.get("name") == "Forward Windows tester decision"
+        ):
+            step["run"] = step.get("run", "") + "git config user.name evil\n"
+    if not any("forward-git-plumbing" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-forward-git-plumbing)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["run"] = step["run"].replace(
+                "trap 'rm -rf \"$gh_cfg\"' EXIT\n", ""
+            )
+    if not any("post-no-fresh-gh-config" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-gh-config-trap-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == BASELINE_NAME:
+            step["run"] = "true\n"
+    if not any(
+        "baseline-block-not-exact" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-baseline-rewritten)")
     mutant = copy.deepcopy(doc)
     for step in mutant["jobs"]["test-macos"]["steps"]:
         if isinstance(step, dict) and step.get("id") == "test":
             step["env"]["GITHUB_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
     if not any("agent-env-not-exact" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-agent-token-swapped)")
+    # Issue #798 review F3/F7: the pre-agent trust anchor and the
+    # baseline-limited, marker-guarded, clean-restore sanitizers are
+    # load-bearing. A removed anchor, a weakened anchor binding, a rewritten
+    # anchor body, a dropped marker guard, a dropped skip-worktree restore, and
+    # a reverted baseline argument must each fail the validator alone.
+    mutant = copy.deepcopy(doc)
+    mutant["jobs"]["test-macos"]["steps"] = [
+        step
+        for step in mutant["jobs"]["test-macos"]["steps"]
+        if not (isinstance(step, dict) and step.get("name") == ANCHOR_NAME)
+    ]
+    if not any(
+        "step-sequence-not-exact" in p or "anchor-step-count=0" in p
+        for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-anchor-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "peros_pr":
+            step["env"]["EXPECTED_BRANCH"] = "refs/heads/evil"
+    if not any("anchor-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-anchor-binding-weakened)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "peros_pr":
+            step["run"] = step.get("run", "") + "true\n"
+    if not any("anchor-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-anchor-body-rewritten)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == BASELINE_NAME:
+            step["run"] = step.get("run", "").replace(
+                'if git cat-file -e "HEAD:PEROS_SCOPE_VIOLATION" 2>/dev/null; then',
+                'if false; then',
+            )
+    if not any(
+        "baseline-block-not-exact" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-baseline-marker-guard-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == RESTORE_NAME:
+            step["run"] = step.get("run", "").replace(
+                'git update-index --skip-worktree -z --stdin < "$tracked_list"', ":"
+            )
+    if not any("restore-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-restore-skip-worktree-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "strip_trailers":
+            step["run"] = step.get("run", "").replace(
+                'bash -s -- "$BASELINE_SHA"', "bash -s"
+            )
+    if not any("strip-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-strip-baseline-argument-removed)")
     mutant = copy.deepcopy(doc)
     for step in mutant["jobs"]["test-windows"]["steps"]:
         if isinstance(step, dict) and step.get("name") == GATE_NAME:
@@ -10193,6 +10983,18 @@ else
         s { print }')
       r24_salv_cmds=$(printf '%s\n' "$r24_salv_run" | sed 's/^[[:space:]]*//' | grep -vE '^(#.*)?$' || true)
       r24_expected=$(cat <<'R24EOF'
+gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
+exit 1
+fi
+if ! chmod 700 "$gh_cfg"; then
+echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+exit 1
+fi
+export GH_CONFIG_DIR="$gh_cfg"
+trap 'rm -rf "$gh_cfg"' EXIT
+unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
 if [ -f /tmp/random-lab-decision.json ]; then
 echo "Decision file present; nothing to salvage on this crashed-run path."
 exit 0
@@ -10208,10 +11010,7 @@ printf '%s\n' "> workflow published the partial report it left behind. Sections 
 printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 cat /tmp/random-lab-findings.md
 } > /tmp/random-lab-findings-salvage.md
-if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
-fi
-poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+poster=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/post-peros-findings.sh?ref=${GITHUB_SHA}" 2>/dev/null) || poster=""
 if [ -z "$poster" ]; then
 echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
 exit 1
@@ -16750,7 +17549,14 @@ else
   grep -qF 'Could not read commits' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-git-log-fail-closed)"
   grep -qF 'No same-repository head' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-non-repo-noop)"
   grep -qF 'opencode/*)' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-namespace-guard)"
-  grep -qF 'refs/remotes/origin/main..HEAD' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-preserving-range)"
+  grep -qF 'base_ref="$baseline_arg"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-baseline-binding)"
+  grep -qF 'base_ref="refs/remotes/origin/main"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-ref-default)"
+  grep -qF '"$base_ref..$pr_ref"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-preserving-range)"
+  grep -qF '"$base_ref..HEAD"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-workspace-base-preserving-range)"
+  grep -qF 'force-with-lease' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-lease)"
+  grep -qF 'PEROS_ANCHOR' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-anchor-mode)"
+  grep -qF 'REMOTE_URL' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-remote-pin)"
+  grep -qF 'git init -q --bare' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-scratch-repo)"
   grep -qF 'type == "object"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-object-event-guard)"
   grep -qF 'Could not list open PRs' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-list-fail-closed)"
   grep -qF 'Could not resolve PR #' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-view-fail-closed)"
@@ -16759,6 +17565,14 @@ else
   grep -qF 'no longer exists on origin' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-absent-head-noop)"
   grep -qF 'Could not query branch' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-remote-query-fail-closed)"
   grep -qF 'Could not update branch' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-push-fail-closed)"
+  # Issue #798 review B5: the per-OS tester-only identity filter must be
+  # anchored-lane only. The nine non-per-OS lanes commit as their own persona
+  # and need the legacy unconditional message filter, or the helper reports a
+  # false success while the owner trailer survives.
+  grep -qF 'legacy_commit_filter' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-legacy-filter)"
+  grep -qF 'commit_filter="$peros_commit_filter"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-anchored-filter)"
+  grep -qF 'commit_filter="$legacy_commit_filter"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-legacy-fallback)"
+  grep -qF -- '--commit-filter "$commit_filter"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-selected-filter)"
   if grep -qF 'R29_' "$R29_SCRIPT"; then
     r29_bad="${r29_bad} script(references-audit-harness)"
   fi
@@ -16980,14 +17794,63 @@ R29GH
       git checkout -q -B "$name" main || exit 1
       printf '%s\n' "$name" > branch.txt
       git add branch.txt
+      # Issue #798 review N10: the strip now rewrites only commits by a named
+      # per-OS tester identity, so the fixture commits must carry that identity
+      # (the old harness used the generic Audit identity and expected a
+      # whole-range strip).
       case "$trailer" in
         owner)
-          git commit -q -m "feat: $name" -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
+          GIT_AUTHOR_NAME="The Linux Tester" \
+          GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="The Linux Tester" \
+          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com" \
+            git commit -q -m "feat: $name" -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
+          ;;
+        foreign-owner)
+          printf 'foreign\n' > foreign.txt
+          git add foreign.txt
+          GIT_AUTHOR_NAME="The Fixer" \
+          GIT_AUTHOR_EMAIL="fixer@example.invalid" \
+          GIT_COMMITTER_NAME="The Fixer" \
+          GIT_COMMITTER_EMAIL="fixer@example.invalid" \
+            git commit -q -m "fixer: concurrent work" \
+            -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
+          printf 'tester\n' > tester.txt
+          git add tester.txt
+          GIT_AUTHOR_NAME="The Linux Tester" \
+          GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="The Linux Tester" \
+          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com" \
+            git commit -q -m "tester: work" \
+            -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
           ;;
         mixed)
-          git commit -q -m "feat: $name" \
+          GIT_AUTHOR_NAME="The Linux Tester" \
+          GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="The Linux Tester" \
+          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com" \
+            git commit -q -m "feat: $name" \
             -m "Co-authored-by: Userfrom1995 <owner@example.com>" \
             -m "Co-authored-by: Jane Contributor <jane@example.com>" || exit 1
+          ;;
+        builder-owner)
+          # Issue #798 review B5: the nine non-per-OS lanes commit as their own
+          # persona with the bot email. The legacy (non-anchored) filter must
+          # still remove the owner trailer from these commits.
+          GIT_AUTHOR_NAME="The Builder" \
+          GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="The Builder" \
+          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com" \
+            git commit -q -m "builder: $name" \
+            -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
+          ;;
+        fixer-owner)
+          GIT_AUTHOR_NAME="The Fixer" \
+          GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="The Fixer" \
+          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com" \
+            git commit -q -m "fixer: $name" \
+            -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
           ;;
         *)
           git commit -q -m "feat: $name" || exit 1
@@ -17024,6 +17887,9 @@ R29GH
     r29_seed_branch opencode/issue582-review-owner owner || return 1
     r29_seed_branch opencode/issue582-review-mixed mixed || return 1
     r29_seed_branch opencode/issue582-mixed mixed || return 1
+    r29_seed_branch opencode/issue582-foreign-owner foreign-owner || return 1
+    r29_seed_branch opencode/issue582-builder-owner builder-owner || return 1
+    r29_seed_branch opencode/issue582-fixer-owner fixer-owner || return 1
     r29_seed_branch opencode/issue582-pushfail owner || return 1
     r29_seed_branch opencode/issue42-newer-owner owner || return 1
     r29_seed_branch opencode/issue42-older-owner owner || return 1
@@ -17045,6 +17911,9 @@ R29GH
   printf '%s\n' '{"headRefName":"opencode/issue582-review","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-review-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review-owner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-mixed.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-foreign-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-foreign-owner.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-builder-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-builder-owner.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-fixer-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-fixer-owner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-review-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review-mixed.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-deleted-head","isCrossRepository":false,"headRepository":null}' > "$r29_tmp/pr-deleted-head.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-gone","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-gone.json"
@@ -17122,6 +17991,15 @@ R29GH
           ok=1
         fi
         ;;
+      foreign-owner)
+        # Issue #798 review N10: the tester commit loses the owner trailer while
+        # a foreign commit that happens to carry the same trailer keeps it.
+        foreign_log="$(git --git-dir="$r29_bare" log --format='===%cn===%n%B' "refs/heads/$branch" 2>/dev/null || true)"
+        printf '%s\n' "$foreign_log" | awk '
+          /^===/ { who=$0 }
+          /Co-authored-by: Userfrom1995/ { seen[who]=1 }
+          END { exit(seen["===The Fixer==="] && !seen["===The Linux Tester==="] ? 0 : 1) }' || ok=1
+        ;;
       none) ;;
     esac
     if [ "$ok" -ne 0 ]; then
@@ -17151,6 +18029,13 @@ R29GH
     r29_case pr-fork-skips opencode/issue582-fork "$r29_tmp/event-pr.json" "$r29_tmp/pr-fork.json" "" "685" 0 "No same-repository head" same present
     r29_case pr-deleted-head-skips opencode/issue582-deleted-head "$r29_tmp/event-pr.json" "$r29_tmp/pr-deleted-head.json" "" "685" 0 "No same-repository head" same present
     r29_case pr-mixed-trailer opencode/issue582-mixed "$r29_tmp/event-pr.json" "$r29_tmp/pr-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
+    # Issue #798 review B5: the non-anchored lanes keep the legacy
+    # unconditional message filter, so a foreign concurrent commit's owner
+    # trailer is rewritten too (the old accepted residual). Anchored-lane
+    # foreign preservation is covered by R34.
+    r29_case pr-foreign-trailer-legacy opencode/issue582-foreign-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-foreign-owner.json" "" "685" 0 "Stripping 2 leaked owner trailer" changed absent
+    r29_case pr-builder-strips opencode/issue582-builder-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-builder-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_case pr-fixer-strips opencode/issue582-fixer-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-fixer-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_case issue-unexpected-refused opencode/issue582-mismatch "$r29_tmp/event-issue.json" "$r29_tmp/pr-mismatch.json" "$r29_tmp/list-issue99.json" "99" 1 "Refusing to rewrite unexpected branch" same present
     r29_case issue-matching-strips opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_case review-comment-refs opencode/issue582-review "$r29_tmp/event-review.json" "$r29_tmp/pr-review.json" "" "685" 0 "No leaked owner trailers" same absent
@@ -17199,7 +18084,7 @@ R29GH
       after_all="$(git --git-dir="$r29_bare" for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
       after="$(git --git-dir="$r29_bare" rev-parse refs/heads/opencode/issue582-owner 2>/dev/null || true)"
       if [ "$rc" -ne 1 ] || [ "$after_all" != "$before_all" ] || [ "$after" != "$before" ] \
-        || ! printf '%s' "$out" | grep -qF 'Could not read commits'; then
+        || ! printf '%s' "$out" | grep -qF 'is not present on branch'; then
         r29_bad="${r29_bad} gitlog-fail-open"
       fi
     }
@@ -17280,31 +18165,35 @@ R29MUTLIT
     r29_mutant list-sort 's/| sort_by(\.createdAt) | last | \.number/| sort_by(.createdAt) | first | .number/' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_reset opencode/issue582-mixed mixed
-    r29_mutant sanitizer-broaden 's#sed "/^Co-authored-by: Userfrom1995.*/d"#sed "/^Co-authored-by:.*/d"#' \
+    r29_mutant sanitizer-broaden 's/Userfrom1995/.*/' \
       opencode/issue582-mixed "$r29_tmp/event-pr.json" "$r29_tmp/pr-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
+    # Issue #798 review B5: the non-anchored lanes must keep the legacy
+    # unconditional filter. Re-applying the anchored tester-only filter here
+    # makes the strip a false success for every other persona.
+    r29_reset opencode/issue582-builder-owner builder-owner
+    r29_mutant peros-filter-in-legacy 's/commit_filter="\$legacy_commit_filter"/commit_filter="$peros_commit_filter"/' \
+      opencode/issue582-builder-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-builder-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
 
     # The review-comment path is a distinct event shape: an early return gated
     # on GITHUB_EVENT_NAME must fail the review rewrite case.
     r29_reset opencode/issue582-review-owner owner
-    r29_mutant review-event-shortcut '/^git fetch origin/i\if [ "${GITHUB_EVENT_NAME:-}" = "pull_request_review_comment" ]; then echo "No leaked owner trailers on $branch."; exit 0; fi' \
+    r29_mutant review-event-shortcut '/^  git fetch origin/i\if [ "${GITHUB_EVENT_NAME:-}" = "pull_request_review_comment" ]; then echo "No leaked owner trailers on $branch."; exit 0; fi' \
       opencode/issue582-review-owner "$r29_tmp/event-review.json" "$r29_tmp/pr-review-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
 
     # A failed strip push must never conclude green with the trailer still on
     # the branch.
     r29_reset opencode/issue582-pushfail owner
-    r29_mutant_literal push-fail-open '  echo "Could not update branch $branch after stripping trailers; refusing to report success."
-  exit 1
-fi' '  echo "Could not update branch $branch after stripping trailers; refusing to report success."
-fi' \
+    r29_mutant_literal push-fail-open '  if ! git push --force-with-lease="refs/heads/$branch:$tip" origin "HEAD:refs/heads/$branch" --quiet; then
+    fail "Could not update branch $branch after stripping trailers; refusing to report success."
+  fi' '  if ! git push --force-with-lease="refs/heads/$branch:$tip" origin "HEAD:refs/heads/$branch" --quiet; then
+    echo "Could not update branch $branch after stripping trailers; refusing to report success."
+  fi' \
       opencode/issue582-pushfail "$r29_tmp/event-pr.json" "$r29_tmp/pr-pushfail.json" "" "685" 1 "Could not update branch" same present "" "yes"
 
     # A failed PR-list or PR-view query must fail closed rather than read as
     # "no PR" / parse an empty payload silently.
     r29_reset opencode/issue42-newer-owner owner
-    r29_mutant_literal list-fail-open '    echo "Could not list open PRs for issue #$thread; refusing to rewrite history."
-    exit 1
-  }' '    echo "Could not list open PRs for issue #$thread; refusing to rewrite history."
-  }' \
+    r29_mutant_literal list-fail-open '      fail "Could not list open PRs for issue #$thread; refusing to rewrite history."' '      echo "Could not list open PRs for issue #$thread; refusing to rewrite history."' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "" "$r29_tmp/list-issue42.json" "201" 1 "Could not list open PRs" same none "list"
     # Destructive pushes must be caught anywhere on the remote, not only on
     # the named target branch. This mutant runs last because it moves main.
@@ -17315,7 +18204,7 @@ fi' \
   rm -rf "$r29_tmp"
 fi
 if [ -z "$r29_bad" ]; then
-  check "R29" "trailer-strip thread binding: all nine hardcoded strip steps (research, architect, build, fix, design, design-ux, design-visual, design-motion, general) delegate to the shared script staged from the trusted default-branch checkout, under the actor gate with the job-scoped token, with each job's exact checkout with: surface (repository, ref, token, persist-credentials, fetch-depth) pinned so the runner and the staged helper can only come from this repository, and the staging step ordered before the actor gate and agent and the strip step after the agent, and no inline filter-branch copy remains in those nine steps; the PR-comment path resolves the triggering PR's head directly (issue_comment on a PR and pull_request_review_comment) and sanitizes a Refs-only opencode/ branch without the issue-number naming guard, while the issue-to-linked-PR path keeps the strict opencode/issue<issue#>-* refusal; the issue lookup selects only same-repository open PRs under --limit 100 and keeps the newest matching branch; a non-same-repository head (a fork or deleted head) is a loud no-op, and the PR-comment path refuses to rewrite a branch outside the opencode/ lab namespace only when an owner trailer exists, exiting 0 loudly when there is nothing to strip, so a clean human OR fork PR cannot red; a failed git log fails closed; the functional sandbox (env -i with production-shaped event/actor context and exact PR-number binding) proves the Refs no-trailer incident exits 0 untouched, a Refs branch with an owner trailer is stripped, a clean human branch exits 0, human branches with an owner trailer are refused with the remote tip untouched, fork and deleted-head PRs are loud no-ops with the remote tip untouched, an issue-thread-mismatch is refused, a mixed owner-plus-contributor trailer preserves the contributor credit, the issue lookup filters cross-repository, non-same-repository, and prefix decoys and strips the newest matching branch, both review-comment rewrite shapes (owner-trailer strip and mixed owner-plus-contributor strip) and review-path fork/deleted-head no-ops are exercised, an absent head branch is a loud no-op, a malformed or non-object event payload fails closed, a malformed PR payload fails closed, a failed PR list or PR view fails closed, a rejected strip push fails closed with the remote untouched, and a missing origin/main fails closed; every case snapshots the whole remote and permits only the target branch to move (a stray main force-push is caught); fourteen mutants (the pre-fix PR-number guard applied to the PR path, the narrowed PR namespace guard, each identity/namespace guard removed, the cross-repository and head-repository filters removed, the prefix widened, the sort reversed, the sanitizer broadened, the review-comment path shortcut on the event name, a rejected push or a failed list failing open, and a main force-push) each fail a scenario alone (issue #689)" "ok"
+  check "R29" "trailer-strip thread binding: all nine hardcoded strip steps (research, architect, build, fix, design, design-ux, design-visual, design-motion, general) delegate to the shared script staged from the trusted default-branch checkout, under the actor gate with the job-scoped token, with each job's exact checkout with: surface (repository, ref, token, persist-credentials, fetch-depth) pinned so the runner and the staged helper can only come from this repository, and the staging step ordered before the actor gate and agent and the strip step after the agent, and no inline filter-branch copy remains in those nine steps; the PR-comment path resolves the triggering PR's head directly (issue_comment on a PR and pull_request_review_comment) and sanitizes a Refs-only opencode/ branch without the issue-number naming guard, while the issue-to-linked-PR path keeps the strict opencode/issue<issue#>-* refusal; the issue lookup selects only same-repository open PRs under --limit 100 and keeps the newest matching branch; a non-same-repository head (a fork or deleted head) is a loud no-op, and the PR-comment path refuses to rewrite a branch outside the opencode/ lab namespace only when an owner trailer exists, exiting 0 loudly when there is nothing to strip, so a clean human OR fork PR cannot red; a failed git log fails closed; the tester-only identity filter is anchored-lane only, so the nine non-per-OS lanes use the legacy unconditional message filter and a Builder or Fixer persona commit still loses a leaked owner trailer (the anchored filter there would print a false success while the trailer survived); the functional sandbox (env -i with production-shaped event/actor context and exact PR-number binding) proves the Refs no-trailer incident exits 0 untouched, a Refs branch with an owner trailer is stripped, a clean human branch exits 0, human branches with an owner trailer are refused with the remote tip untouched, fork and deleted-head PRs are loud no-ops with the remote tip untouched, an issue-thread-mismatch is refused, a mixed owner-plus-contributor trailer preserves the contributor credit, the issue lookup filters cross-repository, non-same-repository, and prefix decoys and strips the newest matching branch, both review-comment rewrite shapes (owner-trailer strip and mixed owner-plus-contributor strip) and review-path fork/deleted-head no-ops are exercised, an absent head branch is a loud no-op, a malformed or non-object event payload fails closed, a malformed PR payload fails closed, a failed PR list or PR view fails closed, a rejected strip push fails closed with the remote untouched, and a missing origin/main fails closed; every case snapshots the whole remote and permits only the target branch to move (a stray main force-push is caught); the legacy and anchored lane fixtures (Builder, Fixer, Dr. Mob, Architect) each strip their owner trailer, the foreign-owner fixture is preserved only on the anchored lane and stripped by the legacy lane, and fifteen mutants (the pre-fix PR-number guard applied to the PR path, the narrowed PR namespace guard, each identity/namespace guard removed, the cross-repository and head-repository filters removed, the prefix widened, the sort reversed, the sanitizer broadened, the anchored filter re-applied in the legacy branch, the review-comment path shortcut on the event name, a rejected push or a failed list failing open, and a main force-push) each fail a scenario alone (issues #689 and #798 review B5)" "ok"
 else
   check "R29" "trailer-strip thread binding guard missing:${r29_bad} (issue #689: the script re-applied the issue-number naming guard to Refs PR threads, false-redding clean sessions, or the rewrite boundary widened beyond the triggering work)" "bad"
 fi
@@ -23411,6 +24300,18 @@ REVIEW_FORWARD_BODY = (
 )
 
 PEROS_LINUX_FORWARD_BODY = (
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    "trap 'rm -rf \"$gh_cfg\"' EXIT",
+    "unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true",
     'decision_nonce=""',
     'if [ -n "${LAB_RUN_NONCE:-}" ]; then',
     'decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)',
@@ -23451,6 +24352,18 @@ PEROS_LINUX_FORWARD_BODY = (
 )
 
 PEROS_MACOS_FORWARD_BODY = (
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    "trap 'rm -rf \"$gh_cfg\"' EXIT",
+    "unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true",
     'decision_nonce=""',
     'if [ -n "${LAB_RUN_NONCE:-}" ]; then',
     'decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)',
@@ -23491,6 +24404,18 @@ PEROS_MACOS_FORWARD_BODY = (
 )
 
 PEROS_WINDOWS_FORWARD_BODY = (
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    "trap 'rm -rf \"$gh_cfg\"' EXIT",
+    "unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true",
     'decision_nonce=""',
     'if [ -n "${LAB_RUN_NONCE:-}" ]; then',
     'decision_nonce=$(jq -r \'.run_nonce // empty\' < /tmp/random-lab-decision.json 2>/dev/null | tr -d \'\\r\' || true)',
@@ -23552,6 +24477,8 @@ FIX_GUARD_PR_BINDING = 'pr="${{ github.event.issue.number }}"'
 PEROS_GATE = (
     "always() && steps.actor_gate.outputs.run == 'true'"
     " && steps.verify-test.outcome == 'success'"
+    " && steps.strip_trailers.outcome == 'success'"
+    " && steps.scope_guard.outcome == 'success'"
     " && steps.findings.outcome == 'success'"
 )
 PEROS_LIVE_STATE_CHECK = 'if [ "$is_pr" = "true" ] && [ "${live_state:-}" != "OPEN" ]; then'
@@ -26285,6 +27212,1846 @@ case "$r34_bad" in
     ;;
 esac
 rm -rf "$r34_dir"
+# [R34] Per-OS tester commit-scope sanitization guard (issue #798): the
+# per-OS tester arms let the agent commit tests to the PR branch, and a
+# session auto-commit can consequently ship a leaked owner co-author trailer
+# or an edit outside the project test lane (run 41176553396's auto-commit
+# 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a
+# Co-authored-by trailer, invalidating approvals on 30b0dadb). All three arms
+# now capture the pre-agent branch tip, run the trusted trailer strip, and run
+# the trusted scope guard after the agent. This rule executes the real
+# extracted step bodies (anchor, restore, baseline, strip, scope) against a
+# local bare origin and a mock gh: the pre-agent anchor resolves the PR before
+# the agent, the restore marks tracked artifacts skip-worktree so the CLI
+# auto-commit stages nothing, a clean test-lane commit is untouched, an
+# out-of-lane project edit and a protected lab edit are dropped back to the
+# baseline, a foreign interleaved commit is never rewritten, a foreign
+# protected edit is recorded as a PEROS_SCOPE_VIOLATION marker (and the next
+# run's baseline refuses it), a leaked owner trailer is stripped on named
+# tester commits while a foreign-only trailer is preserved and reported
+# without a rewrite, a pre-baseline trailer is preserved, the incident shape
+# is dropped, a merge importing a protected edit is caught through
+# diff-tree -m, including an evil merge whose side parent predates the
+# baseline, fork and wrong-namespace heads are no-ops or loud anchor
+# refusals, an issue-triggered lane resolves its linked PR, per-OS tester
+# identities (name and email) are honored, a workspace url.*.insteadOf
+# rewrite cannot redirect the trusted remote (the evil tip is distinct from
+# the baseline), a stale lease, a rejected strip push, and a non-ancestor
+# baseline fail closed, pre-baseline history is never judged by the
+# post-agent guard, and the durable preflight exempts an infrastructure PR's
+# own pre-tester protected history while still refusing a protected edit
+# interleaved after a tester session (issue #798 review B6/B7). Mutation
+# controls prove the protected-path pattern for every independently reachable
+# entry (the marker is covered by its creation/deletion hard stop), the
+# preflight's tester-session gate, the skip-worktree restore guard, the strip
+# and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, and the tester email
+# term are load-bearing. Issue #798 Quality Council env-seam finding: a decoy
+# HTTP proxy proves the shipped helpers never contact an agent-exported
+# proxy/TLS redirection (the unset-removal mutant does contact it and fails
+# closed while the real tip stays intact), and the owner-PAT steps' effective
+# env (hostile env plus the shipped map) records no Authorization leak on any
+# of the eight findings/forward/salvage steps.
+r34_dir=$(mktemp -d 2>/dev/null || true)
+r34_out=""
+if [ -z "$r34_dir" ]; then
+  r34_out="sandbox-unavailable"
+else
+  cat > "$r34_dir/fixture.py" <<'R34PY'
+import http.server
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+
+import yaml
+
+PEROS = ".github/workflows/opencode-peros-test.yml"
+ARMS = ("test-linux", "test-macos", "test-windows")
+REPO = "Userfrom1995/RandomLabs"
+BRANCH = "opencode/issue798-scope"
+PR_EVENT = '{"issue":{"number":798,"pull_request":{"html_url":"https://github.com/x/y/pull/798"}}}'
+ISSUE_EVENT = '{"issue":{"number":798}}'
+PR_VIEW = (
+    '{"headRefName":"opencode/issue798-scope","isCrossRepository":false,'
+    '"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}'
+)
+FORK_VIEW = (
+    '{"headRefName":"opencode/issue798-scope","isCrossRepository":true,'
+    '"headRepository":{"nameWithOwner":"fork/RandomLabs"}}'
+)
+FORK_FLAG_VIEW = (
+    '{"headRefName":"opencode/issue798-scope","isCrossRepository":true,'
+    '"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}'
+)
+FORK_HEAD_VIEW = (
+    '{"headRefName":"opencode/issue798-scope","isCrossRepository":false,'
+    '"headRepository":{"nameWithOwner":"fork/RandomLabs"}}'
+)
+OTHER_VIEW = (
+    '{"headRefName":"feature/x","isCrossRepository":false,'
+    '"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}'
+)
+PR_LIST = (
+    '[{"number":799,"headRefName":"opencode/issue798-scope",'
+    '"createdAt":"2026-01-01T00:00:00Z","isCrossRepository":false,'
+    '"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}]'
+)
+TRAILER = "Co-authored-by: Userfrom1995 <Userfrom1995@users.noreply.github.com>"
+WANTED = {
+    "anchor": ("Resolve the per-OS PR trust anchor (issue", "peros_pr"),
+    "restore": ("Restore the vendored runner and findings poster from the workflow commit", None),
+    "baseline": ("Capture the pre-agent branch baseline (issue", "pre_agent_baseline"),
+    "strip": ("Strip owner Co-authored-by trailers from the per-OS branch (issue", "strip_trailers"),
+    "scope": ("Enforce the per-OS tester commit scope (issue", "scope_guard"),
+}
+
+
+class DecoyProxy(http.server.BaseHTTPRequestHandler):
+    """An HTTP proxy that records every request and never forwards it."""
+
+    def _record(self):
+        with open(self.server.log_path, "a", encoding="utf-8") as handle:
+            handle.write("%s %s\n" % (self.command, self.path))
+        self.send_response(502)
+        self.end_headers()
+        self.wfile.write(b"decoy proxy refuses\n")
+
+    do_CONNECT = _record
+    do_GET = _record
+    do_POST = _record
+
+    def log_message(self, *args):
+        pass
+
+
+class ProxyServer(object):
+    def __init__(self, log_path):
+        self.log_path = log_path
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DecoyProxy)
+        self.server.log_path = log_path
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    @property
+    def url(self):
+        return "http://127.0.0.1:%d" % self.server.server_address[1]
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    def construct_mapping(self, node, deep=False):
+        seen = set()
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                raise ValueError("duplicate-yaml-key:%s" % key)
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
+def extract_bodies():
+    with open(PEROS, encoding="utf-8") as handle:
+        doc = yaml.load(handle, Loader=UniqueKeyLoader)
+    bodies = {}
+    for arm in ARMS:
+        steps = doc["jobs"][arm]["steps"]
+        arm_bodies = {}
+        for key, (prefix, step_id) in WANTED.items():
+            hits = [
+                step
+                for step in steps
+                if isinstance(step, dict)
+                and str(step.get("name", "")).startswith(prefix)
+            ]
+            if len(hits) != 1:
+                raise SystemExit("r34-extract-%s-%s-count=%d" % (arm, key, len(hits)))
+            if step_id is not None and hits[0].get("id") != step_id:
+                raise SystemExit("r34-extract-%s-%s-id" % (arm, key))
+            run = hits[0].get("run") or ""
+            if not run:
+                raise SystemExit("r34-extract-%s-%s-empty" % (arm, key))
+            arm_bodies[key] = run
+        bodies[arm] = arm_bodies
+    for arm in ARMS[1:]:
+        if bodies[arm] != bodies[ARMS[0]]:
+            raise SystemExit("r34-extract-arm-bodies-differ")
+    linux = bodies[ARMS[0]]
+    if 'git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh"' not in linux["strip"]:
+        raise SystemExit("r34-extract-strip-not-trusted")
+    if 'git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh"' not in linux["scope"]:
+        raise SystemExit("r34-extract-scope-not-trusted")
+    if "bash .github/scripts/peros-scope-guard.sh" in linux["scope"]:
+        raise SystemExit("r34-extract-scope-workspace-copy")
+    if "EXPECTED_BRANCH" not in linux["anchor"] or "GITHUB_OUTPUT" not in linux["anchor"]:
+        raise SystemExit("r34-extract-anchor-incomplete")
+    if "--skip-worktree" not in linux["restore"]:
+        raise SystemExit("r34-extract-restore-not-dirty-safe")
+    return linux
+
+
+def build_env(root, git_dir, mock_dir, event_path, github_sha, output_path,
+              pr_view, pr_list, baseline="", peros_os="linux", anchor=None,
+              event_is_pr="", thread="798", expected_branch=BRANCH,
+              remote_url=None, path_prefix=None, extra=None):
+    env = {
+        "PATH": (path_prefix + ":" if path_prefix else "")
+        + mock_dir + ":" + git_dir + ":/usr/bin:/bin",
+        "HOME": os.path.join(root, "home"),
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "LC_ALL": "C",
+        "GITHUB_REPOSITORY": REPO,
+        "GITHUB_EVENT_PATH": event_path,
+        "GITHUB_SHA": github_sha,
+        "GH_TOKEN": "sandbox-token",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GITHUB_OUTPUT": output_path,
+        "BASELINE_SHA": baseline,
+        "PEROS_OS": peros_os,
+        "REPO": REPO,
+        "THREAD": thread,
+        "EVENT_IS_PR": event_is_pr,
+        "EXPECTED_BRANCH": expected_branch,
+        "REMOTE_URL": remote_url or os.path.join(root, "Userfrom1995", "RandomLabs"),
+        "R34_PR_VIEW_FILE": pr_view,
+        "R34_PR_LIST_FILE": pr_list,
+    }
+    if anchor is not None:
+        env["PEROS_ANCHOR"] = "1"
+        env["PR_NUMBER"], env["HEAD_REF"], env["PR_CROSS_REPO"], env["PR_HEAD_REPO"] = anchor
+    if extra:
+        env.update(extra)
+    return env
+
+
+def run(cmd, cwd=None, env=None, check=False):
+    proc = subprocess.run(
+        cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, timeout=180,
+    )
+    if check and proc.returncode != 0:
+        raise RuntimeError(
+            "command failed (%s): %s\n%s\n%s"
+            % (proc.returncode, " ".join(cmd), proc.stdout, proc.stderr)
+        )
+    return proc
+
+
+def main(root):
+    os.chdir(root)
+    bodies = extract_bodies()
+    sandbox = tempfile.mkdtemp(prefix="r34-peros-", dir="/tmp")
+    bad = []
+    try:
+        os.makedirs(os.path.join(sandbox, "home"))
+        origin = os.path.join(sandbox, "Userfrom1995", "RandomLabs")
+        os.makedirs(os.path.dirname(origin))
+        git = shutil.which("git") or "git"
+        bash = shutil.which("bash") or "bash"
+        git_dir = os.path.dirname(git)
+        mock_dir = os.path.join(sandbox, "bin")
+        os.makedirs(mock_dir)
+        mock_gh = os.path.join(mock_dir, "gh")
+        with open(mock_gh, "w", encoding="utf-8") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                "case \"$1 $2\" in\n"
+                "  'pr list') cat \"$R34_PR_LIST_FILE\" ;;\n"
+                "  'pr view') cat \"$R34_PR_VIEW_FILE\" ;;\n"
+                "  *) exit 90 ;;\n"
+                "esac\n"
+            )
+        os.chmod(mock_gh, 0o755)
+        event_pr = os.path.join(sandbox, "event-pr.json")
+        event_issue = os.path.join(sandbox, "event-issue.json")
+        with open(event_pr, "w") as handle:
+            handle.write(PR_EVENT)
+        with open(event_issue, "w") as handle:
+            handle.write(ISSUE_EVENT)
+        pr_view_file = os.path.join(sandbox, "pr-view.json")
+        pr_list_file = os.path.join(sandbox, "pr-list.json")
+        with open(pr_view_file, "w") as handle:
+            handle.write(PR_VIEW)
+        with open(pr_list_file, "w") as handle:
+            handle.write(PR_LIST)
+
+        run([git, "init", "--bare", "-q", origin], check=True)
+        run([git, "--git-dir", origin, "symbolic-ref", "HEAD", "refs/heads/main"], check=True)
+        work = os.path.join(sandbox, "work")
+        run([git, "clone", "-q", origin, work], check=True)
+        for key, value in (
+            ("user.name", "Seed"), ("user.email", "seed@example.invalid"),
+            ("commit.gpgsign", "false"), ("tag.gpgsign", "false"),
+        ):
+            run([git, "config", key, value], cwd=work, check=True)
+        with open(os.path.join(work, "seed.txt"), "w") as handle:
+            handle.write("seed\n")
+        scripts = os.path.join(work, ".github", "scripts")
+        os.makedirs(scripts)
+        for name in ("strip-trailers.sh", "peros-scope-guard.sh"):
+            shutil.copyfile(
+                os.path.join(".github", "scripts", name),
+                os.path.join(scripts, name),
+            )
+        runner_dir = os.path.join(work, ".github", "actions", "opencode-run")
+        os.makedirs(runner_dir)
+        with open(os.path.join(runner_dir, "action.yml"), "w") as handle:
+            handle.write("name: r34-stub\n")
+        with open(os.path.join(scripts, "post-peros-findings.sh"), "w") as handle:
+            handle.write("#!/usr/bin/env bash\nexit 0\n")
+        run([git, "add", "-A"], cwd=work, check=True)
+        run([git, "commit", "-qm", "workflow commit"], cwd=work, check=True)
+        run([git, "branch", "-M", "main"], cwd=work, check=True)
+        run([git, "push", "-q", "origin", "main"], cwd=work, check=True)
+        workflow_sha = run([git, "rev-parse", "HEAD"], cwd=work, check=True).stdout.strip()
+        if not workflow_sha:
+            raise SystemExit("r34-setup-no-workflow-sha")
+
+        evil = os.path.join(sandbox, "evil", "RandomLabs")
+        os.makedirs(os.path.dirname(evil))
+        run([git, "init", "--bare", "-q", evil], check=True)
+        run([git, "--git-dir", evil, "fetch", "-q", origin,
+             "+refs/heads/main:refs/heads/main"], check=True)
+        # Issue #798 evaluation finding: the evil remote branch must differ
+        # from the baseline, otherwise a redirect that rewrote it to the
+        # baseline was undetectable. Give it a distinct child of the workflow
+        # commit carrying a protected path and an owner trailer, so both a
+        # strip and a guard that used the workspace origin would move it.
+        run([git, "checkout", "-q", "-B", "r34-evil-tip", workflow_sha],
+            cwd=work, check=True)
+        with open(os.path.join(work, ".github", "scripts",
+                              "insteadof_evil.py"), "w") as handle:
+            handle.write("evil\n")
+        run([git, "add", "-A"], cwd=work, check=True)
+        run([git, "-c", "user.name=The Linux Tester",
+             "-c", "user.email=github-actions[bot]@users.noreply.github.com",
+             "commit", "-q", "-m", "evil remote protected tester work",
+             "-m", TRAILER], cwd=work, check=True)
+        evil_tip_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+        run([git, "push", "-q", "--force", evil,
+             "%s:refs/heads/%s" % (evil_tip_sha, BRANCH)], cwd=work,
+            check=True)
+        run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+            check=True)
+        run([git, "clean", "-qfd"], cwd=work, check=True)
+        evil_before = run([git, "--git-dir", evil, "for-each-ref",
+                           "--format=%(refname) %(objectname)"]).stdout
+
+        # Issue #798 review B3: a clean concurrent tip (an in-lane tester
+        # commit after the baseline) for the re-fetch/re-judge success path.
+        run([git, "checkout", "-q", "-B", "lease-clean", workflow_sha],
+            cwd=work, check=True)
+        os.makedirs(os.path.join(work, "proj", "tests"), exist_ok=True)
+        with open(os.path.join(work, "proj", "tests", "lease_clean_test.py"),
+                  "w") as handle:
+            handle.write("test\n")
+        run([git, "add", "-A"], cwd=work, check=True)
+        run([git, "-c", "user.name=The Linux Tester",
+             "-c", "user.email=github-actions[bot]@users.noreply.github.com",
+             "commit", "-q", "-m", "concurrent clean tester work"],
+            cwd=work, check=True)
+        lease_clean_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                              check=True).stdout.strip()
+        run([git, "push", "-q", "origin", "HEAD:refs/heads/lease-clean"],
+            cwd=work, check=True)
+        run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+            check=True)
+
+        lease_dir = os.path.join(sandbox, "lease-bin")
+        os.makedirs(lease_dir)
+        lease_git = os.path.join(lease_dir, "git")
+        with open(lease_git, "w", encoding="utf-8") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                "for arg in \"$@\"; do\n"
+                "  if [ \"$arg\" = \"push\" ]; then\n"
+                "    \"%s\" --git-dir=\"%s\" update-ref \"refs/heads/%s\" \"%s\" "
+                "2>/dev/null || true\n"
+                "    break\n"
+                "  fi\n"
+                "done\n"
+                "exec \"%s\" \"$@\"\n"
+                % (git, origin, BRANCH, lease_clean_sha, git)
+            )
+        os.chmod(lease_git, 0o755)
+
+        # Issue #798 review B3: a concurrent actor that keeps advancing the
+        # branch makes every force-with-lease push stale. The guard re-fetches
+        # and re-judges at the new tip; after 3 bounded rounds it fails loudly
+        # instead of looping or concluding green.
+        lease_loop_dir = os.path.join(sandbox, "lease-loop-bin")
+        os.makedirs(lease_loop_dir)
+        lease_loop_git = os.path.join(lease_loop_dir, "git")
+        lease_counter = os.path.join(sandbox, "lease-loop-counter")
+        with open(lease_loop_git, "w", encoding="utf-8") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                "for arg in \"$@\"; do\n"
+                "  if [ \"$arg\" = \"push\" ]; then\n"
+                "    tip=$(\"%s\" --git-dir=\"%s\" rev-parse \"refs/heads/%s\" "
+                "2>/dev/null || true)\n"
+                "    tree=$(\"%s\" --git-dir=\"%s\" rev-parse \"$tip^{tree}\" "
+                "2>/dev/null || true)\n"
+                "    n=$(( $(cat \"%s\" 2>/dev/null || echo 0) + 1 ))\n"
+                "    echo \"$n\" > \"%s\"\n"
+                "    new=$(\"%s\" --git-dir=\"%s\" -c user.name=\"R34 Churn\" "
+                "-c user.email=\"churn@example.invalid\" commit-tree \"$tree\" -p "
+                "\"$tip\" -m \"lease churn $n\" 2>/dev/null || true)\n"
+                "    \"%s\" --git-dir=\"%s\" update-ref \"refs/heads/%s\" "
+                "\"$new\" 2>/dev/null || true\n"
+                "    break\n"
+                "  fi\n"
+                "done\n"
+                "exec \"%s\" \"$@\"\n"
+                % (git, origin, BRANCH, git, origin, lease_counter,
+                   lease_counter, git, origin, git, origin, BRANCH, git)
+            )
+        os.chmod(lease_loop_git, 0o755)
+
+        # Issue #798 review N2 / evaluation finding: an agent-exported
+        # GIT_EXEC_PATH could shadow git-filter-branch (a silent strip no-op)
+        # or a transport helper. git diff-tree is a builtin and is not
+        # shadowable, so the guard control uses git-upload-pack: the fetch
+        # fails when the unset is missing. Both fake helpers exit 0 without
+        # doing anything; the shipped helpers unset GIT_EXEC_PATH.
+        exec_path_dir = os.path.join(sandbox, "exec-path-bin")
+        os.makedirs(exec_path_dir)
+        fake_filter = os.path.join(exec_path_dir, "git-filter-branch")
+        with open(fake_filter, "w", encoding="utf-8") as handle:
+            handle.write("#!/usr/bin/env bash\nexit 0\n")
+        os.chmod(fake_filter, 0o755)
+        guard_exec_path_dir = os.path.join(sandbox, "guard-exec-path-bin")
+        os.makedirs(guard_exec_path_dir)
+        fake_upload_pack = os.path.join(guard_exec_path_dir, "git-upload-pack")
+        with open(fake_upload_pack, "w", encoding="utf-8") as handle:
+            handle.write("#!/usr/bin/env bash\nexit 0\n")
+        os.chmod(fake_upload_pack, 0o755)
+
+        def checkout_base(sha):
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, sha], cwd=work, check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+            for ref in ("refs/remotes/origin/prbranch",
+                        "refs/remotes/origin/peros-scope"):
+                subprocess.run([git, "update-ref", "-d", ref], cwd=work,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        def baseline_raw(sha, tag):
+            output = os.path.join(sandbox, "output-%s" % tag)
+            open(output, "w").close()
+            env = build_env(sandbox, git_dir, mock_dir, event_pr, sha, output,
+                            pr_view_file, pr_list_file)
+            proc = run([bash, "-c", bodies["baseline"]], cwd=work, env=env)
+            value = ""
+            with open(output) as handle:
+                for line in handle:
+                    if line.startswith("sha="):
+                        value = line.strip().split("=", 1)[1]
+            return proc, value
+
+        def baseline_for(sha, tag):
+            proc, value = baseline_raw(sha, tag)
+            if proc.returncode != 0:
+                raise RuntimeError("baseline step failed: %s" % proc.stderr)
+            if not value:
+                raise RuntimeError("baseline step wrote no sha")
+            return value
+
+        def anchor_for(sha, tag, event_path, view_file, list_file, is_pr):
+            output = os.path.join(sandbox, "anchor-%s" % tag)
+            open(output, "w").close()
+            env = build_env(
+                sandbox, git_dir, mock_dir, event_path, sha, output,
+                view_file, list_file,
+                event_is_pr="yes" if is_pr else "", thread="798",
+                expected_branch=BRANCH,
+            )
+            proc = run([bash, "-c", bodies["anchor"]], cwd=work, env=env)
+            values = {
+                "rc": proc.returncode,
+                "output": proc.stdout + proc.stderr,
+                "pr_number": "", "branch": "", "cross_repo": "", "head_repo": "",
+            }
+            with open(output) as handle:
+                for line in handle:
+                    key, _, value = line.strip().partition("=")
+                    if key in ("pr_number", "branch", "cross_repo", "head_repo"):
+                        values[key] = value
+            return values
+
+        def commit_file(path, content, message, name=None, trailers=None,
+                        date=None, email=None):
+            target = os.path.join(work, path)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "w") as handle:
+                handle.write(content)
+            run([git, "add", "-A"], cwd=work, check=True)
+            env = dict(os.environ)
+            env.update({
+                "GIT_AUTHOR_NAME": name or "The Linux Tester",
+                "GIT_AUTHOR_EMAIL": email or "github-actions[bot]@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": name or "The Linux Tester",
+                "GIT_COMMITTER_EMAIL": email or "github-actions[bot]@users.noreply.github.com",
+            })
+            if date:
+                # Issue #798 review F1: force a committer-date skew so a
+                # commit-date-ordered preflight boundary is caught.
+                env["GIT_AUTHOR_DATE"] = date
+                env["GIT_COMMITTER_DATE"] = date
+            cmd = [git, "commit", "-q", "-m", message]
+            if trailers:
+                cmd += ["-m", trailers]
+            proc = subprocess.run(
+                cmd, cwd=work, env=env, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True,
+            )
+            if proc.returncode != 0:
+                raise RuntimeError("commit failed: %s" % proc.stderr)
+
+        def sanitize(sha, baseline, tag, event_path, view_file, list_file,
+                     anchor, peros_os="linux", path_prefix=None,
+                     extra_env=None, remote_url=None):
+            results = []
+            for key in ("strip", "scope"):
+                output = os.path.join(sandbox, "step-output-%s-%s" % (tag, key))
+                env = build_env(
+                    sandbox, git_dir, mock_dir, event_path, sha, output,
+                    view_file, list_file, baseline=baseline, peros_os=peros_os,
+                    anchor=anchor,
+                    event_is_pr="yes" if event_path == event_pr else "",
+                    thread="798", expected_branch=BRANCH,
+                    path_prefix=path_prefix, extra=extra_env,
+                    remote_url=remote_url,
+                )
+                proc = run([bash, "-c", bodies[key]], cwd=work, env=env)
+                results.append((key, proc.returncode, proc.stdout + proc.stderr))
+            return results
+
+        def remote_tip():
+            proc = run([git, "ls-remote", origin, "refs/heads/" + BRANCH], check=True)
+            fields = proc.stdout.split()
+            return fields[0] if fields else ""
+
+        def remote_log():
+            proc = run([git, "--git-dir", origin, "log", "--format=%B",
+                        "refs/heads/" + BRANCH])
+            return proc.stdout
+
+        def write_case(name, text):
+            path = os.path.join(sandbox, "case-%s.json" % name)
+            with open(path, "w") as handle:
+                handle.write(text)
+            return path
+
+        def make_gitlink_base(source, tag, target):
+            # Build a pre-baseline commit whose tree carries a top-level
+            # `.github` gitlink. A later commit that only retargets that
+            # gitlink then has a diff of exactly `.github`, which isolates the
+            # bare protected entry from the `.github/*` children.
+            tmp_index = os.path.join(sandbox, "gitlink-base-index-%s" % tag)
+            env = dict(os.environ, GIT_INDEX_FILE=tmp_index)
+            run([git, "read-tree", source], cwd=work, check=True, env=env)
+            run([git, "rm", "-r", "--cached", "-q", ".github"], cwd=work,
+                check=True, env=env)
+            run([git, "update-index", "--add", "--cacheinfo",
+                 "160000,%s,.github" % target], cwd=work, check=True, env=env)
+            tree = run([git, "write-tree"], cwd=work, check=True,
+                       env=env).stdout.strip()
+            link = run([git, "commit-tree", tree, "-p", source,
+                        "-m", "pre-baseline github gitlink %s" % tag],
+                       cwd=work, check=True).stdout.strip()
+            os.unlink(tmp_index)
+            return link
+
+        def scenario(tag, files, expect_scope_rc, expect_drop, event=None,
+                     view=None, list_data=None, trailers=None, base=None,
+                     foreign=None, expect_trailer=False, expect_strip_rc=0,
+                     expect_marker=False, expect_tip_changed=False,
+                     peros_os="linux", tester_name=None, is_pr=True,
+                     expect_anchor_rc=0, pre_baseline_trailer=False,
+                     pre_baseline_protected=False,
+                     pre_baseline_infra_protected=False,
+                     pre_baseline_infra_protected_date_skew=False,
+                     pre_baseline_protected_after_tester=False,
+                     pre_baseline_protected_bypass=False,
+                     pre_baseline_marker_deletion_foreign=False,
+                     pre_baseline_marker_deletion_accepted=False,
+                     expect_preflight_refused=False,
+                     foreign_trailers=None,
+                     expect_foreign_trailer=False, insteadof=False,
+                     lease_fail=False, strip_fail=False,
+                     non_ancestor_baseline=False,
+                     sanitize_baseline=None, extra_env=None, gitlink=False,
+                     expect_paths=None, scope_lease_fail=False,
+                     scope_lease_exhausted=False, expect_scope_msg=None,
+                     expect_strip_msg=None, tester_email=None,
+                     push_base_to_main=False, helper_sha=None,
+                     remote_url=None):
+            base = base or workflow_sha
+            helper = helper_sha or base
+            # Issue #798 review B6: the durable preflight judges protected
+            # paths for every commit since main, so a fixture helper-commit on
+            # the branch (the mutation controls) would itself be a protected
+            # edit. For those scenarios, move main to the fixture base so the
+            # judged range starts after the mutation commit; every other
+            # scenario restores main to the workflow commit first, keeping the
+            # scenarios independent.
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % (base if push_base_to_main else workflow_sha)],
+                cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main",
+                 base if push_base_to_main else workflow_sha], cwd=work,
+                check=True)
+            event_path = event or event_pr
+            view_file = view or pr_view_file
+            list_file = list_data or pr_list_file
+            who = tester_name or "The Linux Tester"
+            # Issue #798 evaluation finding: the strict identity is name AND
+            # email, so the fixtures vary the email independently.
+            who_email = tester_email or "github-actions[bot]@users.noreply.github.com"
+            checkout_base(base)
+            anchor = anchor_for(base, "anchor-%s" % tag, event_path, view_file,
+                                list_file, is_pr)
+            if anchor["rc"] != expect_anchor_rc:
+                bad.append(
+                    "r34-%s(anchor-rc=%d,want=%d;%s)"
+                    % (tag, anchor["rc"], expect_anchor_rc,
+                       anchor["output"].replace("\n", " ")[:300]))
+                return
+            if expect_anchor_rc != 0:
+                return
+            anchor_values = (anchor["pr_number"], anchor["branch"],
+                             anchor["cross_repo"], anchor["head_repo"])
+            # Scenarios that build pre-baseline history capture their own
+            # baseline after doing so (a seeded violation marker on the parent
+            # would make the initial capture fail on the marker hard stop).
+            if not (
+                pre_baseline_trailer
+                or pre_baseline_protected
+                or pre_baseline_protected_after_tester
+                or pre_baseline_protected_bypass
+                or pre_baseline_infra_protected
+                or pre_baseline_infra_protected_date_skew
+                or pre_baseline_marker_deletion_foreign
+                or pre_baseline_marker_deletion_accepted
+            ):
+                baseline = baseline_for(helper, "base-%s" % tag)
+            else:
+                baseline = ""
+            if pre_baseline_trailer:
+                commit_file("proj/tests/pre_baseline_test.py", "test\n",
+                            "pre-baseline tester work", name=who, email=who_email,
+                            trailers=TRAILER)
+                baseline = baseline_for(helper, "base-%s-pre" % tag)
+            if pre_baseline_protected:
+                commit_file(".github/pre_baseline_tamper.py", "tamper\n",
+                            "pre-baseline tester protected work", name=who, email=who_email)
+                # Issue #798 review B3: the durable invariant refuses the
+                # branch before the agent runs. The preflight fails closed, so
+                # the baseline step must exit nonzero with the durable-invariant
+                # message and the sanitizer matrix below must never run.
+                proc, _ = baseline_raw(helper, "base-%s-pre-protected" % tag)
+                if proc.returncode == 0:
+                    bad.append("r34-%s(prebaseline-protected-not-refused)" % tag)
+                elif "already carries per-OS tester commits outside the project test lane" not in (proc.stdout + proc.stderr):
+                    bad.append("r34-%s(prebaseline-protected-wrong-reason)" % tag)
+                return
+            if (
+                pre_baseline_protected_after_tester
+                or pre_baseline_protected_bypass
+            ):
+                # Issue #798 review B6/B7: an adopted foreign protected edit
+                # interleaved after a per-OS tester commit must still refuse the
+                # next baseline, because the branch then carries tester history
+                # and identity is self-asserted. The mutation scenario expects
+                # the restored tester-only skip to adopt it instead.
+                commit_file("proj/tests/pre_baseline_tester_test.py", "test\n",
+                            "pre-baseline tester work", name=who, email=who_email)
+                commit_file(".github/pre_baseline_tamper.py", "tamper\n",
+                            "protected edit after the tester session",
+                            name="The Fixer")
+                proc, _ = baseline_raw(
+                    helper, "base-%s-pre-protected-after-tester" % tag)
+                if pre_baseline_protected_bypass:
+                    if proc.returncode != 0:
+                        bad.append(
+                            "r34-%s(prebaseline-protected-unexpected-refusal)"
+                            % tag
+                        )
+                elif proc.returncode == 0:
+                    bad.append(
+                        "r34-%s(prebaseline-protected-after-tester-not-refused)"
+                        % tag)
+                elif "already carries per-OS tester commits outside the project test lane" not in (proc.stdout + proc.stderr):
+                    bad.append("r34-%s(prebaseline-protected-wrong-reason)" % tag)
+                return
+            if pre_baseline_infra_protected:
+                # Issue #798 review B7: the PR's own pre-tester history may
+                # legitimately touch protected paths (an infrastructure PR),
+                # and its read-only per-OS session must still start. The
+                # protected edit is before the captured baseline, so the
+                # post-agent guard judges only the tester's clean test commit
+                # and the scenario must conclude green.
+                commit_file(".github/pre_baseline_infra.py", "infra\n",
+                            "infrastructure history",
+                            name="The Lab Engineer (CTO)")
+                baseline = baseline_for(
+                    helper, "base-%s-pre-infra-protected" % tag)
+            if (
+                pre_baseline_marker_deletion_foreign
+                or pre_baseline_marker_deletion_accepted
+            ):
+                # Issue #798 review B6/F2: the fixture base carries the marker
+                # (the caller seeds it on main), and the branch only deletes
+                # it. A creation-only detection mutant must therefore accept
+                # the deletion, proving this fixture exercises deletion
+                # detection rather than the creation commit.
+                run([git, "rm", "-q", "-f", "PEROS_SCOPE_VIOLATION"], cwd=work,
+                    check=True)
+                commit_file("proj/marker_delete_note.txt", "delete marker\n",
+                            "foreign marker deletion", name="The Fixer")
+                proc, _ = baseline_raw(helper, "base-%s-marker-delete" % tag)
+                combined = proc.stdout + proc.stderr
+                if pre_baseline_marker_deletion_accepted:
+                    if proc.returncode != 0:
+                        bad.append(
+                            "r34-%s(marker-deletion-unexpected-refusal)" % tag)
+                elif proc.returncode == 0:
+                    bad.append("r34-%s(marker-deletion-not-refused)" % tag)
+                elif "(protected:PEROS_SCOPE_VIOLATION)" not in combined:
+                    bad.append("r34-%s(marker-deletion-wrong-reason)" % tag)
+                return
+            if pre_baseline_infra_protected_date_skew:
+                # Issue #798 review F1: a pre-tester protected commit whose
+                # committer date is newer than the tester commit must still be
+                # exempt: the boundary is topological, not commit-date ordered.
+                # The sibling and merge exercise the ordering across branches,
+                # and the mutant scenario expects a date-ordered preflight to
+                # refuse this legitimate infrastructure history.
+                commit_file(".github/pre_baseline_infra_skew.py", "infra\n",
+                            "pre-tester infrastructure protected edit",
+                            name="The Lab Engineer (CTO)",
+                            date="2030-01-01T00:00:00 +0000")
+                commit_file("proj/tests/pre_baseline_skew_test.py", "test\n",
+                            "tester work with an older committer date",
+                            name=who, email=who_email, date="2020-01-01T00:00:00 +0000")
+                skew_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                               check=True).stdout.strip()
+                run([git, "checkout", "-q", "-b", "r34-skew-side",
+                     "%s~1" % skew_tip], cwd=work, check=True)
+                commit_file("proj/tests/pre_baseline_skew_side_test.py",
+                            "test\n",
+                            "side tester work with the oldest committer date",
+                            name=who, email=who_email, date="2009-01-01T00:00:00 +0000")
+                run([git, "checkout", "-q", BRANCH], cwd=work, check=True)
+                run([git, "merge", "--no-ff", "-m",
+                     "merge skewed tester history", "r34-skew-side"],
+                    cwd=work, check=True)
+                run([git, "branch", "-D", "r34-skew-side"], cwd=work,
+                    check=True)
+                proc, value = baseline_raw(
+                    helper, "base-%s-pre-infra-skew" % tag)
+                combined = proc.stdout + proc.stderr
+                if expect_preflight_refused:
+                    if proc.returncode == 0:
+                        bad.append(
+                            "r34-%s(preflight-skew-not-refused)" % tag)
+                    elif "already carries per-OS tester commits outside the project test lane" not in combined:
+                        bad.append(
+                            "r34-%s(preflight-skew-wrong-reason)" % tag)
+                    return
+                if proc.returncode != 0:
+                    bad.append(
+                        "r34-%s(preflight-skew-false-refusal;%s)"
+                        % (tag, combined.replace("\n", " ")[:300]))
+                    return
+                if not value:
+                    bad.append("r34-%s(preflight-skew-no-baseline-sha)" % tag)
+                    return
+                baseline = value
+            if non_ancestor_baseline:
+                # Issue #798 review N6/N8: put a baseline object on origin/main
+                # that the branch never contains (the shape left by a
+                # force-push backward). The strip fetches main, so it can
+                # resolve the object and must refuse the non-ancestor instead
+                # of rewriting pre-baseline history.
+                run([git, "checkout", "-q", "-B", "side-%s" % tag, base],
+                    cwd=work, check=True)
+                commit_file("proj/side_baseline_%s.txt" % tag, "side\n",
+                            "side baseline", name="The Fixer")
+                sanitize_baseline = run(
+                    [git, "rev-parse", "HEAD"], cwd=work, check=True
+                ).stdout.strip()
+                run([git, "push", "-q", "--force", "origin",
+                     "%s:main" % sanitize_baseline], cwd=work, check=True)
+                run([git, "checkout", "-q", "-f", "-B", BRANCH, base],
+                    cwd=work, check=True)
+            if foreign:
+                commit_file(foreign[0], foreign[1], foreign[2], name="The Fixer",
+                            trailers=foreign_trailers)
+            for path, content in files:
+                commit_file(path, content, "Linux tests all pass; verdict maintainer.",
+                            name=who, email=who_email, trailers=trailers)
+            if gitlink:
+                # A submodule gitlink at a protected top-level path: diff-tree
+                # prints `.github` (no trailing slash), so the protected
+                # pattern must match the bare name.
+                tmp_index = os.path.join(sandbox, "gitlink-index-%s" % tag)
+                run([git, "read-tree", "HEAD"], cwd=work, check=True,
+                    env=dict(os.environ, GIT_INDEX_FILE=tmp_index))
+                run([git, "rm", "-r", "--cached", "-q", ".github"], cwd=work,
+                    check=True, env=dict(os.environ, GIT_INDEX_FILE=tmp_index))
+                run([git, "update-index", "--add", "--cacheinfo",
+                     "160000,%s,.github" % base], cwd=work, check=True,
+                    env=dict(os.environ, GIT_INDEX_FILE=tmp_index))
+                tree = run([git, "write-tree"], cwd=work, check=True,
+                           env=dict(os.environ, GIT_INDEX_FILE=tmp_index)).stdout.strip()
+                parent = run([git, "rev-parse", "HEAD"], cwd=work,
+                             check=True).stdout.strip()
+                link = run([git, "commit-tree", tree, "-p", parent,
+                            "-m", "gitlink protected edit"], cwd=work,
+                           check=True).stdout.strip()
+                run([git, "update-ref", "HEAD", link], cwd=work, check=True)
+                run([git, "reset", "-q", "--hard", link], cwd=work, check=True)
+                os.unlink(tmp_index)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work, check=True)
+            tip_before = remote_tip()
+            if insteadof:
+                run([git, "config", "url." + evil + ".insteadOf", origin],
+                    cwd=work, check=True)
+            if strip_fail:
+                hook = os.path.join(origin, "hooks", "pre-receive")
+                with open(hook, "w") as handle:
+                    handle.write("#!/bin/sh\necho rejected >&2\nexit 1\n")
+                os.chmod(hook, 0o755)
+            results = sanitize(
+                helper, sanitize_baseline if sanitize_baseline is not None else baseline,
+                tag, event_path, view_file, list_file,
+                anchor_values, peros_os=peros_os,
+                path_prefix=(
+                    lease_dir if (lease_fail or scope_lease_fail)
+                    else lease_loop_dir if scope_lease_exhausted
+                    else None
+                ),
+                extra_env=extra_env, remote_url=remote_url,
+            )
+            if non_ancestor_baseline:
+                # Restore origin/main for the remaining scenarios.
+                run([git, "push", "-q", "--force", "origin",
+                     "%s:main" % base], cwd=work, check=True)
+            if strip_fail:
+                os.unlink(os.path.join(origin, "hooks", "pre-receive"))
+            if lease_fail:
+                run([git, "--git-dir", origin, "update-ref",
+                     "refs/heads/" + BRANCH, tip_before], check=True)
+            if insteadof:
+                run([git, "config", "--unset", "url." + evil + ".insteadOf"],
+                    cwd=work, check=True)
+                if run([git, "--git-dir", evil, "for-each-ref",
+                        "--format=%(refname) %(objectname)"]).stdout != evil_before:
+                    bad.append("r34-%s(insteadof-rewrote-evil-remote)" % tag)
+            by_key = {key: rc for key, rc, _ in results}
+            if by_key["strip"] != expect_strip_rc:
+                bad.append(
+                    "r34-%s(strip-rc=%d,want=%d;%s)"
+                    % (tag, by_key["strip"], expect_strip_rc,
+                       results[0][2].replace("\n", " ")[:300]))
+            if by_key["scope"] != expect_scope_rc:
+                bad.append(
+                    "r34-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, by_key["scope"], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            if expect_scope_msg and not any(
+                expect_scope_msg in out
+                for key, rc, out in results if key == "scope"
+            ):
+                bad.append("r34-%s(scope-message-missing:%s)" % (tag, expect_scope_msg))
+            if expect_strip_msg and not any(
+                expect_strip_msg in out
+                for key, rc, out in results if key == "strip"
+            ):
+                bad.append("r34-%s(strip-message-missing:%s)" % (tag, expect_strip_msg))
+            tip_after = remote_tip()
+            if expect_paths:
+                for path, content in expect_paths:
+                    shown = run([git, "--git-dir", origin, "show",
+                                 "%s:%s" % (tip_after, path)])
+                    if shown.returncode != 0 or shown.stdout != content:
+                        bad.append("r34-%s(path-mismatch:%s)" % (tag, path))
+            if expect_drop:
+                if tip_after != baseline:
+                    bad.append("r34-%s(no-drop:%s)" % (tag, tip_after))
+            elif expect_marker:
+                if tip_after == tip_before:
+                    bad.append("r34-%s(no-marker:%s)" % (tag, tip_after))
+                if run([git, "--git-dir", origin, "cat-file", "-e",
+                        "refs/heads/%s:PEROS_SCOPE_VIOLATION" % BRANCH]).returncode != 0:
+                    bad.append("r34-%s(marker-file-absent)" % tag)
+                run([git, "fetch", "-q", "origin", BRANCH], cwd=work, check=True)
+                run([git, "checkout", "-q", "-f", "FETCH_HEAD"], cwd=work, check=True)
+                marked, _ = baseline_raw(tip_after, "marked-%s" % tag)
+                if marked.returncode == 0:
+                    bad.append("r34-%s(marked-branch-accepted)" % tag)
+                if "PEROS_SCOPE_VIOLATION" not in marked.stdout + marked.stderr:
+                    bad.append("r34-%s(marked-branch-wrong-error)" % tag)
+            elif expect_tip_changed:
+                if tip_after == tip_before:
+                    bad.append("r34-%s(tip-not-changed:%s)" % (tag, tip_after))
+            else:
+                if tip_after != tip_before:
+                    bad.append("r34-%s(tip-moved:%s)" % (tag, tip_after))
+            log = remote_log()
+            has_trailer = "Co-authored-by: Userfrom1995" in log
+            if expect_foreign_trailer:
+                # Issue #798 review B5/N10: the anchored strip rewrites only
+                # the named per-OS tester commits, so a trailer-bearing foreign
+                # commit is preserved while the tester commit loses the trailer.
+                foreign_log = run(
+                    [git, "--git-dir", origin, "log", "--format=%B",
+                     "--grep=fixer: concurrent work",
+                     "refs/heads/" + BRANCH]).stdout
+                tester_log = run(
+                    [git, "--git-dir", origin, "log", "--format=%B",
+                     "--grep=Linux tests all pass",
+                     "refs/heads/" + BRANCH]).stdout
+                if "Co-authored-by: Userfrom1995" not in foreign_log:
+                    bad.append("r34-%s(foreign-trailer-not-preserved)" % tag)
+                if "Co-authored-by: Userfrom1995" in tester_log:
+                    bad.append("r34-%s(tester-trailer-survived)" % tag)
+            elif expect_trailer and not has_trailer:
+                bad.append("r34-%s(trailer-missing-for-control)" % tag)
+            elif not expect_trailer and has_trailer:
+                bad.append("r34-%s(trailer-survived)" % tag)
+
+        scenario("clean", [("proj/tests/new_test.py", "test\n")], 0, False)
+        scenario("outside", [("proj/src/app.py", "code\n")], 1, True)
+        scenario("protected", [(".github/test_foo.py", "tamper\n")], 1, True)
+        scenario("mixed", [("proj/helper.sh", "violation\n")], 1, False,
+                 foreign=("fixer.txt", "foreign\n", "fixer: concurrent work"),
+                 expect_marker=True)
+        scenario("none", [], 0, False)
+        scenario("trailer", [("proj/tests/trailer_test.py", "test\n")], 0, False,
+                 trailers=TRAILER, expect_tip_changed=True)
+        # Issue #798 review B5/N10: in the anchored per-OS lane the strip
+        # rewrites only the named tester commit; a trailer-bearing foreign
+        # concurrent commit keeps its trailer (and its SHA).
+        scenario("anchored-foreign-trailer",
+                 [("proj/tests/anchored_foreign_test.py", "test\n")], 0, False,
+                 trailers=TRAILER, foreign_trailers=TRAILER,
+                 foreign=("fixer.txt", "foreign\n", "fixer: concurrent work"),
+                 expect_tip_changed=True, expect_foreign_trailer=True)
+        # Issue #798 evaluation finding: a foreign-only owner trailer must
+        # never print the rewrite success line. The anchored strip reports the
+        # trailer as preserved and leaves the tip untouched.
+        scenario("anchored-foreign-only-trailer", [],
+                 0, False,
+                 foreign=("fixer.txt", "foreign\n", "fixer: concurrent work"),
+                 foreign_trailers=TRAILER, expect_trailer=True,
+                 expect_strip_msg="preserved 1 owner trailer(s) on foreign commits unchanged")
+        scenario("incident", [(".github/test_foo.py", "tamper\n")], 1, True,
+                 trailers=TRAILER)
+        scenario("prebaseline-trailer",
+                 [("proj/tests/prebaseline_test.py", "test\n")], 0, False,
+                 pre_baseline_trailer=True, expect_trailer=True)
+        scenario("externally-interleaved-protected", [],
+                 1, False, foreign=(".github/scripts/post-peros-findings.sh",
+                                   "tamper\n", "fixer: concurrent work"),
+                 expect_marker=True)
+        fork_view = write_case("fork", FORK_VIEW)
+        scenario("fork-noop", [("proj/tests/fork_test.py", "test\n")], 0, False,
+                 view=fork_view)
+        scenario("fork-protected", [(".github/test_foo.py", "tamper\n")], 0, False,
+                 view=fork_view)
+        other_view = write_case("other", OTHER_VIEW)
+        scenario("wrong-namespace", [("proj/tests/ns_test.py", "test\n")], 0, False,
+                 event=event_issue, view=other_view, is_pr=False,
+                 expect_anchor_rc=1)
+        scenario("issue-clean", [("proj/tests/issue_test.py", "test\n")], 0, False,
+                 event=event_issue, is_pr=False)
+        scenario("macos-outside", [("proj/src/mac.py", "code\n")], 1, True,
+                 peros_os="macos", tester_name="The macOS Tester")
+        scenario("windows-outside", [("proj/src/win.py", "code\n")], 1, True,
+                 peros_os="windows", tester_name="The Windows Tester")
+        # Issue #798 review N8: the insteadOf fixture carries a trailer so a
+        # strip that used the workspace remote would move the evil remote.
+        scenario("insteadof-redirect", [("proj/tests/clean_test.py", "test\n")],
+                 0, False, insteadof=True, trailers=TRAILER,
+                 expect_tip_changed=True,
+                 expect_paths=[("proj/tests/clean_test.py", "test\n")])
+        scenario("lease-failure", [("proj/tests/lease_test.py", "test\n")],
+                 0, False, trailers=TRAILER, lease_fail=True,
+                 expect_strip_rc=1, expect_trailer=True)
+        # Both terms of the fork guard are load-bearing: either a cross-repo
+        # flag or a foreign head repository alone must make the arm a no-op.
+        fork_flag_view = write_case("fork-flag", FORK_FLAG_VIEW)
+        fork_head_view = write_case("fork-head", FORK_HEAD_VIEW)
+        scenario("fork-cross-repo-term",
+                 [(".github/test_foo.py", "tamper\n")], 0, False,
+                 view=fork_flag_view)
+        scenario("fork-head-repo-term",
+                 [(".github/test_foo.py", "tamper\n")], 0, False,
+                 view=fork_head_view)
+        # Issue #798 review N5/N8: a marker from a concurrent run is a hard
+        # stop, and the generic bot name is not this arm's tester identity.
+        scenario("generic-bot-protected",
+                 [(".github/test_foo.py", "tamper\n")], 1, False,
+                 tester_name="github-actions[bot]", expect_marker=True)
+        # Issue #798 evaluation finding: identity is name AND email. A tester
+        # name with a foreign email is foreign: a protected edit records the
+        # marker, and an owner trailer is preserved and reported. The email
+        # mutant below treats it as tester work and drops the branch.
+        scenario("tester-name-foreign-email",
+                 [(".github/test_foo.py", "tamper\n")], 1, False,
+                 tester_email="foreign@example.invalid", expect_marker=True)
+        scenario("tester-name-foreign-email-trailer",
+                 [("proj/tests/foreign_email_test.py", "test\n")], 0, False,
+                 tester_email="foreign@example.invalid", trailers=TRAILER,
+                 expect_trailer=True,
+                 expect_strip_msg="preserved 1 owner trailer(s) on foreign commits unchanged")
+        # Issue #798 review N2: GIT_EXEC_PATH is unset by both helpers. The
+        # control (real helper + fake subcommand) still strips; the mutant
+        # (unset removed) is fooled and the trailer survives.
+        scenario("exec-path-control",
+                 [("proj/tests/exec_test.py", "test\n")], 0, False,
+                 trailers=TRAILER, expect_tip_changed=True,
+                 extra_env={"GIT_EXEC_PATH": exec_path_dir},
+                 expect_paths=[("proj/tests/exec_test.py", "test\n")])
+        # Issue #798 review N1: the anchored lane refuses an empty baseline
+        # instead of falling back to origin/main.
+        scenario("baseline-failed", [("proj/tests/empty_base_test.py", "test\n")],
+                 1, False, sanitize_baseline="", expect_strip_rc=1)
+        # Issue #798 review B6: a protected edit made by a named tester before
+        # the captured baseline is refused by the durable preflight before the
+        # agent can start (the sanitizer matrix must never run).
+        scenario("prebaseline-protected",
+                 [("proj/tests/after_baseline_test.py", "test\n")],
+                 0, False, pre_baseline_protected=True)
+        # Issue #798 review B6/B7: a foreign-identity protected edit that is
+        # interleaved after a per-OS tester commit must still refuse the next
+        # baseline instead of becoming pre-baseline history.
+        scenario("prebaseline-protected-after-tester",
+                 [("proj/tests/after_baseline_after_tester_test.py", "test\n")],
+                 0, False, pre_baseline_protected_after_tester=True)
+        # Issue #798 review B7: the PR's own pre-tester protected history is a
+        # legitimate infrastructure branch, so the read-only per-OS session
+        # must start and the pre-baseline edit must not be judged by the
+        # post-agent guard.
+        scenario("prebaseline-infra-protected",
+                 [("proj/tests/after_baseline_infra_test.py", "test\n")],
+                 0, False, pre_baseline_infra_protected=True)
+        # Issue #798 review F1: a newer-dated pre-tester protected commit must
+        # stay ahead of the tester commit under topological ordering; the
+        # mutant control below restores commit-date order and must refuse it.
+        scenario("prebaseline-infra-date-skew",
+                 [("proj/tests/after_baseline_skew_test.py", "test\n")],
+                 0, False, pre_baseline_infra_protected_date_skew=True)
+        # Issue #798 review F2: seed the marker on the fixture base (main) and
+        # let the branch only delete it, so a creation-only detection mutant
+        # cannot pass this fixture by matching the creation commit.
+        run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+            check=True)
+        commit_file("PEROS_SCOPE_VIOLATION", "blocked\n",
+                    "seed violation marker on main", name="github-actions[bot]")
+        marker_main = run([git, "rev-parse", "HEAD"], cwd=work,
+                          check=True).stdout.strip()
+        scenario("prebaseline-marker-deletion-foreign",
+                 [("proj/tests/after_baseline_marker_test.py", "test\n")],
+                 0, False, base=marker_main, push_base_to_main=True,
+                 pre_baseline_marker_deletion_foreign=True)
+        # Drop the seeded marker from the local main ref so later scenarios
+        # never inherit it as their base.
+        run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+            check=True)
+        # Issue #798 review N6/N8: a baseline that exists but is not an
+        # ancestor of the branch must be refused by the strip (it fetches
+        # main, so the object resolves) instead of rewriting pre-baseline
+        # history; the guard's branch-only fetch cannot resolve it and fails
+        # closed as well, and the remote tip must never move.
+        scenario("non-ancestor-baseline",
+                 [("proj/tests/ancestor_test.py", "test\n")], 1, False,
+                 non_ancestor_baseline=True, expect_strip_rc=1,
+                 expect_scope_msg="is not an ancestor of")
+        # Issue #798 review B3: a rejected push is not a failure by itself. The
+        # guard re-fetches and re-judges at the actual tip; when the concurrent
+        # actor has already dropped the violating range the clean re-judge
+        # concludes green instead of red-ing a healthy lane.
+        scenario("scope-lease-failure", [("proj/src/race.py", "code\n")],
+                 0, False, scope_lease_fail=True, expect_tip_changed=True,
+                 expect_scope_msg="stay inside the project test lane")
+        # A concurrent actor that keeps advancing the branch can never satisfy
+        # the lease; the guard must stop after 3 bounded rounds and fail loudly
+        # with the violation still in history (never an unbounded loop).
+        scenario("scope-lease-exhausted", [("proj/src/race.py", "code\n")],
+                 1, False, scope_lease_exhausted=True, expect_tip_changed=True,
+                 expect_scope_msg="after 3 bounded re-fetch/re-judge attempts")
+        # Issue #798 review N8: a protected top-level name reaches diff-tree
+        # as a bare path even when it is a submodule gitlink.
+        scenario("gitlink-protected", [], 1, False, gitlink=True,
+                 expect_marker=True)
+        scenario("strip-push-failure", [("proj/tests/push_test.py", "test\n")],
+                 0, False, trailers=TRAILER, strip_fail=True,
+                 expect_strip_rc=1, expect_trailer=True)
+
+        # Issue #798 review N11: the anchored strip must require the pre-agent
+        # REMOTE_URL instead of falling back to the agent-writable workspace
+        # origin config.
+        checkout_base(workflow_sha)
+        n11_anchor = anchor_for(workflow_sha, "anchor-n11", event_pr,
+                                pr_view_file, pr_list_file, True)
+        if n11_anchor["rc"] != 0:
+            bad.append("r34-anchored-strip-anchor-failed")
+        else:
+            n11_output = os.path.join(sandbox, "step-output-n11")
+            n11_env = build_env(
+                sandbox, git_dir, mock_dir, event_pr, workflow_sha, n11_output,
+                pr_view_file, pr_list_file, baseline=workflow_sha,
+                anchor=(n11_anchor["pr_number"], n11_anchor["branch"],
+                        n11_anchor["cross_repo"], n11_anchor["head_repo"]),
+                event_is_pr="yes", thread="798", expected_branch=BRANCH,
+            )
+            n11_env.pop("REMOTE_URL", None)
+            n11_proc = run([bash, "-c", bodies["strip"]], cwd=work, env=n11_env)
+            if (
+                n11_proc.returncode == 0
+                or "REMOTE_URL is required in the anchored per-OS lane"
+                not in n11_proc.stdout + n11_proc.stderr
+            ):
+                bad.append("r34-anchored-strip-missing-remote-not-refused")
+
+        # Issue #798 review N2 / evaluation finding: a mutant strip that no
+        # longer unsets GIT_EXEC_PATH is fooled by the fake git-filter-branch
+        # (no rewrite), so the trailer survives. The post-rewrite anchored
+        # recount must fail the helper loudly instead of reporting success.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        strip_path = os.path.join(work, ".github", "scripts", "strip-trailers.sh")
+        with open(strip_path) as handle:
+            original_strip = handle.read()
+        unset_anchor = "GIT_CONFIG_PARAMETERS GIT_EXEC_PATH"
+        if unset_anchor not in original_strip:
+            bad.append("r34-exec-path-mutation-anchor-missing")
+        else:
+            with open(strip_path, "w") as handle:
+                handle.write(original_strip.replace(unset_anchor, "GIT_CONFIG_PARAMETERS"))
+            run([git, "commit", "-qam", "mutant strip without GIT_EXEC_PATH unset"],
+                cwd=work, check=True)
+            strip_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                   check=True).stdout.strip()
+            scenario("exec-path-mutant",
+                     [("proj/tests/exec_mutant_test.py", "test\n")],
+                     0, False, trailers=TRAILER, base=strip_mutant_sha,
+                     expect_strip_rc=1, expect_trailer=True,
+                     push_base_to_main=True,
+                     extra_env={"GIT_EXEC_PATH": exec_path_dir})
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 evaluation finding: the guard needs the same GIT_EXEC_PATH
+        # hardening, not just the strip. A fake git-upload-pack makes the
+        # fetch fail when the unset is missing, so the mutant guard fails
+        # closed instead of judging; the shipped guard unsets and still drops
+        # the protected tester edit.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        guard_path = os.path.join(work, ".github", "scripts",
+                                  "peros-scope-guard.sh")
+        with open(guard_path) as handle:
+            original_guard = handle.read()
+        if unset_anchor not in original_guard:
+            bad.append("r34-guard-exec-path-mutation-anchor-missing")
+        else:
+            scenario("guard-exec-path-control",
+                     [(".github/guard_exec_test.py", "tamper\n")], 1, True,
+                     extra_env={"GIT_EXEC_PATH": guard_exec_path_dir})
+            run([git, "checkout", "-q", "main"], cwd=work, check=True)
+            with open(guard_path, "w") as handle:
+                handle.write(original_guard.replace(
+                    unset_anchor, "GIT_CONFIG_PARAMETERS", 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without GIT_EXEC_PATH unset"], cwd=work,
+                check=True)
+            guard_exec_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                        check=True).stdout.strip()
+            scenario("guard-exec-path-mutant",
+                     [(".github/guard_exec_mutant_test.py", "tamper\n")],
+                     1, False, base=guard_exec_mutant_sha,
+                     push_base_to_main=True,
+                     extra_env={"GIT_EXEC_PATH": guard_exec_path_dir},
+                     expect_scope_msg="Could not query branch")
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 Quality Council env-seam finding: an agent can export
+        # proxy/TLS redirections through $GITHUB_ENV. The shipped helpers
+        # unset them, so the trusted fetch and push must never contact a
+        # decoy proxy and the real remote must be used. The mutant control
+        # removes the unset from both helpers and points the remote at an
+        # https URL reachable only through the decoy proxy: the mutant must
+        # contact the proxy and fail closed while the real tip stays intact,
+        # proving the assertion is load-bearing.
+        proxy_log = os.path.join(sandbox, "proxy.log")
+        hostile_proxy_env = {
+            "HTTPS_PROXY": "", "https_proxy": "", "HTTP_PROXY": "",
+            "http_proxy": "", "ALL_PROXY": "", "all_proxy": "",
+            "NO_PROXY": "", "no_proxy": "", "GIT_SSL_NO_VERIFY": "1",
+            "GIT_SSL_CAINFO": "/nonexistent/r34-ca.pem",
+            "GIT_SSL_CAPATH": "/nonexistent/r34-ca-dir",
+            "SSL_CERT_FILE": "/nonexistent/r34-cert.pem",
+            "SSL_CERT_DIR": "/nonexistent/r34-cert-dir",
+            "CURL_CA_BUNDLE": "/nonexistent/r34-ca-bundle.pem",
+            "GIT_PROXY_COMMAND": "/nonexistent/r34-proxy-command",
+        }
+        with ProxyServer(proxy_log) as proxy:
+            for key in (
+                "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy",
+                "ALL_PROXY", "all_proxy",
+            ):
+                hostile_proxy_env[key] = proxy.url
+            scenario("proxy-env-control",
+                     [("proj/tests/proxy_test.py", "test\n")], 0, False,
+                     trailers=TRAILER, expect_tip_changed=True,
+                     extra_env=hostile_proxy_env)
+            if os.path.exists(proxy_log) and os.path.getsize(proxy_log) > 0:
+                with open(proxy_log) as handle:
+                    bad.append(
+                        "r34-proxy-env-control(proxy-contacted:%s)"
+                        % handle.read().replace("\n", " ")[:200])
+            if os.path.exists(proxy_log):
+                os.unlink(proxy_log)
+
+            run([git, "checkout", "-q", "main"], cwd=work, check=True)
+            with open(strip_path) as handle:
+                proxy_original_strip = handle.read()
+            with open(guard_path) as handle:
+                proxy_original_guard = handle.read()
+            proxy_unset_anchor = (
+                "unset HTTPS_PROXY https_proxy HTTP_PROXY http_proxy "
+                "ALL_PROXY all_proxy \\\n"
+                "  NO_PROXY no_proxy GIT_SSL_NO_VERIFY GIT_SSL_CAINFO "
+                "GIT_SSL_CAPATH \\\n"
+                "  SSL_CERT_FILE SSL_CERT_DIR CURL_CA_BUNDLE "
+                "GIT_PROXY_COMMAND 2>/dev/null || true"
+            )
+            if proxy_unset_anchor not in proxy_original_strip:
+                bad.append("r34-proxy-mutation-strip-anchor-missing")
+            elif proxy_unset_anchor not in proxy_original_guard:
+                bad.append("r34-proxy-mutation-guard-anchor-missing")
+            else:
+                with open(strip_path, "w") as handle:
+                    handle.write(proxy_original_strip.replace(
+                        proxy_unset_anchor, ":", 1))
+                with open(guard_path, "w") as handle:
+                    handle.write(proxy_original_guard.replace(
+                        proxy_unset_anchor, ":", 1))
+                run([git, "commit", "-qam",
+                     "mutant helpers without the proxy/TLS unset"], cwd=work,
+                    check=True)
+                proxy_mutant_sha = run(
+                    [git, "rev-parse", "HEAD"], cwd=work,
+                    check=True).stdout.strip()
+                proxy_remote = "https://127.0.0.1:%d/%s" % (
+                    proxy.server.server_address[1], REPO)
+                scenario("proxy-env-mutant",
+                         [("proj/tests/proxy_mutant_test.py", "test\n")],
+                         1, False, trailers=TRAILER,
+                         base=proxy_mutant_sha, push_base_to_main=True,
+                         remote_url=proxy_remote,
+                         expect_strip_rc=1, expect_trailer=True,
+                         extra_env=hostile_proxy_env)
+                if not (os.path.exists(proxy_log)
+                        and os.path.getsize(proxy_log) > 0):
+                    bad.append("r34-proxy-env-mutant(proxy-not-contacted)")
+                if os.path.exists(proxy_log):
+                    os.unlink(proxy_log)
+                run([git, "checkout", "-q", "-B", "main", workflow_sha],
+                    cwd=work, check=True)
+                run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 Quality Council env-seam finding: an owner-PAT step must
+        # never be able to send an Authorization header through a decoy proxy.
+        # The effective env is the hostile proxy env with the shipped step env
+        # map overlaid; a mock gh records a leak when any proxy/TLS variable is
+        # still non-empty. The step env map pins the uppercase proxy/TLS
+        # spellings (GitHub rejects case-insensitively duplicate keys), and
+        # each step body unsets the lowercase proxy spellings before its first
+        # gh call, exactly like the shared helpers. The simulated step runs
+        # that shipped unset prelude; the control without the overlay or the
+        # unset must leak, proving the assertion is load-bearing, and every
+        # findings/forward/salvage step on all three arms must stay leak-free.
+        with open(PEROS, encoding="utf-8") as handle:
+            pat_doc = yaml.load(handle, Loader=UniqueKeyLoader)
+        pat_envs = []
+        for arm in ARMS:
+            for step in pat_doc["jobs"][arm]["steps"]:
+                if not isinstance(step, dict):
+                    continue
+                step_env = step.get("env")
+                if not isinstance(step_env, dict):
+                    continue
+                step_name = str(step.get("name", ""))
+                if (
+                    step_env.get("GH_TOKEN") == "${{ secrets.OPENCODE_PAT }}"
+                    and (
+                        step.get("id") in ("findings", "salvage")
+                        or step_name.startswith("Forward ")
+                    )
+                ):
+                    pat_envs.append(
+                        (arm, step.get("id") or step_name, step_env,
+                         step.get("run") or ""))
+        if len(pat_envs) != 8:
+            bad.append("r34-pat-proxy-env-count=%d" % len(pat_envs))
+        pat_mock = os.path.join(sandbox, "pat-gh")
+        with open(pat_mock, "w", encoding="utf-8") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                "leak=0\n"
+                "for name in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy "
+                "ALL_PROXY all_proxy NO_PROXY no_proxy GIT_SSL_NO_VERIFY "
+                "GIT_SSL_CAINFO GIT_SSL_CAPATH SSL_CERT_FILE SSL_CERT_DIR "
+                "CURL_CA_BUNDLE GIT_PROXY_COMMAND; do\n"
+                "  if [ -n \"${!name:-}\" ]; then leak=1; fi\n"
+                "done\n"
+                "if [ \"$leak\" -eq 1 ]; then\n"
+                "  printf 'Authorization: token %s\\n' \"$GH_TOKEN\" "
+                "> \"$R34_PAT_LEAK\"\n"
+                "fi\n"
+                "exit 0\n"
+            )
+        os.chmod(pat_mock, 0o755)
+        proxy_keys = (
+            "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy",
+            "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
+            "GIT_SSL_NO_VERIFY", "GIT_SSL_CAINFO", "GIT_SSL_CAPATH",
+            "SSL_CERT_FILE", "SSL_CERT_DIR", "CURL_CA_BUNDLE",
+            "GIT_PROXY_COMMAND",
+        )
+        pat_leak = os.path.join(sandbox, "pat-leak")
+        hostile_pat_env = {
+            "PATH": mock_dir + ":/usr/bin:/bin",
+            "GH_TOKEN": "faketoken_abc",
+            "R34_PAT_LEAK": pat_leak,
+        }
+        for name in proxy_keys:
+            hostile_pat_env[name] = (
+                "/nonexistent/r34-proxy"
+                if name == "GIT_PROXY_COMMAND" else "http://127.0.0.1:1"
+            )
+        subprocess.run([pat_mock], env=hostile_pat_env, check=False)
+        if not (os.path.exists(pat_leak) and os.path.getsize(pat_leak) > 0):
+            bad.append("r34-pat-proxy-env-control(no-leak-detected)")
+        if os.path.exists(pat_leak):
+            os.unlink(pat_leak)
+        pat_unset = (
+            "unset all_proxy http_proxy https_proxy no_proxy "
+            "2>/dev/null || true"
+        )
+        for arm, step_id, step_env, step_body in pat_envs:
+            effective = dict(hostile_pat_env)
+            for key, value in step_env.items():
+                if isinstance(value, str):
+                    effective[key] = value
+            # The shipped PATH is a workflow expression that only resolves on a
+            # runner; keep the sandbox PATH so the mock gh can execute.
+            effective["PATH"] = mock_dir + ":/usr/bin:/bin"
+            effective["GH_TOKEN"] = "faketoken_abc"
+            effective["R34_PAT_LEAK"] = pat_leak
+            unset_at = step_body.find(pat_unset)
+            trap_at = step_body.find("trap ")
+            if unset_at < 0:
+                bad.append(
+                    "r34-pat-lowercase-unset-missing:%s:%s" % (arm, step_id)
+                )
+                subprocess.run([pat_mock], env=effective, check=False)
+            elif trap_at < 0 or unset_at < trap_at:
+                bad.append(
+                    "r34-pat-lowercase-unset-misplaced:%s:%s"
+                    % (arm, step_id)
+                )
+                subprocess.run([pat_mock], env=effective, check=False)
+            else:
+                subprocess.run(
+                    ["bash", "-c", pat_unset + '; exec "$0"', pat_mock],
+                    env=effective, check=False,
+                )
+            if os.path.exists(pat_leak):
+                bad.append("r34-pat-proxy-env-leak:%s:%s" % (arm, step_id))
+                os.unlink(pat_leak)
+
+        # Issue #798 review N5: a marker commit is a hard stop. A concurrent
+        # baseline predating the marker must refuse before classifying or
+        # pushing, leaving the marker and the clean commit after it intact.
+        checkout_base(workflow_sha)
+        marker_baseline = baseline_for(workflow_sha, "base-marker-stop")
+        commit_file("PEROS_SCOPE_VIOLATION", "blocked\n",
+                    "concurrent violation marker", name="github-actions[bot]")
+        commit_file("proj/tests/after_marker_test.py", "test\n",
+                    "clean work after the marker", name="The Linux Tester")
+        run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+            check=True)
+        marker_tip = remote_tip()
+        marker_results = sanitize(
+            workflow_sha, marker_baseline, "marker-stop", event_pr,
+            pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+        )
+        marker_by_key = {key: rc for key, rc, _ in marker_results}
+        if marker_by_key["strip"] != 0:
+            bad.append("r34-marker-stop(strip-rc=%d)" % marker_by_key["strip"])
+        if marker_by_key["scope"] != 1:
+            bad.append("r34-marker-stop(scope-rc=%d)" % marker_by_key["scope"])
+        if remote_tip() != marker_tip:
+            bad.append("r34-marker-stop(tip-moved)")
+
+        # Issue #798 evaluation finding: the earlier fixture branched the side
+        # parent from the baseline itself, so the side commit was inside
+        # baseline..tip and a plain diff-tree -r already saw the protected
+        # edit; -m was never load-bearing. Use the evaluator's shape instead:
+        # the side parent is merged into main and removed BEFORE the captured
+        # baseline, so the side is an ancestor of the baseline and the only
+        # judged commit is the evil merge, whose combined diff hides the
+        # reintroduced edit. diff-tree -m must expose it; a mutant without -m
+        # must accept the branch, proving the fixture tests the option.
+        def run_evil_merge(helper_sha, tag, expect_scope_rc, expect_drop):
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+            checkout_base(helper_sha)
+            run([git, "checkout", "-q", "-b", "r34-evil-side-%s" % tag,
+                 helper_sha], cwd=work, check=True)
+            commit_file(".github/scripts/evil_merge.py", "first\n",
+                        "side adds a protected file",
+                        name="The Lab Engineer (CTO)")
+            side_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            run([git, "checkout", "-q", BRANCH], cwd=work, check=True)
+            pre_env = dict(os.environ)
+            pre_env.update({
+                "GIT_AUTHOR_NAME": "The Lab Engineer (CTO)",
+                "GIT_AUTHOR_EMAIL": "lab@example.invalid",
+                "GIT_COMMITTER_NAME": "The Lab Engineer (CTO)",
+                "GIT_COMMITTER_EMAIL": "lab@example.invalid",
+            })
+            run([git, "merge", "--no-ff", "-m",
+                 "merge the protected side before the baseline",
+                 "r34-evil-side-%s" % tag], cwd=work, env=pre_env, check=True)
+            run([git, "rm", "-q", "-f", ".github/scripts/evil_merge.py"],
+                cwd=work, check=True)
+            run([git, "commit", "-qm",
+                 "remove the protected file before the baseline"], cwd=work,
+                env=pre_env, check=True)
+            baseline = baseline_for(helper_sha, "base-evil-merge-%s" % tag)
+            merge_tree = run([git, "rev-parse", "%s^{tree}" % side_tip],
+                             cwd=work, check=True).stdout.strip()
+            parent = run([git, "rev-parse", "HEAD"], cwd=work,
+                         check=True).stdout.strip()
+            merge_env = dict(pre_env)
+            merge_env.update({
+                "GIT_AUTHOR_NAME": "The Linux Tester",
+                "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "The Linux Tester",
+                "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+            })
+            evil_merge = run([git, "commit-tree", merge_tree,
+                              "-p", parent, "-p", side_tip,
+                              "-m", "evil merge reintroduces the protected edit"],
+                             cwd=work, env=merge_env, check=True).stdout.strip()
+            run([git, "update-ref", "HEAD", evil_merge], cwd=work, check=True)
+            run([git, "reset", "-q", "--hard", evil_merge], cwd=work,
+                check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-evil-merge-%s(setup-empty)" % tag)
+            results = sanitize(
+                helper_sha, baseline, "evil-merge-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+            )
+            if results[-1][1] != expect_scope_rc:
+                bad.append(
+                    "r34-evil-merge-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, results[-1][1], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            if expect_drop:
+                if remote_tip() != baseline:
+                    bad.append("r34-evil-merge-%s(no-drop:%s)"
+                               % (tag, remote_tip()))
+            else:
+                if remote_tip() == baseline:
+                    bad.append("r34-evil-merge-%s(dropped:%s)"
+                               % (tag, remote_tip()))
+                if run([git, "--git-dir", origin, "cat-file", "-e",
+                        "refs/heads/%s:.github/scripts/evil_merge.py"
+                        % BRANCH]).returncode != 0:
+                    bad.append("r34-evil-merge-%s(protected-file-absent)" % tag)
+            run([git, "branch", "-D", "r34-evil-side-%s" % tag], cwd=work,
+                check=False)
+
+        run_evil_merge(workflow_sha, "real", 1, True)
+        # Mutant guard: without -m the combined diff is empty, so the evil
+        # merge looks clean and the branch is accepted.
+        run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+            check=True)
+        with open(guard_path) as handle:
+            original_guard = handle.read()
+        m_anchor = '-r -m --root -z "$commit"'
+        if m_anchor not in original_guard:
+            bad.append("r34-evil-merge-mutation-anchor-missing")
+        else:
+            with open(guard_path, "w") as handle:
+                handle.write(original_guard.replace(
+                    m_anchor, '-r --root -z "$commit"', 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without diff-tree -m"], cwd=work, check=True)
+            m_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                               check=True).stdout.strip()
+            run_evil_merge(m_mutant_sha, "mutant", 0, False)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        guard_path = os.path.join(work, ".github", "scripts", "peros-scope-guard.sh")
+        with open(guard_path) as handle:
+            original_guard = handle.read()
+        protected_pattern = ".github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh|opencode.json|PEROS_SCOPE_VIOLATION)"
+        if protected_pattern not in original_guard:
+            bad.append("r34-control-guard-mutation-anchor-missing")
+        else:
+            mutated_guard = original_guard.replace(
+                protected_pattern, "__r34_no_protected__)")
+            with open(guard_path, "w") as handle:
+                handle.write(mutated_guard)
+            run([git, "commit", "-qam", "mutant guard"], cwd=work, check=True)
+            mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work, check=True).stdout.strip()
+            scenario("protected-mutant",
+                     [(".github/test_foo.py", "tamper\n")],
+                     0, False, base=mutant_sha, push_base_to_main=True)
+            run([git, "checkout", "-q", "main"], cwd=work, check=True)
+            with open(guard_path, "w") as handle:
+                handle.write(original_guard)
+            run([git, "commit", "-qam", "restore guard"], cwd=work, check=True)
+
+        # Issue #798 review F9/B5-B6: prove each protected entry is
+        # load-bearing. Top-level lab paths can be reached by a foreign
+        # committer whose out-of-lane edits are intentionally ignored, so a
+        # mutation that removes one entry must let that exact path through.
+        # The bare `.github` entry needs its own control: replacing the whole
+        # directory with a gitlink also deletes every `.github/*` child, so
+        # only a retarget-only diff (a gitlink to gitlink change) isolates it.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        github_link_base = make_gitlink_base(
+            workflow_sha, "github-link-base", workflow_sha)
+        scenario("gitlink-retarget", [], 1, False,
+                 base=github_link_base, helper_sha=workflow_sha, gitlink=True,
+                 push_base_to_main=True, expect_marker=True)
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        per_entry = (
+            ("github-glob", ".github/test_foo.py", "|.github/*", ""),
+            # Issue #798 review B5/B6: the bare `.github` alternative is
+            # load-bearing for a submodule gitlink at the directory path.
+            ("github-bare", None, ".github|.github/*", ".github/*"),
+            ("agents", "AGENTS.md", "|AGENTS.md", ""),
+            ("lab", "LAB.md", "|LAB.md", ""),
+            ("setup", "setup.sh", "|setup.sh", ""),
+            ("shutdown", "shutdown.sh", "|shutdown.sh", ""),
+            ("opencode-json", "opencode.json", "|opencode.json", ""),
+            # PEROS_SCOPE_VIOLATION is also protected, but the marker hard
+            # stop above supersedes a per-entry mutation (any commit carrying
+            # that path is refused before classification), so it cannot be
+            # isolated by removing the protected alternative.
+        )
+        for label, path, alternative, replacement in per_entry:
+            run([git, "checkout", "-q", "main"], cwd=work, check=True)
+            if alternative not in original_guard:
+                bad.append("r34-protected-mutation-anchor-missing-%s" % label)
+                continue
+            mutated = original_guard.replace(alternative, replacement, 1)
+            with open(guard_path, "w") as handle:
+                handle.write(mutated)
+            run([git, "commit", "-qam", "mutant guard %s" % label],
+                cwd=work, check=True)
+            mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                             check=True).stdout.strip()
+            if label == "github-glob":
+                scenario("protected-mutant-%s" % label,
+                         [(".github/test_foo.py", "tamper\n")],
+                         0, False, base=mutant_sha, push_base_to_main=True)
+            elif label == "github-bare":
+                github_link_mutant_base = make_gitlink_base(
+                    mutant_sha, "github-link-mutant", workflow_sha)
+                scenario("protected-mutant-%s" % label, [], 0, False,
+                         base=github_link_mutant_base, helper_sha=mutant_sha,
+                         gitlink=True, push_base_to_main=True)
+            else:
+                scenario("protected-mutant-%s" % label, [], 0, False,
+                         foreign=(path, "tamper\n", "fixer: concurrent work"),
+                         base=mutant_sha, push_base_to_main=True)
+            run([git, "checkout", "-q", "main"], cwd=work, check=True)
+            with open(guard_path, "w") as handle:
+                handle.write(original_guard)
+            run([git, "commit", "-qam", "restore guard %s" % label],
+                cwd=work, check=True)
+
+        # Issue #798 evaluation finding: identity is name AND email. Removing
+        # the email half classifies a name-only tester commit as tester work,
+        # so a protected edit by the tester name with a foreign email is
+        # dropped instead of recording the concurrency marker.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        with open(guard_path, "w") as handle:
+            handle.write(original_guard)
+        email_anchor = '[ "$email" = "$tester_email" ] && [ "$name" = "$tester_name" ]'
+        if email_anchor not in original_guard:
+            bad.append("r34-tester-email-mutation-anchor-missing")
+        else:
+            mutated = original_guard.replace(
+                email_anchor, '[ "$name" = "$tester_name" ]', 1)
+            with open(guard_path, "w") as handle:
+                handle.write(mutated)
+            run([git, "commit", "-qam",
+                 "mutant guard without tester email identity"], cwd=work,
+                check=True)
+            email_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                   check=True).stdout.strip()
+            scenario("tester-email-mutant",
+                     [(".github/test_foo.py", "tamper\n")], 1, True,
+                     tester_email="foreign@example.invalid",
+                     base=email_mutant_sha, push_base_to_main=True)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 review B6/B7: the preflight's protected-path scan must
+        # stay gated on the named tester session, not on identity alone. The
+        # mutant restores the old tester-only skip, so a protected edit
+        # interleaved after a tester commit is adopted as pre-baseline history.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        with open(guard_path, "w") as handle:
+            handle.write(original_guard)
+        b6_anchor = '''
+      if is_protected_path "$preflight_path" && { [ "$preflight_tester" -eq 1 ] || [ "$preflight_seen_tester" -eq 1 ]; }; then
+'''
+        if b6_anchor not in original_guard:
+            bad.append("r34-preflight-identity-mutation-anchor-missing")
+        else:
+            mutated = original_guard.replace(
+                b6_anchor,
+                '''
+      [ "$preflight_tester" -eq 1 ] || continue
+      if is_protected_path "$preflight_path"; then
+''',
+                1,
+            )
+            with open(guard_path, "w") as handle:
+                handle.write(mutated)
+            run([git, "commit", "-qam", "mutant preflight identity skip"],
+                cwd=work, check=True)
+            b6_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                check=True).stdout.strip()
+            scenario("preflight-identity-mutant",
+                     [("proj/tests/b6_mutant_test.py", "test\n")],
+                     0, False, base=b6_mutant_sha, push_base_to_main=True,
+                     pre_baseline_protected_bypass=True)
+            run([git, "checkout", "-q", "main"], cwd=work, check=True)
+            with open(guard_path, "w") as handle:
+                handle.write(original_guard)
+            run([git, "commit", "-qam", "restore guard after preflight mutation"],
+                cwd=work, check=True)
+
+        # Issue #798 review F1: prove the topological ordering is
+        # load-bearing. A mutant that drops --topo-order emits the
+        # newer-dated pre-tester infrastructure commit after the tester
+        # commit and falsely refuses the same legitimate history.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        with open(guard_path, "w") as handle:
+            handle.write(original_guard)
+        topo_anchor = 'git rev-list --topo-order --reverse "$preflight_base..HEAD"'
+        if topo_anchor not in original_guard:
+            bad.append("r34-preflight-topo-mutation-anchor-missing")
+        else:
+            mutated = original_guard.replace(
+                topo_anchor,
+                'git rev-list --reverse "$preflight_base..HEAD"',
+                1,
+            )
+            with open(guard_path, "w") as handle:
+                handle.write(mutated)
+            run([git, "commit", "-qam", "mutant preflight date order"],
+                cwd=work, check=True)
+            topo_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                  check=True).stdout.strip()
+            scenario("preflight-topo-mutant", [], 0, False,
+                     base=topo_mutant_sha, helper_sha=topo_mutant_sha,
+                     push_base_to_main=True,
+                     pre_baseline_infra_protected_date_skew=True,
+                     expect_preflight_refused=True)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+
+        # Issue #798 review F2: prove the marker-deletion assertion is
+        # load-bearing. A mutant that only refuses a marker creation
+        # (requiring the file to exist in the judged commit) accepts the
+        # seeded-marker deletion and must fail this control.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        with open(guard_path, "w") as handle:
+            handle.write(original_guard)
+        marker_anchor = 'if [ "$preflight_path" = "PEROS_SCOPE_VIOLATION" ]; then'
+        if marker_anchor not in original_guard:
+            bad.append("r34-preflight-marker-mutation-anchor-missing")
+        else:
+            mutated = original_guard.replace(
+                marker_anchor,
+                'if [ "$preflight_path" = "PEROS_SCOPE_VIOLATION" ] && git '
+                'cat-file -e "$preflight_commit:PEROS_SCOPE_VIOLATION" '
+                '2>/dev/null; then',
+                1,
+            )
+            with open(guard_path, "w") as handle:
+                handle.write(mutated)
+            run([git, "commit", "-qam",
+                 "mutant preflight marker creation only"],
+                cwd=work, check=True)
+            marker_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                    check=True).stdout.strip()
+            commit_file("PEROS_SCOPE_VIOLATION", "blocked\n",
+                        "seed violation marker on mutant main",
+                        name="github-actions[bot]")
+            marker_mutant_main = run([git, "rev-parse", "HEAD"], cwd=work,
+                                     check=True).stdout.strip()
+            scenario("preflight-marker-deletion-mutant", [], 0, False,
+                     base=marker_mutant_main, helper_sha=marker_mutant_sha,
+                     push_base_to_main=True,
+                     pre_baseline_marker_deletion_accepted=True)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+
+        # A merge commit's combined diff prints no paths; diff-tree -m must
+        # still expose a protected edit imported from a side parent.
+        checkout_base(workflow_sha)
+        merge_baseline = baseline_for(workflow_sha, "base-merge")
+        run([git, "checkout", "-q", "-b", "r34-side", workflow_sha], cwd=work,
+            check=True)
+        commit_file(".github/scripts/side_edit.py", "tamper\n",
+                    "side protected edit", name="The Linux Tester")
+        run([git, "checkout", "-q", BRANCH], cwd=work, check=True)
+        merge_env = dict(os.environ)
+        merge_env.update({
+            "GIT_AUTHOR_NAME": "The Linux Tester",
+            "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com",
+            "GIT_COMMITTER_NAME": "The Linux Tester",
+            "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+        })
+        run([git, "merge", "--no-ff", "-m", "merge side", "r34-side"],
+            cwd=work, env=merge_env, check=True)
+        run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+            check=True)
+        merge_tip = remote_tip()
+        merge_results = sanitize(
+            workflow_sha, merge_baseline, "merge", event_pr, pr_view_file,
+            pr_list_file, ("798", BRANCH, "false", REPO),
+        )
+        if merge_results[-1][1] != 1:
+            bad.append("r34-merge-protected(scope-rc=%d)" % merge_results[-1][1])
+        if remote_tip() != merge_baseline:
+            bad.append("r34-merge-protected(no-drop)")
+        if merge_tip == merge_baseline:
+            bad.append("r34-merge-protected(setup-empty)")
+        run([git, "branch", "-D", "r34-side"], cwd=work, check=True)
+
+        # Issue #798 review F1: the restore step must not dirty the
+        # auto-commit. A tracked artifact whose PR-head content differs from
+        # the workflow-commit content is restored and marked skip-worktree,
+        # so a subsequent `git add -A` must stage nothing.
+        run([git, "checkout", "-q", "-f", "-B", "r34-restore", workflow_sha],
+            cwd=work, check=True)
+        artifact_path = os.path.join(work, ".github", "actions", "opencode-run",
+                                     "action.yml")
+        with open(artifact_path, "w") as handle:
+            handle.write("pr-head edition\n")
+        run([git, "commit", "-qam", "pr-head artifact"], cwd=work, check=True)
+        restore_env = build_env(sandbox, git_dir, mock_dir, event_pr,
+                                workflow_sha, os.path.join(sandbox, "restore-out"),
+                                pr_view_file, pr_list_file)
+        restore_proc = run([bash, "-c", bodies["restore"]], cwd=work,
+                           env=restore_env)
+        if restore_proc.returncode != 0:
+            bad.append("r34-restore-dirty(rc=%d)" % restore_proc.returncode)
+        run([git, "add", "-A"], cwd=work, check=True)
+        staged = run([git, "diff", "--cached", "--name-only"], cwd=work).stdout
+        if staged.strip():
+            bad.append("r34-restore-dirty(staged:%s)" % staged.replace("\n", ","))
+        run([git, "reset", "--hard", "HEAD"], cwd=work, check=True)
+        run([git, "update-index", "--no-skip-worktree", "--",
+             ".github/actions/opencode-run/action.yml",
+             ".github/scripts/post-peros-findings.sh"], cwd=work, check=False)
+        mutant_restore = bodies["restore"].replace(
+            'git update-index --skip-worktree -z --stdin < "$tracked_list"', ':')
+        if mutant_restore == bodies["restore"]:
+            bad.append("r34-restore-dirty(mutation-anchor-missing)")
+        else:
+            restore_proc = run([bash, "-c", mutant_restore], cwd=work,
+                               env=restore_env)
+            run([git, "add", "-A"], cwd=work, check=True)
+            staged = run([git, "diff", "--cached", "--name-only"],
+                         cwd=work).stdout
+            if not staged.strip():
+                bad.append("r34-restore-dirty(mutant-not-load-bearing)")
+        run([git, "reset", "--hard", "HEAD"], cwd=work, check=True)
+        run([git, "checkout", "-q", "-f", "main"], cwd=work, check=True)
+
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        strip_path = os.path.join(work, ".github", "scripts", "strip-trailers.sh")
+        with open(strip_path) as handle:
+            original_strip = handle.read()
+        with open(strip_path, "w") as handle:
+            handle.write("#!/usr/bin/env bash\nexit 0\n")
+        run([git, "commit", "-qam", "mutant strip"], cwd=work, check=True)
+        mutant_strip_sha = run([git, "rev-parse", "HEAD"], cwd=work, check=True).stdout.strip()
+        scenario("trailer-mutant", [("proj/tests/trailer_test.py", "test\n")], 0, False,
+                 trailers=TRAILER, base=mutant_strip_sha, expect_trailer=True,
+                 push_base_to_main=True)
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        with open(strip_path, "w") as handle:
+            handle.write(original_strip)
+        run([git, "commit", "-qam", "restore strip"], cwd=work, check=True)
+
+    except Exception as exc:  # noqa: BLE001 - any sandbox failure fails closed
+        bad.append("r34-sandbox-failure:%s" % exc)
+    finally:
+        shutil.rmtree(sandbox, ignore_errors=True)
+    if bad:
+        print("BAD:" + " ".join(bad))
+    else:
+        print("OK")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1])
+R34PY
+  r34_out=$(python3 -I "$r34_dir/fixture.py" "$PWD" 2>&1 || true)
+  if [ -z "$r34_out" ]; then
+    r34_out="fixture-emitted-nothing"
+  fi
+  rm -rf "$r34_dir"
+fi
+case "$r34_out" in
+  OK)
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the anchored strip refuses a missing REMOTE_URL, proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and a case-insensitive duplicate scan rejects one tree-wide), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the bare .github gitlink entry, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    ;;
+  *)
+    check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
+    ;;
+esac
 
 summary="Silent-stall regression audit (R1-R34) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
@@ -26295,7 +29062,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
