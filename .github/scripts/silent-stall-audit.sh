@@ -10484,10 +10484,12 @@ r25_comment_agent_timeout() {
     $0 == step { in_step = 1 }
     in_step && /^      - / && $0 != step { in_step = 0 }
     in_step && /^        timeout-minutes:/ && $0 !~ /#/ {
+      found = 1
       print $0 "  # issue #827 hard stop"
       next
     }
     { print }
+    END { exit(found ? 0 : 1) }
   ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
 }
 r25_comment_job_timeout() {
@@ -10496,10 +10498,12 @@ r25_comment_job_timeout() {
     $0 == job { in_job = 1 }
     in_job && /^  [A-Za-z0-9_-]+:$/ && $0 != job { in_job = 0 }
     in_job && /^    timeout-minutes:/ && $0 !~ /#/ {
+      found = 1
       print $0 "  # issue #827 hard stop"
       next
     }
     { print }
+    END { exit(found ? 0 : 1) }
   ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
 }
 r25_selftest_arm() {
@@ -10525,8 +10529,10 @@ r25_selftest_arm() {
   # rewritten on that same commented grammar (issue #829 review F1).
   cp "$wf" "$dir/commented.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/commented.yml" ]; then
-    r25_comment_job_timeout "$dir/commented.yml" "$job"
-    r25_comment_agent_timeout "$dir/commented.yml" "$step"
+    r25_comment_job_timeout "$dir/commented.yml" "$job" \
+      || saved="${saved} ${tag}(selftest-job-comment-missing)"
+    r25_comment_agent_timeout "$dir/commented.yml" "$step" \
+      || saved="${saved} ${tag}(selftest-agent-comment-missing)"
     r25_bad=""
     r25_check_arm "$dir/commented.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
     [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-commented-not-clean)"
@@ -10534,7 +10540,8 @@ r25_selftest_arm() {
 
   cp "$wf" "$dir/mut-agent.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-agent.yml" ]; then
-    r25_comment_agent_timeout "$dir/mut-agent.yml" "$step"
+    r25_comment_agent_timeout "$dir/mut-agent.yml" "$step" \
+      || saved="${saved} ${tag}(selftest-agent-comment-missing)"
     r25_mutate_agent_timeout "$dir/mut-agent.yml" "$step" $((agent_min - 1))
     r25_bad=""
     r25_check_arm "$dir/mut-agent.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
@@ -10546,7 +10553,8 @@ r25_selftest_arm() {
 
   cp "$wf" "$dir/mut-job.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-job.yml" ]; then
-    r25_comment_job_timeout "$dir/mut-job.yml" "$job"
+    r25_comment_job_timeout "$dir/mut-job.yml" "$job" \
+      || saved="${saved} ${tag}(selftest-job-comment-missing)"
     r25_mutate_job_timeout "$dir/mut-job.yml" "$job" $((job_min - 1))
     r25_bad=""
     r25_check_arm "$dir/mut-job.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
@@ -10558,8 +10566,10 @@ r25_selftest_arm() {
 
   cp "$wf" "$dir/mut-headroom.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-headroom.yml" ]; then
-    r25_comment_job_timeout "$dir/mut-headroom.yml" "$job"
-    r25_comment_agent_timeout "$dir/mut-headroom.yml" "$step"
+    r25_comment_job_timeout "$dir/mut-headroom.yml" "$job" \
+      || saved="${saved} ${tag}(selftest-job-comment-missing)"
+    r25_comment_agent_timeout "$dir/mut-headroom.yml" "$step" \
+      || saved="${saved} ${tag}(selftest-agent-comment-missing)"
     r25_mutate_job_timeout "$dir/mut-headroom.yml" "$job" "$job_min"
     r25_mutate_agent_timeout "$dir/mut-headroom.yml" "$step" $((job_min - 19))
     r25_bad=""
