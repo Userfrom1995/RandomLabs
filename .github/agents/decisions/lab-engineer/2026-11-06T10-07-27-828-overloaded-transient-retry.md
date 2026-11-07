@@ -70,4 +70,12 @@ parenthetical suffix and other out-of-family forms. As for every provider
 class, a persistent terminal death is recovered by a fresh run rather than a
 ladder advance.
 
+## Review round 2
+
+The review of PR #830 required the delegation ledger for this change. It is
+recorded in
+`2026-11-07T02-58-09-828-review-round-delegation-ledger-and-doc-parity.md`
+and in the PR description, alongside the applied doc-parity and R15 banner
+notes.
+
 - the Lab Engineer (CTO)
