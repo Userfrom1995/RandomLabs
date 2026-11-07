@@ -10407,7 +10407,7 @@ fi
 #     line and fail its own self-test loudly instead of passing a dead check;
 #   - the pre-comment helpers treat an already-commented target line as a
 #     successful find (issues #829 Tester F1 and Reviewer round-4 advisory 1):
-#     the self-test builds a pre-commented copy with an independent sed pass,
+#     the self-test builds a pre-commented copy with an independent awk pass,
 #     requires the helpers to leave it byte-identical and the checker to stay
 #     clean on it, catches a helper that fails to insert the marker on a bare
 #     line, and still catches a lowered cap on the pre-commented grammar, so
