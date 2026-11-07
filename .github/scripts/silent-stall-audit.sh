@@ -10399,7 +10399,12 @@ fi
 #     agent cap, the job cap, and (with both minimums still satisfied) the
 #     headroom one at a time; each mutant must be caught with its expected
 #     error class and the pristine copy must stay clean, so the new curator
-#     assertion cannot be satisfied by a dead check.
+#     assertion cannot be satisfied by a dead check;
+#   - every mutant copy carries an inline YAML comment after its timeout
+#     digits (issue #829 review F1), so the mutation helpers must rewrite the
+#     same grammar the checker tolerates; a helper that only matches a line
+#     ending in digits would no-op on a valid `timeout-minutes: 90  # ...`
+#     line and fail its own self-test loudly instead of passing a dead check.
 r25_bad=""
 wf_job_block() {
   awk -v job="  $2:" '
@@ -10453,7 +10458,7 @@ r25_mutate_agent_timeout() {
     $0 == step { in_step = 1 }
     in_step && /^      - / && $0 != step { in_step = 0 }
     in_step && /^        timeout-minutes:/ {
-      sub(/[0-9]+[[:space:]]*$/, value)
+      sub(/[0-9]+[[:space:]]*(#.*)?$/, value)
       print
       next
     }
@@ -10466,8 +10471,32 @@ r25_mutate_job_timeout() {
     $0 == job { in_job = 1 }
     in_job && /^  [A-Za-z0-9_-]+:$/ && $0 != job { in_job = 0 }
     in_job && /^    timeout-minutes:/ {
-      sub(/[0-9]+[[:space:]]*$/, value)
+      sub(/[0-9]+[[:space:]]*(#.*)?$/, value)
       print
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_comment_agent_timeout() {
+  local wf="$1" step="$2"
+  awk -v step="      - name: ${step}" '
+    $0 == step { in_step = 1 }
+    in_step && /^      - / && $0 != step { in_step = 0 }
+    in_step && /^        timeout-minutes:/ && $0 !~ /#/ {
+      print $0 "  # issue #827 hard stop"
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_comment_job_timeout() {
+  local wf="$1" job="$2"
+  awk -v job="  ${job}:" '
+    $0 == job { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_-]+:$/ && $0 != job { in_job = 0 }
+    in_job && /^    timeout-minutes:/ && $0 !~ /#/ {
+      print $0 "  # issue #827 hard stop"
       next
     }
     { print }
@@ -10491,8 +10520,21 @@ r25_selftest_arm() {
     [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-pristine-not-clean)"
   fi
 
+  # The checker tolerates an inline YAML comment after the timeout digits, so
+  # a commented pristine copy must stay clean and every mutant below is
+  # rewritten on that same commented grammar (issue #829 review F1).
+  cp "$wf" "$dir/commented.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/commented.yml" ]; then
+    r25_comment_job_timeout "$dir/commented.yml" "$job"
+    r25_comment_agent_timeout "$dir/commented.yml" "$step"
+    r25_bad=""
+    r25_check_arm "$dir/commented.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-commented-not-clean)"
+  fi
+
   cp "$wf" "$dir/mut-agent.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-agent.yml" ]; then
+    r25_comment_agent_timeout "$dir/mut-agent.yml" "$step"
     r25_mutate_agent_timeout "$dir/mut-agent.yml" "$step" $((agent_min - 1))
     r25_bad=""
     r25_check_arm "$dir/mut-agent.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
@@ -10504,6 +10546,7 @@ r25_selftest_arm() {
 
   cp "$wf" "$dir/mut-job.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-job.yml" ]; then
+    r25_comment_job_timeout "$dir/mut-job.yml" "$job"
     r25_mutate_job_timeout "$dir/mut-job.yml" "$job" $((job_min - 1))
     r25_bad=""
     r25_check_arm "$dir/mut-job.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
@@ -10515,6 +10558,8 @@ r25_selftest_arm() {
 
   cp "$wf" "$dir/mut-headroom.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-headroom.yml" ]; then
+    r25_comment_job_timeout "$dir/mut-headroom.yml" "$job"
+    r25_comment_agent_timeout "$dir/mut-headroom.yml" "$step"
     r25_mutate_job_timeout "$dir/mut-headroom.yml" "$job" "$job_min"
     r25_mutate_agent_timeout "$dir/mut-headroom.yml" "$step" $((job_min - 19))
     r25_bad=""
@@ -10540,7 +10585,7 @@ r25_selftest_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
 r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
 r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm (issues #701, #827)" "ok"
+  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm on both the plain and the inline-commented timeout shapes the checker accepts (issues #701, #827, #829)" "ok"
 else
   check "R25" "lab/fix/curator cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch)" "bad"
 fi
