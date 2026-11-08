@@ -5,6 +5,9 @@ recursive-descent parser, a query planner and executor, and a paged B-tree
 storage engine that persists real `.db` files — all driven from a terminal
 CLI.
 
+The commands below run from `archive/granite/`; from the repository root,
+start with `cd archive/granite`.
+
 ```sh
 go build ./cmd/granite
 ./granite demo bookshop.db      # build a demo database and tour every feature
@@ -40,7 +43,7 @@ The whole SQL pipeline is here, from token stream to disk blocks:
 ## Running it
 
 ```sh
-cd granite
+cd archive/granite
 go build ./cmd/granite        # produces ./granite
 go test ./...                 # unit + end-to-end tests
 ```
@@ -63,7 +66,7 @@ auto-committed, so each one persists immediately.
 ## How it's built
 
 ```
-granite/
+archive/granite/
   go.mod
   cmd/granite/          CLI: init/exec/explain/info/demo + the demo tour
   internal/

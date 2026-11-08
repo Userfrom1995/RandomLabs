@@ -14,6 +14,9 @@ you need.
 
 ## Quick start
 
+All commands in this README run from the `archive/` directory (the parent of
+this project) unless a step says otherwise.
+
 ```bash
 # Rule 30 scrolling animation (default)
 python3 -m automatarium

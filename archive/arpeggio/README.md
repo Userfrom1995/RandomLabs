@@ -17,6 +17,9 @@ assets.
 
 ## Quick start
 
+All commands in this README run from the `archive/` directory (the parent of
+this project) unless a step says otherwise.
+
 ```bash
 # Compose an 8-bar tune in C major and write arpeggio.wav
 python3 -m arpeggio
