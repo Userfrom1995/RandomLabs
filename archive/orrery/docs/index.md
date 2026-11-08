@@ -3,7 +3,8 @@
 **Orrery** is a living solar system in the browser: real Keplerian orbital
 mechanics, procedurally textured planets, per-pixel lighting, and a free-fly
 camera — all hand-rolled in **TypeScript on WebGL**, with no external engine.
-It runs entirely on GitHub Pages: [open it](https://userfrom1995.github.io/Random/orrery/) and fly to Jupiter.
+The hosted Pages copy was retired with the archive;
+[open the archived copy](../index.html) and fly to Jupiter.
 
 _WebGL solar system: orbital paths, a glowing Sun, procedurally textured planets, and a free-fly camera._
 
@@ -83,15 +84,14 @@ The render layer is plain WebGL1:
 ## Running it locally
 
 ```sh
-cd orrery
+cd archive/orrery
 npm install        # dev-only: TypeScript + esbuild
-npm run test       # 43 unit tests (orbital core)
+npm run test       # 57 unit tests (orbital core, camera, geometry)
 npm run typecheck  # strict TS
 npm run build      # bundle src/main.ts → app.js
 ```
 
-The bundled `app.js` is committed, so the site needs no build step on
-GitHub Pages.
+The bundled `app.js` is committed, so the archived copy needs no build step.
 
 ## Source
 

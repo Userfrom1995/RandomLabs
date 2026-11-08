@@ -961,7 +961,7 @@
   syncMuteButtons();
   setState('menu');
 
-  // Opt-in debug/test hook: /rush/?debug exposes live state so automated
+  // Opt-in debug/test hook: /archive/rush/?debug exposes live state so automated
   // smoke tests can drive the game deterministically.
   if (/[?&]debug=/.test(window.location.search)) {
     window.RedlineRush = { game: game, world: world };

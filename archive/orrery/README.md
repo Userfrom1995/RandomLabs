@@ -51,7 +51,7 @@ cd archive/orrery
 npm install        # TypeScript + esbuild (dev only)
 npm run build      # bundles src/main.ts → app.js
 npm run typecheck  # strict TS check
-npm run test       # 43 unit tests for the math/orbital/noise core
+npm run test       # 57 unit tests across the math, orbital, noise, camera, and geometry modules
 ```
 
 Then open `archive/orrery/index.html` from the repository root (or `index.html`

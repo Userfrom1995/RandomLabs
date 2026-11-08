@@ -86,12 +86,12 @@ The `?debug=` query flag exposes `window.RedlineRush` (live `game` and
 ## Project layout
 
 ```
-rush/
+archive/rush/
   index.html          game shell, HUD, overlay screens, touch controls
   style.css           theming and layout
   logic.js            pure gameplay rules (unit-tested)
   game.js             rendering, input, audio, game loop
-  logic.test.js       20 Node unit tests
+  logic.test.js       21 Node unit tests
   README.md           this file
 ```
 
@@ -100,5 +100,5 @@ rush/
 Gameplay tuning lives in the frozen `CONFIG` object at the top of
 `logic.js` (difficulty curves, fuel rates, spawn rates, scores, lives).
 Visual tuning (tree spacing, dash lengths, steering speed) lives in the
-`RENDER` object at the top of `game.js`. See `docs/index.md` for the full
-reference table.
+`RENDER` object at the top of `game.js`. Both objects are the full
+configuration reference.
