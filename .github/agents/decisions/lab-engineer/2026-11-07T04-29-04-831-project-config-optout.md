@@ -38,12 +38,60 @@ and lists a sentinel, `opencode.json` with a `username` marker, and
   any canary, while the staged config still supplied `small_model`, the
   mock model, and permissions. Exit status 0.
 
-The loader code confirms the scope: the instruction loader returns an empty
-list when `OPENCODE_DISABLE_PROJECT_CONFIG` is truthy, and the config loader
-always merges the project `opencode.json`/`opencode.jsonc` and `.opencode`
-directories unless that same flag is set, even when `OPENCODE_CONFIG` is
-loaded first. The global config-dir `AGENTS.md` still loads (trusted home),
-which is intended.
+The 1.19.3 loader code confirmed the scope: the instruction loader returns
+an empty list when `OPENCODE_DISABLE_PROJECT_CONFIG` is truthy, and the
+config file loader skips the project `opencode.json`/`opencode.jsonc` merge
+under the same flag, even when `OPENCODE_CONFIG` is loaded first. The global
+config-dir `AGENTS.md` still loads (trusted home), which is intended.
+
+## Import-time plugin channel (Tester round)
+
+The Tester's CLI 1.19.5 canary found the opt-out boundary is narrower than
+the 1.19.3 result: the unconditional plugin walk in
+`packages/opencode/src/config/config.ts` still imports
+`.opencode/plugin/*.js` and `.opencode/plugins/*.js` at process bootstrap
+(`InstanceStore.load` then `plugin.init()`), and that bootstrap runs before
+the GitHub handler's PR-head checkout. On the four PR-head-checkout arms
+(review, test, per-OS, eval) a PR-controlled plugin module would therefore
+execute top-level code before the agent, regardless of the opt-out.
+Upstream tracks the bug (anomalyco/opencode#49836, fix PR #50186), and
+`--pure` does not close it.
+
+This round reproduced the finding locally on the installed 1.19.5 binary
+with the same mock provider and staged config: with the opt-out plus the
+exact grant, `.opencode/plugin/canary.js` imported (sentinel
+`module-imported:/tmp/oc-canary/ws`) and `.opencode/plugins/canary.js`
+imported (sentinel `plural-module-imported`); `.opencode/tool/canary.js`
+and a `.opencode/plugin.js` file were not imported at bootstrap. Removing
+both directories before the CLI started closed the channel (no sentinel,
+exit 0). skip-worktree was tested separately: it does not stop a later
+`git checkout <branch>` from restoring the files, but it does hide the
+deletion from `git status --porcelain`, which is what keeps the
+contents-write arms' end-of-session auto-commit from staging a deletion
+onto the PR branch.
+
+The fix lives in the vendored composite runner, so one trusted change
+covers all 20 composite arms: a new first step removes
+`.opencode/plugin` and `.opencode/plugins` before any CLI process starts,
+marks tracked paths `--skip-worktree` first (aborting loudly if the marking
+fails), removes a `.opencode` symlink without following it, and leaves a
+legitimate `.opencode` tree (no plugin directories) untouched. The four
+PR-head arms restore the composite from `${GITHUB_SHA}` (the default-branch
+tip on `issue_comment` wake-ups), so the guard is trusted code; after this
+PR merges, every later PR's review/test/per-OS/eval runs get it. The
+Maintainer inline arm is not exposed at bootstrap because its pre-agent
+checkout is the trusted default branch; the CLI's PR-head checkout happens
+after plugin initialization.
+
+R31 now pins the guard's exact name, `shell: bash`, unconditional shape,
+position ahead of the CLI step, and every load-bearing marker; it
+mutation-self-tests a removed guard, a gated guard, an interpreter swap, a
+move after the CLI step, and each marker's removal; and it executes the
+real extracted body under `bash --noprofile --norc -eo pipefail` against
+tracked, untracked, symlinked, and clean git fixtures. Controls prove the
+skip-worktree status assertion and the symlink fixture are load-bearing (a
+body without the marking leaves a visible deletion; a naive removal
+through the symlink destroys the target).
 
 ## Wake-path scope
 
@@ -84,8 +132,8 @@ adds the execution-path evidence the session itself can produce:
   `OPENCODE_CONFIG` pointed at the staged maintained config, so this
   directly confirms the issue's premise: the staged config does not stop
   project instruction loading, and the opt-out is required. The plugin
-  channel is covered by the loader canary (control: plugin loaded;
-  treatment: not loaded).
+  channel is the separate 1.19.5 import-time class recorded above: the
+  loader canary plus the pre-CLI removal close it on the four PR-head arms.
 
 Remaining verification gap: the Owner's ask also covers a canary plugin in
 a scratch PR-comment session, the Maintainer arm, and the `pull_request`
@@ -94,7 +142,8 @@ round (a scratch PR cannot be pushed from this session: the PAT-backed
 runner step owns the push, and the canary session must be triggered on a
 disposable PR). The PR therefore stays `Refs #831`, not `Closes #831`,
 until that evidence or an explicit Owner waiver is recorded. The extracted
-wake-path mapping and the loader canary remain the proof for those paths.
+wake-path mapping, the loader canary, and the pre-CLI guard now cover the
+class in code; the remaining gap is the live scratch-session evidence.
 
 ## Review round fixes
 
@@ -108,6 +157,12 @@ wake-path mapping and the loader canary remain the proof for those paths.
   fork's head branch)", matching the shipped CLI bootstrap; LAB.md gains
   the schedule/workflow_dispatch negative clause and the complete
   three-event PR list.
+- T1 (blocking, Tester round): CLI 1.19.5 still imports
+  `.opencode/plugin(s)` modules at bootstrap under the opt-out. Reproduced
+  locally, closed by the vendored runner's pre-CLI removal guard, and the
+  claim is corrected in `AGENTS.md`, `LAB.md`, the decision note, the R31
+  wording, the arm env comments, and the Maintainer envelope. R31 pins the
+  guard statically and functionally.
 
 ## Delegation ledger
 
@@ -138,13 +193,24 @@ Loaded `customize-opencode`: applied its escape-hatch guidance
   states that the staged prompt is authoritative and project config is
   disabled.
 - `opencode.yml` (all nine modes), `lab.yml`, `curator.yml`, `auditor.yml`,
-  `ideate.yml`, `opencode-recover.yml`: opt-out plus the exact grant.
+  `ideate.yml`, `opencode-recover.yml`: opt-out plus the exact grant; the
+  env comments now scope the opt-out to config/instructions and name the
+  pre-CLI plugin-directory removal.
 - `.github/scripts/silent-stall-audit.sh`: R31 requires the pair on every
   comment-triggered agent step and on the Maintainer inline arm, with
-  remove/re-enable/weaken mutation self-tests per arm; R26's manifest and
-  the R28 referenced-step env pin were updated in sync.
-- `AGENTS.md`, `LAB.md`, `.github/actions/opencode-run/action.yml`:
-  documentation corrected and extended.
+  remove/re-enable/weaken mutation self-tests per arm; the same rule pins
+  the pre-CLI plugin guard (exact name, `shell: bash`, unconditional shape,
+  position ahead of the CLI step, every load-bearing marker) with
+  removed/gated/interpreter/moved/marker mutation self-tests and functional
+  tracked/untracked/symlinked/clean fixtures plus load-bearing controls;
+  R26's manifest (regenerated for the envelope edit) and the R28
+  referenced-step env pin were updated in sync.
+- `.github/actions/opencode-run/action.yml`: the pre-CLI project-plugin
+  sanitizer (symlink-safe removal, skip-worktree marking before deletion,
+  loud marking failure) plus the corrected header scope note.
+- `AGENTS.md`, `LAB.md`, the decision note, and the 15 arm comments: the
+  opt-out claim corrected to config/instructions only, with the 1.19.5
+  import-time plugin channel and the sanitizer documented.
 - Review round: the `maintainer.yml` #831 comment now names the PR head
   branch (or fork head branch), `LAB.md` gains the complete wake-path
   sentence (three PR-triggered events, schedule/workflow_dispatch never
@@ -153,14 +219,33 @@ Loaded `customize-opencode`: applied its escape-hatch guidance
 
 ## Verification
 
-- All modified workflow files parse with a strict duplicate-key-rejecting
-  loader.
+- All modified workflow files and the composite action parse with a strict
+  duplicate-key-rejecting loader (21 files).
 - A structural enumeration across all 20 workflow files finds 21 agent
   steps (20 composite-action steps plus the Maintainer inline arm), and all
   21 carry the exact opt-out plus grant.
+- The installed 1.19.5 binary was exercised twice with the mock provider:
+  with the opt-out, `.opencode/plugin/*.js` and `.opencode/plugins/*.js`
+  both imported (sentinel lines), `.opencode/tool/*.js` and a
+  `.opencode/plugin.js` file did not, and removing the two plugin
+  directories closed the channel (no sentinel, exit 0). skip-worktree was
+  verified to hide the deletion from `git status --porcelain` (it does not
+  block a later checkout restore, which is not the import window).
+- The extracted guard body was executed under
+  `bash --noprofile --norc -eo pipefail` against tracked, untracked,
+  symlinked, and clean fixture repositories: both plugin directories are
+  removed, tracked paths carry the `S` skip-worktree bit, `git status`
+  stays clean, unrelated files survive, the symlink target survives, and
+  the controls (no marking; naive symlink-following removal) fail as
+  expected.
 - `timeout 1800 env -u LAB_RUN_NONCE bash .github/scripts/silent-stall-audit.sh`
   on the rebased head: 34 passed, 0 failed, exit 0. The first pre-rebase
   run caught the stale R28 `AGENT_ENV` pin; the pin now carries the pair.
+- Timing note: the four PR-head arms restore the composite from
+  `${GITHUB_SHA}` (the default-branch tip on `issue_comment` wake-ups), so
+  the guard protects PRs after this PR merges; this PR's own review/test
+  runs use the pre-merge main copy, and the branch carries no plugin
+  directory, so there is nothing for that copy to import.
 - Diff hygiene: no em dash or `Co-authored-by` additions; every commit
   subject starts with `lab:`; the working tree holds only the intended
   edits.
