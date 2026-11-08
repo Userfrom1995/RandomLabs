@@ -502,6 +502,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          # Issue #798 review B8: pin the contents-API host so an agent-exported
+          # GH_HOST from $GITHUB_ENV cannot redirect the trusted helper read.
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -551,15 +554,34 @@ jobs:
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
         run: |
           # Issue #798: the vendored runner auto-commits inside the agent step,
-          # so leaked owner trailers can only be removed after its push. Execute
-          # the trusted workflow-commit strip helper from memory (never the
-          # PR-head workspace copy) with the job-scoped token, exactly like the
-          # build/fix arms (issue #689). Issue #798 review F2/F3/F7: pass the
-          # captured pre-agent baseline so only the new range is rewritten, and
-          # the pinned REMOTE_URL plus the hardened config env so the helper
-          # never trusts the post-agent workspace remote.
+          # so leaked owner trailers can only be removed after its push. Issue #798
+          # review B8: read the reviewed strip helper through the GitHub contents
+          # API, never with a post-agent `git show`. An agent can export GIT_DIR or
+          # GIT_OBJECT_DIRECTORY through $GITHUB_ENV and plant a fake loose object
+          # named GITHUB_SHA; git accepts it without hash verification, so a
+          # workspace read would execute attacker-controlled helper text and turn
+          # this step into a no-op. The API read is SHA-addressed to this run's
+          # workflow commit and has no workspace git surface; the fresh private
+          # GH_CONFIG_DIR prelude, the GH_HOST pin, and the lowercase-proxy unset
+          # keep an agent-planted gh config or proxy from redirecting it (issue
+          # #798 review B1 class). Issue #798 review F2/F3/F7: pass the captured
+          # pre-agent baseline so only the new range is rewritten, and the pinned
+          # REMOTE_URL plus the hardened config env so the helper never trusts the
+          # post-agent workspace remote.
           set -eo pipefail
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh" 2>/dev/null) || strip=""
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the trailer strip; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+          strip=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/strip-trailers.sh?ref=${GITHUB_SHA}" 2>/dev/null) || strip=""
           if [ -z "$strip" ]; then
             echo "::error::Trailer strip helper absent from workflow commit ${GITHUB_SHA}; refusing to leave an unsanitized branch (issue #798, fail closed)."
             exit 1
@@ -572,6 +594,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          # Issue #798 review B8: pin the contents-API host so an agent-exported
+          # GH_HOST from $GITHUB_ENV cannot redirect the trusted helper read.
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -624,9 +649,30 @@ jobs:
           # guard judges only commits after the captured baseline, attributes
           # them by committer identity, and fails closed (dropping a fully
           # tester-owned range) when any of them leaves the project test lane or
-          # touches a protected lab path.
+          # touches a protected lab path. Issue #798 review B8: read the reviewed
+          # guard through the GitHub contents API, never with a post-agent
+          # `git show`. An agent can export GIT_DIR or GIT_OBJECT_DIRECTORY through
+          # $GITHUB_ENV and plant a fake loose object named GITHUB_SHA; git accepts
+          # it without hash verification, so a workspace read would execute
+          # attacker-controlled helper text and turn the guard into a no-op. The
+          # API read is SHA-addressed to this run's workflow commit and has no
+          # workspace git surface; the fresh private GH_CONFIG_DIR prelude, the
+          # GH_HOST pin, and the lowercase-proxy unset keep an agent-planted gh
+          # config or proxy from redirecting it (issue #798 review B1 class).
           set -eo pipefail
-          guard=$(git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh" 2>/dev/null) || guard=""
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the scope guard; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+          guard=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/peros-scope-guard.sh?ref=${GITHUB_SHA}" 2>/dev/null) || guard=""
           if [ -z "$guard" ]; then
             echo "::error::Per-OS scope guard absent from workflow commit ${GITHUB_SHA}; refusing to leave an unscoped branch (issue #798, fail closed)."
             exit 1
@@ -721,6 +767,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
@@ -800,6 +849,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
@@ -1362,6 +1414,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          # Issue #798 review B8: pin the contents-API host so an agent-exported
+          # GH_HOST from $GITHUB_ENV cannot redirect the trusted helper read.
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -1411,15 +1466,34 @@ jobs:
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
         run: |
           # Issue #798: the vendored runner auto-commits inside the agent step,
-          # so leaked owner trailers can only be removed after its push. Execute
-          # the trusted workflow-commit strip helper from memory (never the
-          # PR-head workspace copy) with the job-scoped token, exactly like the
-          # build/fix arms (issue #689). Issue #798 review F2/F3/F7: pass the
-          # captured pre-agent baseline so only the new range is rewritten, and
-          # the pinned REMOTE_URL plus the hardened config env so the helper
-          # never trusts the post-agent workspace remote.
+          # so leaked owner trailers can only be removed after its push. Issue #798
+          # review B8: read the reviewed strip helper through the GitHub contents
+          # API, never with a post-agent `git show`. An agent can export GIT_DIR or
+          # GIT_OBJECT_DIRECTORY through $GITHUB_ENV and plant a fake loose object
+          # named GITHUB_SHA; git accepts it without hash verification, so a
+          # workspace read would execute attacker-controlled helper text and turn
+          # this step into a no-op. The API read is SHA-addressed to this run's
+          # workflow commit and has no workspace git surface; the fresh private
+          # GH_CONFIG_DIR prelude, the GH_HOST pin, and the lowercase-proxy unset
+          # keep an agent-planted gh config or proxy from redirecting it (issue
+          # #798 review B1 class). Issue #798 review F2/F3/F7: pass the captured
+          # pre-agent baseline so only the new range is rewritten, and the pinned
+          # REMOTE_URL plus the hardened config env so the helper never trusts the
+          # post-agent workspace remote.
           set -eo pipefail
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh" 2>/dev/null) || strip=""
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the trailer strip; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+          strip=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/strip-trailers.sh?ref=${GITHUB_SHA}" 2>/dev/null) || strip=""
           if [ -z "$strip" ]; then
             echo "::error::Trailer strip helper absent from workflow commit ${GITHUB_SHA}; refusing to leave an unsanitized branch (issue #798, fail closed)."
             exit 1
@@ -1432,6 +1506,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          # Issue #798 review B8: pin the contents-API host so an agent-exported
+          # GH_HOST from $GITHUB_ENV cannot redirect the trusted helper read.
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -1484,9 +1561,30 @@ jobs:
           # guard judges only commits after the captured baseline, attributes
           # them by committer identity, and fails closed (dropping a fully
           # tester-owned range) when any of them leaves the project test lane or
-          # touches a protected lab path.
+          # touches a protected lab path. Issue #798 review B8: read the reviewed
+          # guard through the GitHub contents API, never with a post-agent
+          # `git show`. An agent can export GIT_DIR or GIT_OBJECT_DIRECTORY through
+          # $GITHUB_ENV and plant a fake loose object named GITHUB_SHA; git accepts
+          # it without hash verification, so a workspace read would execute
+          # attacker-controlled helper text and turn the guard into a no-op. The
+          # API read is SHA-addressed to this run's workflow commit and has no
+          # workspace git surface; the fresh private GH_CONFIG_DIR prelude, the
+          # GH_HOST pin, and the lowercase-proxy unset keep an agent-planted gh
+          # config or proxy from redirecting it (issue #798 review B1 class).
           set -eo pipefail
-          guard=$(git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh" 2>/dev/null) || guard=""
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the scope guard; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+          guard=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/peros-scope-guard.sh?ref=${GITHUB_SHA}" 2>/dev/null) || guard=""
           if [ -z "$guard" ]; then
             echo "::error::Per-OS scope guard absent from workflow commit ${GITHUB_SHA}; refusing to leave an unscoped branch (issue #798, fail closed)."
             exit 1
@@ -1581,6 +1679,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #692: run 39170578536 died at the agent-step cap with 5 of
@@ -1693,6 +1794,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
@@ -1772,6 +1876,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: uniform with the other per-OS forwarders; inert here,
@@ -2326,6 +2433,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          # Issue #798 review B8: pin the contents-API host so an agent-exported
+          # GH_HOST from $GITHUB_ENV cannot redirect the trusted helper read.
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -2375,15 +2485,34 @@ jobs:
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
         run: |
           # Issue #798: the vendored runner auto-commits inside the agent step,
-          # so leaked owner trailers can only be removed after its push. Execute
-          # the trusted workflow-commit strip helper from memory (never the
-          # PR-head workspace copy) with the job-scoped token, exactly like the
-          # build/fix arms (issue #689). Issue #798 review F2/F3/F7: pass the
-          # captured pre-agent baseline so only the new range is rewritten, and
-          # the pinned REMOTE_URL plus the hardened config env so the helper
-          # never trusts the post-agent workspace remote.
+          # so leaked owner trailers can only be removed after its push. Issue #798
+          # review B8: read the reviewed strip helper through the GitHub contents
+          # API, never with a post-agent `git show`. An agent can export GIT_DIR or
+          # GIT_OBJECT_DIRECTORY through $GITHUB_ENV and plant a fake loose object
+          # named GITHUB_SHA; git accepts it without hash verification, so a
+          # workspace read would execute attacker-controlled helper text and turn
+          # this step into a no-op. The API read is SHA-addressed to this run's
+          # workflow commit and has no workspace git surface; the fresh private
+          # GH_CONFIG_DIR prelude, the GH_HOST pin, and the lowercase-proxy unset
+          # keep an agent-planted gh config or proxy from redirecting it (issue
+          # #798 review B1 class). Issue #798 review F2/F3/F7: pass the captured
+          # pre-agent baseline so only the new range is rewritten, and the pinned
+          # REMOTE_URL plus the hardened config env so the helper never trusts the
+          # post-agent workspace remote.
           set -eo pipefail
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh" 2>/dev/null) || strip=""
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the trailer strip; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+          strip=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/strip-trailers.sh?ref=${GITHUB_SHA}" 2>/dev/null) || strip=""
           if [ -z "$strip" ]; then
             echo "::error::Trailer strip helper absent from workflow commit ${GITHUB_SHA}; refusing to leave an unsanitized branch (issue #798, fail closed)."
             exit 1
@@ -2396,6 +2525,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          # Issue #798 review B8: pin the contents-API host so an agent-exported
+          # GH_HOST from $GITHUB_ENV cannot redirect the trusted helper read.
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -2448,9 +2580,30 @@ jobs:
           # guard judges only commits after the captured baseline, attributes
           # them by committer identity, and fails closed (dropping a fully
           # tester-owned range) when any of them leaves the project test lane or
-          # touches a protected lab path.
+          # touches a protected lab path. Issue #798 review B8: read the reviewed
+          # guard through the GitHub contents API, never with a post-agent
+          # `git show`. An agent can export GIT_DIR or GIT_OBJECT_DIRECTORY through
+          # $GITHUB_ENV and plant a fake loose object named GITHUB_SHA; git accepts
+          # it without hash verification, so a workspace read would execute
+          # attacker-controlled helper text and turn the guard into a no-op. The
+          # API read is SHA-addressed to this run's workflow commit and has no
+          # workspace git surface; the fresh private GH_CONFIG_DIR prelude, the
+          # GH_HOST pin, and the lowercase-proxy unset keep an agent-planted gh
+          # config or proxy from redirecting it (issue #798 review B1 class).
           set -eo pipefail
-          guard=$(git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh" 2>/dev/null) || guard=""
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the scope guard; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+          guard=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/peros-scope-guard.sh?ref=${GITHUB_SHA}" 2>/dev/null) || guard=""
           if [ -z "$guard" ]; then
             echo "::error::Per-OS scope guard absent from workflow commit ${GITHUB_SHA}; refusing to leave an unscoped branch (issue #798, fail closed)."
             exit 1
@@ -2545,6 +2698,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #692: same salvage contract as the macOS arm (see the macOS
@@ -2650,6 +2806,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
@@ -2729,6 +2888,9 @@ jobs:
           NO_PROXY: ""
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
+          # Issue #798 N12 review follow-up: an agent-exported TMPDIR cannot
+          # redirect the job-token scratch config under an agent-writable parent.
+          TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: the live regression. Under Git Bash on windows-latest,

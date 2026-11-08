@@ -6513,9 +6513,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="9ec0d137d568144ea831f95c04998f7f38c15b48b230a078177a37651ff4640e" \
-  R17_MACOS_PROMPT_SHA="af1450ca94c04b4cd6d18754dbd207cd53447aba6d9ec16de6a72d5da7710689" \
-  R17_WINDOWS_PROMPT_SHA="377668b4d5cefb18852d8563bb907ae25ea2e186239410442ffc106b6843c983" \
+  R17_LINUX_PROMPT_SHA="9d1efd0ec621f2d56d42c069ef757cad17a3d165fcecacde4422676a0cc237ac" \
+  R17_MACOS_PROMPT_SHA="ac6265893251a68b5e3b1fb3d281f0e30cac6191f35d4bb54755e1c5adafaddb" \
+  R17_WINDOWS_PROMPT_SHA="68857911c7929aec3cae600b95c6918bdfb3dd818b5c09ebbe53d2e41f45f910" \
   R17_LINUX_AGENT_PROMPT_SHA="b94cdb8c0dfab79e7f1ae1f29d5df0a5c897e873820db1c55e02c6194be3b5a0" \
   R17_MACOS_AGENT_PROMPT_SHA="5e055d83797453c62224290eb6832cf584f3bffff4238830a1a2796951dc9ff5" \
   R17_WINDOWS_AGENT_PROMPT_SHA="d5fa487dce7bd7b82229c69c68b170eb956598abe65313f63173bebc0beb5404" \
@@ -6523,8 +6523,8 @@ r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50
   R17_GATE_BLOCK_SHA="6e53d7337e64f289668809158a2eb5cf401ed53c415e0f2791788a5b0ccf71bb" \
   R17_RESTORE_BLOCK_SHA="799a06adc38e6fece750aaff51f5376a5f14e15e2d12f2ee9f6645f2c2a7e662" \
   R17_BASELINE_BLOCK_SHA="d542381d2064778c3b4095625b080c08eb016e77948d3ad7cd6f5b1aed29a45c" \
-  R17_STRIP_BLOCK_SHA="511e6ad1723bb68d50be5a1a29e9ef10fd2dfc642e65809979542291c8246ab4" \
-  R17_SCOPE_BLOCK_SHA="0d83f2469844240d4dafab1b040c8c832842c40ef24f2264133c87e67abfc9b7" \
+  R17_STRIP_BLOCK_SHA="371942be85a2138573040c03ece3fcba4588acf50b7e82a5d2e6987e04aca2d8" \
+  R17_SCOPE_BLOCK_SHA="c6190d88c295ee9ad4f254ffbdd9ffcf51dbd792830f18f8f9f355e8abce77e1" \
   python3 -I - <<'R17STAGEPY'
 import copy
 import hashlib
@@ -6682,6 +6682,10 @@ OWNER_PAT_ENV = {
     "LD_AUDIT": "",
     "LD_LIBRARY_PATH": "",
     "LD_PRELOAD": "",
+    # Issue #798 N12 review follow-up: pin TMPDIR so an agent-exported value
+    # cannot place the fresh gh config directory under an agent-writable
+    # parent (defense in depth on top of the same-UID residual).
+    "TMPDIR": "/tmp",
     # Issue #798 Quality Council env-seam finding: every post-agent
     # trust-boundary step must pin the uppercase proxy/TLS redirections empty
     # in its env map and unset the lowercase spellings in its body (GitHub
@@ -6733,6 +6737,29 @@ PEROS_POSTER_FETCH = (
     '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/post-peros-findings.sh'
     '?ref=${GITHUB_SHA}"'
 )
+# Issue #798 review B8: the sanitizer bodies must read the reviewed helper
+# through the contents API. A post-agent `git show` trusts the agent-writable
+# workspace object store: an agent-exported GIT_DIR or GIT_OBJECT_DIRECTORY
+# plus a fake loose object named GITHUB_SHA (git does not re-hash loose
+# objects) returns attacker helper text and silently no-ops the strip/guard.
+# The API-vs-git-show needles keep that property visible even if the block
+# SHA pin is ever regenerated in lockstep with a revert.
+PEROS_STRIP_FETCH = (
+    'strip=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" '
+    '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/strip-trailers.sh'
+    '?ref=${GITHUB_SHA}" 2>/dev/null) || strip=""'
+)
+PEROS_SCOPE_FETCH = (
+    'guard=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" '
+    '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/peros-scope-guard.sh'
+    '?ref=${GITHUB_SHA}" 2>/dev/null) || guard=""'
+)
+PEROS_STRIP_GIT_SHOW = (
+    'git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh"'
+)
+PEROS_SCOPE_GIT_SHOW = (
+    'git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh"'
+)
 PEROS_GIT_PLUMBING_RE = re.compile(
     r"(^|[;&|(]|\s)git\s+(cat-file|fetch|show|config)\b"
 )
@@ -6755,6 +6782,10 @@ def owner_pat_body_problems(step, kind):
         out.append("%s-git-plumbing" % kind)
     if kind in ("post", "salvage") and PEROS_POSTER_FETCH not in run:
         out.append("%s-poster-not-api" % kind)
+    if kind == "strip" and PEROS_STRIP_FETCH not in run:
+        out.append("%s-not-api" % kind)
+    if kind == "scope" and PEROS_SCOPE_FETCH not in run:
+        out.append("%s-not-api" % kind)
     return out
 
 
@@ -7178,6 +7209,7 @@ def validate(doc, expected):
             expected_strip_env = {
                 "BASH_ENV": "/dev/null",
                 "ENV": "/dev/null",
+                "GH_HOST": "github.com",
                 "GH_TOKEN": "${{ github.token }}",
                 "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
                 "GIT_ASKPASS": "/bin/false",
@@ -7232,14 +7264,17 @@ def validate(doc, expected):
                 or normalized_sha(strip_run) != STRIP_BLOCK_SHA
             ):
                 out.append("peros-staging(%s:strip-block-not-exact)" % label)
-            elif (
-                'git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh"'
-                not in strip_run
-                or "printf '%s\\n' \"$strip\" | bash -s" not in strip_run
-            ):
-                out.append(
-                    "peros-staging(%s:strip-not-trusted-read)" % label
-                )
+            else:
+                if (
+                    PEROS_STRIP_FETCH not in strip_run
+                    or PEROS_STRIP_GIT_SHOW in strip_run
+                    or "printf '%s\\n' \"$strip\" | bash -s" not in strip_run
+                ):
+                    out.append(
+                        "peros-staging(%s:strip-not-trusted-read)" % label
+                    )
+                for problem in owner_pat_body_problems(strip_step, "strip"):
+                    out.append("peros-staging(%s:%s)" % (label, problem))
         if len(scope_hits) != 1:
             out.append(
                 "peros-staging(%s:scope-step-count=%d)" % (label, len(scope_hits))
@@ -7250,6 +7285,7 @@ def validate(doc, expected):
             expected_scope_env = {
                 "BASH_ENV": "/dev/null",
                 "ENV": "/dev/null",
+                "GH_HOST": "github.com",
                 "GH_TOKEN": "${{ github.token }}",
                 "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
                 "GIT_ASKPASS": "/bin/false",
@@ -7301,14 +7337,17 @@ def validate(doc, expected):
                 or normalized_sha(scope_run) != SCOPE_BLOCK_SHA
             ):
                 out.append("peros-staging(%s:scope-block-not-exact)" % label)
-            elif (
-                'git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh"'
-                not in scope_run
-                or 'bash -s -- "$BASELINE_SHA" "$PEROS_OS"' not in scope_run
-            ):
-                out.append(
-                    "peros-staging(%s:scope-not-trusted-read)" % label
-                )
+            else:
+                if (
+                    PEROS_SCOPE_FETCH not in scope_run
+                    or PEROS_SCOPE_GIT_SHOW in scope_run
+                    or 'bash -s -- "$BASELINE_SHA" "$PEROS_OS"' not in scope_run
+                ):
+                    out.append(
+                        "peros-staging(%s:scope-not-trusted-read)" % label
+                    )
+                for problem in owner_pat_body_problems(scope_step, "scope"):
+                    out.append("peros-staging(%s:%s)" % (label, problem))
         if (
             len(baseline_hits) == 1
             and len(strip_hits) == 1
@@ -7687,6 +7726,128 @@ if isinstance(doc, dict):
             )
     if not any("post-no-fresh-gh-config" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-gh-config-trap-removed)")
+    # Issue #798 review B8: the sanitizer bodies must read the reviewed
+    # helper through the contents API, never a post-agent `git show`. Each
+    # revert mutant rebinds the whole-region SHA to the mutated body so only
+    # the API-read property (and the git-plumbing ban) can fail the test,
+    # proving the needles are load-bearing rather than redundant with the
+    # SHA pin.
+    mutant = copy.deepcopy(doc)
+    for job_id in ("test-linux", "test-macos", "test-windows"):
+        for step in mutant["jobs"][job_id]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "strip_trailers":
+                step["run"] = step["run"].replace(
+                    PEROS_STRIP_FETCH,
+                    'strip=$(%s 2>/dev/null) || strip=""'
+                    % PEROS_STRIP_GIT_SHOW,
+                )
+    saved_strip_sha = STRIP_BLOCK_SHA
+    STRIP_BLOCK_SHA = normalized_sha(
+        next(
+            step["run"]
+            for step in mutant["jobs"]["test-linux"]["steps"]
+            if isinstance(step, dict) and step.get("id") == "strip_trailers"
+        )
+    )
+    try:
+        strip_revert_problems = validate(mutant, EXPECTED)
+        for marker in ("strip-not-trusted-read", "strip-git-plumbing", "strip-not-api"):
+            if not any(marker in p for p in strip_revert_problems):
+                problems.append(
+                    "peros-staging(self-test-strip-git-show-reverted:%s)"
+                    % marker
+                )
+    finally:
+        STRIP_BLOCK_SHA = saved_strip_sha
+    mutant = copy.deepcopy(doc)
+    for job_id in ("test-linux", "test-macos", "test-windows"):
+        for step in mutant["jobs"][job_id]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "scope_guard":
+                step["run"] = step["run"].replace(
+                    PEROS_SCOPE_FETCH,
+                    'guard=$(%s 2>/dev/null) || guard=""'
+                    % PEROS_SCOPE_GIT_SHOW,
+                )
+    saved_scope_sha = SCOPE_BLOCK_SHA
+    SCOPE_BLOCK_SHA = normalized_sha(
+        next(
+            step["run"]
+            for step in mutant["jobs"]["test-macos"]["steps"]
+            if isinstance(step, dict) and step.get("id") == "scope_guard"
+        )
+    )
+    try:
+        scope_revert_problems = validate(mutant, EXPECTED)
+        for marker in ("scope-not-trusted-read", "scope-git-plumbing", "scope-not-api"):
+            if not any(marker in p for p in scope_revert_problems):
+                problems.append(
+                    "peros-staging(self-test-scope-git-show-reverted:%s)"
+                    % marker
+                )
+    finally:
+        SCOPE_BLOCK_SHA = saved_scope_sha
+    mutant = copy.deepcopy(doc)
+    for job_id in ("test-linux", "test-macos", "test-windows"):
+        for step in mutant["jobs"][job_id]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "strip_trailers":
+                step["run"] = step["run"].replace(
+                    'export GH_CONFIG_DIR="$gh_cfg"\n', ""
+                )
+    saved_strip_sha = STRIP_BLOCK_SHA
+    STRIP_BLOCK_SHA = normalized_sha(
+        next(
+            step["run"]
+            for step in mutant["jobs"]["test-windows"]["steps"]
+            if isinstance(step, dict) and step.get("id") == "strip_trailers"
+        )
+    )
+    try:
+        if not any(
+            "strip-no-fresh-gh-config" in p
+            for p in validate(mutant, EXPECTED)
+        ):
+            problems.append(
+                "peros-staging(self-test-strip-gh-config-prelude-weakened)"
+            )
+    finally:
+        STRIP_BLOCK_SHA = saved_strip_sha
+    mutant = copy.deepcopy(doc)
+    for job_id in ("test-linux", "test-macos", "test-windows"):
+        for step in mutant["jobs"][job_id]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "scope_guard":
+                step["run"] = step["run"].replace(
+                    'export GH_CONFIG_DIR="$gh_cfg"\n', ""
+                )
+    saved_scope_sha = SCOPE_BLOCK_SHA
+    SCOPE_BLOCK_SHA = normalized_sha(
+        next(
+            step["run"]
+            for step in mutant["jobs"]["test-windows"]["steps"]
+            if isinstance(step, dict) and step.get("id") == "scope_guard"
+        )
+    )
+    try:
+        if not any(
+            "scope-no-fresh-gh-config" in p
+            for p in validate(mutant, EXPECTED)
+        ):
+            problems.append(
+                "peros-staging(self-test-scope-gh-config-prelude-weakened)"
+            )
+    finally:
+        SCOPE_BLOCK_SHA = saved_scope_sha
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "strip_trailers":
+            step["env"]["GH_HOST"] = "evil.example"
+    if not any("strip-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-strip-gh-host-swapped)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["env"].pop("GH_HOST", None)
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-gh-host-removed)")
     mutant = copy.deepcopy(doc)
     for step in mutant["jobs"]["test-macos"]["steps"]:
         if isinstance(step, dict) and step.get("name") == BASELINE_NAME:
@@ -7938,7 +8099,7 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a fail-closed read-only live-path endpoint snapshot (bytes, inode, size, mtime; an unreadable live path fails the rule, with a sandbox unreadable fixture proving that path load-bearing) detects any persistent change to /tmp/random-lab-decision.json between the endpoint samples (issues #608, #713, #763, #791, #843)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed; the strip and scope sanitizers read the reviewed helpers through the GitHub contents API, never a post-agent git show that would trust an agent-exported GIT_DIR or GIT_OBJECT_DIRECTORY plus a fake loose object named GITHUB_SHA, with the fresh private GH_CONFIG_DIR prelude, the GH_HOST pin, and the lowercase-proxy unset pinned, and revert/prelude/gh-host mutation self-tests keeping the API read and prelude load-bearing; issue #798 review B8)), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a fail-closed read-only live-path endpoint snapshot (bytes, inode, size, mtime; an unreadable live path fails the rule, with a sandbox unreadable fixture proving that path load-bearing) detects any persistent change to /tmp/random-lab-decision.json between the endpoint samples (issues #608, #713, #763, #791, #843)" "ok"
 else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce; issue #843: the CR and MSYS fixtures must never write the live decision contract, so a killed audit cannot leave fixture bytes behind)" "bad"
 fi
@@ -30396,9 +30557,26 @@ def extract_bodies():
         if bodies[arm] != bodies[ARMS[0]]:
             raise SystemExit("r34-extract-arm-bodies-differ")
     linux = bodies[ARMS[0]]
-    if 'git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh"' not in linux["strip"]:
+    strip_fetch = (
+        'gh api --hostname github.com -H "Accept: application/vnd.github.raw" '
+        '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/strip-trailers.sh'
+        '?ref=${GITHUB_SHA}"'
+    )
+    scope_fetch = (
+        'gh api --hostname github.com -H "Accept: application/vnd.github.raw" '
+        '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/peros-scope-guard.sh'
+        '?ref=${GITHUB_SHA}"'
+    )
+    if strip_fetch not in linux["strip"]:
         raise SystemExit("r34-extract-strip-not-trusted")
-    if 'git show "${GITHUB_SHA}:.github/scripts/peros-scope-guard.sh"' not in linux["scope"]:
+    if scope_fetch not in linux["scope"]:
+        raise SystemExit("r34-extract-scope-not-trusted")
+    # Issue #798 review B8: a post-agent `git show` trusts the agent-writable
+    # workspace object store (an exported GIT_DIR/GIT_OBJECT_DIRECTORY plus a
+    # fake loose object named GITHUB_SHA executes attacker helper text).
+    if 'git show "${GITHUB_SHA}' in linux["strip"]:
+        raise SystemExit("r34-extract-strip-not-trusted")
+    if 'git show "${GITHUB_SHA}' in linux["scope"]:
         raise SystemExit("r34-extract-scope-not-trusted")
     if "bash .github/scripts/peros-scope-guard.sh" in linux["scope"]:
         raise SystemExit("r34-extract-scope-workspace-copy")
@@ -30474,13 +30652,41 @@ def main(root):
         os.makedirs(mock_dir)
         mock_gh = os.path.join(mock_dir, "gh")
         with open(mock_gh, "w", encoding="utf-8") as handle:
+            # Issue #798 review B8: serve the sanitizer helper read from the
+            # contents API, resolving the requested workflow-commit ref from
+            # the bare origin. The mock rejects any argv shape other than the
+            # pinned gh api invocation, and it scrubs the agent-exported git
+            # plumbing before its own resolution so a hostile GIT_DIR or
+            # GIT_OBJECT_DIRECTORY cannot hijack the fixture's own lookup.
             handle.write(
                 "#!/usr/bin/env bash\n"
-                "case \"$1 $2\" in\n"
+                "set -u\n"
+                "case \"${1:-} ${2:-}\" in\n"
                 "  'pr list') cat \"$R34_PR_LIST_FILE\" ;;\n"
                 "  'pr view') cat \"$R34_PR_VIEW_FILE\" ;;\n"
+                "  'api '*)\n"
+                "    if [ \"$#\" -ne 6 ] || [ \"${2:-}\" != \"--hostname\" ]"
+                " || [ \"${3:-}\" != \"github.com\" ]"
+                " || [ \"${4:-}\" != \"-H\" ]"
+                " || [ \"${5:-}\" != \"Accept: application/vnd.github.raw\" ]; then\n"
+                "      echo \"r34-mock-gh-api-shape:$*\" >&2\n"
+                "      exit 91\n"
+                "    fi\n"
+                "    endpoint=\"$6\"\n"
+                "    prefix=\"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/\"\n"
+                "    case \"$endpoint\" in\n"
+                "      \"${prefix}strip-trailers.sh?ref=\"*) helper=\"strip-trailers.sh\" ;;\n"
+                "      \"${prefix}peros-scope-guard.sh?ref=\"*) helper=\"peros-scope-guard.sh\" ;;\n"
+                "      *) echo \"r34-mock-gh-api-endpoint:$endpoint\" >&2; exit 91 ;;\n"
+                "    esac\n"
+                "    ref=\"${endpoint##*?ref=}\"\n"
+                "    exec env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE"
+                " -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES"
+                " -u GIT_COMMON_DIR -u GIT_NAMESPACE -u GIT_CONFIG"
+                " -u GIT_CONFIG_PARAMETERS -u GIT_EXEC_PATH"
+                " \"%s\" --git-dir=\"%s\" show \"${ref}:.github/scripts/${helper}\" ;;\n"
                 "  *) exit 90 ;;\n"
-                "esac\n"
+                "esac\n" % (git, origin)
             )
         os.chmod(mock_gh, 0o755)
         event_pr = os.path.join(sandbox, "event-pr.json")
@@ -30527,6 +30733,61 @@ def main(root):
         workflow_sha = run([git, "rev-parse", "HEAD"], cwd=work, check=True).stdout.strip()
         if not workflow_sha:
             raise SystemExit("r34-setup-no-workflow-sha")
+
+        # Issue #798 review B8: build a fake object store whose loose commit
+        # object is aliased under workflow_sha. git does not re-hash a loose
+        # object when it reads it, so an agent-exported GIT_DIR or
+        # GIT_OBJECT_DIRECTORY pointing at this store makes a post-agent
+        # `git show "${GITHUB_SHA}:.github/scripts/<helper>"` execute the
+        # attacker's no-op helper (which only touches R34_FAKE_MARKER). The
+        # shipped contents-API read never touches the store.
+        fake_store = os.path.join(sandbox, "fake-object-store")
+        fake_work = os.path.join(fake_store, "work")
+        run([git, "init", "-q", fake_work], check=True)
+        for key, value in (
+            ("user.name", "Fake Attacker"), ("user.email", "fake@example.invalid"),
+            ("commit.gpgsign", "false"), ("tag.gpgsign", "false"),
+        ):
+            run([git, "config", key, value], cwd=fake_work, check=True)
+        fake_scripts = os.path.join(fake_work, ".github", "scripts")
+        os.makedirs(fake_scripts)
+        fake_helper = (
+            "#!/usr/bin/env bash\n"
+            "printf 'r34 fake helper executed\\n'\n"
+            "touch \"${R34_FAKE_MARKER:?}\"\n"
+            "exit 0\n"
+        )
+        for name in ("strip-trailers.sh", "peros-scope-guard.sh"):
+            with open(os.path.join(fake_scripts, name), "w") as handle:
+                handle.write(fake_helper)
+        run([git, "add", "-A"], cwd=fake_work, check=True)
+        run([git, "commit", "-qm", "attacker helper commit"], cwd=fake_work,
+            check=True)
+        fake_commit = run([git, "rev-parse", "HEAD"], cwd=fake_work,
+                          check=True).stdout.strip()
+        fake_object = os.path.join(fake_work, ".git", "objects",
+                                   fake_commit[:2], fake_commit[2:])
+        if not os.path.isfile(fake_object):
+            raise SystemExit("r34-fake-object-missing")
+        fake_git = os.path.join(fake_store, "git-dir")
+        run([git, "init", "--bare", "-q", fake_git], check=True)
+        fake_objects = os.path.join(fake_store, "objects")
+        os.makedirs(fake_objects)
+        source_objects = os.path.join(fake_work, ".git", "objects")
+        for dirpath, _dirnames, filenames in os.walk(source_objects):
+            for filename in filenames:
+                source = os.path.join(dirpath, filename)
+                rel = os.path.relpath(source, source_objects)
+                if rel.split(os.sep)[0] in ("info", "pack"):
+                    continue
+                for root_dir in (os.path.join(fake_git, "objects"), fake_objects):
+                    target = os.path.join(root_dir, rel)
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    shutil.copyfile(source, target)
+        for root_dir in (os.path.join(fake_git, "objects"), fake_objects):
+            alias_dir = os.path.join(root_dir, workflow_sha[:2])
+            os.makedirs(alias_dir, exist_ok=True)
+            shutil.copyfile(fake_object, os.path.join(alias_dir, workflow_sha[2:]))
 
         evil = os.path.join(sandbox, "evil", "RandomLabs")
         os.makedirs(os.path.dirname(evil))
@@ -30731,7 +30992,7 @@ def main(root):
 
         def sanitize(sha, baseline, tag, event_path, view_file, list_file,
                      anchor, peros_os="linux", path_prefix=None,
-                     extra_env=None, remote_url=None):
+                     extra_env=None, remote_url=None, body_override=None):
             results = []
             for key in ("strip", "scope"):
                 output = os.path.join(sandbox, "step-output-%s-%s" % (tag, key))
@@ -30744,7 +31005,8 @@ def main(root):
                     path_prefix=path_prefix, extra=extra_env,
                     remote_url=remote_url,
                 )
-                proc = run([bash, "-c", bodies[key]], cwd=work, env=env)
+                body = (body_override or {}).get(key, bodies[key])
+                proc = run([bash, "-c", body], cwd=work, env=env)
                 results.append((key, proc.returncode, proc.stdout + proc.stderr))
             return results
 
@@ -30807,7 +31069,8 @@ def main(root):
                      scope_lease_exhausted=False, expect_scope_msg=None,
                      expect_strip_msg=None, tester_email=None,
                      push_base_to_main=False, helper_sha=None,
-                     remote_url=None):
+                     remote_url=None, body_override=None,
+                     fake_marker=None, expect_fake_marker=None):
             base = base or workflow_sha
             helper = helper_sha or base
             # Issue #798 review B6: the durable preflight judges protected
@@ -31045,6 +31308,11 @@ def main(root):
                 with open(hook, "w") as handle:
                     handle.write("#!/bin/sh\necho rejected >&2\nexit 1\n")
                 os.chmod(hook, 0o755)
+            if fake_marker:
+                try:
+                    os.unlink(fake_marker)
+                except FileNotFoundError:
+                    pass
             results = sanitize(
                 helper, sanitize_baseline if sanitize_baseline is not None else baseline,
                 tag, event_path, view_file, list_file,
@@ -31055,6 +31323,7 @@ def main(root):
                     else None
                 ),
                 extra_env=extra_env, remote_url=remote_url,
+                body_override=body_override,
             )
             if non_ancestor_baseline:
                 # Restore origin/main for the remaining scenarios.
@@ -31143,6 +31412,12 @@ def main(root):
                 bad.append("r34-%s(trailer-missing-for-control)" % tag)
             elif not expect_trailer and has_trailer:
                 bad.append("r34-%s(trailer-survived)" % tag)
+            if fake_marker is not None and expect_fake_marker is not None:
+                exists = os.path.exists(fake_marker)
+                if exists != expect_fake_marker:
+                    bad.append(
+                        "r34-%s(fake-helper-ran=%s,want=%s)"
+                        % (tag, exists, expect_fake_marker))
 
         scenario("clean", [("proj/tests/new_test.py", "test\n")], 0, False)
         scenario("outside", [("proj/src/app.py", "code\n")], 1, True)
@@ -31401,6 +31676,63 @@ def main(root):
             run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
                 check=True)
             run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 review B8: the shipped contents-API read ignores a fake
+        # object store, while a mutant that reverts to the post-agent
+        # `git show` executes the attacker helper. The strip mutant runs with
+        # a hostile GIT_DIR, the scope mutant with a hostile
+        # GIT_OBJECT_DIRECTORY, and each mutant is paired with the shipped-body
+        # control under the same hostile env so the fixture proves the read
+        # shape load-bearing, not merely the absence of git calls.
+        fake_marker = os.path.join(sandbox, "fake-helper-ran")
+        fake_env_dir = {"GIT_DIR": fake_git, "R34_FAKE_MARKER": fake_marker}
+        fake_env_objects = {
+            "GIT_OBJECT_DIRECTORY": fake_objects,
+            "R34_FAKE_MARKER": fake_marker,
+        }
+        strip_reverted = bodies["strip"].replace(
+            'strip=$(gh api --hostname github.com -H '
+            '"Accept: application/vnd.github.raw" '
+            '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/'
+            'strip-trailers.sh?ref=${GITHUB_SHA}" 2>/dev/null) || strip=""',
+            'strip=$(git show "${GITHUB_SHA}:.github/scripts/'
+            'strip-trailers.sh" 2>/dev/null) || strip=""',
+        )
+        if strip_reverted == bodies["strip"]:
+            bad.append("r34-fake-object-store-strip-mutation-anchor-missing")
+        scope_reverted = bodies["scope"].replace(
+            'guard=$(gh api --hostname github.com -H '
+            '"Accept: application/vnd.github.raw" '
+            '"repos/${GITHUB_REPOSITORY}/contents/.github/scripts/'
+            'peros-scope-guard.sh?ref=${GITHUB_SHA}" 2>/dev/null) || guard=""',
+            'guard=$(git show "${GITHUB_SHA}:.github/scripts/'
+            'peros-scope-guard.sh" 2>/dev/null) || guard=""',
+        )
+        if scope_reverted == bodies["scope"]:
+            bad.append("r34-fake-object-store-scope-mutation-anchor-missing")
+        if strip_reverted != bodies["strip"]:
+            scenario("fake-object-store-strip-control",
+                     [("proj/tests/fake_control_test.py", "test\n")],
+                     0, False, trailers=TRAILER, expect_tip_changed=True,
+                     extra_env=fake_env_dir, fake_marker=fake_marker,
+                     expect_fake_marker=False,
+                     expect_paths=[("proj/tests/fake_control_test.py", "test\n")])
+            scenario("fake-object-store-strip-mutant",
+                     [("proj/tests/fake_mutant_test.py", "test\n")],
+                     0, False, trailers=TRAILER, expect_trailer=True,
+                     body_override={"strip": strip_reverted},
+                     extra_env=fake_env_dir, fake_marker=fake_marker,
+                     expect_fake_marker=True)
+        if scope_reverted != bodies["scope"]:
+            scenario("fake-object-store-scope-control",
+                     [(".github/fake_scope_control.py", "tamper\n")],
+                     1, True, extra_env=fake_env_objects,
+                     fake_marker=fake_marker, expect_fake_marker=False)
+            scenario("fake-object-store-scope-mutant",
+                     [(".github/fake_scope_mutant.py", "tamper\n")],
+                     0, False, body_override={"scope": scope_reverted},
+                     extra_env=fake_env_objects, fake_marker=fake_marker,
+                     expect_fake_marker=True)
 
         # Issue #798 Quality Council env-seam finding: an agent can export
         # proxy/TLS redirections through $GITHUB_ENV. The shipped helpers
@@ -32058,7 +32390,7 @@ R34PY
 fi
 case "$r34_out" in
   OK)
-    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the anchored strip refuses a missing REMOTE_URL, proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the bare .github gitlink entry, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the bare .github gitlink entry, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
     ;;
   *)
     check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
