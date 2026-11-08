@@ -83,12 +83,17 @@ runs:
     # gates the project config-file merge but not that module walk, so on the
     # PR-head-checkout arms (review, test, per-OS, eval) a PR-controlled
     # plugin module would execute top-level code as soon as the CLI starts.
-    # Remove both directories before any CLI process starts. Tracked paths
-    # are marked skip-worktree first so the deletions never surface in
+    # Remove both directories before the first CLI process starts. Tracked
+    # paths are marked skip-worktree first so the deletions never surface in
     # `git status` and the contents-write arms' end-of-session auto-commit
     # cannot stage them onto the PR branch. A `.opencode` symlink is removed
-    # without being followed, and a failed marking aborts instead of leaving
-    # an unstaged deletion behind.
+    # without being followed, and a failed enumeration or marking aborts
+    # instead of leaving an unprotected deletion behind.
+    # This step only covers the FIRST attempt: the CLI's GitHub handler
+    # checks out the PR head mid-run, and every retry starts a NEW CLI
+    # process on that tree, so the `Run opencode` step re-runs the same
+    # sanitizer before every attempt (issue #831 review F5). Keep the two
+    # bodies in sync; R31 pins both.
     - name: "Remove project plugin modules (import-time guard, issue #831)"
       id: plugin_guard
       shell: bash
@@ -96,7 +101,11 @@ runs:
         set -o pipefail
         mark_skip_worktree() {
           tracked=$(mktemp)
-          git ls-files -z -- "$1" > "$tracked" 2>/dev/null || true
+          if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then
+            echo "::error::Could not enumerate tracked project plugin paths; refusing to remove them without protecting the session's auto-commit (issue #831)."
+            rm -f -- "$tracked"
+            exit 1
+          fi
           failed=0
           while IFS= read -r -d '' tracked_path; do
             if ! git update-index --skip-worktree -- "$tracked_path"; then
@@ -503,6 +512,54 @@ runs:
               exit 1
             }'
         }
+        sanitize_project_plugins() {
+          # Issue #831 review F5: the first-step guard covers only the first
+          # CLI process. The CLI's GitHub handler checks out the PR head
+          # mid-run, and every provider/stall/ladder retry starts a NEW CLI
+          # process on that tree, so the plugin-directory walk must be closed
+          # again before EVERY attempt. This definition is loaded from the
+          # trusted step script before the first attempt, so a PR-head
+          # checkout can never replace it with mutable workspace code.
+          local tracked failed removed dir tracked_path
+          mark_skip_worktree() {
+            tracked=$(mktemp)
+            if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then
+              echo "::error::Could not enumerate tracked project plugin paths; refusing to remove them without protecting the session's auto-commit (issue #831)."
+              rm -f -- "$tracked"
+              exit 1
+            fi
+            failed=0
+            while IFS= read -r -d '' tracked_path; do
+              if ! git update-index --skip-worktree -- "$tracked_path"; then
+                failed=1
+              fi
+            done < "$tracked"
+            rm -f -- "$tracked"
+            if [ "$failed" -ne 0 ]; then
+              echo "::error::Could not mark every tracked project plugin path skip-worktree; refusing to remove it without protecting the session's auto-commit (issue #831)."
+              exit 1
+            fi
+          }
+          removed=0
+          if [ -L .opencode ]; then
+            mark_skip_worktree .opencode
+            rm -f -- .opencode
+            echo "Removed the .opencode symlink before CLI bootstrap (issue #831)."
+            removed=1
+          elif [ -d .opencode ]; then
+            for dir in .opencode/plugin .opencode/plugins; do
+              if [ -e "$dir" ] || [ -L "$dir" ]; then
+                mark_skip_worktree "$dir"
+                rm -rf -- "$dir"
+                echo "Removed project plugin modules at $dir before CLI bootstrap (issue #831)."
+                removed=1
+              fi
+            done
+          fi
+          if [ "$removed" -eq 0 ]; then
+            echo "No project plugin modules present before CLI bootstrap (issue #831)."
+          fi
+        }
         hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
         hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
         case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -516,6 +573,7 @@ runs:
         status=1
         for model in $candidates; do
           while :; do
+            sanitize_project_plugins
             log="$(mktemp)"
             fifo="${log}.fifo"
             hang_flag="${log}.hang"
