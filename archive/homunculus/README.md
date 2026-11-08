@@ -19,6 +19,9 @@ library.
 
 ## Quick start
 
+All commands in this README run from the `archive/` directory (the parent of
+this project) unless a step says otherwise.
+
 ```bash
 # Evolve the classic weasel phrase (default)
 python3 -m homunculus
