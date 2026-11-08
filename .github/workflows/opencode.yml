@@ -155,10 +155,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -436,10 +438,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -855,10 +859,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -1490,10 +1496,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -1767,10 +1775,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -2071,10 +2081,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -2374,10 +2386,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -2677,10 +2691,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
@@ -3029,10 +3045,12 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          # Issue #831: never auto-load project config/instructions/plugins
-          # from the checked-out tree (a PR-triggered run operates on the PR
-          # head). The grant keeps this session's /tmp contract files
-          # reachable when the opt-out disables the repo permission.
+          # Issue #831: never auto-load project config/instructions from the
+          # checked-out tree (a PR-triggered run operates on the PR head);
+          # the vendored runner also removes the project plugin directories
+          # before the CLI starts. The grant keeps this session's /tmp
+          # contract files reachable when the opt-out disables the repo
+          # permission.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
         with:
