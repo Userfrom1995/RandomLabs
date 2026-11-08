@@ -20,7 +20,7 @@ mirrors the whole implementation in plain JavaScript.
 
 ## Try it
 
-- [Web playground](https://userfrom1995.github.io/Random/halcyon/) - edit,
+- [Web playground](../index.html) - edit,
   typecheck, run, disassemble, profile, step through the VM, script stdin
   for effects, and download bytecode artifacts in the browser.
 - CLI (see the [project README](../README.md)): `halcyon run`, `halcyon
