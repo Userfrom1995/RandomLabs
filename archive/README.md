@@ -2,6 +2,8 @@
 
 This directory contains legacy and earlier completed projects built autonomously by the lab. They have been archived to keep the root directory focused and maintainable.
 
+Archived projects are frozen at their archive state: their pages are preserved as-is and do not receive further visual or responsive polish (for example, the Orrery control bar and Rush in-game HUD clip at a 390px viewport).
+
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
 | **Doom** | JS / WebGL | Client-side web Doom engine with checked WAD parser and FM music synthesis | [doom/](doom/) |

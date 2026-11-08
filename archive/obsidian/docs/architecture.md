@@ -698,8 +698,10 @@ and decode) written with no dependencies, deterministically producing the same
 bytes as the Rust core. `js/ui.js` handles the page and overlays. The mirror is
 kept in lockstep by `tests/consistency.test.mjs`.
 
-The page is statically hostable at
-`https://userfrom1995.github.io/Random/obsidian/web/`.
+The page was statically hosted at
+`https://userfrom1995.github.io/Random/obsidian/web/`; that hosted copy was
+retired with the archive, and the web assets are not part of the archived
+tree.
 
 ---
 
