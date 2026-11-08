@@ -2692,6 +2692,47 @@ if (cur == root) exit 0
 exit 1
 }'
 }
+sanitize_project_plugins() {
+local tracked failed removed dir tracked_path
+mark_skip_worktree() {
+tracked=$(mktemp)
+if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then
+echo "::error::Could not enumerate tracked project plugin paths; refusing to remove them without protecting the session's auto-commit (issue #831)."
+rm -f -- "$tracked"
+exit 1
+fi
+failed=0
+while IFS= read -r -d '' tracked_path; do
+if ! git update-index --skip-worktree -- "$tracked_path"; then
+failed=1
+fi
+done < "$tracked"
+rm -f -- "$tracked"
+if [ "$failed" -ne 0 ]; then
+echo "::error::Could not mark every tracked project plugin path skip-worktree; refusing to remove it without protecting the session's auto-commit (issue #831)."
+exit 1
+fi
+}
+removed=0
+if [ -L .opencode ]; then
+mark_skip_worktree .opencode
+rm -f -- .opencode
+echo "Removed the .opencode symlink before CLI bootstrap (issue #831)."
+removed=1
+elif [ -d .opencode ]; then
+for dir in .opencode/plugin .opencode/plugins; do
+if [ -e "$dir" ] || [ -L "$dir" ]; then
+mark_skip_worktree "$dir"
+rm -rf -- "$dir"
+echo "Removed project plugin modules at $dir before CLI bootstrap (issue #831)."
+removed=1
+fi
+done
+fi
+if [ "$removed" -eq 0 ]; then
+echo "No project plugin modules present before CLI bootstrap (issue #831)."
+fi
+}
 hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
 hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
 case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -2705,6 +2746,7 @@ hang_retry_used=0
 status=1
 for model in $candidates; do
 while :; do
+sanitize_project_plugins
 log="$(mktemp)"
 fifo="${log}.fifo"
 hang_flag="${log}.hang"
@@ -2942,6 +2984,47 @@ if (cur == root) exit 0
 exit 1
 }'
 }
+sanitize_project_plugins() {
+local tracked failed removed dir tracked_path
+mark_skip_worktree() {
+tracked=$(mktemp)
+if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then
+echo "::error::Could not enumerate tracked project plugin paths; refusing to remove them without protecting the session's auto-commit (issue #831)."
+rm -f -- "$tracked"
+exit 1
+fi
+failed=0
+while IFS= read -r -d '' tracked_path; do
+if ! git update-index --skip-worktree -- "$tracked_path"; then
+failed=1
+fi
+done < "$tracked"
+rm -f -- "$tracked"
+if [ "$failed" -ne 0 ]; then
+echo "::error::Could not mark every tracked project plugin path skip-worktree; refusing to remove it without protecting the session's auto-commit (issue #831)."
+exit 1
+fi
+}
+removed=0
+if [ -L .opencode ]; then
+mark_skip_worktree .opencode
+rm -f -- .opencode
+echo "Removed the .opencode symlink before CLI bootstrap (issue #831)."
+removed=1
+elif [ -d .opencode ]; then
+for dir in .opencode/plugin .opencode/plugins; do
+if [ -e "$dir" ] || [ -L "$dir" ]; then
+mark_skip_worktree "$dir"
+rm -rf -- "$dir"
+echo "Removed project plugin modules at $dir before CLI bootstrap (issue #831)."
+removed=1
+fi
+done
+fi
+if [ "$removed" -eq 0 ]; then
+echo "No project plugin modules present before CLI bootstrap (issue #831)."
+fi
+}
 hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
 hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
 case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -2955,6 +3038,7 @@ hang_retry_used=0
 status=1
 for model in $candidates; do
 while :; do
+sanitize_project_plugins
 log="$(mktemp)"
 fifo="${log}.fifo"
 hang_flag="${log}.hang"
@@ -11877,12 +11961,18 @@ allowed_decision_lines = {
     "printf '[]\\n' > .maintainer/decision.json",
 }
 for _index, other in pre_steps:
+    # The Run Maintainer agent step is the agent session itself: its retry-loop
+    # sanitizer must name `.opencode` to remove the PR-head tree's plugin
+    # modules before every attempt (issue #831 review F5). This manifest pins
+    # that step's whole body line-exact below, so the mention there is not an
+    # executable-planting surface; every OTHER pre-handler step keeps the ban.
+    scan_opencode = other.get("name") != "Run Maintainer agent"
     for line in (other.get("run") or "").splitlines():
         stripped = line.strip()
         if ("GITHUB_PATH" in stripped or "GITHUB_ENV" in stripped) and stripped not in allowed_envfile_lines:
             print("handler-effective-envfile-write:%s" % stripped[:160], file=sys.stderr)
             sys.exit(17)
-        if ".opencode" in stripped and stripped not in allowed_opencode_lines:
+        if scan_opencode and ".opencode" in stripped and stripped not in allowed_opencode_lines:
             print("handler-pre-opencode-mention:%s" % stripped[:160], file=sys.stderr)
             sys.exit(18)
         if "decision.json" in stripped and stripped not in allowed_decision_lines:
@@ -12280,7 +12370,7 @@ test -x "$HOME/.opencode/bin/opencode"
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 ### 13 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831); the bootstrap's plugin initialization runs before that checkout against this run's trusted default-branch checkout, and the vendored composite arms remove the project plugin directories before their CLI starts.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831). The bootstrap's plugin initialization runs before that checkout against this run's trusted default-branch checkout, but every retry starts a new CLI process on the PR-head tree, so this run's retry loop re-runs the project-plugin sanitizer before every attempt (the composite arms do the same plus a pre-CLI first-step guard).\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 if [ "${{ github.event_name }}" = "workflow_run" ]; then
   export GITHUB_EVENT_NAME="workflow_dispatch"
 fi
@@ -12351,6 +12441,55 @@ live_descendant() {
       exit 1
     }'
 }
+sanitize_project_plugins() {
+  # Issue #831 review F5: the pre-agent checkout is the trusted
+  # default branch, but the CLI's GitHub handler checks out the PR
+  # head mid-run and every retry starts a NEW CLI process on that
+  # tree, before which CLI 1.19.5 imports `.opencode/plugin(s)`
+  # modules. Re-run the sanitizer before EVERY attempt. This
+  # definition loads from the trusted step script before the first
+  # attempt, so the PR-head checkout can never replace it with
+  # mutable workspace code.
+  local tracked failed removed dir tracked_path
+  mark_skip_worktree() {
+    tracked=$(mktemp)
+    if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then
+      echo "::error::Could not enumerate tracked project plugin paths; refusing to remove them without protecting the session's auto-commit (issue #831)."
+      rm -f -- "$tracked"
+      exit 1
+    fi
+    failed=0
+    while IFS= read -r -d '' tracked_path; do
+      if ! git update-index --skip-worktree -- "$tracked_path"; then
+        failed=1
+      fi
+    done < "$tracked"
+    rm -f -- "$tracked"
+    if [ "$failed" -ne 0 ]; then
+      echo "::error::Could not mark every tracked project plugin path skip-worktree; refusing to remove it without protecting the session's auto-commit (issue #831)."
+      exit 1
+    fi
+  }
+  removed=0
+  if [ -L .opencode ]; then
+    mark_skip_worktree .opencode
+    rm -f -- .opencode
+    echo "Removed the .opencode symlink before CLI bootstrap (issue #831)."
+    removed=1
+  elif [ -d .opencode ]; then
+    for dir in .opencode/plugin .opencode/plugins; do
+      if [ -e "$dir" ] || [ -L "$dir" ]; then
+        mark_skip_worktree "$dir"
+        rm -rf -- "$dir"
+        echo "Removed project plugin modules at $dir before CLI bootstrap (issue #831)."
+        removed=1
+      fi
+    done
+  fi
+  if [ "$removed" -eq 0 ]; then
+    echo "No project plugin modules present before CLI bootstrap (issue #831)."
+  fi
+}
 hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
 hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
 case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -12364,6 +12503,7 @@ hang_retry_used=0
 status=1
 for model in $candidates; do
   while :; do
+    sanitize_project_plugins
     log="$(mktemp)"
     fifo="${log}.fifo"
     hang_flag="${log}.hang"
@@ -22648,9 +22788,11 @@ fi
 r31_out=$(python3 -I - <<'PY'
 import copy
 import glob
+import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -22937,10 +23079,24 @@ PLUGIN_GUARD_MARKERS = (
     "if [ -L .opencode ]; then",
     "rm -f -- .opencode",
     "for dir in .opencode/plugin .opencode/plugins; do",
+    'if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then',
     'git ls-files -z -- "$1"',
+    "Could not enumerate tracked project plugin paths",
     'git update-index --skip-worktree -- "$tracked_path"',
+    "Could not mark every tracked project plugin path skip-worktree",
     'rm -rf -- "$dir"',
     "exit 1",
+)
+# Issue #831 review F5/F8: pin the known-good guard text and both per-attempt
+# sanitizer copies by normalized SHA-256, so a subtle rewrite (an inserted
+# line, a swapped interpreter, a swallowed enumeration failure) cannot pass
+# while the marker substrings survive.
+PLUGIN_GUARD_SHA256 = "d29483c35f9689fbb23ff22565b74b3d9120fb069113af41594ae464c05380d4"
+SANITIZER_ACTION_SHA256 = (
+    "5e865d53cdcc43735f0e2c1e255c81c8df705b3367a347d62debf14222b09a5c"
+)
+SANITIZER_MAINTAINER_SHA256 = (
+    "2e95fae9eba1c732da149949504aa0bf5832eaa78402194f1f049ca5fdd42bdb"
 )
 CLI_STEP_NAME = "Run opencode"
 
@@ -22979,7 +23135,14 @@ def validate_plugin_guard(doc, label):
     index, step = hits[0]
     if step.get("shell") != "bash":
         problems.append("%s(plugin-guard-shell)" % label)
-    for key in ("if", "continue-on-error", "timeout-minutes", "uses", "env"):
+    for key in (
+        "if",
+        "continue-on-error",
+        "timeout-minutes",
+        "uses",
+        "env",
+        "working-directory",
+    ):
         if key in step:
             problems.append("%s(plugin-guard-%s)" % (label, key))
     run = step.get("run")
@@ -22990,6 +23153,9 @@ def validate_plugin_guard(doc, label):
             problems.append(
                 "%s(plugin-guard-marker:%s)" % (label, marker[:48])
             )
+    digest = hashlib.sha256(normalize_guard_body(run).encode("utf-8")).hexdigest()
+    if digest != PLUGIN_GUARD_SHA256:
+        problems.append("%s(plugin-guard-body-sha256=%s)" % (label, digest[:12]))
     cli = [
         cli_index
         for cli_index, cli_step in enumerate(steps)
@@ -23054,6 +23220,154 @@ def mutate_guard_drop_marker(marker):
         step = plugin_guard_step(doc)
         if step is not None and isinstance(step.get("run"), str):
             step["run"] = step["run"].replace(marker, "")
+
+    return _mutate
+
+
+def mutate_guard_working_directory(doc):
+    step = plugin_guard_step(doc)
+    if step is not None:
+        step["working-directory"] = "/tmp"
+
+
+def mutate_guard_insert_line(doc):
+    step = plugin_guard_step(doc)
+    if step is not None and isinstance(step.get("run"), str):
+        step["run"] = step["run"].replace(
+            "set -o pipefail",
+            "set -o pipefail\n        echo injected-audit-line",
+            1,
+        )
+
+
+def normalize_guard_body(body):
+    return "\n".join(line.rstrip() for line in body.strip().splitlines())
+
+
+def extract_sanitizer(run, name="sanitize_project_plugins"):
+    marker = name + "() {"
+    start = run.index(marker)
+    index = run.index("{", start)
+    depth = 0
+    for position in range(index, len(run)):
+        char = run[position]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return run[start:position + 1]
+    return None
+
+
+def find_named_step(doc, name):
+    runs = doc.get("runs") if isinstance(doc, dict) else None
+    if isinstance(runs, dict) and isinstance(runs.get("steps"), list):
+        for step in runs["steps"]:
+            if isinstance(step, dict) and step.get("name") == name:
+                return step
+    jobs = doc.get("jobs") if isinstance(doc, dict) else {}
+    for job in jobs.values():
+        if isinstance(job, dict):
+            for step in job.get("steps") or []:
+                if isinstance(step, dict) and step.get("name") == name:
+                    return step
+    return None
+
+
+def validate_attempt_sanitizer(run, label, expected_sha):
+    # Issue #831 review F5/F8: the first-step guard covers only the first CLI
+    # process. The CLI's GitHub handler checks out the PR head mid-run and
+    # every retry starts a NEW process on that tree, so both retry loops must
+    # define the sanitizer and call it as the FIRST statement of every
+    # attempt, with the fail-closed enumeration intact.
+    problems = []
+    if not isinstance(run, str):
+        return ["%s(attempt-sanitizer-run-missing)" % label]
+    count = run.count("sanitize_project_plugins() {")
+    if count != 1:
+        problems.append("%s(attempt-sanitizer-def-count=%d)" % (label, count))
+    try:
+        body = extract_sanitizer(run)
+    except ValueError:
+        body = None
+    if body is None:
+        problems.append("%s(attempt-sanitizer-def-unbalanced)" % label)
+    else:
+        digest = hashlib.sha256(
+            normalize_guard_body(body).encode("utf-8")
+        ).hexdigest()
+        if digest != expected_sha:
+            problems.append(
+                "%s(attempt-sanitizer-sha256=%s)" % (label, digest[:12])
+            )
+        for marker in PLUGIN_GUARD_MARKERS:
+            if marker not in body:
+                problems.append(
+                    "%s(attempt-sanitizer-marker:%s)" % (label, marker[:40])
+                )
+    references = run.count("sanitize_project_plugins")
+    if references != 2:
+        problems.append(
+            "%s(attempt-sanitizer-refs=%d)" % (label, references)
+        )
+    if not re.search(
+        r"(?m)^( *)while :; do\n\1  sanitize_project_plugins\n", run
+    ):
+        problems.append("%s(attempt-sanitizer-not-first-in-attempt)" % label)
+    return problems
+
+
+def mutate_attempt_remove_call(step_name):
+    def _mutate(doc):
+        step = find_named_step(doc, step_name)
+        if step is not None and isinstance(step.get("run"), str):
+            step["run"] = re.sub(
+                r"(?m)^( *)sanitize_project_plugins\n", "", step["run"]
+            )
+
+    return _mutate
+
+
+def mutate_attempt_gate_call(step_name):
+    def _mutate(doc):
+        step = find_named_step(doc, step_name)
+        if step is not None and isinstance(step.get("run"), str):
+            step["run"] = re.sub(
+                r"(?m)^( *)sanitize_project_plugins$",
+                lambda match: "%sif false; then sanitize_project_plugins; fi"
+                % match.group(1),
+                step["run"],
+                count=1,
+            )
+
+    return _mutate
+
+
+def mutate_attempt_move_call(step_name):
+    def _mutate(doc):
+        step = find_named_step(doc, step_name)
+        if step is not None and isinstance(step.get("run"), str):
+            step["run"] = re.sub(
+                r'(?m)^( *)sanitize_project_plugins\n(( *)log="\$\(mktemp\)"\n)',
+                r"\2\1sanitize_project_plugins\n",
+                step["run"],
+                count=1,
+            )
+
+    return _mutate
+
+
+def mutate_attempt_remove_definition(step_name):
+    def _mutate(doc):
+        step = find_named_step(doc, step_name)
+        if step is not None and isinstance(step.get("run"), str):
+            try:
+                body = extract_sanitizer(step["run"])
+            except ValueError:
+                body = None
+            if body:
+                step["run"] = step["run"].replace(body, "", 1)
 
     return _mutate
 
@@ -23241,6 +23555,48 @@ def plugin_guard_fixture_checks(guard_body):
         ):
             problems.append("plugin-guard-functional:control-symlink-fixture-inert")
         shutil.rmtree(repo, ignore_errors=True)
+
+        # Issue #831 review F7: a failed `git ls-files` must abort loudly and
+        # leave the plugin directories in place. A swallowed failure would
+        # remove them without the skip-worktree protection.
+        real_git = shutil.which("git")
+        if real_git:
+            repo, local_env = make_repo({".opencode/plugin/a.js": "1"})
+            shim_dir = tempfile.mkdtemp(prefix="plugin-guard-shim-")
+            shim = os.path.join(shim_dir, "git")
+            with open(shim, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "#!/bin/sh\n"
+                    "for arg in \"$@\"; do\n"
+                    "  if [ \"$arg\" = \"ls-files\" ]; then\n"
+                    "    echo 'injected ls-files failure' >&2\n"
+                    "    exit 1\n"
+                    "  fi\n"
+                    "done\n"
+                    "exec %s \"$@\"\n" % shlex.quote(real_git)
+                )
+            os.chmod(shim, 0o755)
+            shim_env = dict(local_env)
+            shim_env["PATH"] = shim_dir + os.pathsep + shim_env["PATH"]
+            result = execute_body(repo, shim_env, guard_body)
+            if result.returncode == 0:
+                problems.append(
+                    "plugin-guard-functional:enumeration-failure-not-loud"
+                )
+            if "Could not enumerate tracked project plugin paths" not in (
+                result.stdout + result.stderr
+            ):
+                problems.append(
+                    "plugin-guard-functional:enumeration-failure-message-missing"
+                )
+            if not os.path.exists(
+                os.path.join(repo, ".opencode", "plugin", "a.js")
+            ):
+                problems.append(
+                    "plugin-guard-functional:enumeration-failure-removed-plugin"
+                )
+            shutil.rmtree(shim_dir, ignore_errors=True)
+            shutil.rmtree(repo, ignore_errors=True)
     except Exception as exc:  # noqa: BLE001 - fail closed on any fixture error
         problems.append("plugin-guard-functional:%s" % type(exc).__name__)
     return problems
@@ -23707,11 +24063,20 @@ try:
     # Issue #831 (Tester finding): the vendored composite runner removes the
     # checked-out tree's project plugin directories before the CLI starts, so
     # the import-time channel the project-config opt-out does not cover cannot
-    # reopen on the PR-head-checkout arms. The guard is pinned statically,
-    # mutation-self-tested, and its real body is executed against
-    # tracked/untracked/symlinked/clean fixture repositories (the controls
-    # prove the skip-worktree status assertion and the symlink fixture are
-    # load-bearing).
+    # reopen on the PR-head-checkout arms. Since the CLI's GitHub handler
+    # checks out the PR head mid-run and every retry starts a NEW CLI process
+    # (issue #831 review F5), both retry loops (the composite `Run opencode`
+    # body and the Maintainer inline body) must also re-run the same
+    # sanitizer as the FIRST statement of every attempt; all three copies are
+    # pinned by normalized SHA-256 (review F8). The guard is pinned
+    # statically, mutation-self-tested for removal, gating, an interpreter
+    # swap, a move after the CLI step, a working-directory override, an
+    # inserted line, and every load-bearing marker, and its real body is
+    # executed against tracked/untracked/symlinked/clean fixture repositories
+    # plus a failed-enumeration fixture that must abort loudly and leave the
+    # plugin directories in place (review F7); the controls prove the
+    # skip-worktree status assertion, the symlink fixture, and the
+    # failed-enumeration branch are load-bearing.
     action_path = ".github/actions/opencode-run/action.yml"
     if not os.path.exists(action_path):
         problems.append("%s(missing)" % action_path)
@@ -23739,42 +24104,120 @@ try:
                     mutate_guard_move_after_cli,
                     "self-test-plugin-guard-moved-not-caught",
                 ),
+                (
+                    mutate_guard_working_directory,
+                    "self-test-plugin-guard-working-directory-not-caught",
+                ),
+                (
+                    mutate_guard_insert_line,
+                    "self-test-plugin-guard-inserted-line-not-caught",
+                ),
             ):
                 mutated = copy.deepcopy(action_doc)
                 mutator(mutated)
                 if not validate_plugin_guard(mutated, action_path):
                     problems.append("%s(%s)" % (action_path, marker))
-            for marker_text, marker_id in (
-                (
-                    "if [ -L .opencode ]; then",
-                    "self-test-plugin-guard-symlink-not-caught",
-                ),
-                (
-                    "for dir in .opencode/plugin .opencode/plugins; do",
-                    "self-test-plugin-guard-dirs-not-caught",
-                ),
-                (
-                    'git update-index --skip-worktree -- "$tracked_path"',
-                    "self-test-plugin-guard-skip-worktree-not-caught",
-                ),
-                (
-                    'rm -rf -- "$dir"',
-                    "self-test-plugin-guard-removal-not-caught",
-                ),
-                (
-                    "exit 1",
-                    "self-test-plugin-guard-loud-failure-not-caught",
-                ),
-            ):
+            for marker_index, marker_text in enumerate(PLUGIN_GUARD_MARKERS):
                 mutated = copy.deepcopy(action_doc)
                 mutate_guard_drop_marker(marker_text)(mutated)
                 if not validate_plugin_guard(mutated, action_path):
-                    problems.append("%s(%s)" % (action_path, marker_id))
+                    problems.append(
+                        "%s(self-test-plugin-guard-marker-%d-not-caught)"
+                        % (action_path, marker_index)
+                    )
             guard = plugin_guard_step(action_doc)
             if guard is not None:
                 problems.extend(
                     plugin_guard_fixture_checks(guard.get("run"))
                 )
+            cli_step = find_named_step(action_doc, CLI_STEP_NAME)
+            if cli_step is None:
+                problems.append("%s(plugin-guard-cli-step-missing)" % action_path)
+            else:
+                problems.extend(
+                    validate_attempt_sanitizer(
+                        cli_step.get("run"),
+                        action_path + ":attempt",
+                        SANITIZER_ACTION_SHA256,
+                    )
+                )
+                for mutator, marker in (
+                    (
+                        mutate_attempt_remove_call(CLI_STEP_NAME),
+                        "self-test-attempt-sanitizer-removed-not-caught",
+                    ),
+                    (
+                        mutate_attempt_gate_call(CLI_STEP_NAME),
+                        "self-test-attempt-sanitizer-gated-not-caught",
+                    ),
+                    (
+                        mutate_attempt_move_call(CLI_STEP_NAME),
+                        "self-test-attempt-sanitizer-moved-not-caught",
+                    ),
+                    (
+                        mutate_attempt_remove_definition(CLI_STEP_NAME),
+                        "self-test-attempt-sanitizer-definition-removed-not-caught",
+                    ),
+                ):
+                    mutated = copy.deepcopy(action_doc)
+                    mutator(mutated)
+                    mutated_cli = find_named_step(mutated, CLI_STEP_NAME)
+                    if not validate_attempt_sanitizer(
+                        mutated_cli.get("run") if mutated_cli else None,
+                        "mutation",
+                        SANITIZER_ACTION_SHA256,
+                    ):
+                        problems.append("%s(%s)" % (action_path, marker))
+            if os.path.exists(maintainer_path):
+                maintainer_guard_doc = load_file(maintainer_path)
+                maintainer_step = find_named_step(
+                    maintainer_guard_doc, MAINTAINER_AGENT_NAME
+                )
+                if maintainer_step is None:
+                    problems.append(
+                        "%s(attempt-sanitizer-step-missing)" % maintainer_path
+                    )
+                else:
+                    problems.extend(
+                        validate_attempt_sanitizer(
+                            maintainer_step.get("run"),
+                            maintainer_path + ":attempt",
+                            SANITIZER_MAINTAINER_SHA256,
+                        )
+                    )
+                    for mutator, marker in (
+                        (
+                            mutate_attempt_remove_call(MAINTAINER_AGENT_NAME),
+                            "self-test-maintainer-attempt-sanitizer-removed-not-caught",
+                        ),
+                        (
+                            mutate_attempt_gate_call(MAINTAINER_AGENT_NAME),
+                            "self-test-maintainer-attempt-sanitizer-gated-not-caught",
+                        ),
+                        (
+                            mutate_attempt_move_call(MAINTAINER_AGENT_NAME),
+                            "self-test-maintainer-attempt-sanitizer-moved-not-caught",
+                        ),
+                        (
+                            mutate_attempt_remove_definition(
+                                MAINTAINER_AGENT_NAME
+                            ),
+                            "self-test-maintainer-attempt-sanitizer-definition-removed-not-caught",
+                        ),
+                    ):
+                        mutated = copy.deepcopy(maintainer_guard_doc)
+                        mutator(mutated)
+                        mutated_step = find_named_step(
+                            mutated, MAINTAINER_AGENT_NAME
+                        )
+                        if not validate_attempt_sanitizer(
+                            mutated_step.get("run") if mutated_step else None,
+                            "mutation",
+                            SANITIZER_MAINTAINER_SHA256,
+                        ):
+                            problems.append(
+                                "%s(%s)" % (maintainer_path, marker)
+                            )
     # Execute the real CLI config loader when it is available (the vendored
     # runner installs opencode in every agent lane; developer checkouts carry
     # it too). The control case must observe the ask default, so the fixture
@@ -23803,10 +24246,10 @@ PY
 )
 case "$r31_out" in
   OK)
-    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config or instructions while /tmp contract files and staged prompts stay reachable; because CLI 1.19.5 still imports the checked-out tree's .opencode/plugin(s) modules at bootstrap under that opt-out, the vendored composite runner also removes both directories before the CLI starts, marks tracked paths skip-worktree so the session auto-commit cannot stage the deletion, refuses to follow a .opencode symlink, and fails loudly when the marking fails, with its unconditional pre-CLI position and its real body pinned and executed against tracked/untracked/symlinked/clean git fixtures (issue #831 Tester finding); the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, the plugin guard is mutation-self-tested for removal, gating, an interpreter swap, a move after the CLI step, and every load-bearing marker, and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
+    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config or instructions while /tmp contract files and staged prompts stay reachable; because CLI 1.19.5 still imports the checked-out tree's .opencode/plugin(s) modules at bootstrap under that opt-out, the vendored composite runner also removes both directories before the CLI starts, marks tracked paths skip-worktree so the session auto-commit cannot stage the deletion, refuses to follow a .opencode symlink, and fails loudly when the marking fails, with its unconditional pre-CLI position and its real body pinned and executed against tracked/untracked/symlinked/clean git fixtures (issue #831 Tester finding); the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, the plugin guard is mutation-self-tested for removal, gating, an interpreter swap, a move after the CLI step, a working-directory override, an inserted line, and every load-bearing marker, its whole body and both per-attempt sanitizer copies (composite and Maintainer inline) are pinned by normalized SHA-256 and statically pinned as the first statement of every attempt, and a failed `git ls-files` fixture proves the enumeration failure aborts loudly without removing the plugin directories (issue #831 review F5/F7/F8), and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
     ;;
   *)
-    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json under the opt-out unless it is set on every agent arm, and CLI 1.19.5 still imports .opencode/plugin(s) modules at bootstrap, so the vendored runner must remove them before the CLI starts without leaving a deletion the session auto-commit can stage; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
+    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json under the opt-out unless it is set on every agent arm, and CLI 1.19.5 still imports .opencode/plugin(s) modules at bootstrap, so the vendored runner must remove them before the CLI starts without leaving a deletion the session auto-commit can stage, and every retry starts a new CLI process on the PR-head tree, so both retry loops must re-run the same sanitizer before every attempt with a fail-closed enumeration; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
     ;;
 esac
 
