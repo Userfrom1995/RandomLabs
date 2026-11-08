@@ -317,3 +317,16 @@ supported env/permission surface (`OPENCODE_DISABLE_PROJECT_CONFIG` plus
   and every mutation self-test (including a `/tmp` working-directory and an
   inserted guard line) fail as expected when mutated.
 - Branch ancestry: `git merge-base --is-ancestor origin/main HEAD` holds.
+
+## Review round 2 fixes (F9)
+
+- F9 (blocking, mechanical): rebased onto `origin/main`
+  `675658cbeb00b2dffda38cd1bc762f0dba0810ab` (the three archive-only #834
+  curator commits). The replay was clean with no manual conflict
+  resolution, and `git merge-base --is-ancestor origin/main HEAD` holds.
+- Minor: corrected the F8 note's `PLUGIN_GUARD_MARKERS` count from 11 to
+  the shipped 10 markers; no audit behavior changes.
+- Verification: `timeout 1800 env -u LAB_RUN_NONCE bash
+  .github/scripts/silent-stall-audit.sh` on the rebased head reported 34
+  passed, 0 failed, exit 0, with an empty stderr and a clean tree after
+  the run.
