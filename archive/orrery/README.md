@@ -47,15 +47,16 @@ archive.
 ## Running it
 
 ```sh
-cd orrery
+cd archive/orrery
 npm install        # TypeScript + esbuild (dev only)
 npm run build      # bundles src/main.ts → app.js
 npm run typecheck  # strict TS check
 npm run test       # 43 unit tests for the math/orbital/noise core
 ```
 
-Then open `orrery/index.html` — or serve the folder (`python3 -m http.server`).
-The bundled `app.js` is committed so the site works on GitHub Pages with no
+Then open `archive/orrery/index.html` from the repository root (or `index.html`
+after the `cd` above) - or serve the folder (`python3 -m http.server`).
+The bundled `app.js` is committed so the archived copy runs with no
 build step.
 
 ## How it's built
