@@ -546,13 +546,14 @@ jobs:
           # Issue #831: never merge project config/instructions from the
           # checked-out tree. A pull_request wake-up is checked out to the PR
           # head branch (or the fork's head branch) by the CLI's GitHub
-          # bootstrap; that checkout happens after the CLI's plugin
-          # initialization, which runs against this run's trusted
-          # default-branch checkout, so no PR plugin module is imported here
-          # (the composite arms remove the project plugin directories before
-          # their CLI starts). The authoritative prompt is the staged trusted
-          # copy named above, and the grant above keeps its
-          # external_directory read and the /tmp contract files reachable.
+          # bootstrap. The FIRST CLI process bootstraps against this run's
+          # trusted default-branch checkout (plugin init happens before that
+          # checkout), but every provider/stall/ladder retry starts a NEW CLI
+          # process on the PR-head tree, so the run script below re-runs the
+          # project-plugin sanitizer before every attempt. The authoritative
+          # prompt is the staged trusted copy named above, and the grant
+          # above keeps its external_directory read and the /tmp contract
+          # files reachable.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           VARIANT: max
           MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
@@ -560,7 +561,7 @@ jobs:
           PROMPT: |
             You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
 
-            READ FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831); the bootstrap's plugin initialization runs before that checkout against this run's trusted default-branch checkout, and the vendored composite arms remove the project plugin directories before their CLI starts.
+            READ FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831). The bootstrap's plugin initialization runs before that checkout against this run's trusted default-branch checkout, but every retry starts a new CLI process on the PR-head tree, so this run's retry loop re-runs the project-plugin sanitizer before every attempt (the composite arms do the same plus a pre-CLI first-step guard).
 
             You also have, on disk:
             - `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
@@ -648,6 +649,55 @@ jobs:
                 exit 1
               }'
           }
+          sanitize_project_plugins() {
+            # Issue #831 review F5: the pre-agent checkout is the trusted
+            # default branch, but the CLI's GitHub handler checks out the PR
+            # head mid-run and every retry starts a NEW CLI process on that
+            # tree, before which CLI 1.19.5 imports `.opencode/plugin(s)`
+            # modules. Re-run the sanitizer before EVERY attempt. This
+            # definition loads from the trusted step script before the first
+            # attempt, so the PR-head checkout can never replace it with
+            # mutable workspace code.
+            local tracked failed removed dir tracked_path
+            mark_skip_worktree() {
+              tracked=$(mktemp)
+              if ! git ls-files -z -- "$1" > "$tracked" 2>/dev/null; then
+                echo "::error::Could not enumerate tracked project plugin paths; refusing to remove them without protecting the session's auto-commit (issue #831)."
+                rm -f -- "$tracked"
+                exit 1
+              fi
+              failed=0
+              while IFS= read -r -d '' tracked_path; do
+                if ! git update-index --skip-worktree -- "$tracked_path"; then
+                  failed=1
+                fi
+              done < "$tracked"
+              rm -f -- "$tracked"
+              if [ "$failed" -ne 0 ]; then
+                echo "::error::Could not mark every tracked project plugin path skip-worktree; refusing to remove it without protecting the session's auto-commit (issue #831)."
+                exit 1
+              fi
+            }
+            removed=0
+            if [ -L .opencode ]; then
+              mark_skip_worktree .opencode
+              rm -f -- .opencode
+              echo "Removed the .opencode symlink before CLI bootstrap (issue #831)."
+              removed=1
+            elif [ -d .opencode ]; then
+              for dir in .opencode/plugin .opencode/plugins; do
+                if [ -e "$dir" ] || [ -L "$dir" ]; then
+                  mark_skip_worktree "$dir"
+                  rm -rf -- "$dir"
+                  echo "Removed project plugin modules at $dir before CLI bootstrap (issue #831)."
+                  removed=1
+                fi
+              done
+            fi
+            if [ "$removed" -eq 0 ]; then
+              echo "No project plugin modules present before CLI bootstrap (issue #831)."
+            fi
+          }
           hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
           hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
           case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -661,6 +711,7 @@ jobs:
           status=1
           for model in $candidates; do
             while :; do
+              sanitize_project_plugins
               log="$(mktemp)"
               fifo="${log}.fifo"
               hang_flag="${log}.hang"
