@@ -12280,7 +12280,7 @@ test -x "$HOME/.opencode/bin/opencode"
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 ### 13 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups, so project config and instructions are explicitly disabled (issue #831).\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831); the bootstrap's plugin initialization runs before that checkout against this run's trusted default-branch checkout, and the vendored composite arms remove the project plugin directories before their CLI starts.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 if [ "${{ github.event_name }}" = "workflow_run" ]; then
   export GITHUB_EVENT_NAME="workflow_dispatch"
 fi
@@ -22630,6 +22630,21 @@ fi
 # workspace. The Maintainer's inline arm carries the same pair. Each lane is
 # mutation-self-tested for a removed or re-enabled opt-out and a removed or
 # weakened grant.
+#
+# Issue #831 (Tester finding, CLI 1.19.5): the opt-out gates the project
+# config-file merge but NOT the plugin loader's unconditional walk of
+# `.opencode/plugin/*.js` and `.opencode/plugins/*.js`, which runs at process
+# bootstrap before the GitHub handler checks out the PR head. On the four
+# PR-head-checkout arms (review, test, per-OS, eval) a PR-controlled plugin
+# module therefore executes top-level code before the agent. The vendored
+# composite runner removes both directories before any CLI process starts,
+# marks tracked paths skip-worktree so the contents-write arms' end-of-session
+# auto-commit cannot stage the deletions, and removes a `.opencode` symlink
+# without following it. This rule pins that guard's body, its unconditional
+# position ahead of the CLI step, and its functional behavior on tracked,
+# untracked, symlinked, and clean fixtures, and mutation-self-tests a removed
+# guard, a gated guard, a different interpreter, a moved guard, and every
+# load-bearing marker.
 r31_out=$(python3 -I - <<'PY'
 import copy
 import glob
@@ -22915,6 +22930,321 @@ def validate_maintainer_bootstrap(doc, label):
     if not staging_step_before(steps, index, MAINTAINER_PROMPT_NAME):
         problems.append("%s(staged-prompt-not-staged-before-agent)" % label)
     return problems
+
+
+PLUGIN_GUARD_NAME = "Remove project plugin modules (import-time guard, issue #831)"
+PLUGIN_GUARD_MARKERS = (
+    "if [ -L .opencode ]; then",
+    "rm -f -- .opencode",
+    "for dir in .opencode/plugin .opencode/plugins; do",
+    'git ls-files -z -- "$1"',
+    'git update-index --skip-worktree -- "$tracked_path"',
+    'rm -rf -- "$dir"',
+    "exit 1",
+)
+CLI_STEP_NAME = "Run opencode"
+
+
+def action_steps(doc):
+    runs = doc.get("runs") if isinstance(doc, dict) else None
+    steps = runs.get("steps") if isinstance(runs, dict) else None
+    return steps if isinstance(steps, list) else []
+
+
+def plugin_guard_step(doc):
+    for step in action_steps(doc):
+        if isinstance(step, dict) and step.get("name") == PLUGIN_GUARD_NAME:
+            return step
+    return None
+
+
+def validate_plugin_guard(doc, label):
+    # Issue #831 (Tester finding): the project-config opt-out does not stop
+    # the CLI 1.19.5 plugin loader from importing the checked-out tree's
+    # `.opencode/plugin(s)` modules at bootstrap, and the review/test/per-OS/
+    # eval arms start that CLI on a PR-head checkout. The guard must exist
+    # exactly once, be unconditional, run under bash, sit ahead of the CLI
+    # step, and carry every load-bearing marker (the symlink branch, both
+    # directory names, the tracked-file skip-worktree marking, and the loud
+    # marking failure).
+    problems = []
+    steps = action_steps(doc)
+    hits = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == PLUGIN_GUARD_NAME
+    ]
+    if len(hits) != 1:
+        return ["%s(plugin-guard-count=%d)" % (label, len(hits))]
+    index, step = hits[0]
+    if step.get("shell") != "bash":
+        problems.append("%s(plugin-guard-shell)" % label)
+    for key in ("if", "continue-on-error", "timeout-minutes", "uses", "env"):
+        if key in step:
+            problems.append("%s(plugin-guard-%s)" % (label, key))
+    run = step.get("run")
+    if not isinstance(run, str):
+        return problems + ["%s(plugin-guard-run-missing)" % label]
+    for marker in PLUGIN_GUARD_MARKERS:
+        if marker not in run:
+            problems.append(
+                "%s(plugin-guard-marker:%s)" % (label, marker[:48])
+            )
+    cli = [
+        cli_index
+        for cli_index, cli_step in enumerate(steps)
+        if isinstance(cli_step, dict) and cli_step.get("name") == CLI_STEP_NAME
+    ]
+    if len(cli) != 1 or index > cli[0]:
+        problems.append("%s(plugin-guard-not-before-cli)" % label)
+    return problems
+
+
+def mutate_guard_remove_step(doc):
+    runs = doc.get("runs")
+    if isinstance(runs, dict) and isinstance(runs.get("steps"), list):
+        runs["steps"] = [
+            step
+            for step in runs["steps"]
+            if not (
+                isinstance(step, dict) and step.get("name") == PLUGIN_GUARD_NAME
+            )
+        ]
+
+
+def mutate_guard_condition(doc):
+    step = plugin_guard_step(doc)
+    if step is not None:
+        step["if"] = "false"
+
+
+def mutate_guard_shell(doc):
+    step = plugin_guard_step(doc)
+    if step is not None:
+        step["shell"] = "pwsh"
+
+
+def mutate_guard_move_after_cli(doc):
+    runs = doc.get("runs")
+    if not isinstance(runs, dict) or not isinstance(runs.get("steps"), list):
+        return
+    steps = runs["steps"]
+    guard = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == PLUGIN_GUARD_NAME
+    ]
+    cli = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == CLI_STEP_NAME
+    ]
+    if len(guard) == 1 and len(cli) == 1:
+        moved = steps.pop(guard[0])
+        cli_index = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == CLI_STEP_NAME
+        ][0]
+        steps.insert(cli_index + 1, moved)
+
+
+def mutate_guard_drop_marker(marker):
+    def _mutate(doc):
+        step = plugin_guard_step(doc)
+        if step is not None and isinstance(step.get("run"), str):
+            step["run"] = step["run"].replace(marker, "")
+
+    return _mutate
+
+
+def plugin_guard_fixture_checks(guard_body):
+    # Execute the REAL guard body under the production shell form against
+    # throwaway git repositories. The tracked case proves both directories
+    # disappear, the skip-worktree bit hides the deletion from `git status`
+    # (so the session auto-commit cannot stage it), and an unrelated tracked
+    # file survives; the symlink case proves the link is removed without
+    # touching its target and its own deletion stays out of `git status`; the
+    # clean case proves a legitimate `.opencode` tree is left alone; and the
+    # controls prove the status assertion and the symlink fixture are
+    # load-bearing (a body without the marking leaves a visible deletion, and
+    # a naive removal through the link destroys the target).
+    problems = []
+    if not isinstance(guard_body, str) or not guard_body:
+        return ["plugin-guard-functional:body-missing"]
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_AUTHOR_NAME": "audit",
+        "GIT_AUTHOR_EMAIL": "audit@example.invalid",
+        "GIT_COMMITTER_NAME": "audit",
+        "GIT_COMMITTER_EMAIL": "audit@example.invalid",
+    }
+
+    def make_repo(files):
+        repo = tempfile.mkdtemp(prefix="plugin-guard-")
+        local_env = dict(env)
+        local_env["HOME"] = repo
+        subprocess.run(
+            ["git", "init", "-q", repo],
+            env=local_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for relative, content in files.items():
+            path = os.path.join(repo, relative)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+        subprocess.run(
+            ["git", "add", "-A"],
+            cwd=repo,
+            env=local_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "fixture"],
+            cwd=repo,
+            env=local_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return repo, local_env
+
+    def execute_body(repo, local_env, body):
+        return subprocess.run(
+            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", body],
+            cwd=repo,
+            env=local_env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def status(repo, local_env):
+        return subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo,
+            env=local_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout
+
+    try:
+        repo, local_env = make_repo(
+            {
+                ".opencode/plugin/a.js": "1",
+                ".opencode/plugins/b.js": "2",
+                ".opencode/keep.txt": "keep",
+            }
+        )
+        with open(
+            os.path.join(repo, ".opencode", "plugin", "untracked.js"), "w"
+        ) as handle:
+            handle.write("untracked")
+        result = execute_body(repo, local_env, guard_body)
+        if result.returncode != 0:
+            problems.append("plugin-guard-functional:tracked-rc-%d" % result.returncode)
+        else:
+            if os.path.exists(os.path.join(repo, ".opencode", "plugin")):
+                problems.append("plugin-guard-functional:tracked-singular-remains")
+            if os.path.exists(os.path.join(repo, ".opencode", "plugins")):
+                problems.append("plugin-guard-functional:tracked-plural-remains")
+            if not os.path.exists(os.path.join(repo, ".opencode", "keep.txt")):
+                problems.append("plugin-guard-functional:unrelated-removed")
+            if status(repo, local_env).strip():
+                problems.append("plugin-guard-functional:tracked-status-dirty")
+            tracked = subprocess.run(
+                ["git", "ls-files", "-v"],
+                cwd=repo,
+                env=local_env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            ).stdout
+            if "S .opencode/plugin/a.js" not in tracked:
+                problems.append("plugin-guard-functional:singular-not-skip-worktree")
+            if "S .opencode/plugins/b.js" not in tracked:
+                problems.append("plugin-guard-functional:plural-not-skip-worktree")
+        shutil.rmtree(repo, ignore_errors=True)
+
+        repo, local_env = make_repo({"real/plugin/canary.js": "canary"})
+        os.symlink("real", os.path.join(repo, ".opencode"))
+        subprocess.run(
+            ["git", "add", "-A"],
+            cwd=repo,
+            env=local_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "symlink"],
+            cwd=repo,
+            env=local_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = execute_body(repo, local_env, guard_body)
+        if result.returncode != 0:
+            problems.append("plugin-guard-functional:symlink-rc-%d" % result.returncode)
+        else:
+            if os.path.lexists(os.path.join(repo, ".opencode")):
+                problems.append("plugin-guard-functional:symlink-remains")
+            if not os.path.exists(os.path.join(repo, "real", "plugin", "canary.js")):
+                problems.append("plugin-guard-functional:symlink-target-damaged")
+            if status(repo, local_env).strip():
+                problems.append("plugin-guard-functional:symlink-status-dirty")
+        shutil.rmtree(repo, ignore_errors=True)
+
+        repo, local_env = make_repo({".opencode/config.json": "{}"})
+        result = execute_body(repo, local_env, guard_body)
+        if result.returncode != 0:
+            problems.append("plugin-guard-functional:clean-rc-%d" % result.returncode)
+        elif not os.path.exists(os.path.join(repo, ".opencode", "config.json")):
+            problems.append("plugin-guard-functional:clean-config-removed")
+        elif status(repo, local_env).strip():
+            problems.append("plugin-guard-functional:clean-status-dirty")
+        shutil.rmtree(repo, ignore_errors=True)
+
+        if 'git update-index --skip-worktree -- "$tracked_path"' in guard_body:
+            mutated = guard_body.replace(
+                'git update-index --skip-worktree -- "$tracked_path"', "true"
+            )
+            repo, local_env = make_repo({".opencode/plugin/a.js": "1"})
+            result = execute_body(repo, local_env, mutated)
+            if result.returncode != 0:
+                problems.append(
+                    "plugin-guard-functional:control-rc-%d" % result.returncode
+                )
+            elif not status(repo, local_env).strip():
+                problems.append(
+                    "plugin-guard-functional:control-status-not-dirty"
+                )
+            shutil.rmtree(repo, ignore_errors=True)
+        else:
+            problems.append("plugin-guard-functional:control-marker-missing")
+
+        repo, local_env = make_repo({"real/plugin/canary.js": "canary"})
+        os.symlink("real", os.path.join(repo, ".opencode"))
+        result = execute_body(repo, local_env, "rm -rf -- .opencode/plugin")
+        if result.returncode == 0 and os.path.exists(
+            os.path.join(repo, "real", "plugin", "canary.js")
+        ):
+            problems.append("plugin-guard-functional:control-symlink-fixture-inert")
+        shutil.rmtree(repo, ignore_errors=True)
+    except Exception as exc:  # noqa: BLE001 - fail closed on any fixture error
+        problems.append("plugin-guard-functional:%s" % type(exc).__name__)
+    return problems
+
 
 
 def cli_external_directory(permission):
@@ -23374,6 +23704,77 @@ try:
                 mutator(mutated)
                 if not validate_maintainer_bootstrap(mutated, maintainer_path):
                     problems.append("%s(%s)" % (maintainer_path, marker))
+    # Issue #831 (Tester finding): the vendored composite runner removes the
+    # checked-out tree's project plugin directories before the CLI starts, so
+    # the import-time channel the project-config opt-out does not cover cannot
+    # reopen on the PR-head-checkout arms. The guard is pinned statically,
+    # mutation-self-tested, and its real body is executed against
+    # tracked/untracked/symlinked/clean fixture repositories (the controls
+    # prove the skip-worktree status assertion and the symlink fixture are
+    # load-bearing).
+    action_path = ".github/actions/opencode-run/action.yml"
+    if not os.path.exists(action_path):
+        problems.append("%s(missing)" % action_path)
+    else:
+        try:
+            action_doc = load_file(action_path)
+        except Exception as exc:  # noqa: BLE001 - fail closed on parse error
+            problems.append("%s(parse:%s)" % (action_path, type(exc).__name__))
+        else:
+            problems.extend(validate_plugin_guard(action_doc, action_path))
+            for mutator, marker in (
+                (
+                    mutate_guard_remove_step,
+                    "self-test-plugin-guard-removed-not-caught",
+                ),
+                (
+                    mutate_guard_condition,
+                    "self-test-plugin-guard-gated-not-caught",
+                ),
+                (
+                    mutate_guard_shell,
+                    "self-test-plugin-guard-shell-not-caught",
+                ),
+                (
+                    mutate_guard_move_after_cli,
+                    "self-test-plugin-guard-moved-not-caught",
+                ),
+            ):
+                mutated = copy.deepcopy(action_doc)
+                mutator(mutated)
+                if not validate_plugin_guard(mutated, action_path):
+                    problems.append("%s(%s)" % (action_path, marker))
+            for marker_text, marker_id in (
+                (
+                    "if [ -L .opencode ]; then",
+                    "self-test-plugin-guard-symlink-not-caught",
+                ),
+                (
+                    "for dir in .opencode/plugin .opencode/plugins; do",
+                    "self-test-plugin-guard-dirs-not-caught",
+                ),
+                (
+                    'git update-index --skip-worktree -- "$tracked_path"',
+                    "self-test-plugin-guard-skip-worktree-not-caught",
+                ),
+                (
+                    'rm -rf -- "$dir"',
+                    "self-test-plugin-guard-removal-not-caught",
+                ),
+                (
+                    "exit 1",
+                    "self-test-plugin-guard-loud-failure-not-caught",
+                ),
+            ):
+                mutated = copy.deepcopy(action_doc)
+                mutate_guard_drop_marker(marker_text)(mutated)
+                if not validate_plugin_guard(mutated, action_path):
+                    problems.append("%s(%s)" % (action_path, marker_id))
+            guard = plugin_guard_step(action_doc)
+            if guard is not None:
+                problems.extend(
+                    plugin_guard_fixture_checks(guard.get("run"))
+                )
     # Execute the real CLI config loader when it is available (the vendored
     # runner installs opencode in every agent lane; developer checkouts carry
     # it too). The control case must observe the ask default, so the fixture
@@ -23402,10 +23803,10 @@ PY
 )
 case "$r31_out" in
   OK)
-    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config/instructions/plugins while /tmp contract files and staged prompts stay reachable; the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
+    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config or instructions while /tmp contract files and staged prompts stay reachable; because CLI 1.19.5 still imports the checked-out tree's .opencode/plugin(s) modules at bootstrap under that opt-out, the vendored composite runner also removes both directories before the CLI starts, marks tracked paths skip-worktree so the session auto-commit cannot stage the deletion, refuses to follow a .opencode symlink, and fails loudly when the marking fails, with its unconditional pre-CLI position and its real body pinned and executed against tracked/untracked/symlinked/clean git fixtures (issue #831 Tester finding); the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, the plugin guard is mutation-self-tested for removal, gating, an interpreter swap, a move after the CLI step, and every load-bearing marker, and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
     ;;
   *)
-    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json/plugins unless the opt-out is set on every agent arm; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
+    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json under the opt-out unless it is set on every agent arm, and CLI 1.19.5 still imports .opencode/plugin(s) modules at bootstrap, so the vendored runner must remove them before the CLI starts without leaving a deletion the session auto-commit can stage; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
     ;;
 esac
 
@@ -26686,7 +27087,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the import-time channel CLI 1.19.5 leaves open under the opt-out cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, and the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, all pinned and executed against mock gh/sleep fixtures with mutation self-tests)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
