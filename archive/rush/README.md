@@ -4,7 +4,7 @@ A polished, dependency-free **top-down arcade car racing game** that runs in
 any modern browser. Steer a four-lane highway at ever-increasing speed, dodge
 oncoming traffic, and grab fuel cans before the tank runs dry.
 
-- **Play it:** open [`rush/index.html`](index.html) from this archived directory
+- **Play it:** open [`index.html`](index.html) from this archived directory
   (or serve the repository root and visit `/archive/rush/`).
 - **No dependencies, no assets** — everything (cars, road, trees, sound) is
   drawn and synthesized at runtime with Canvas 2D and the Web Audio API.
@@ -43,11 +43,11 @@ you're done; running out of fuel is also game over. Best score is saved in
 
 ## Running the tests
 
-The gameplay rules in `rush/logic.js` are pure functions, tested with Node's
-built-in test runner (Node 18+):
+The gameplay rules in `archive/rush/logic.js` are pure functions, tested with
+Node's built-in test runner (Node 18+):
 
 ```bash
-node --test rush/logic.test.js
+node --test archive/rush/logic.test.js
 ```
 
 ### Headless browser smoke test (Playwright)
@@ -62,7 +62,7 @@ const { chromium } = require('playwright');
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage();
-  await p.goto('file://' + process.cwd() + '/rush/index.html?debug=');
+  await p.goto('file://' + process.cwd() + '/archive/rush/index.html?debug=');
   await p.click('#btn-start');
   await p.keyboard.down('ArrowRight'); await p.waitForTimeout(500);
   await p.keyboard.up('ArrowRight');
