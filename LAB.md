@@ -195,6 +195,122 @@ Round 13 also
   body is pinned line-for-line; its step name must be unique across the
   workflow file, and step-level YAML overrides are banned).
 - **Per-OS tester commit-scope sanitization (issue #798)**: the per-OS
+  tester arms let the agent commit tests directly to the PR branch, so a
+  session auto-commit can also ship a leaked owner `Co-authored-by:` trailer
+  or an edit outside the project test lane. Run 41176553396's auto-commit
+  `9f1f1ed0` edited `.github/scripts/post-peros-findings.sh` and carried a
+  `Co-authored-by: Userfrom1995` trailer, invalidating approvals on
+  `30b0dadb`. Each arm now resolves a pre-agent PR trust anchor (PR number,
+  head branch, cross-repository flag, head repository) before the agent,
+  verifies it matches the checked-out ref, and exports it to the sanitizers
+  under `PEROS_ANCHOR=1`, so a rewritten event payload or re-resolved PR
+  cannot redirect the judgment. The restore step marks restored tracked
+  artifacts skip-worktree so the runner's `git add -A` auto-commit cannot
+  re-commit them, and the baseline step refuses a branch carrying a
+  `PEROS_SCOPE_VIOLATION` marker. After the agent (under the actor gate,
+  before verify and the decision forward) the arm runs the shared trailer
+  strip and `.github/scripts/peros-scope-guard.sh` from fresh scratch bare
+  repositories configured only by the pinned step env. Both sanitizer
+  bodies read the reviewed helper through the GitHub contents API against
+  this run's workflow commit (a fresh private `GH_CONFIG_DIR`,
+  `GH_HOST: github.com`, and the lowercase-proxy unset), never with a
+  post-agent `git show`, so an agent-exported `GIT_DIR` or
+  `GIT_OBJECT_DIRECTORY` plus a fake loose object named `GITHUB_SHA`
+  cannot execute attacker helper text (issue #798 review B8). The strip rewrites
+  only the captured baseline..branch range with a pinned `REMOTE_URL` and
+  `--force-with-lease`, so a post-agent workspace `url.*.insteadOf` rewrite
+  cannot redirect it. In the anchored per-OS lane the strip counts owner
+  trailers only on the named per-OS tester commits, reports a foreign
+  commit's trailer as preserved without claiming a rewrite, and recounts the
+  rewritten range before printing success, so a foreign-only trailer can
+  never produce a false success line. The guard resolves the same-repository PR head (fork
+  and deleted heads are loud no-ops; an issue trigger follows its open
+  `opencode/issue<N>-*` PR), judges only commits after the captured baseline,
+  scans every commit with `diff-tree -m` so a merge cannot hide an imported
+  change (including a merge whose side parent predates the captured baseline,
+  where the combined diff is empty), judges protected paths regardless of committer identity, and
+  accepts only project test-lane paths for tester commits. Protected lab
+  paths (`.github`, `.github/*`, `AGENTS.md`, `LAB.md`, `setup.sh`,
+  `shutdown.sh`, `opencode.json`, `PEROS_SCOPE_VIOLATION`) are always
+  violations. A fully tester-owned violating range is dropped with a
+  `--force-with-lease` reset to the baseline; a foreign commit interleaved in
+  the range makes the guard record the marker and leave the branch for the
+  Maintainer. The marker is a hard stop: a later run whose baseline predates
+  it refuses before judging or pushing. A fully tester range is judged only
+  for the named per-OS tester identity, name and email (a generic
+  `github-actions[bot]` name is foreign), marker and drop pushes retry a
+  bounded three times, and both helpers unset `GIT_EXEC_PATH` so an
+  agent-exported path cannot shadow the strip's `git-filter-branch` or the
+  guard's fetch transport helpers (`git diff-tree` is a builtin and is not
+  shadowable), and unset the fifteen proxy/TLS redirections (`HTTPS_PROXY`,
+  `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `all_proxy`,
+  `NO_PROXY`, `no_proxy`, `GIT_SSL_NO_VERIFY`, `GIT_SSL_CAINFO`,
+  `GIT_SSL_CAPATH`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`,
+  `GIT_PROXY_COMMAND`) before the first git command so an agent-exported
+  proxy can never serve a decoy branch. The anchored strip refuses an empty baseline rather
+  than falling back to `origin/main`, requires the baseline to be an ancestor
+  of the branch, and matches an owner trailer with leading whitespace and
+  case tolerated. Both sanitizers require a successful pre-agent baseline
+  capture. The owner-PAT findings, forward, and salvage steps pin the
+  interpreter, gh config, and proxy/TLS seams (`BASH_ENV`, `ENV`,
+  `GH_CONFIG_DIR`, `GH_HOST`, `GIT_CONFIG_*`, `LD_*`, and the eleven
+  uppercase proxy/TLS variables) on top of the trusted PATH, each step
+  body unsets the four lowercase proxy spellings before its first gh
+  call (GitHub rejects a workflow env map whose keys differ only by
+  case, so the lowercase forms cannot also be pinned), and the
+  findings poster pins `--hostname github.com`. The agent committer identity
+  is pinned per arm. Audit rule R34 executes the real extracted
+  anchor, restore, baseline, strip, and scope bodies against a local bare
+  origin and a mock `gh` across the clean, out-of-lane, protected,
+  foreign-interleaved, foreign-only-trailer, generic-bot,
+  tester-name-foreign-email, pre-baseline-trailer, pre-baseline-date-skew,
+  bare, trailer, incident, fork, wrong-namespace, issue-triggered,
+  per-OS-identity, merge, evil-merge (side parent predating the baseline),
+  gitlink, exec-path (strip and guard), fake-object-store (strip and guard),
+  proxy-env control and unset-removal mutant, failed-baseline, non-ancestor-baseline,
+  marker-stop, marker-deletion, lease-failure, `insteadOf` (distinct evil
+  tip), and rejected-strip-push cases, with mutation controls for each
+  independently reachable protected entry (the marker is covered by its
+  creation/deletion hard stop), the skip-worktree restore guard, the preflight
+  identity gate, the strip and guard `GIT_EXEC_PATH` unset, the `diff-tree -m`
+  flag, the tester email term, the topological preflight ordering, the
+  marker-deletion check, and the strip; the ancestry check is a message-bound
+  negative scenario control rather than a mutant. The proxy fixture proves the
+  shipped helpers never contact a decoy HTTP proxy while the unset-removal
+  mutant does and fails closed with the real tip intact, and a mock-gh
+  effective-env assertion proves none of the eight owner-PAT
+  findings/forward/salvage steps can send an `Authorization` header through a
+  proxy (the no-overlay control leaks, so the assertion is load-bearing).
+  R17 pins the new step bodies, gates, exact owner-PAT env
+  maps, ordering, and forward gate.
+  Review hardening: each owner-PAT step creates a fresh private
+  `GH_CONFIG_DIR` (`mktemp -d`, `chmod 700`, a removal trap, fail closed) so
+  gh can never load an agent-planted `config.yml`; the findings poster is read
+  through the contents API with `?ref=${GITHUB_SHA}` (no workspace git config
+  surface for the owner PAT); the baseline step runs the guard from this run's
+  workflow commit with `PEROS_PREFLIGHT=1`; it refuses a branch whose named
+  tester commits are out of lane, refuses a `PEROS_SCOPE_VIOLATION` creation
+  or deletion under any identity, and refuses a protected-path edit made by a
+  named tester or by any commit at or after the first named tester commit in
+  the range, so a foreign-identity `.github` edit interleaved with a tester
+  session can never be adopted as pre-baseline history and the durable
+  invariant survives a post-sanitizer advance or a failed drop. The PR's own
+  pre-tester protected history is exempt, so a read-only per-OS session on an
+  infrastructure PR still starts (issue #804 review B7), while the out-of-lane
+  check stays tester-specific. The boundary is topological
+  (`git rev-list --topo-order --reverse`), so committer-date skew cannot
+  invert it. The pre-tester exemption is the documented residual: a
+  force-push rewrite that moves a protected edit before the first tester
+  commit (or removes the tester commits) is adopted as infrastructure
+  history. The guard re-fetches and re-judges up to three
+  bounded rounds on a rejected lease push (clean re-judge exits 0, exhaustion
+  is loud); the anchored strip rewrites only the named tester identities and
+  preserves a foreign commit's trailer, while the non-anchored lanes keep the
+  legacy unconditional message filter (their own persona commits must still
+  lose every owner trailer or the strip is a false success); the anchored
+  strip requires `REMOTE_URL`; and the sanitizer steps pin `TMPDIR=/tmp` (the
+  fresh gh config and scratch trees hold the job token, not the owner PAT;
+  same-UID background-process access remains the documented residual).
 - **Lab, fix, review, and curator agent cap headroom (issues #701, #827,
   #843)**: the lab agent step runs 150 minutes under a 180-minute job, the
   fix agent step 120 under 180, the review agent step 150 under 180 (issue
