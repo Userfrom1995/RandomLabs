@@ -72,26 +72,37 @@ onto the PR branch.
 
 The fix lives in the vendored composite runner, so one trusted change
 covers all 20 composite arms: a new first step removes
-`.opencode/plugin` and `.opencode/plugins` before any CLI process starts,
-marks tracked paths `--skip-worktree` first (aborting loudly if the marking
-fails), removes a `.opencode` symlink without following it, and leaves a
-legitimate `.opencode` tree (no plugin directories) untouched. The four
-PR-head arms restore the composite from `${GITHUB_SHA}` (the default-branch
-tip on `issue_comment` wake-ups), so the guard is trusted code; after this
-PR merges, every later PR's review/test/per-OS/eval runs get it. The
-Maintainer inline arm is not exposed at bootstrap because its pre-agent
-checkout is the trusted default branch; the CLI's PR-head checkout happens
-after plugin initialization.
+`.opencode/plugin` and `.opencode/plugins` before the first CLI process
+starts, marks tracked paths `--skip-worktree` first (aborting loudly if the
+enumeration or marking fails), removes a `.opencode` symlink without
+following it, and leaves a legitimate `.opencode` tree (no plugin
+directories) untouched. Because the CLI's GitHub handler checks out the PR
+head mid-run and every provider/stall/ladder retry starts a NEW CLI process
+on that tree, the `Run opencode` step also re-runs the same sanitizer
+before every attempt (review F5). The four PR-head arms restore the
+composite from `${GITHUB_SHA}` (the default-branch tip on `issue_comment`
+wake-ups), so the guard is trusted code; after this PR merges, every later
+PR's review/test/per-OS/eval runs get it. The Maintainer inline arm is not
+exposed at bootstrap because its pre-agent checkout is the trusted default
+branch (the CLI's PR-head checkout happens after plugin initialization),
+but its retries are new processes on the PR-head tree, so it runs the same
+per-attempt sanitizer in its retry loop.
 
 R31 now pins the guard's exact name, `shell: bash`, unconditional shape,
-position ahead of the CLI step, and every load-bearing marker; it
-mutation-self-tests a removed guard, a gated guard, an interpreter swap, a
-move after the CLI step, and each marker's removal; and it executes the
-real extracted body under `bash --noprofile --norc -eo pipefail` against
-tracked, untracked, symlinked, and clean git fixtures. Controls prove the
-skip-worktree status assertion and the symlink fixture are load-bearing (a
-body without the marking leaves a visible deletion; a naive removal
-through the symlink destroys the target).
+position ahead of the CLI step, every load-bearing marker, and the entire
+normalized guard body by SHA-256; it mutation-self-tests a removed guard, a
+gated guard, an interpreter swap, a move after the CLI step, a
+working-directory override, an inserted guard line, and each marker's
+removal; it statically pins the sanitizer definition and the per-attempt
+call in both retry loops (the composite `Run opencode` body and the
+Maintainer inline body); and it executes the real extracted body under
+`bash --noprofile --norc -eo pipefail` against tracked, untracked,
+symlinked, clean, and failed-enumeration git fixtures. Controls prove the
+skip-worktree status assertion, the symlink fixture, and the
+failed-enumeration fail-closed branch are load-bearing (a body without the
+marking leaves a visible deletion; a naive removal through the symlink
+destroys the target; a swallowed enumeration failure removes the
+directories unprotected).
 
 ## Wake-path scope
 
@@ -249,3 +260,60 @@ Loaded `customize-opencode`: applied its escape-hatch guidance
 - Diff hygiene: no em dash or `Co-authored-by` additions; every commit
   subject starts with `lab:`; the working tree holds only the intended
   edits.
+
+## Review round fixes (F5-F8)
+
+- F5 (blocking): the CLI's GitHub handler checks out the PR head mid-run,
+  and every provider/stall/ladder retry starts a NEW CLI process on that
+  tree. The first-step guard therefore covered only attempt 1. The same
+  sanitizer is now defined in the composite `Run opencode` body and in the
+  Maintainer inline `Run Maintainer agent` body and is called as the FIRST
+  statement of every attempt (inside `while :; do`, covering both the FIFO
+  and degraded no-mkfifo capture shapes). The definition is loaded from the
+  trusted step script before the first attempt, so the PR-head checkout can
+  never replace it with mutable workspace code.
+- F6 (blocking): rebased onto `origin/main`
+  `22d6c92fefd406057c3a6ce28a24e5a2b9d1951d`; the one conflict in
+  `.github/scripts/silent-stall-audit.sh` was resolved to keep the #831 R31
+  changes, and the branch is no longer behind.
+- F7 (important): `mark_skip_worktree` now fails closed when
+  `git ls-files` itself fails: it prints a canonical `::error::`, removes
+  the temporary file, and exits nonzero before any plugin directory is
+  removed. A shimmed-git fixture proves the guard exits nonzero, emits the
+  message, and leaves the plugin directory in place.
+- F8 (important): R31 now bans a step-level `working-directory`, pins the
+  entire normalized first-step guard body by SHA-256, mutation-self-tests
+  EVERY marker in `PLUGIN_GUARD_MARKERS` (11 now, including
+  `rm -f -- .opencode`, `git ls-files -z -- "$1"`, and the fail-closed
+  messages), adds an inserted-line mutation, SHA-pins both per-attempt
+  sanitizer copies (composite and Maintainer inline), statically pins the
+  per-attempt call as the first statement of the attempt in both run
+  bodies, and mutation-self-tests a removed call, a gated call, a moved
+  call, and a removed definition on both arms.
+
+## Delegation ledger (review round)
+
+- general (full R1-R34 audit on the rebased head): 34 passed, 0 failed,
+  exit 0.
+- explore (static review of the new pins): confirmed both per-attempt
+  SHA-256 values, the first-attempt call shape, and the working-directory
+  ban bind the shipped bodies.
+- Primary verified itself: the rebase ancestry, the R31 hash outputs, the
+  R15/R26 regenerated pins, and the clean-tree diff.
+
+## Skills (review round)
+
+Loaded `customize-opencode`: the per-attempt sanitizer stays on the
+supported env/permission surface (`OPENCODE_DISABLE_PROJECT_CONFIG` plus
+`OPENCODE_PERMISSION`), and no project config file was added or changed.
+
+## Verification (review round)
+
+- `timeout 1800 env -u LAB_RUN_NONCE bash .github/scripts/silent-stall-audit.sh`
+  on the rebased head: 34 passed, 0 failed, exit 0.
+- The failed-enumeration fixture executes the real guard body with a
+  PATH-shimmed `git` whose `ls-files` exits 1 and asserts nonzero exit,
+  the canonical message, and the untouched plugin directory; the SHA pins
+  and every mutation self-test (including a `/tmp` working-directory and an
+  inserted guard line) fail as expected when mutated.
+- Branch ancestry: `git merge-base --is-ancestor origin/main HEAD` holds.
