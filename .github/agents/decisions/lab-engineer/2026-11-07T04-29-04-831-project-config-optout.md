@@ -283,7 +283,7 @@ Loaded `customize-opencode`: applied its escape-hatch guidance
   message, and leaves the plugin directory in place.
 - F8 (important): R31 now bans a step-level `working-directory`, pins the
   entire normalized first-step guard body by SHA-256, mutation-self-tests
-  EVERY marker in `PLUGIN_GUARD_MARKERS` (11 now, including
+  EVERY marker in `PLUGIN_GUARD_MARKERS` (10 now, including
   `rm -f -- .opencode`, `git ls-files -z -- "$1"`, and the fail-closed
   messages), adds an inserted-line mutation, SHA-pins both per-attempt
   sanitizer copies (composite and Maintainer inline), statically pins the
