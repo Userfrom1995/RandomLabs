@@ -286,16 +286,20 @@ Public Surface / Web Track:                                              │
   `opencode/schedule-*` branch and never check out a PR, so every agent
   arm sets `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` plus the supported
   `OPENCODE_PERMISSION` grant and never merges the checked-out tree's
-  `AGENTS.md` or `opencode.json` (issue #831; canary-verified). The opt-out
-  does not stop the CLI 1.19.5 bootstrap import of `.opencode/plugin(s)`
-  modules (issue #831 Tester finding), so the vendored composite runner
-  removes both directories before the first CLI process starts, marks
-  tracked paths skip-worktree so the session auto-commit cannot stage the
-  deletions, removes a `.opencode` symlink without following it, and fails
-  loudly when the enumeration or marking fails. The CLI's GitHub handler
-  checks out the PR head mid-run and every retry starts a NEW CLI process
-  on that tree, so the runner re-runs the same sanitizer before every
-  attempt (issue #831 review F5); the Maintainer inline arm runs the same
+  `AGENTS.md` or `opencode.json` (issue #831; canary-verified). On CLI
+  1.19.5 the opt-out also skips the project plugin directories
+  (`ConfigPaths.directories` filters them under the flag), but the global
+  `$HOME/.opencode` scan is unconditional, the loader boundary varies
+  across CLI versions, and every retry is a new process on the mid-run
+  PR-head checkout tree, so the vendored composite runner removes both
+  project directories before the first CLI process starts as defense in
+  depth, marks tracked paths skip-worktree so the session auto-commit
+  cannot stage the deletions, removes a `.opencode` symlink without
+  following it, and fails loudly when the enumeration or marking fails.
+  The CLI's GitHub handler checks out the PR head mid-run and every retry
+  starts a NEW CLI process on that tree, so the runner re-runs the same
+  sanitizer before every attempt (issue #831 review F5); the Maintainer
+  inline arm runs the same
   per-attempt sanitizer in its retry loop (its first process bootstraps on
   the trusted default-branch checkout, but a retry runs on the PR-head
   tree).

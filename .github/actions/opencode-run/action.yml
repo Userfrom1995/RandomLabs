@@ -27,17 +27,21 @@ branding:
 # the provider-stall watchdog, all guarded by extended audit rule R15), and
 # (3) the pre-CLI project-plugin sanitizer below, which removes the
 # checked-out tree's `.opencode/plugin(s)` modules before any CLI process
-# starts (issue #831: the CLI imports those modules at bootstrap even under
-# OPENCODE_DISABLE_PROJECT_CONFIG, so on the PR-head-checkout arms a
-# PR-controlled module would execute before the agent).
+# starts (issue #831 defense in depth: on CLI 1.19.5 the project-config
+# opt-out already skips the project plugin directories, but the global
+# `$HOME/.opencode` scan is unconditional, the loader boundary varies across
+# CLI versions, and a retry after the CLI's mid-run PR-head checkout is a new
+# process on a PR-controlled tree, so on the PR-head-checkout arms a
+# PR-controlled module must never be reachable when the CLI starts).
 # Per-lane model selection stays an input (the previous flexible setup).
 # opencode.json in the repository root is still staged from the maintained
 # default-branch commit and loaded via OPENCODE_CONFIG so the CLI's paid
 # built-in small model (gpt-5.4-nano) is never used on any agent lane: every
 # lane sets OPENCODE_DISABLE_PROJECT_CONFIG (issue #831), which makes the CLI
-# ignore the checked-out tree's opencode.json and instruction files, and the
-# sanitizer below removes the project plugin directories that opt-out does
-# not cover. The staged config supplies `small_model`; the main model
+# ignore the checked-out tree's opencode.json, instruction files, and (on
+# 1.19.5) project plugin directories; the sanitizer below stays as defense in
+# depth for the loader drift and global-home scan paths described above. The
+# staged config supplies `small_model`; the main model
 # remains the per-lane `model` input below.
 inputs:
   model:
@@ -76,19 +80,23 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # Issue #831 (Tester finding): opencode 1.19.5 walks the checked-out
-    # tree's `.opencode/plugin/*.js` and `.opencode/plugins/*.js` modules and
-    # imports them at process bootstrap, before the GitHub handler checks out
-    # the PR head and before the agent runs. OPENCODE_DISABLE_PROJECT_CONFIG
-    # gates the project config-file merge but not that module walk, so on the
-    # PR-head-checkout arms (review, test, per-OS, eval) a PR-controlled
-    # plugin module would execute top-level code as soon as the CLI starts.
-    # Remove both directories before the first CLI process starts. Tracked
-    # paths are marked skip-worktree first so the deletions never surface in
-    # `git status` and the contents-write arms' end-of-session auto-commit
-    # cannot stage them onto the PR branch. A `.opencode` symlink is removed
-    # without being followed, and a failed enumeration or marking aborts
-    # instead of leaving an unprotected deletion behind.
+    # Issue #831: opencode reads `.opencode/plugin/*.js` and
+    # `.opencode/plugins/*.js` from the project `.opencode` directories when
+    # they are discovered, and discovery happens at process bootstrap before
+    # the GitHub handler checks out the PR head and before the agent runs. On
+    # CLI 1.19.5 OPENCODE_DISABLE_PROJECT_CONFIG already skips those project
+    # directories (`ConfigPaths.directories` filters them under the flag), but
+    # the global `$HOME/.opencode` scan is unconditional (a HOME that equals
+    # the repo root reaches the checked-out tree), the loader boundary varies
+    # across CLI versions, and a retry after the CLI's mid-run PR-head
+    # checkout is a new process on a PR-controlled tree. Remove both project
+    # directories before the first CLI process starts as defense in depth for
+    # those paths. Tracked paths are marked skip-worktree first so the
+    # deletions never surface in `git status` and the contents-write arms'
+    # end-of-session auto-commit cannot stage them onto the PR branch. A
+    # `.opencode` symlink is removed without being followed, and a failed
+    # enumeration or marking aborts instead of leaving an unprotected deletion
+    # behind.
     # This step only covers the FIRST attempt: the CLI's GitHub handler
     # checks out the PR head mid-run, and every retry starts a NEW CLI
     # process on that tree, so the `Run opencode` step re-runs the same
@@ -516,10 +524,13 @@ runs:
           # Issue #831 review F5: the first-step guard covers only the first
           # CLI process. The CLI's GitHub handler checks out the PR head
           # mid-run, and every provider/stall/ladder retry starts a NEW CLI
-          # process on that tree, so the plugin-directory walk must be closed
-          # again before EVERY attempt. This definition is loaded from the
-          # trusted step script before the first attempt, so a PR-head
-          # checkout can never replace it with mutable workspace code.
+          # process on that tree, so the project plugin directories must be
+          # removed again before EVERY attempt (defense in depth: the 1.19.5
+          # opt-out already skips them, but the global-home scan is
+          # unconditional and the loader boundary is not version-pinned).
+          # This definition is loaded from the trusted step script before the
+          # first attempt, so a PR-head checkout can never replace it with
+          # mutable workspace code.
           local tracked failed removed dir tracked_path
           mark_skip_worktree() {
             tracked=$(mktemp)
