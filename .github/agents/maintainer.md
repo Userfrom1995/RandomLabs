@@ -173,7 +173,8 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
    on their targets).
 6. **Update your memory**:
    - `.maintainer/state.md` - the FULL new STATE.md content (rewrite it;
-     include: in-flight per PR/issue, next steps, open questions).
+     include: in-flight per PR/issue, next steps, open questions). It MUST
+     carry the exact liveness line `Last updated: <YYYY-MM-DDTHH:MMZ> by run <run_id>` (UTC, uppercase `T` and `Z`, run id = your `github.run_id`): the recover arm's cross-arm heartbeat (issue #836) parses exactly this stamp as its "a real session ran" signal, so a missing or malformed stamp is treated as stale and wakes the next Maintainer for no reason.
    - `.maintainer/log-entry.md` - the FULL content of today's `logs/YYYY-MM-DD.md`
      - take the existing file from memory and append today's entry: state
      snapshot, decisions + rationale, callbacks made, run links
