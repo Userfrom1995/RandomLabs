@@ -546,14 +546,16 @@ jobs:
           # Issue #831: never merge project config/instructions from the
           # checked-out tree. A pull_request wake-up is checked out to the PR
           # head branch (or the fork's head branch) by the CLI's GitHub
-          # bootstrap. The FIRST CLI process bootstraps against this run's
-          # trusted default-branch checkout (plugin init happens before that
-          # checkout), but every provider/stall/ladder retry starts a NEW CLI
-          # process on the PR-head tree, so the run script below re-runs the
-          # project-plugin sanitizer before every attempt. The authoritative
-          # prompt is the staged trusted copy named above, and the grant
-          # above keeps its external_directory read and the /tmp contract
-          # files reachable.
+          # bootstrap. On CLI 1.19.5 this opt-out also skips the project
+          # plugin directories (`ConfigPaths.directories` filters them under
+          # the flag), but the global $HOME/.opencode scan is unconditional,
+          # the loader boundary varies across CLI versions, and every
+          # provider/stall/ladder retry starts a NEW CLI process on the
+          # mid-run PR-head tree, so the run script below still re-runs the
+          # project-plugin sanitizer before every attempt as defense in
+          # depth. The authoritative prompt is the staged trusted copy named
+          # above, and the grant above keeps its external_directory read and
+          # the /tmp contract files reachable.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           VARIANT: max
           MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
@@ -561,7 +563,7 @@ jobs:
           PROMPT: |
             You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
 
-            READ FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831). The bootstrap's plugin initialization runs before that checkout against this run's trusted default-branch checkout, but every retry starts a new CLI process on the PR-head tree, so this run's retry loop re-runs the project-plugin sanitizer before every attempt (the composite arms do the same plus a pre-CLI first-step guard).
+            READ FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831); on CLI 1.19.5 that opt-out also skips the project plugin directories. The plugin loader still runs before that checkout, its directory boundary is not version-pinned, and the global home-directory scan is unconditional, while every retry starts a new CLI process on the PR-head tree, so this run's retry loop re-runs the project-plugin sanitizer before every attempt as defense in depth (the composite arms do the same plus a pre-CLI first-step guard).
 
             You also have, on disk:
             - `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
@@ -653,11 +655,13 @@ jobs:
             # Issue #831 review F5: the pre-agent checkout is the trusted
             # default branch, but the CLI's GitHub handler checks out the PR
             # head mid-run and every retry starts a NEW CLI process on that
-            # tree, before which CLI 1.19.5 imports `.opencode/plugin(s)`
-            # modules. Re-run the sanitizer before EVERY attempt. This
-            # definition loads from the trusted step script before the first
-            # attempt, so the PR-head checkout can never replace it with
-            # mutable workspace code.
+            # tree, so the project plugin directories must be removed again
+            # before EVERY attempt. This is defense in depth: the 1.19.5
+            # opt-out already skips them, but the global $HOME/.opencode
+            # scan is unconditional and the loader boundary is not
+            # version-pinned. This definition loads from the trusted step
+            # script before the first attempt, so the PR-head checkout can
+            # never replace it with mutable workspace code.
             local tracked failed removed dir tracked_path
             mark_skip_worktree() {
               tracked=$(mktemp)
