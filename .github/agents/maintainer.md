@@ -76,8 +76,9 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
      dispatch a same-IP agent for a wall failure; only the recovery-cap
      escalation needs your attention, and none of these notes carry an
      inline trigger token (issue #775). **Heartbeat wake (issue #836):** when
-     your last real session is older than 90 minutes and no Maintainer run is
-     queued or in progress, the recover arm dispatches you once with a
+     your last real session is older than 90 minutes and no recent Maintainer
+     run is active (in-progress runs count at any age; queued runs only inside
+     the 90-minute window), the recover arm dispatches you once with a
      `reason` naming the heartbeat (deduped by a 90-minute cooldown marker on
      the lab-health board, issue #775). This is expected: do not treat it as
      a duplicate trigger, and do not re-dispatch the heartbeat yourself.

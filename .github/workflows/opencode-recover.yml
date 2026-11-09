@@ -83,7 +83,7 @@ jobs:
       # walled auto-stub keeps the old file), so its "Last updated:" stamp is
       # written only by a real session (the Maintainer prompt pins the exact
       # `Last updated: <UTC>Z by run <id>` line). When that stamp is older than
-      # the staleness threshold and no Maintainer run is queued or in progress,
+      # the staleness threshold and no recent Maintainer run is active,
       # dispatch maintainer.yml once. The run gate reads the newest 1000 runs
       # (a 50-run window spans under the 75-minute job cap, so a burst of
       # short per-target runs could push a live global run out of view):
@@ -134,12 +134,12 @@ jobs:
           active=$(printf '%s' "$runs" | jq --arg cutoff "$cutoff" '[.[] | select(.status == "in_progress" or ((.status == "queued" or .status == "requested" or .status == "waiting" or .status == "pending") and .createdAt >= $cutoff))] | length' 2>/dev/null) || active=""
           case "$active" in
             ''|*[!0-9]*)
-              echo "::warning::could not classify queued or in-progress Maintainer runs (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
+              echo "::warning::could not classify active Maintainer runs (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
               exit 0
               ;;
           esac
           if [ "$active" -gt 0 ]; then
-            echo "A Maintainer run is already queued or in progress (${active}); no heartbeat dispatch."
+            echo "A Maintainer run is already active (${active}: in progress at any age, or queued inside the 90-minute window); no heartbeat dispatch."
             exit 0
           fi
           board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
@@ -172,7 +172,7 @@ jobs:
               exit 0
             fi
           fi
-          note=$(printf 'Maintainer heartbeat (issue #836): the last real Maintainer session is older than %s minutes and no Maintainer run is queued or in progress, so this recover-arm tick dispatches maintainer.yml once. The platform throttles the declared 20-minute Maintainer cron to about 4 to 7 wakes/day, and a pool-wide free-usage wall outlasts the one-attempt recovery chain, so this scripted arm is the independent wake source. Cooldown: one dispatch per %s minutes, deduped by this marker.\n\n%s' "$stale_minutes" "$cooldown_minutes" "$marker")
+          note=$(printf 'Maintainer heartbeat (issue #836): the last real Maintainer session is older than %s minutes and no recent Maintainer run is active, so this recover-arm tick dispatches maintainer.yml once. The platform throttles the declared 20-minute Maintainer cron to only a few runs per day (about 4.2 observed over the 10 days to 2026-11-09), and a pool-wide free-usage wall outlasts the one-attempt recovery chain, so this scripted arm is the independent wake source. Cooldown: one dispatch per %s minutes, deduped by this marker.\n\n%s' "$stale_minutes" "$cooldown_minutes" "$marker")
           posted=""
           if ! posted=$(gh issue comment "$board" --body "$note"); then
             echo "::warning::could not record the heartbeat on lab-health issue #${board} (issue #836); skipping the dispatch so a missing cooldown marker can never cause a dispatch storm."
