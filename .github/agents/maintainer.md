@@ -70,10 +70,17 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
      #820):** the daily free-usage allowance is per egress IP, so a run that
      ended on the #754 wall is intercepted before you start (the intake step
      stands this run down and posts one lab-health note) or recovered by the
-     bounded fresh-run step after your run (up to two attempts in the fixed
-     `quota-recovery` group). Do not dispatch a same-IP agent for a wall
-     failure; only the recovery-cap escalation needs your attention, and none
-     of these notes carry an inline trigger token (issue #775).
+     bounded fresh-run step after your run (one attempt in the fixed
+     `quota-recovery` group; issue #836 capped the chain because a second
+     dispatch two minutes later lands on the same pool-wide wall). Do not
+     dispatch a same-IP agent for a wall failure; only the recovery-cap
+     escalation needs your attention, and none of these notes carry an
+     inline trigger token (issue #775). **Heartbeat wake (issue #836):** when
+     your last real session is older than 90 minutes and no Maintainer run is
+     queued or in progress, the recover arm dispatches you once with a
+     `reason` naming the heartbeat (deduped by a 90-minute cooldown marker on
+     the lab-health board, issue #775). This is expected: do not treat it as
+     a duplicate trigger, and do not re-dispatch the heartbeat yourself.
    - **Trigger-list self-audit:** every run, compare the `workflows:`
      allowlist in `.github/workflows/maintainer.yml` against live workflow
      `name:` fields. Any added/renamed workflow missing from the list →

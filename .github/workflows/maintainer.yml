@@ -59,10 +59,10 @@ concurrency:
   # opencode-recover) which sets queue: max, this group keeps the default
   # single pending slot. Audit rule R14 guards this explicit decision.
   # Issue #820: every quota-wall recovery run joins one fixed group, so the
-  # bounded fresh-run chain is serialized (a second recovery can never race the
-  # first) and the 20-minute schedule tick can never supersede a pending
-  # recovery. The normal lanes keep the per-target group and the deliberate
-  # single-slot superseding above.
+  # bounded one-attempt fresh-run recovery is serialized (a second recovery
+  # can never race the first) and the 20-minute schedule tick can never
+  # supersede a pending recovery. The normal lanes keep the per-target group
+  # and the deliberate single-slot superseding above.
   group: ${{ inputs.quota_recovery && 'quota-recovery' || format('maintainer-{0}', inputs.pr_number || github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || 'global') }}
   cancel-in-progress: false
 
@@ -975,14 +975,18 @@ jobs:
         run: |
           # Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
           # when it fast-fails on the daily free-usage allowance. A run on that
-          # egress IP cannot recover itself, so dispatch a bounded number of
-          # fresh runs (each job lands on a new runner and may get a fresh
-          # bucket), serialized in the fixed quota-recovery concurrency group,
-          # and hand the byte-pinned verify step an empty decision list so this
-          # run concludes green. At the cap, escalate once on the lab-health
-          # board and exit 1 so the chain stays visibly red instead of silently
-          # parking. The notes never contain an inline trigger token (issue
-          # #775); the hardcoded trigger step is the only publisher.
+          # egress IP cannot recover itself, so dispatch one fresh run (it
+          # lands on a new runner and may get a fresh bucket), serialized in
+          # the fixed quota-recovery concurrency group, and hand the
+          # byte-pinned verify step an empty decision list so this run
+          # concludes green. Issue #836: the chain is capped at ONE fresh-run
+          # attempt, because a second dispatch two minutes later is a lottery
+          # ticket on the same pool-wide wall, not a retry; the recover-arm
+          # heartbeat or the next schedule tick re-arms the lane later. At the
+          # cap, escalate once on the lab-health board and exit 1 so the chain
+          # stays visibly red instead of silently parking. The notes never
+          # contain an inline trigger token (issue #775); the hardcoded
+          # trigger step is the only publisher.
           #
           # Marker trust (issue #820 review round 3): the agent step shares the
           # workspace, so a marker alone is not proof. Require the runner's
@@ -1008,17 +1012,17 @@ jobs:
           fi
           attempt="${QUOTA_RECOVERY_ATTEMPT:-0}"
           case "$attempt" in
-            0|1|2) ;;
+            0|1) ;;
             *)
               echo "::warning::unexpected quota_recovery input '${attempt}'; treating it as the cap."
-              attempt=2
+              attempt=1
               ;;
           esac
-          if [ "$attempt" -ge 2 ]; then
-            echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 2, issue #820); no further self-dispatch. Escalate the provider plan or involve the Owner if it persists."
+          if [ "$attempt" -ge 1 ]; then
+            echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 1, issue #820/#836); the one fresh-run attempt is spent and no further self-dispatch occurs. The recover-arm heartbeat or the next schedule tick re-arms the lane. Escalate the provider plan or involve the Owner if it persists."
             board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
             if [ -n "$board" ] && [ "$board" != "null" ]; then
-              note=$(printf 'Quota-wall recovery cap (issue #820): run %s/%s ended on the provider daily free-usage wall after %s fresh-run attempts. The bounded self-dispatch cap is reached, so the Maintainer chain halts red instead of looping. A fresh run is the recovery lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" "$attempt")
+              note=$(printf 'Quota-wall recovery cap (issue #820/#836): run %s/%s ended on the provider daily free-usage wall with the one bounded fresh-run attempt spent. A fresh run is a lottery ticket on a pool-wide wall, not a retry: a second dispatch two minutes later lands on the same blocked pool, so the chain halts red instead of looping. The recover-arm heartbeat (issue #836) or the next schedule tick re-arms the lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" "$attempt")
               gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
             else
               echo "::warning::lab-health board not found; quota-wall cap escalation not posted."
