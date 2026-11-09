@@ -81,13 +81,22 @@ jobs:
       # STATE.md on the maintainer/logs branch is the heartbeat: the memory
       # publish step replaces it only from the agent's own state bundle (the
       # walled auto-stub keeps the old file), so its "Last updated:" stamp is
-      # written only by a real session. When that stamp is older than the
-      # staleness threshold and no Maintainer run is queued or in progress,
-      # dispatch maintainer.yml once. Every dispatch is recorded FIRST as one
-      # bot-authored marker comment on the lab-health board, which both audits
-      # the wake and enforces the cooldown; an unreadable board, comment list,
-      # or run list fails closed (no dispatch) so this can never become a
-      # dispatch storm. The note carries no inline trigger token (issue #775).
+      # written only by a real session (the Maintainer prompt pins the exact
+      # `Last updated: <UTC>Z by run <id>` line). When that stamp is older than
+      # the staleness threshold and no Maintainer run is queued or in progress,
+      # dispatch maintainer.yml once. The run gate reads the newest 1000 runs
+      # (a 50-run window spans under the 75-minute job cap, so a burst of
+      # short per-target runs could push a live global run out of view):
+      # in-progress runs count at any age, while queued/requested/waiting/
+      # pending runs are age-bounded so a months-old zombie cannot suppress
+      # every future heartbeat. Every dispatch is recorded FIRST as one
+      # bot-authored marker comment on the oldest open non-PR lab-health board
+      # (a stable ledger, not the newest transient audit issue), which both
+      # audits the wake and enforces the cooldown; if the dispatch then fails
+      # the marker is rolled back so the failed attempt does not consume the
+      # ledger. An unreadable board, comment list, or run list fails closed
+      # (no dispatch) so this can never become a dispatch storm. The note
+      # carries no inline trigger token (issue #775).
       - name: "Maintainer stale-session heartbeat (issue #836)"
         id: maintainer_heartbeat
         shell: bash
@@ -100,6 +109,7 @@ jobs:
           cooldown_minutes=90
           marker='<!-- maintainer-heartbeat -->'
           now=$(date -u +%s)
+          cutoff=$(date -u -d "${stale_minutes} minutes ago" +%Y-%m-%dT%H:%M:%SZ)
           state=$(gh api "repos/${GITHUB_REPOSITORY}/contents/STATE.md?ref=maintainer/logs" --jq '.content' 2>/dev/null | tr -d '\n' | base64 -d 2>/dev/null || true)
           stamp=$(printf '%s\n' "$state" | sed -n 's/^Last updated: \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]Z\).*/\1/p' | head -n 1)
           last=""
@@ -116,10 +126,15 @@ jobs:
           else
             echo "::warning::could not establish the Maintainer heartbeat from STATE.md on maintainer/logs (missing or unparseable, issue #836); treating it as stale."
           fi
-          active=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow maintainer.yml --limit 50 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "requested" or .status == "waiting" or .status == "pending")] | length' 2>/dev/null) || active=""
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow maintainer.yml --limit 1000 --json status,createdAt 2>/dev/null) || runs=""
+          if [ -z "$runs" ] || [ "$runs" = "null" ]; then
+            echo "::warning::could not enumerate Maintainer runs (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
+            exit 0
+          fi
+          active=$(printf '%s' "$runs" | jq --arg cutoff "$cutoff" '[.[] | select(.status == "in_progress" or ((.status == "queued" or .status == "requested" or .status == "waiting" or .status == "pending") and .createdAt >= $cutoff))] | length' 2>/dev/null) || active=""
           case "$active" in
             ''|*[!0-9]*)
-              echo "::warning::could not enumerate queued or in-progress Maintainer runs (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
+              echo "::warning::could not classify queued or in-progress Maintainer runs (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
               exit 0
               ;;
           esac
@@ -127,7 +142,7 @@ jobs:
             echo "A Maintainer run is already queued or in progress (${active}); no heartbeat dispatch."
             exit 0
           fi
-          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
+          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
           if [ -z "$board" ] || [ "$board" = "null" ]; then
             echo "::warning::no open lab-health board; skipping the heartbeat dispatch (the cooldown ledger needs the board, issue #836)."
             exit 0
@@ -158,11 +173,25 @@ jobs:
             fi
           fi
           note=$(printf 'Maintainer heartbeat (issue #836): the last real Maintainer session is older than %s minutes and no Maintainer run is queued or in progress, so this recover-arm tick dispatches maintainer.yml once. The platform throttles the declared 20-minute Maintainer cron to about 4 to 7 wakes/day, and a pool-wide free-usage wall outlasts the one-attempt recovery chain, so this scripted arm is the independent wake source. Cooldown: one dispatch per %s minutes, deduped by this marker.\n\n%s' "$stale_minutes" "$cooldown_minutes" "$marker")
-          if ! gh issue comment "$board" --body "$note"; then
+          posted=""
+          if ! posted=$(gh issue comment "$board" --body "$note"); then
             echo "::warning::could not record the heartbeat on lab-health issue #${board} (issue #836); skipping the dispatch so a missing cooldown marker can never cause a dispatch storm."
             exit 0
           fi
           if ! gh workflow run maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main -f reason="heartbeat: no real Maintainer session for at least ${stale_minutes}m and no active run (issue #836)"; then
+            comment_id="${posted##*-}"
+            case "$comment_id" in
+              ''|*[!0-9]*)
+                echo "::warning::could not read the heartbeat marker comment id back from '${posted}'; the cooldown may suppress the next heartbeat for up to ${cooldown_minutes} minutes (issue #836)."
+                ;;
+              *)
+                if gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" >/dev/null 2>&1; then
+                  echo "::warning::removed heartbeat marker comment ${comment_id} after the failed dispatch so the cooldown does not consume the next heartbeat (issue #836)."
+                else
+                  echo "::warning::could not remove heartbeat marker comment ${comment_id} after the failed dispatch; the cooldown may suppress the next heartbeat for up to ${cooldown_minutes} minutes (issue #836)."
+                fi
+                ;;
+            esac
             echo "::error::could not dispatch the Maintainer heartbeat (issue #836); failing loudly so the dead wake path is visible."
             exit 1
           fi

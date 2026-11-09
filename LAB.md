@@ -339,11 +339,16 @@ Public Surface / Web Track:                                              │
   #836): when the last real Maintainer session (the `STATE.md`
   `Last updated:` stamp on `maintainer/logs`, written only by a real agent
   session - the walled auto-stub keeps the old file) is older than 90
-  minutes and no Maintainer run is queued or in progress, it dispatches
-  `maintainer.yml` once, deduped by a bot-authored marker comment with a
-  90-minute cooldown on the lab-health board (an unparseable heartbeat
-  stamp is treated as stale and is still bounded by the cooldown; an
-  unreadable board, comment list, or run list fails closed) · `workflow_dispatch`
+  minutes and no Maintainer run is active, it dispatches `maintainer.yml`
+  once, deduped by a bot-authored marker comment with a 90-minute cooldown
+  on the oldest open non-PR lab-health board. The run gate reads the newest
+  1000 runs: in-progress runs count at any age while the
+  queued/requested/waiting/pending class is age-bounded, so neither a burst
+  of short per-target runs nor a months-old zombie can suppress the wake
+  (an unparseable heartbeat stamp is treated as stale and is still bounded
+  by the cooldown; an unreadable board, comment list, or run list fails
+  closed, and a failed dispatch rolls the marker back so it cannot consume
+  the cooldown) · `workflow_dispatch`
   (inputs: `pr_number`, `issue_number`, `reason`) · `pull_request`
   [opened, closed] · `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger - opencode.yml already
@@ -1459,20 +1464,23 @@ schedule and dispatch arms. It reads `STATE.md` from `maintainer/logs` (the
 memory publish step replaces it only from the agent's own state bundle, so
 its `Last updated:` stamp is written only by a real session; the walled
 auto-stub keeps the old file) and treats a stamp older than 90 minutes as a
-dead heartbeat. When no Maintainer run is queued or in progress (any
-non-completed run status counts), it dispatches `maintainer.yml` once with a
-`reason` naming the heartbeat, after first recording one bot-authored
-`<!-- maintainer-heartbeat -->` marker comment on the lab-health board; the
-marker is the cooldown ledger (one dispatch per 90 minutes) and the audit
-trail. An unparseable heartbeat stamp is treated as stale (still bounded by
-the cooldown and the active-run gate), while an unreadable board, comment
-list, or run list fails closed (no dispatch), so a broken read can never
-become a dispatch storm,
+dead heartbeat. When no Maintainer run is active (the newest 1000 runs are
+read; in-progress runs count at any age and the queued/requested/waiting/
+pending class is age-bounded so a months-old zombie cannot suppress the
+wake), it dispatches `maintainer.yml` once with a `reason` naming the
+heartbeat, after first recording one bot-authored
+`<!-- maintainer-heartbeat -->` marker comment on the oldest open non-PR
+lab-health board; the marker is the cooldown ledger (one dispatch per 90
+minutes) and the audit trail. A failed dispatch rolls the marker back so the
+failed attempt does not consume the cooldown. An unparseable heartbeat stamp
+is treated as stale (still bounded by the cooldown and the active-run gate),
+while an unreadable board, comment list, or run list fails closed (no
+dispatch), so a broken read can never become a dispatch storm,
 and the note carries no inline trigger token (issue #775). R34 extends its
 static pins and behavioral sandbox to this step: the exact step shape and
 placement, the fresh/stale/active/cooldown/fail-closed/dispatch matrix
-against a mock `gh`, and mutation self-tests proving the heartbeat body
-load-bearing.
+against a mock `gh` that executes the body's own jq over raw GitHub-shaped
+payloads, and mutation self-tests proving the heartbeat body load-bearing.
 
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
