@@ -26966,6 +26966,26 @@ if recovery_i is not None:
     ):
         if needle not in text:
             fail("recovery-missing:%s" % needle)
+    # Tester finding 1 on #837: the cap note is one printf whose format has
+    # exactly two specifiers (the run URL) and takes exactly those two
+    # arguments. A stray third argument makes bash reuse the format and post
+    # a mangled duplicate copy. Pin the argument surface structurally; the
+    # exact-body behavioral fixture below pins the resulting output.
+    note_lines = [
+        line
+        for line in text.splitlines()
+        if line.lstrip().startswith("note=$(printf 'Quota-wall recovery cap")
+    ]
+    if len(note_lines) != 1:
+        fail("recovery-cap-note-line")
+    else:
+        note_line = note_lines[0]
+        if note_line.count("%s") != 2:
+            fail("recovery-cap-note-specifier-count")
+        if not note_line.rstrip().endswith(
+            '"${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")'
+        ):
+            fail("recovery-cap-note-argument-surface")
     # Issue #836 review finding F8: a rerun of the cap attempt must not
     # re-post the cap escalation, so the rerun guard sits ABOVE the cap branch.
     rerun_pos = text.find('if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then')
@@ -27044,6 +27064,7 @@ if isinstance(recover_doc, dict):
                     "marker='<!-- maintainer-heartbeat -->'",
                     "contents/STATE.md?ref=maintainer/logs",
                     "--jq '.content'",
+                    "--paginate --slurp",
                     "s/^Last updated: ",
                     'cutoff=$(date -u -d "${stale_minutes} minutes ago" +%Y-%m-%dT%H:%M:%SZ)',
                     "--workflow maintainer.yml --limit 1000 --json status,createdAt",
@@ -27095,13 +27116,33 @@ if isinstance(recover_doc, dict):
             # the `Last updated:` stamp a real session writes into STATE.md, so
             # the Maintainer prompt must carry the exact parser-format contract
             # (the published file is then stale-on-missing by construction).
-            maintainer_prompt_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(wf)))),
-                ".github",
-                "agents",
-                "maintainer.md",
+            # Tester finding 2 on #837: resolve the prompt from a real
+            # repository root, not from the workflow path alone. Mutant
+            # self-tests parse copies under a temp directory, so deriving the
+            # path from wf alone made every mutant fail with
+            # maintainer-prompt-missing and vacuously count as caught. Walk up
+            # from the Maintainer workflow first (heartbeat mutants pass the
+            # real one) and then from the recover workflow (maintainer-mutant
+            # runs pass the real recover path).
+            def find_maintainer_prompt(base):
+                if not base:
+                    return None
+                probe = os.path.dirname(os.path.abspath(base))
+                while True:
+                    candidate = os.path.join(probe, ".github", "agents", "maintainer.md")
+                    if os.path.isfile(candidate):
+                        return candidate
+                    parent = os.path.dirname(probe)
+                    if parent == probe:
+                        return None
+                    probe = parent
+
+            maintainer_prompt_path = find_maintainer_prompt(wf) or find_maintainer_prompt(
+                recover_wf
             )
             try:
+                if maintainer_prompt_path is None:
+                    raise OSError("no repository prompt found")
                 with open(maintainer_prompt_path, encoding="utf-8") as handle:
                     maintainer_prompt = handle.read()
             except OSError:
@@ -27224,6 +27265,10 @@ case "${1:-}" in
       exit 0
     fi
     if [ "${2:-}" = "list" ]; then
+      case " $* " in
+        *" --limit 1000 "*) ;;
+        *) echo "mock: run list is not the reviewed --limit 1000 query" >&2; exit 1 ;;
+      esac
       [ "${MOCK_RUN_LIST_FAIL:-0}" = "1" ] && exit 1
       if [ -n "${MOCK_RUN_LIST:-}" ] && [ -f "$MOCK_RUN_LIST" ]; then
         cat "$MOCK_RUN_LIST"
@@ -27254,6 +27299,18 @@ case "${1:-}" in
         exit 0 ;;
       *"/comments?"*)
         [ "${MOCK_COMMENTS_FAIL:-0}" = "1" ] && exit 1
+        # Tester observation on #837: the shipped read is the paginated slurp
+        # form (the REST API serves 30 comments per page). The mock only
+        # serves that exact shape, so dropping --paginate/--slurp fails the
+        # fresh/stale fixtures closed instead of silently disabling dispatch.
+        case " $* " in
+          *" --paginate "*) ;;
+          *) echo "mock: comments read is not the reviewed --paginate --slurp form" >&2; exit 1 ;;
+        esac
+        case " $* " in
+          *" --slurp "*) ;;
+          *) echo "mock: comments read is not the reviewed --paginate --slurp form" >&2; exit 1 ;;
+        esac
         if [ -n "${MOCK_COMMENTS:-}" ] && [ -f "$MOCK_COMMENTS" ]; then
           cat "$MOCK_COMMENTS"
           exit 0
@@ -27379,6 +27436,11 @@ r34_case() {
 }
 r34_has() { grep -qF -- "$1" "$2" 2>/dev/null; }
 r34_posts() { grep -cF -- '---POST---' "$1" 2>/dev/null || true; }
+# Tester finding 1 on #837: the exact cap-note body for the recovery fixture
+# environment (r34_case sets GITHUB_SERVER_URL, GITHUB_REPOSITORY, and RUN_ID).
+# The body is compared exactly, so a stray printf argument (bash reuses the
+# format and posts a mangled duplicate) or any wording drift fails the audit.
+r34_cap_note_expected=$(printf 'Quota-wall recovery cap (issue #820/#836): run %s/%s ended on the provider daily free-usage wall with the one bounded fresh-run attempt spent. A fresh run is a lottery ticket on a pool-wide wall, not a retry: a second dispatch two minutes later lands on the same blocked pool, so the chain halts red instead of looping. The recover-arm heartbeat (issue #836) or the next schedule tick re-arms the lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "https://github.com" "owner/repo/actions/runs/4242")
 
 # Issue #836: heartbeat fixtures. STATE.md is served base64-encoded like the
 # contents API, run lists and comment pages are JSON, and every timestamp is
@@ -27541,8 +27603,10 @@ if [ -z "$r34_bad" ]; then
   [ "$(cat "$w/rc")" = "1" ] || r34_bad="${r34_bad} recovery-cap-not-red"
   [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} recovery-cap-dispatched"
   [ "$(r34_posts "$w/posted")" = "1" ] || r34_bad="${r34_bad} recovery-cap-post-count"
-  r34_has "Quota-wall recovery cap" "$w/posted" || r34_bad="${r34_bad} recovery-cap-note"
   r34_has "one bounded fresh-run attempt spent" "$w/posted" || r34_bad="${r34_bad} recovery-cap-note-text"
+  [ "$(grep -cF -- 'Quota-wall recovery cap (issue #820/#836): run ' "$w/posted" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} recovery-cap-note-occurrence"
+  printf '%s\n---POST---\n' "$r34_cap_note_expected" > "$r34_dir/recovery-cap-note.expected"
+  cmp -s "$r34_dir/recovery-cap-note.expected" "$w/posted" || r34_bad="${r34_bad} recovery-cap-note-body"
   r34_has "/oc" "$w/posted" && r34_bad="${r34_bad} recovery-cap-inline-trigger"
   r34_has "/opencode" "$w/posted" && r34_bad="${r34_bad} recovery-cap-inline-trigger-opencode"
   r34_has "issue comment 70 " "$w/calls" || r34_bad="${r34_bad} recovery-cap-board"
@@ -27643,6 +27707,9 @@ if [ -z "$r34_bad" ]; then
   printf '[[{"user":{"login":"github-actions[bot]"},"body":"old <!-- maintainer-heartbeat -->","created_at":"%s"},{"user":{"login":"github-actions[bot]"},"body":"new <!-- maintainer-heartbeat -->","created_at":"%s"}]]\n' \
     "$(r34_hb_age 120)" "$(r34_hb_age 30)" > "$r34_hb_fixtures/comments-multi"
   printf '{"not":"a-page-array"}\n' > "$r34_hb_fixtures/comments-bad-json"
+  # A page whose entries are not objects reaches the marker scan's failure
+  # branch (jq cannot index a number), which must fail closed.
+  printf '[[42]]\n' > "$r34_hb_fixtures/comments-nonobject"
   printf '[{"status":"completed","createdAt":"%s"},{"status":"failure","createdAt":"%s"}]\n' \
     "$(r34_hb_age 40)" "$(r34_hb_age 50)" > "$r34_hb_fixtures/runs-done"
   printf '[{"status":"in_progress","createdAt":"%s"}]\n' "$(r34_hb_age 10)" > "$r34_hb_fixtures/runs-active"
@@ -27756,6 +27823,11 @@ if [ -z "$r34_bad" ]; then
   [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-bad-json-rc"
   [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-bad-json-dispatched"
 
+  r34_hb_case comments-nonobject heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-nonobject" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-comments-nonobject"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-comments-nonobject-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-comments-nonobject-dispatched"
+
   r34_hb_case no-board heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done" ""
   w="$r34_dir/hb-work-no-board"
   [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-no-board-rc"
@@ -27789,8 +27861,11 @@ if [ -z "$r34_bad" ]; then
   [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-state-missing-not-dispatched"
 
   # An unreadable STATE API is fail-open to stale (it cannot prove liveness),
-  # and a non-empty page without the canonical stamp is stale too.
-  r34_hb_case state-fail heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done" "$r34_dir/board.json" 1
+  # and a non-empty page without the canonical stamp is stale too. The payload
+  # here is FRESH so the injected API failure is load-bearing: if the failure
+  # injection were removed, this fixture would see a fresh stamp and suppress
+  # the dispatch, failing the assertion below.
+  r34_hb_case state-fail heartbeat.sh "$r34_hb_fixtures/state-fresh" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done" "$r34_dir/board.json" 1
   w="$r34_dir/hb-work-state-fail"
   [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-state-fail-rc"
   [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-state-fail-not-dispatched"
@@ -27857,6 +27932,15 @@ R34MUT
   fi
 }
 mkdir -p "$r34_dir/mutants"
+# Tester finding 2 on #837: a benign edit must PASS the static checker. Before
+# the prompt-path fix every mutant failed on maintainer-prompt-missing and was
+# vacuously counted as caught, so this control is the guard against that class
+# of test-integrity regression.
+r34_mutate "$r34_dir/mutants/benign-control.yml" '# Terminal third outcome (issues #428/#696): an actor-write-gate' '# Terminal third outcome (issues #428/#696): an actor-write-gate (benign control)'
+mkdir -p "$r34_dir/mut-benign-control"
+if ! python3 -I "$r34_dir/static.py" "$r34_dir/mutants/benign-control.yml" "$r34_dir/mut-benign-control" "$R34_RECOVER_WF" > "$r34_dir/mut-benign-control/static" 2>&1; then
+  r34_bad="${r34_bad} benign-control-rejected:$(tr -d '\r\n' < "$r34_dir/mut-benign-control/static" | head -c 240)"
+fi
 r34_mutate "$r34_dir/mutants/input.yml" '      quota_recovery:
         description: "Internal: quota-wall recovery attempt number (do not set manually)"
         required: false
@@ -27887,6 +27971,27 @@ r34_mutate "$r34_dir/mutants/recovery-trigger-opencode.yml" 'Quota-wall recovery
 r34_mutant recovery-trigger-opencode "$r34_dir/mutants/recovery-trigger-opencode.yml"
 r34_mutate "$r34_dir/mutants/ref.yml" 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main' 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref test'
 r34_mutant ref "$r34_dir/mutants/ref.yml"
+
+# Tester finding 1 on #837: the pre-fix note printf had two %s specifiers and
+# three arguments, so bash reused the format and posted a mangled duplicate
+# copy. The static argument pin must reject the reintroduced extra argument
+# AND the exact-body cap fixture must observe the mangled output.
+r34_mutate "$r34_dir/mutants/recovery-note-dup.yml" 'actions/runs/${RUN_ID}")' 'actions/runs/${RUN_ID}" "$attempt")'
+mkdir -p "$r34_dir/mut-recovery-note-dup"
+if python3 -I "$r34_dir/static.py" "$r34_dir/mutants/recovery-note-dup.yml" "$r34_dir/mut-recovery-note-dup" "$R34_RECOVER_WF" > "$r34_dir/mut-recovery-note-dup/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-recovery-note-dup-not-caught"
+fi
+if [ -f "$r34_dir/mut-recovery-note-dup/recovery.sh" ]; then
+  cp "$r34_dir/mut-recovery-note-dup/recovery.sh" "$r34_dir/out/recovery-note-dup.sh"
+  r34_case recovery-note-dup recovery-note-dup.sh 1 0 "" 0 1
+  w="$r34_dir/work-recovery-note-dup"
+  printf '%s\n---POST---\n' "$r34_cap_note_expected" > "$r34_dir/recovery-note-dup.expected"
+  if cmp -s "$r34_dir/recovery-note-dup.expected" "$w/posted"; then
+    r34_bad="${r34_bad} mutant-recovery-note-dup-not-observable"
+  fi
+else
+  r34_bad="${r34_bad} mutant-recovery-note-dup-not-extracted"
+fi
 
 r34_mutate "$r34_dir/mutants/cap-behavior.yml" 'if [ "$attempt" -ge 1 ]; then' 'if [ "$attempt" -ge 9 ]; then'
 mkdir -p "$r34_dir/mut-cap-behavior"
