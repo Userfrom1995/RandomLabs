@@ -330,7 +330,19 @@ Public Surface / Web Track:                                              │
 
 ## 4. Maintainer triggers & concurrency
 
-- Triggers: schedule every 20 minutes (72×/day) · `workflow_dispatch`
+- Triggers: `schedule` declared every 20 minutes, but the platform throttle
+  delivers far fewer wakes in practice - about 4.2 Maintainer runs/day over
+  the 10 days to 2026-11-09 (42 runs; gaps 2.87 to 9.92 hours, median 6.0
+  hours), with the recover (~5/day) and curator (~3/day) schedule arms
+  throttled the same way - so never design against a 72-wake/day SLA. The
+  recover arm additionally runs a bounded stale-session heartbeat (issue
+  #836): when the last real Maintainer session (the `STATE.md`
+  `Last updated:` stamp on `maintainer/logs`, written only by a real agent
+  session - the walled auto-stub keeps the old file) is older than 90
+  minutes and no Maintainer run is queued or in progress, it dispatches
+  `maintainer.yml` once, deduped by a bot-authored marker comment with a
+  90-minute cooldown on the lab-health board (an unreadable heartbeat,
+  board, comment list, or run list fails closed) · `workflow_dispatch`
   (inputs: `pr_number`, `issue_number`, `reason`) · `pull_request`
   [opened, closed] · `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger - opencode.yml already
@@ -1401,12 +1413,16 @@ issue #754)` phrase matches. The read is wrapped in a pipefail-off subshell
 so `grep -m1`'s early exit cannot surface `gh`'s SIGPIPE. On the annotation it
 stands the run down: one lab-health note keyed by the triggering run id, an
 empty `.maintainer/decision.json`, and `stand_down=true` on the agent step's
-gate. A post-agent recovery step dispatches at most two fresh runs (each a
-new job on a new runner, so it may get a fresh bucket), sleeps a 30-60 second
+gate. A post-agent recovery step dispatches one fresh run (each a new job
+on a new runner, so it may get a fresh bucket), sleeps a 30-60 second
 inclusive jitter, passes the attempt number through the `quota_recovery`
 dispatch input, and hands the byte-pinned verify step an empty decision list
 so the dispatch concludes green; at the cap it posts one lab-health
-escalation and exits 1 so the chain is visibly red. A marker is only trusted
+escalation and exits 1 so the chain is visibly red. Issue #836 caps the
+chain at ONE fresh-run attempt: the 2026-11-08/09 starvation proved a second
+dispatch two minutes later is a lottery ticket on the same pool-wide wall,
+not a retry, so the recover-arm heartbeat (below) or the next schedule tick
+re-arms the lane instead. A marker is only trusted
 with the runner's exact content and a failed agent outcome, an out-of-range
 attempt input is clamped to the cap (never reset to 0), and a rerun of a
 recovery run dispatches nothing. Recovery runs join one fixed
@@ -1433,6 +1449,27 @@ bot-only dedupe, spoofed dedupe, attempt 0/1/cap/overflow/non-numeric,
 bad-marker, success-marker, rerun, dispatch-failure, and trigger-token-free
 note fixtures with mutation self-tests (the annotation-to-log mutant proves
 the transcript fixture load-bearing).
+
+The per-egress allowance is shared by every free rung and, at the observed
+wall length, by the whole fresh-run pool: eight recovery chains capped in
+about 18 hours on 2026-11-08/09 (issue #836). The recover arm therefore runs
+a second scripted step, the Maintainer stale-session heartbeat, on its
+schedule and dispatch arms. It reads `STATE.md` from `maintainer/logs` (the
+memory publish step replaces it only from the agent's own state bundle, so
+its `Last updated:` stamp is written only by a real session; the walled
+auto-stub keeps the old file) and treats a stamp older than 90 minutes as a
+dead heartbeat. When no Maintainer run is queued or in progress (any
+non-completed run status counts), it dispatches `maintainer.yml` once with a
+`reason` naming the heartbeat, after first recording one bot-authored
+`<!-- maintainer-heartbeat -->` marker comment on the lab-health board; the
+marker is the cooldown ledger (one dispatch per 90 minutes) and the audit
+trail. An unreadable heartbeat, board, comment list, or run list fails
+closed (no dispatch), so a broken read can never become a dispatch storm,
+and the note carries no inline trigger token (issue #775). R34 extends its
+static pins and behavioral sandbox to this step: the exact step shape and
+placement, the fresh/stale/active/cooldown/fail-closed/dispatch matrix
+against a mock `gh`, and mutation self-tests proving the heartbeat body
+load-bearing.
 
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
