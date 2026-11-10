@@ -12370,7 +12370,7 @@ test -x "$HOME/.opencode/bin/opencode"
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 ### 13 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831); on CLI 1.19.5 that opt-out also skips the project plugin directories. The plugin loader still runs before that checkout, its directory boundary is not version-pinned, and the global home-directory scan is unconditional, while every retry starts a new CLI process on the PR-head tree, so this run's retry loop re-runs the project-plugin sanitizer before every attempt as defense in depth (the composite arms do the same plus a pre-CLI first-step guard).\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 14 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' && steps.quota_intake.outputs.stand_down != 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_API_KEY": "${{ secrets.OPENCODE_API_KEY }}", "OPENCODE_CONFIG": "${{ runner.temp }}/lab-config/opencode.json", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The pre-agent checkout is pinned to the same trusted default-branch commit, and the staged copy is always the authoritative prompt; never substitute any other edition. The CLI GitHub bootstrap may check out the PR head for pull_request wake-ups after this process starts, so project config and instructions are explicitly disabled (issue #831); on CLI 1.19.5 the arm command honours that opt-out through the legacy loader path, which skips the project plugin directories, while `opencode run`'s v2 plugin path does not honour the opt-out and the global home-directory scan is unconditional for both. The plugin loader still runs before that checkout, its directory boundary is not version-pinned, and every retry starts a new CLI process on the PR-head tree, so this run's retry loop removes the project plugin directories before every attempt (the primary closure for the v2 path and defense in depth for the rest; the composite arms do the same plus a pre-CLI first-step guard).\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | test-linux | test-macos | test-windows | eval. One entry max per action per PR/issue; distinct actions may target the same PR in one run. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 if [ "${{ github.event_name }}" = "workflow_run" ]; then
   export GITHUB_EVENT_NAME="workflow_dispatch"
 fi
@@ -12446,12 +12446,13 @@ sanitize_project_plugins() {
   # default branch, but the CLI's GitHub handler checks out the PR
   # head mid-run and every retry starts a NEW CLI process on that
   # tree, so the project plugin directories must be removed again
-  # before EVERY attempt. This is defense in depth: the 1.19.5
-  # opt-out already skips them, but the global $HOME/.opencode
-  # scan is unconditional and the loader boundary is not
-  # version-pinned. This definition loads from the trusted step
-  # script before the first attempt, so the PR-head checkout can
-  # never replace it with mutable workspace code.
+  # before EVERY attempt. This is the primary closure for
+  # `opencode run`'s v2 plugin path (not gated by the opt-out) and
+  # defense in depth for the arm's unconditional global
+  # $HOME/.opencode scan and loader drift. This definition loads
+  # from the trusted step script before the first attempt, so the
+  # PR-head checkout can never replace it with mutable workspace
+  # code.
   local tracked failed removed dir tracked_path
   mark_skip_worktree() {
     tracked=$(mktemp)
@@ -22773,20 +22774,23 @@ fi
 # mutation-self-tested for a removed or re-enabled opt-out and a removed or
 # weakened grant.
 #
-# Issue #831 (Tester finding corrected by the Evaluator round): on CLI
-# 1.19.5 the opt-out gates the project config-file merge AND the project
-# plugin directories (`ConfigPaths.directories` skips them under the flag),
-# but the global `$HOME/.opencode` scan is unconditional, the loader boundary
-# varies across CLI versions, and every retry starts a NEW CLI process on the
-# mid-run PR-head checkout tree. The vendored composite runner therefore
-# removes both project directories before any CLI process starts as defense
-# in depth, marks tracked paths skip-worktree so the contents-write arms'
-# end-of-session auto-commit cannot stage the deletions, and removes a
-# `.opencode` symlink without following it. This rule pins that guard's body,
-# its unconditional position ahead of the CLI step, and its functional
-# behavior on tracked, untracked, symlinked, and clean fixtures, and
-# mutation-self-tests a removed guard, a gated guard, a different
-# interpreter, a moved guard, and every load-bearing marker.
+# Issue #831: on CLI 1.19.5 the opt-out gates the project config-file merge
+# on every command, but its plugin-directory boundary is command-specific:
+# `opencode github run` skips the project plugin directories through the
+# legacy `ConfigPaths.directories` -> `ConfigPlugin.load` path, while
+# `opencode run` reaches them through the v2 config/plugin path
+# unconditionally; the global `$HOME/.opencode` scan is unconditional for
+# both, the loader boundary varies across CLI versions, and every retry
+# starts a NEW CLI process on the mid-run PR-head checkout tree. The
+# vendored composite runner therefore removes both project directories
+# before any CLI process starts (the primary closure for the v2 plugin path
+# and defense in depth for the rest), marks tracked paths skip-worktree so
+# the contents-write arms' end-of-session auto-commit cannot stage the
+# deletions, and removes a `.opencode` symlink without following it. This
+# rule pins that guard's body, its unconditional position ahead of the CLI
+# step, and its functional behavior on tracked, untracked, symlinked, and
+# clean fixtures, and mutation-self-tests a removed guard, a gated guard, a
+# different interpreter, a moved guard, and every load-bearing marker.
 r31_out=$(python3 -I - <<'PY'
 import copy
 import glob
@@ -23095,10 +23099,10 @@ PLUGIN_GUARD_MARKERS = (
 # while the marker substrings survive.
 PLUGIN_GUARD_SHA256 = "d29483c35f9689fbb23ff22565b74b3d9120fb069113af41594ae464c05380d4"
 SANITIZER_ACTION_SHA256 = (
-    "20cb0fa26b88b32f6bf96400544af0edf9d427df2d4a3ab2c2a6a4ad5b991833"
+    "7d843d6003e1ffae8acd6a11b4cdc51335d539c278394191fb615672fa60ecd0"
 )
 SANITIZER_MAINTAINER_SHA256 = (
-    "c8cb5b6ed476725c790853c7953340487ea6b563297175834fc1672e1c7ba8c0"
+    "d221e341df6977fd0ba86e79288bc0710ba1dbe1ea4f0a15c692d7d2c7c8dc1c"
 )
 CLI_STEP_NAME = "Run opencode"
 
@@ -23117,12 +23121,14 @@ def plugin_guard_step(doc):
 
 
 def validate_plugin_guard(doc, label):
-    # Issue #831 (Tester finding corrected by the Evaluator round): the
-    # plugin loader runs at process bootstrap before the GitHub handler's
-    # PR-head checkout, the 1.19.5 opt-out skips the project plugin
-    # directories but the global home scan is unconditional and the loader
-    # boundary is not version-pinned, and a retry is a new CLI process on the
-    # PR-head tree. The guard must exist
+    # Issue #831: the plugin loader runs at process bootstrap before the
+    # GitHub handler's PR-head checkout. The 1.19.5 opt-out boundary is
+    # command-specific: `opencode github run` skips the project plugin
+    # directories through the legacy `ConfigPaths.directories` ->
+    # `ConfigPlugin.load` path, while `opencode run`'s v2 config/plugin path
+    # is not gated by the opt-out; the global home scan is unconditional for
+    # both, the loader boundary is not version-pinned, and a retry is a new
+    # CLI process on the PR-head tree. The guard must exist
     # exactly once, be unconditional, run under bash, sit ahead of the CLI
     # step, and carry every load-bearing marker (the symlink branch, both
     # directory names, the tracked-file skip-worktree marking, and the loud
@@ -24066,9 +24072,10 @@ try:
                     problems.append("%s(%s)" % (maintainer_path, marker))
     # Issue #831: the vendored composite runner removes the checked-out
     # tree's project plugin directories before the CLI starts, so the
-    # plugin-loader channels the 1.19.5 opt-out does not gate (the global
-    # home scan, loader drift, and the retry-after-checkout process) cannot
-    # reopen on the PR-head-checkout arms. Since the CLI's GitHub handler
+    # plugin-loader channels the opt-out does not gate (opencode run's v2
+    # plugin path, the global home scan, loader drift, and the
+    # retry-after-checkout process) cannot reopen on the PR-head-checkout
+    # arms. Since the CLI's GitHub handler
     # checks out the PR head mid-run and every retry starts a NEW CLI process
     # (issue #831 review F5), both retry loops (the composite `Run opencode`
     # body and the Maintainer inline body) must also re-run the same
@@ -24251,10 +24258,10 @@ PY
 )
 case "$r31_out" in
   OK)
-    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config or instructions while /tmp contract files and staged prompts stay reachable; because the plugin loader runs before the CLI's mid-run PR-head checkout and its directory boundary is not version-pinned (the 1.19.5 opt-out skips the project directories, but the global home scan is unconditional and a retry is a new process on the PR-head tree), the vendored composite runner also removes both directories before the CLI starts, marks tracked paths skip-worktree so the session auto-commit cannot stage the deletion, refuses to follow a .opencode symlink, and fails loudly when the marking fails, with its unconditional pre-CLI position and its real body pinned and executed against tracked/untracked/symlinked/clean git fixtures (issue #831 Tester finding); the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, the plugin guard is mutation-self-tested for removal, gating, an interpreter swap, a move after the CLI step, a working-directory override, an inserted line, and every load-bearing marker, its whole body and both per-attempt sanitizer copies (composite and Maintainer inline) are pinned by normalized SHA-256 and statically pinned as the first statement of every attempt, and a failed `git ls-files` fixture proves the enumeration failure aborts loudly without removing the plugin directories (issue #831 review F5/F7/F8), and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
+    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743); every comment-triggered agent step, including the non-staged-prompt lab/opencode.yml-modes/curator/auditor/ideate/recover arms and the Maintainer inline arm, must carry the exact OPENCODE_DISABLE_PROJECT_CONFIG project-config opt-out plus the exact OPENCODE_PERMISSION external_directory grant so a PR-head checkout can never inject project config or instructions while /tmp contract files and staged prompts stay reachable; because the plugin loader runs before the CLI's mid-run PR-head checkout (the 1.19.5 opt-out boundary is command-specific: opencode github run skips the project directories through the legacy loader, while opencode run's v2 plugin path is not gated; the global home scan is unconditional for both and a retry is a new process on the PR-head tree), the vendored composite runner also removes both directories before the CLI starts, marks tracked paths skip-worktree so the session auto-commit cannot stage the deletion, refuses to follow a .opencode symlink, and fails loudly when the marking fails, with its unconditional pre-CLI position and its real body pinned and executed against tracked/untracked/symlinked/clean git fixtures (issue #831); the staged-prompt arms also require a same-job staging step earlier in the list, every lane is mutation-self-tested for a removed or weakened grant, a removed or re-enabled project config, and removed staging, the plugin guard is mutation-self-tested for removal, gating, an interpreter swap, a move after the CLI step, a working-directory override, an inserted line, and every load-bearing marker, its whole body and both per-attempt sanitizer copies (composite and Maintainer inline) are pinned by normalized SHA-256 and statically pinned as the first statement of every attempt, and a failed `git ls-files` fixture proves the enumeration failure aborts loudly without removing the plugin directories (issue #831 review F5/F7/F8), and the shipped grant value is executed through the real opencode debug config loader with an ask-default control (issue #831, issue #743 follow-on)" "ok"
     ;;
   *)
-    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json under the opt-out unless it is set on every agent arm, and the plugin loader's directory set is not version-pinned (the 1.19.5 opt-out skips the project directories, but the global home scan is unconditional and every retry is a new process on the PR-head tree), so the vendored runner must remove them before the CLI starts without leaving a deletion the session auto-commit can stage, and every retry starts a new CLI process on the PR-head tree, so both retry loops must re-run the same sanitizer before every attempt with a fail-closed enumeration; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
+    check "R31" "agent bootstrap token scope or project-config reachability guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; issue #743 follow-on: an unattended session whose staged prompt sits outside the workspace stalls on an external_directory ask and is killed by the stall watchdog; issue #831: a PR-head checkout auto-loads project AGENTS.md/opencode.json under the opt-out unless it is set on every agent arm, and the plugin loader's directory set is not version-pinned (the 1.19.5 opt-out boundary is command-specific: opencode github run skips the project directories through the legacy loader while opencode run's v2 plugin path is not gated, the global home scan is unconditional for both, and every retry is a new process on the PR-head tree), so the vendored runner must remove them before the CLI starts without leaving a deletion the session auto-commit can stage, and every retry starts a new CLI process on the PR-head tree, so both retry loops must re-run the same sanitizer before every attempt with a fail-closed enumeration; the pre-fix review/test/eval/per-OS/Maintainer/lab/opencode.yml/curator/auditor/ideate/recover pins are the regression)" "bad"
     ;;
 esac
 
