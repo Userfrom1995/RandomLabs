@@ -635,6 +635,11 @@ jobs:
           TMPDIR: /tmp
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           PEROS_ANCHOR: "1"
+          # Issue #798 review B9: pin the post-agent mode. An agent can export
+          # PEROS_PREFLIGHT=1 through $GITHUB_ENV, which would flip the guard
+          # into its local-workspace preflight path and hide a violating
+          # remote tip; the trusted step env must always win.
+          PEROS_PREFLIGHT: "0"
           PEROS_OS: linux
           PR_CROSS_REPO: ${{ steps.peros_pr.outputs.cross_repo }}
           PR_HEAD_REPO: ${{ steps.peros_pr.outputs.head_repo }}
@@ -1547,6 +1552,11 @@ jobs:
           TMPDIR: /tmp
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           PEROS_ANCHOR: "1"
+          # Issue #798 review B9: pin the post-agent mode. An agent can export
+          # PEROS_PREFLIGHT=1 through $GITHUB_ENV, which would flip the guard
+          # into its local-workspace preflight path and hide a violating
+          # remote tip; the trusted step env must always win.
+          PEROS_PREFLIGHT: "0"
           PEROS_OS: macos
           PR_CROSS_REPO: ${{ steps.peros_pr.outputs.cross_repo }}
           PR_HEAD_REPO: ${{ steps.peros_pr.outputs.head_repo }}
@@ -2566,6 +2576,11 @@ jobs:
           TMPDIR: /tmp
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           PEROS_ANCHOR: "1"
+          # Issue #798 review B9: pin the post-agent mode. An agent can export
+          # PEROS_PREFLIGHT=1 through $GITHUB_ENV, which would flip the guard
+          # into its local-workspace preflight path and hide a violating
+          # remote tip; the trusted step env must always win.
+          PEROS_PREFLIGHT: "0"
           PEROS_OS: windows
           PR_CROSS_REPO: ${{ steps.peros_pr.outputs.cross_repo }}
           PR_HEAD_REPO: ${{ steps.peros_pr.outputs.head_repo }}

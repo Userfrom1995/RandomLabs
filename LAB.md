@@ -216,7 +216,12 @@ Round 13 also
   `GH_HOST: github.com`, and the lowercase-proxy unset), never with a
   post-agent `git show`, so an agent-exported `GIT_DIR` or
   `GIT_OBJECT_DIRECTORY` plus a fake loose object named `GITHUB_SHA`
-  cannot execute attacker helper text (issue #798 review B8). The strip rewrites
+  cannot execute attacker helper text (issue #798 review B8). The post-agent
+  scope step also pins `PEROS_PREFLIGHT: "0"` so an agent-exported
+  `PEROS_PREFLIGHT=1` cannot flip the guard into its local-workspace preflight
+  path and hide a violating remote tip after resetting the workspace; the
+  pre-agent baseline step keeps its inline `PEROS_PREFLIGHT=1` preflight
+  (issue #798 review B9). The strip rewrites
   only the captured baseline..branch range with a pinned `REMOTE_URL` and
   `--force-with-lease`, so a post-agent workspace `url.*.insteadOf` rewrite
   cannot redirect it. In the anchored per-OS lane the strip counts owner
@@ -267,6 +272,7 @@ Round 13 also
   bare, trailer, incident, fork, wrong-namespace, issue-triggered,
   per-OS-identity, merge, evil-merge (side parent predating the baseline),
   gitlink, exec-path (strip and guard), fake-object-store (strip and guard),
+  inherited-preflight (shipped step-env pin and pin-removed mutant),
   proxy-env control and unset-removal mutant, failed-baseline, non-ancestor-baseline,
   marker-stop, marker-deletion, lease-failure, `insteadOf` (distinct evil
   tip), and rejected-strip-push cases, with mutation controls for each
