@@ -5854,6 +5854,11 @@ else
       macos)   r17_os_tag="macOS" ;;
       windows) r17_os_tag="Windows" ;;
     esac
+    if [ "$r17_os" = "windows" ]; then
+      r17_trusted_shell='C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+    else
+      r17_trusted_shell='/bin/bash --noprofile --norc -e -o pipefail {0}'
+    fi
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Post ${r17_os_tag} tester findings report" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" '
       done { next }
       $0 == "- name: " tag { seq=1; next }
@@ -5897,11 +5902,12 @@ else
     # reviewer recommendation; independent-verifier findings Z1/Z2/W1/W2;
     # issue #713): an inserted `exit 0`, extra command, `|| true`, a `run:`
     # header other than `|` (YAML would fold the comments into one line), a
-    # `shell:`/`working-directory:` override, a comment-only body with the
-    # live invocation parked in another step, or a workspace-path invocation
+    # `working-directory:` override, a decoupled shell value, a comment-only
+    # body with the live invocation parked in another step, or a workspace-path invocation
     # that executes an agent-rewritten copy would let the arm conclude green
     # with the report never posted or post arbitrary content with the PAT.
     r17_post_expected=$(printf '%s\n' \
+      'PATH="$TRUSTED_PATH"; export PATH' \
       'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""' \
       'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then' \
       'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."' \
@@ -5924,28 +5930,33 @@ else
       BEGIN { n=split(expected, lines, "\n"); want_count=n }
       $0 == tag { post=1; seen=1; next }
       post && $0 ~ /^      - / { post=0 }
-      post && $0 ~ /^[[:space:]]*(shell|working-directory):/ { bad=1 }
+      post && $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
+      post && $0 ~ /^        shell:/ { shell_seen=1 }
       post && $0 ~ /^        run:/ { run=1; run_seen=1; if ($0 != "        run: |") bad=1; next }
       run && $0 ~ /^      - / { run=0 }
       run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; got++; if (s != lines[got]) bad=1 }
-      END { exit((seen && run_seen && !bad && got == want_count) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
-    # The forward step must not mask its own failures or re-shell itself (W3).
+      END { exit((seen && shell_seen && run_seen && !bad && got == want_count) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
+    # The forward step must not mask its own failures or override its working
+    # directory (W3). Its exact absolute shell is pinned by the structural
+    # validator and by the arm-wide allowed-shell check below.
     printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
       $0 == tag { fwd=1; seen=1; next }
       fwd && $0 ~ /^      - / { fwd=0 }
-      fwd && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
-      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
+      fwd && $0 ~ /^[[:space:]]*(continue-on-error|working-directory):/ { bad=1 }
+      fwd && $0 ~ /^        shell:/ { shell_seen=1 }
+      END { exit((seen && shell_seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
     # Job-level defaults would silently re-shell every contract step when
     # pointed at a neutered shell (W3; the Windows arm's `shell: bash` default
     # is required because windows-latest defaults to pwsh, so any defaults
     # block must be exactly that safe form, and shell/working-directory
     # overrides are banned elsewhere in the arm).
+    r17_unexpected_shells=$(printf '%s\n' "$r17_block" | grep -E '^[[:space:]]*shell:' | grep -vxF -e '        shell: bash' -e "        shell: '$r17_trusted_shell'" || true)
+    [ -z "$r17_unexpected_shells" ] || r17_bad="${r17_bad} arm-${r17_os}(unsafe-shell-override)"
     printf '%s\n' "$r17_block" | awk '
       $0 == "    defaults:" { dcount++; line=1; next }
       line == 1 && $0 == "      run:" { line=2; next }
       line == 2 && $0 == "        shell: bash" { line=0; ok++; next }
       line > 0 { bad=1; line=0 }
-      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" { bad=1 }
       $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
       END { exit((dcount == 0 || (dcount == 1 && ok == 1 && !bad)) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(unsafe-defaults-or-shell-override)"
     # The verify step must keep its exact id and always() gate, and must not
@@ -6523,8 +6534,8 @@ r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50
   R17_GATE_BLOCK_SHA="6e53d7337e64f289668809158a2eb5cf401ed53c415e0f2791788a5b0ccf71bb" \
   R17_RESTORE_BLOCK_SHA="799a06adc38e6fece750aaff51f5376a5f14e15e2d12f2ee9f6645f2c2a7e662" \
   R17_BASELINE_BLOCK_SHA="d542381d2064778c3b4095625b080c08eb016e77948d3ad7cd6f5b1aed29a45c" \
-  R17_STRIP_BLOCK_SHA="371942be85a2138573040c03ece3fcba4588acf50b7e82a5d2e6987e04aca2d8" \
-  R17_SCOPE_BLOCK_SHA="c6190d88c295ee9ad4f254ffbdd9ffcf51dbd792830f18f8f9f355e8abce77e1" \
+  R17_STRIP_BLOCK_SHA="15685ff4ea23346a6dbd007f963023dddf8a40035997128099ed92a49a89ac6a" \
+  R17_SCOPE_BLOCK_SHA="f5bb2c0e5d0bb5a682c03c677a3aab317f930bfe57b7e2f2fb12dcd4d1fee39b" \
   python3 -I - <<'R17STAGEPY'
 import copy
 import hashlib
@@ -6664,6 +6675,19 @@ def stage_name(label):
 # and each consumer so a one-line revert to the ambient PATH fails the audit.
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
+# Issue #804 review B10: a step-env PATH does not survive the runner's
+# $GITHUB_PATH prepend, and `shell: bash` is resolved with that prepend path.
+# Every post-agent step pins an absolute shell and resets PATH from this
+# captured step-env value before any lookup.
+TRUSTED_PATH_RESET = 'PATH="$TRUSTED_PATH"; export PATH'
+POSIX_TRUSTED_SHELL = "/bin/bash --noprofile --norc -e -o pipefail {0}"
+WINDOWS_TRUSTED_SHELL = (
+    r"C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}"
+)
+
+
+def trusted_shell(label):
+    return WINDOWS_TRUSTED_SHELL if label == "Windows" else POSIX_TRUSTED_SHELL
 # Issue #798 review N4: every per-OS owner-PAT post-agent step (findings,
 # forward, salvage) runs after the untrusted agent, so the step env must pin
 # the interpreter/config seams the runner applies from $GITHUB_ENV as well as
@@ -6709,10 +6733,12 @@ EXPECTED_FINDINGS_ENV = dict(
     OWNER_PAT_ENV,
     TARGET="${{ github.event.issue.number }}",
     PATH=TRUSTED_PATH_EXPR,
+    TRUSTED_PATH=TRUSTED_PATH_EXPR,
 )
 EXPECTED_FORWARD_ENV = dict(
     OWNER_PAT_ENV,
     PATH=TRUSTED_PATH_EXPR,
+    TRUSTED_PATH=TRUSTED_PATH_EXPR,
     HEAD_REF="${{ steps.pr-info.outputs.head_ref }}",
     MSYS_NO_PATHCONV="1",
 )
@@ -6778,6 +6804,13 @@ def owner_pat_body_problems(step, kind):
     command_text = "\n".join(
         line for line in run.splitlines() if not line.strip().startswith("#")
     )
+    command_lines = [
+        line.strip()
+        for line in run.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    if not command_lines or command_lines[0] != TRUSTED_PATH_RESET:
+        out.append("%s-no-trusted-path-reset" % kind)
     if PEROS_GIT_PLUMBING_RE.search(command_text):
         out.append("%s-git-plumbing" % kind)
     if kind in ("post", "salvage") and PEROS_POSTER_FETCH not in run:
@@ -7243,6 +7276,7 @@ def validate(doc, expected):
                 "SSL_CERT_DIR": "",
                 "SSL_CERT_FILE": "",
                 "PATH": TRUSTED_PATH_EXPR,
+                "TRUSTED_PATH": TRUSTED_PATH_EXPR,
                 "TMPDIR": "/tmp",
                 "PEROS_ANCHOR": "1",
                 "PR_CROSS_REPO": "${{ steps.peros_pr.outputs.cross_repo }}",
@@ -7253,9 +7287,10 @@ def validate(doc, expected):
                 "HEAD_REF": "${{ steps.peros_pr.outputs.branch }}",
             }
             if (
-                set(strip_step) != {"name", "id", "if", "env", "run"}
+                set(strip_step) != {"name", "id", "if", "env", "shell", "run"}
                 or strip_step.get("id") != "strip_trailers"
                 or strip_step.get("if") != SANITIZE_GATE
+                or strip_step.get("shell") != trusted_shell(label)
                 or strip_step.get("env") != expected_strip_env
             ):
                 out.append("peros-staging(%s:strip-step-keys)" % label)
@@ -7315,6 +7350,7 @@ def validate(doc, expected):
                 "SSL_CERT_DIR": "",
                 "SSL_CERT_FILE": "",
                 "PATH": TRUSTED_PATH_EXPR,
+                "TRUSTED_PATH": TRUSTED_PATH_EXPR,
                 "TMPDIR": "/tmp",
                 "BASELINE_SHA": "${{ steps.pre_agent_baseline.outputs.sha }}",
                 "PEROS_ANCHOR": "1",
@@ -7327,9 +7363,10 @@ def validate(doc, expected):
                 "REMOTE_URL": "${{ github.server_url }}/${{ github.repository }}",
             }
             if (
-                set(scope_step) != {"name", "id", "if", "env", "run"}
+                set(scope_step) != {"name", "id", "if", "env", "shell", "run"}
                 or scope_step.get("id") != "scope_guard"
                 or scope_step.get("if") != SANITIZE_GATE
+                or scope_step.get("shell") != trusted_shell(label)
                 or scope_step.get("env") != expected_scope_env
             ):
                 out.append("peros-staging(%s:scope-step-keys)" % label)
@@ -7378,8 +7415,9 @@ def validate(doc, expected):
         else:
             post_env = post_hits[0].get("env")
             if (
-                set(post_hits[0]) != {"name", "id", "if", "env", "run"}
+                set(post_hits[0]) != {"name", "id", "if", "env", "shell", "run"}
                 or post_hits[0].get("id") != "findings"
+                or post_hits[0].get("shell") != trusted_shell(label)
                 or not isinstance(post_env, dict)
                 or post_env != EXPECTED_FINDINGS_ENV
             ):
@@ -7402,7 +7440,8 @@ def validate(doc, expected):
         else:
             forward_env = forward_hits[0].get("env")
             if (
-                set(forward_hits[0]) != {"name", "if", "env", "run"}
+                set(forward_hits[0]) != {"name", "if", "env", "shell", "run"}
+                or forward_hits[0].get("shell") != trusted_shell(label)
                 or not isinstance(forward_env, dict)
                 or forward_env != EXPECTED_FORWARD_ENV
             ):
@@ -7436,8 +7475,9 @@ def validate(doc, expected):
             else:
                 salvage_env = salvage_hits[0].get("env")
                 if (
-                    set(salvage_hits[0]) != {"name", "id", "if", "env", "run"}
+                    set(salvage_hits[0]) != {"name", "id", "if", "env", "shell", "run"}
                     or salvage_hits[0].get("id") != "salvage"
+                    or salvage_hits[0].get("shell") != trusted_shell(label)
                     or not isinstance(salvage_env, dict)
                     or salvage_env != EXPECTED_FINDINGS_ENV
                 ):
@@ -7665,6 +7705,41 @@ if isinstance(doc, dict):
             step["env"]["LD_PRELOAD"] = "/tmp/evil.so"
     if not any("salvage-env-not-exact" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-salvage-env-weakened)")
+    # Issue #804 review B10: the trusted PATH must actually reach the step body
+    # and the shell must be the absolute pre-agent binary. Removing either from
+    # any post-agent class must fail the validator alone.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == "Post Linux tester findings report":
+            step["run"] = step["run"].replace(TRUSTED_PATH_RESET + "\n", "", 1)
+    if not any(
+        "post-no-trusted-path-reset" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-post-path-reset-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "salvage":
+            step["env"].pop("TRUSTED_PATH", None)
+    if not any(
+        "salvage-env-not-exact" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-salvage-trusted-path-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "strip_trailers":
+            step["shell"] = "bash"
+    if not any(
+        "strip-step-keys" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-strip-shell-reverted)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["shell"] = "bash"
+    if not any(
+        "post-env-not-exact" in p for p in validate(mutant, EXPECTED)
+    ):
+        problems.append("peros-staging(self-test-post-shell-reverted)")
     # Issue #798 Quality Council env-seam finding: the proxy/TLS pins on the
     # sanitizer steps and on every owner-PAT step are load-bearing. Removing
     # one pin from each class must fail the validator alone, otherwise an
@@ -11598,13 +11673,21 @@ else
       printf '%s\n' "$r24_salv_body" | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'" || r24_bad="${r24_bad} arm-${r24_os}(salvage-gate-not-exact)"
       printf '%s\n' "$r24_salv_body" | grep -qxF 'GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-owner-pat-env)"
       printf '%s\n' "$r24_salv_body" | grep -qxF 'TARGET: ${{ github.event.issue.number }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-target-env)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-trusted-path-env)"
       printf '%s\n' "$r24_salv" | grep -qF 'github.token' && r24_bad="${r24_bad} arm-${r24_os}(salvage-carries-github-token)"
-      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|shell|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      if [ "$r24_os" = "windows" ]; then
+        r24_trusted_shell='C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+      else
+        r24_trusted_shell='/bin/bash --noprofile --norc -e -o pipefail {0}'
+      fi
+      printf '%s\n' "$r24_salv" | grep -qxF "        shell: '$r24_trusted_shell'" || r24_bad="${r24_bad} arm-${r24_os}(salvage-shell-not-exact)"
       r24_salv_run=$(printf '%s\n' "$r24_salv" | awk '
         /^        run: \|$/ { s=1; next }
         s { print }')
       r24_salv_cmds=$(printf '%s\n' "$r24_salv_run" | sed 's/^[[:space:]]*//' | grep -vE '^(#.*)?$' || true)
       r24_expected=$(cat <<'R24EOF'
+PATH="$TRUSTED_PATH"; export PATH
 gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
 if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
 echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
@@ -26546,6 +26629,7 @@ REVIEW_FORWARD_BODY = (
 )
 
 PEROS_LINUX_FORWARD_BODY = (
+    'PATH="$TRUSTED_PATH"; export PATH',
     'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
     'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
     'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
@@ -26598,6 +26682,7 @@ PEROS_LINUX_FORWARD_BODY = (
 )
 
 PEROS_MACOS_FORWARD_BODY = (
+    'PATH="$TRUSTED_PATH"; export PATH',
     'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
     'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
     'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
@@ -26650,6 +26735,7 @@ PEROS_MACOS_FORWARD_BODY = (
 )
 
 PEROS_WINDOWS_FORWARD_BODY = (
+    'PATH="$TRUSTED_PATH"; export PATH',
     'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
     'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
     'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
@@ -26954,6 +27040,7 @@ def expand(body, issue="781", pr_number="781", allow_pr_info=True):
 def sandbox_env(mock_dir, extra):
     env = {
         "PATH": mock_dir + ":/usr/bin:/bin",
+        "TRUSTED_PATH": mock_dir + ":/usr/bin:/bin",
         "HOME": os.environ.get("HOME", "/tmp"),
         "LANG": "C",
         "LC_ALL": "C",
@@ -30628,9 +30715,13 @@ def build_env(root, git_dir, mock_dir, event_path, github_sha, output_path,
               pr_view, pr_list, baseline="", peros_os="linux", anchor=None,
               event_is_pr="", thread="798", expected_branch=BRANCH,
               remote_url=None, path_prefix=None, extra=None):
+    trusted_path = (
+        (path_prefix + ":" if path_prefix else "")
+        + mock_dir + ":" + git_dir + ":/usr/bin:/bin"
+    )
     env = {
-        "PATH": (path_prefix + ":" if path_prefix else "")
-        + mock_dir + ":" + git_dir + ":/usr/bin:/bin",
+        "PATH": trusted_path,
+        "TRUSTED_PATH": trusted_path,
         "HOME": os.path.join(root, "home"),
         "GIT_CONFIG_GLOBAL": os.devnull,
         "GIT_CONFIG_NOSYSTEM": "1",

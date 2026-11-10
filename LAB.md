@@ -174,9 +174,14 @@ Round 13 also
   ownership mode bits,
   so it keeps the `$HOME` filter and the platform ACL model is the documented
   residual, with execution isolation as the real boundary; and the capture
-  fails closed unless it still resolves `gh`, `jq`, and `git`, with every
-  post-agent owner-PAT step consuming that captured value instead of the
-  post-agent environment (round-18 review finding F3). **Cap headroom and partial-report salvage (issue #692)**: the macOS
+  fails closed unless it still resolves `gh`, `jq`, and `git`. Every
+  post-agent trust-boundary step carries that captured value as its step-env
+  PATH and its own `TRUSTED_PATH` copy, pins an absolute pre-agent shell (the
+  POSIX `/bin/bash` or the Windows 8.3 `C:\PROGRA~1\Git\bin\bash.exe`), and
+  resets PATH from `TRUSTED_PATH` as its first command. A step-env PATH alone is
+  not sufficient: the vendored runner prepends `$HOME/.opencode/bin` through
+  `$GITHUB_PATH`, and `shell: bash` is resolved with that prepend path (round-18
+  review finding F3; issue #798 review B10). **Cap headroom and partial-report salvage (issue #692)**: the macOS
   90-minute agent cap under the 120-minute job left the post-agent contract
   chain at the wire (run 39170578536: cap death, no decision file, the
   fail-closed verify red over `missing contract artifact(s): decision-file
