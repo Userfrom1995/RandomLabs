@@ -7318,6 +7318,7 @@ def validate(doc, expected):
                 "TMPDIR": "/tmp",
                 "BASELINE_SHA": "${{ steps.pre_agent_baseline.outputs.sha }}",
                 "PEROS_ANCHOR": "1",
+                "PEROS_PREFLIGHT": "0",
                 "PEROS_OS": label.lower(),
                 "PR_CROSS_REPO": "${{ steps.peros_pr.outputs.cross_repo }}",
                 "PR_HEAD_REPO": "${{ steps.peros_pr.outputs.head_repo }}",
@@ -7592,6 +7593,17 @@ if isinstance(doc, dict):
             step["env"]["PEROS_OS"] = "linux"
     if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-scope-os-swapped)")
+    # Issue #798 review B9: the post-agent scope step must pin
+    # PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 from
+    # $GITHUB_ENV cannot flip the guard into its local-workspace preflight
+    # path and hide a violating remote tip. Removing the pin must fail the
+    # validator alone.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["env"].pop("PEROS_PREFLIGHT", None)
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-preflight-pin-removed)")
     mutant = copy.deepcopy(doc)
     for step in mutant["jobs"]["test-linux"]["steps"]:
         if isinstance(step, dict) and step.get("id") == "scope_guard":
@@ -30413,7 +30425,12 @@ rm -rf "$r34_dir"
 # baseline fail closed, pre-baseline history is never judged by the
 # post-agent guard, and the durable preflight exempts an infrastructure PR's
 # own pre-tester protected history while still refusing a protected edit
-# interleaved after a tester session (issue #798 review B6/B7). Mutation
+# interleaved after a tester session (issue #798 review B6/B7). Issue #798
+# review B9: the post-agent scope step pins PEROS_PREFLIGHT=0, so an
+# agent-exported PEROS_PREFLIGHT=1 from $GITHUB_ENV cannot flip the guard into
+# its local-workspace preflight path; the fixture pushes a violating commit
+# and resets the workspace HEAD to the baseline, and the shipped pin still
+# drops the remote range while the pin-removed mutant hides it. Mutation
 # controls prove the protected-path pattern for every independently reachable
 # entry (the marker is covered by its creation/deletion hard stop), the
 # preflight's tester-session gate, the skip-worktree restore guard, the strip
@@ -30534,6 +30551,7 @@ def extract_bodies():
     with open(PEROS, encoding="utf-8") as handle:
         doc = yaml.load(handle, Loader=UniqueKeyLoader)
     bodies = {}
+    scope_envs = {}
     for arm in ARMS:
         steps = doc["jobs"][arm]["steps"]
         arm_bodies = {}
@@ -30552,10 +30570,29 @@ def extract_bodies():
             if not run:
                 raise SystemExit("r34-extract-%s-%s-empty" % (arm, key))
             arm_bodies[key] = run
+            if key == "scope":
+                # Issue #798 review B9: the post-agent scope step must pin
+                # PEROS_PREFLIGHT=0, otherwise an agent-exported
+                # PEROS_PREFLIGHT=1 from $GITHUB_ENV flips the guard into its
+                # local-workspace preflight path, which judges HEAD instead of
+                # the fetched remote tip and can hide a violating commit.
+                step_env = hits[0].get("env")
+                if not isinstance(step_env, dict):
+                    raise SystemExit("r34-extract-%s-scope-env-missing" % arm)
+                if step_env.get("PEROS_PREFLIGHT") != "0":
+                    raise SystemExit(
+                        "r34-extract-%s-scope-preflight-not-pinned" % arm)
+                scope_envs[arm] = step_env
         bodies[arm] = arm_bodies
     for arm in ARMS[1:]:
         if bodies[arm] != bodies[ARMS[0]]:
             raise SystemExit("r34-extract-arm-bodies-differ")
+        other = dict(scope_envs[arm])
+        expected = dict(scope_envs[ARMS[0]])
+        other.pop("PEROS_OS", None)
+        expected.pop("PEROS_OS", None)
+        if other != expected:
+            raise SystemExit("r34-extract-arm-scope-envs-differ")
     linux = bodies[ARMS[0]]
     strip_fetch = (
         'gh api --hostname github.com -H "Accept: application/vnd.github.raw" '
@@ -30584,7 +30621,7 @@ def extract_bodies():
         raise SystemExit("r34-extract-anchor-incomplete")
     if "--skip-worktree" not in linux["restore"]:
         raise SystemExit("r34-extract-restore-not-dirty-safe")
-    return linux
+    return linux, scope_envs[ARMS[0]]
 
 
 def build_env(root, git_dir, mock_dir, event_path, github_sha, output_path,
@@ -30638,9 +30675,22 @@ def run(cmd, cwd=None, env=None, check=False):
 
 def main(root):
     os.chdir(root)
-    bodies = extract_bodies()
+    bodies, scope_env = extract_bodies()
     sandbox = tempfile.mkdtemp(prefix="r34-peros-", dir="/tmp")
     bad = []
+    # Issue #798 review B9: model the runner's step-env precedence. The
+    # shipped scope step env (literal values only; the ${{ }} expressions are
+    # runner-resolved and stay out) is overlaid after the simulated
+    # $GITHUB_ENV, so PEROS_PREFLIGHT=0 wins over an agent-exported value.
+    inherited_step_env = {
+        key: value
+        for key, value in scope_env.items()
+        if isinstance(value, str) and "${{" not in value and key != "PEROS_OS"
+    }
+    if inherited_step_env.get("PEROS_PREFLIGHT") != "0":
+        bad.append("r34-b9-inherited-env-no-pin")
+    mutant_step_env = dict(inherited_step_env)
+    mutant_step_env.pop("PEROS_PREFLIGHT", None)
     try:
         os.makedirs(os.path.join(sandbox, "home"))
         origin = os.path.join(sandbox, "Userfrom1995", "RandomLabs")
@@ -30992,7 +31042,8 @@ def main(root):
 
         def sanitize(sha, baseline, tag, event_path, view_file, list_file,
                      anchor, peros_os="linux", path_prefix=None,
-                     extra_env=None, remote_url=None, body_override=None):
+                     extra_env=None, remote_url=None, body_override=None,
+                     step_env=None):
             results = []
             for key in ("strip", "scope"):
                 output = os.path.join(sandbox, "step-output-%s-%s" % (tag, key))
@@ -31005,6 +31056,10 @@ def main(root):
                     path_prefix=path_prefix, extra=extra_env,
                     remote_url=remote_url,
                 )
+                if step_env:
+                    # Issue #798 review B9: step env is applied after
+                    # $GITHUB_ENV by the runner, so it must win here too.
+                    env.update(step_env)
                 body = (body_override or {}).get(key, bodies[key])
                 proc = run([bash, "-c", body], cwd=work, env=env)
                 results.append((key, proc.returncode, proc.stdout + proc.stderr))
@@ -31070,7 +31125,8 @@ def main(root):
                      expect_strip_msg=None, tester_email=None,
                      push_base_to_main=False, helper_sha=None,
                      remote_url=None, body_override=None,
-                     fake_marker=None, expect_fake_marker=None):
+                     fake_marker=None, expect_fake_marker=None,
+                     step_env=None, reset_worktree_to_baseline=False):
             base = base or workflow_sha
             helper = helper_sha or base
             # Issue #798 review B6: the durable preflight judges protected
@@ -31300,6 +31356,14 @@ def main(root):
                 os.unlink(tmp_index)
             run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work, check=True)
             tip_before = remote_tip()
+            if reset_worktree_to_baseline:
+                # Issue #798 review B9: model an agent that pushes a violating
+                # commit and then resets its workspace HEAD to the captured
+                # baseline. The guard's local-workspace preflight path (if an
+                # inherited PEROS_PREFLIGHT=1 reached it) would then see a
+                # clean branch and hide the remote violation.
+                run([git, "reset", "-q", "--hard", baseline], cwd=work,
+                    check=True)
             if insteadof:
                 run([git, "config", "url." + evil + ".insteadOf", origin],
                     cwd=work, check=True)
@@ -31323,7 +31387,7 @@ def main(root):
                     else None
                 ),
                 extra_env=extra_env, remote_url=remote_url,
-                body_override=body_override,
+                body_override=body_override, step_env=step_env,
             )
             if non_ancestor_baseline:
                 # Restore origin/main for the remaining scenarios.
@@ -31419,8 +31483,41 @@ def main(root):
                         "r34-%s(fake-helper-ran=%s,want=%s)"
                         % (tag, exists, expect_fake_marker))
 
+        # Issue #798 review B9 control: the pre-agent baseline step's inline
+        # PEROS_PREFLIGHT=1 preflight still accepts a clean branch, so pinning
+        # the post-agent step to 0 cannot be satisfied by disabling preflight
+        # mode itself.
+        checkout_base(workflow_sha)
+        preflight_control, preflight_sha = baseline_raw(
+            workflow_sha, "b9-preflight-control")
+        if preflight_control.returncode != 0 or not preflight_sha:
+            bad.append(
+                "r34-b9-preflight-control-refused-clean;%s"
+                % (preflight_control.stdout + preflight_control.stderr)
+                .replace("\n", " ")[:300])
+
         scenario("clean", [("proj/tests/new_test.py", "test\n")], 0, False)
         scenario("outside", [("proj/src/app.py", "code\n")], 1, True)
+        # Issue #798 review B9: an agent can export PEROS_PREFLIGHT=1 through
+        # $GITHUB_ENV and reset its workspace HEAD to the captured baseline
+        # after pushing a violating commit. The shipped post-agent step env
+        # pins PEROS_PREFLIGHT=0, so the guard still fetches and judges the
+        # remote tip and drops the range. The mutant (pin removed from the
+        # step env) takes the local-workspace preflight path, sees the clean
+        # reset workspace, and hides the violation, proving the pin
+        # load-bearing.
+        scenario("inherited-preflight",
+                 [("proj/src/inherited_preflight.py", "code\n")], 1, True,
+                 extra_env={"PEROS_PREFLIGHT": "1"},
+                 step_env=inherited_step_env,
+                 reset_worktree_to_baseline=True,
+                 expect_scope_msg="dropping the tester-owned commit range")
+        scenario("inherited-preflight-mutant",
+                 [("proj/src/inherited_preflight_mutant.py", "code\n")],
+                 0, False, extra_env={"PEROS_PREFLIGHT": "1"},
+                 step_env=mutant_step_env,
+                 reset_worktree_to_baseline=True,
+                 expect_scope_msg="Per-OS durable preflight")
         scenario("protected", [(".github/test_foo.py", "tamper\n")], 1, True)
         scenario("mixed", [("proj/helper.sh", "violation\n")], 1, False,
                  foreign=("fixer.txt", "foreign\n", "fixer: concurrent work"),
@@ -32390,7 +32487,7 @@ R34PY
 fi
 case "$r34_out" in
   OK)
-    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the bare .github gitlink entry, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the bare .github gitlink entry, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
     ;;
   *)
     check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
