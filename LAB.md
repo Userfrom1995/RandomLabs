@@ -287,15 +287,19 @@ Public Surface / Web Track:                                              │
   arm sets `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` plus the supported
   `OPENCODE_PERMISSION` grant and never merges the checked-out tree's
   `AGENTS.md` or `opencode.json` (issue #831; canary-verified). On CLI
-  1.19.5 the opt-out also skips the project plugin directories
-  (`ConfigPaths.directories` filters them under the flag), but the global
-  `$HOME/.opencode` scan is unconditional, the loader boundary varies
-  across CLI versions, and every retry is a new process on the mid-run
-  PR-head checkout tree, so the vendored composite runner removes both
-  project directories before the first CLI process starts as defense in
-  depth, marks tracked paths skip-worktree so the session auto-commit
-  cannot stage the deletions, removes a `.opencode` symlink without
-  following it, and fails loudly when the enumeration or marking fails.
+  1.19.5 the opt-out boundary is command-specific: `opencode github run`
+  skips the project plugin directories through the legacy
+  `ConfigPaths.directories` -> `ConfigPlugin.load` path, while
+  `opencode run` reaches them through the v2 config/plugin path
+  unconditionally; the global `$HOME/.opencode` scan is unconditional
+  for both, the loader boundary varies across CLI versions, and every
+  retry is a new process on the mid-run PR-head checkout tree, so the
+  vendored composite runner removes both project directories before the
+  first CLI process starts (the primary closure for the v2 plugin path
+  and defense in depth for the rest), marks tracked paths skip-worktree
+  so the session auto-commit cannot stage the deletions, removes a
+  `.opencode` symlink without following it, and fails loudly when the
+  enumeration or marking fails.
   The CLI's GitHub handler checks out the PR head mid-run and every retry
   starts a NEW CLI process on that tree, so the runner re-runs the same
   sanitizer before every attempt (issue #831 review F5); the Maintainer
