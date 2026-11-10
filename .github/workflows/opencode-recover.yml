@@ -95,8 +95,11 @@ jobs:
       # audits the wake and enforces the cooldown; if the dispatch then fails
       # the marker is rolled back so the failed attempt does not consume the
       # ledger. An unreadable board, comment list, or run list fails closed
-      # (no dispatch) so this can never become a dispatch storm. The note
-      # carries no inline trigger token (issue #775).
+      # (no dispatch), including a valid-JSON run page of the wrong shape
+      # (an object instead of an array, or entries without a string status
+      # and createdAt), so this can never become a dispatch storm. The
+      # effective 90-minute staleness and cooldown arithmetic is pinned
+      # exactly by R34. The note carries no inline trigger token (issue #775).
       - name: "Maintainer stale-session heartbeat (issue #836)"
         id: maintainer_heartbeat
         shell: bash
@@ -131,6 +134,10 @@ jobs:
             echo "::warning::could not enumerate Maintainer runs (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
             exit 0
           fi
+          if ! printf '%s' "$runs" | jq -e 'type == "array" and all(.[]; type == "object" and (.status | type) == "string" and (.createdAt | type) == "string")' >/dev/null 2>&1; then
+            echo "::warning::the Maintainer run list returned unexpected JSON (issue #836); skipping the heartbeat so a broken query can never duplicate a live run."
+            exit 0
+          fi
           active=$(printf '%s' "$runs" | jq --arg cutoff "$cutoff" '[.[] | select(.status == "in_progress" or ((.status == "queued" or .status == "requested" or .status == "waiting" or .status == "pending") and .createdAt >= $cutoff))] | length' 2>/dev/null) || active=""
           case "$active" in
             ''|*[!0-9]*)
@@ -142,7 +149,7 @@ jobs:
             echo "A Maintainer run is already active (${active}: in progress at any age, or queued inside the 90-minute window); no heartbeat dispatch."
             exit 0
           fi
-          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
+          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
           if [ -z "$board" ] || [ "$board" = "null" ]; then
             echo "::warning::no open lab-health board; skipping the heartbeat dispatch (the cooldown ledger needs the board, issue #836)."
             exit 0
@@ -156,7 +163,7 @@ jobs:
             echo "::warning::lab-health board comments returned unexpected JSON (issue #836); skipping the heartbeat dispatch (fail closed against duplicate wakes)."
             exit 0
           fi
-          if ! newest=$(printf '%s' "$comments" | jq -r --arg marker "$marker" '[.[][] | select(.user.login == "github-actions[bot]") | select((.body // "") | contains($marker)) | .created_at] | sort | last // empty' 2>/dev/null); then
+          if ! newest=$(printf '%s' "$comments" | jq -r --arg marker "$marker" '[.[][] | select(.user.login == "github-actions[bot]") | select((.body // "") | endswith($marker)) | .created_at] | sort | last // empty' 2>/dev/null); then
             echo "::warning::could not scan the lab-health board comments for the heartbeat marker (issue #836); skipping the heartbeat dispatch (fail closed)."
             exit 0
           fi
