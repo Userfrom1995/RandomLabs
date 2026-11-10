@@ -144,8 +144,16 @@ jobs:
           # $HOME/.opencode/bin entry the vendored runner appends to
           # $GITHUB_PATH. A PR-planted gh there would then execute with the
           # owner PAT. Capture the PATH now, before any agent code runs, and
-          # drop the known user-writable tool directories so every post-agent
-          # PAT step resolves its tools from the pre-agent environment.
+          # drop the known user-writable tool directories.
+          # Issue #798 review B10: a step-env PATH alone is not enough. The
+          # runner prepends $GITHUB_PATH entries ahead of every step env PATH
+          # (FileCommandManager -> Handler.AddPrependPathToEnvironment) and
+          # resolves `shell: bash` with that prepend path, so a PR-planted
+          # bash, gh, jq, or mktemp in $HOME/.opencode/bin could still execute
+          # with the owner PAT. Every post-agent step therefore pins an
+          # absolute shell (/bin/bash on Linux/macOS, the Git Bash 8.3 path on
+          # Windows) and resets PATH to this captured value as its first
+          # command, before any lookup.
           # Issue #713 round 18: filtering only $HOME left world-writable
           # runner directories (/usr/local/bin, /opt/pipx_bin, and
           # /usr/local/.ghcup/bin are mode 777 on the hosted runners) in the
@@ -542,6 +550,7 @@ jobs:
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           # Issue #798 review N12: pin the scratch-repository location so an
           # agent-exported TMPDIR cannot redirect the job-token scratch config.
           TMPDIR: /tmp
@@ -552,7 +561,9 @@ jobs:
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: the vendored runner auto-commits inside the agent step,
           # so leaked owner trailers can only be removed after its push. Issue #798
           # review B8: read the reviewed strip helper through the GitHub contents
@@ -630,6 +641,7 @@ jobs:
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           # Issue #798 review N12: pin the scratch-repository location so an
           # agent-exported TMPDIR cannot redirect the job-token scratch config.
           TMPDIR: /tmp
@@ -648,7 +660,9 @@ jobs:
           # Trusted step env wins over $GITHUB_ENV, so an agent-exported value
           # can never redirect the guard's fetch/push to another repository.
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: a per-OS arm's auto-commit (the Linux arm's 9f1f1ed0 on
           # #788) edited a lab script and sat outside the PR's project lane. The
           # guard judges only commits after the captured baseline, attributes
@@ -776,7 +790,10 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
           if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
             echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
@@ -858,6 +875,7 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
           # rewrites any argv that looks like a POSIX absolute path before the
@@ -867,7 +885,9 @@ jobs:
           # per-OS forwarders); the stdin transport below is conversion-proof by
           # construction, and audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #791: feed the decision file on stdin, never as a jq path
           # argument. This step carries MSYS_NO_PATHCONV=1 (issue #612), which
           # also stops Git Bash converting the /tmp path for the native
@@ -1058,8 +1078,16 @@ jobs:
           # $HOME/.opencode/bin entry the vendored runner appends to
           # $GITHUB_PATH. A PR-planted gh there would then execute with the
           # owner PAT. Capture the PATH now, before any agent code runs, and
-          # drop the known user-writable tool directories so every post-agent
-          # PAT step resolves its tools from the pre-agent environment.
+          # drop the known user-writable tool directories.
+          # Issue #798 review B10: a step-env PATH alone is not enough. The
+          # runner prepends $GITHUB_PATH entries ahead of every step env PATH
+          # (FileCommandManager -> Handler.AddPrependPathToEnvironment) and
+          # resolves `shell: bash` with that prepend path, so a PR-planted
+          # bash, gh, jq, or mktemp in $HOME/.opencode/bin could still execute
+          # with the owner PAT. Every post-agent step therefore pins an
+          # absolute shell (/bin/bash on Linux/macOS, the Git Bash 8.3 path on
+          # Windows) and resets PATH to this captured value as its first
+          # command, before any lookup.
           # Issue #713 round 18: filtering only $HOME left world-writable
           # runner directories (/usr/local/bin, /opt/pipx_bin, and
           # /usr/local/.ghcup/bin are mode 777 on the hosted runners) in the
@@ -1459,6 +1487,7 @@ jobs:
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           # Issue #798 review N12: pin the scratch-repository location so an
           # agent-exported TMPDIR cannot redirect the job-token scratch config.
           TMPDIR: /tmp
@@ -1469,7 +1498,9 @@ jobs:
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: the vendored runner auto-commits inside the agent step,
           # so leaked owner trailers can only be removed after its push. Issue #798
           # review B8: read the reviewed strip helper through the GitHub contents
@@ -1547,6 +1578,7 @@ jobs:
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           # Issue #798 review N12: pin the scratch-repository location so an
           # agent-exported TMPDIR cannot redirect the job-token scratch config.
           TMPDIR: /tmp
@@ -1565,7 +1597,9 @@ jobs:
           # Trusted step env wins over $GITHUB_ENV, so an agent-exported value
           # can never redirect the guard's fetch/push to another repository.
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: a per-OS arm's auto-commit (the Linux arm's 9f1f1ed0 on
           # #788) edited a lab script and sat outside the PR's project lane. The
           # guard judges only commits after the captured baseline, attributes
@@ -1693,7 +1727,10 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #692: run 39170578536 died at the agent-step cap with 5 of
           # 9 planned passes still open, so no decision file existed, the
           # fail-closed verify above went red, and the file-contract report
@@ -1808,7 +1845,10 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
           if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
             echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
@@ -1890,11 +1930,14 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
+        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #791: feed the decision file on stdin, never as a jq path
           # argument. This step carries MSYS_NO_PATHCONV=1 (issue #612), which
           # also stops Git Bash converting the /tmp path for the native
@@ -2083,8 +2126,16 @@ jobs:
           # $HOME/.opencode/bin entry the vendored runner appends to
           # $GITHUB_PATH. A PR-planted gh there would then execute with the
           # owner PAT. Capture the PATH now, before any agent code runs, and
-          # drop the known user-writable tool directories so every post-agent
-          # PAT step resolves its tools from the pre-agent environment.
+          # drop the known user-writable tool directories.
+          # Issue #798 review B10: a step-env PATH alone is not enough. The
+          # runner prepends $GITHUB_PATH entries ahead of every step env PATH
+          # (FileCommandManager -> Handler.AddPrependPathToEnvironment) and
+          # resolves `shell: bash` with that prepend path, so a PR-planted
+          # bash, gh, jq, or mktemp in $HOME/.opencode/bin could still execute
+          # with the owner PAT. Every post-agent step therefore pins an
+          # absolute shell (/bin/bash on Linux/macOS, the Git Bash 8.3 path on
+          # Windows) and resets PATH to this captured value as its first
+          # command, before any lookup.
           # Issue #713 round 18: filtering only $HOME left world-writable
           # runner directories (/usr/local/bin, /opt/pipx_bin, and
           # /usr/local/.ghcup/bin are mode 777 on the hosted runners) in the
@@ -2483,6 +2534,7 @@ jobs:
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           # Issue #798 review N12: pin the scratch-repository location so an
           # agent-exported TMPDIR cannot redirect the job-token scratch config.
           TMPDIR: /tmp
@@ -2493,7 +2545,9 @@ jobs:
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: the vendored runner auto-commits inside the agent step,
           # so leaked owner trailers can only be removed after its push. Issue #798
           # review B8: read the reviewed strip helper through the GitHub contents
@@ -2571,6 +2625,7 @@ jobs:
           SSL_CERT_DIR: ""
           SSL_CERT_FILE: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           # Issue #798 review N12: pin the scratch-repository location so an
           # agent-exported TMPDIR cannot redirect the job-token scratch config.
           TMPDIR: /tmp
@@ -2589,7 +2644,9 @@ jobs:
           # Trusted step env wins over $GITHUB_ENV, so an agent-exported value
           # can never redirect the guard's fetch/push to another repository.
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: a per-OS arm's auto-commit (the Linux arm's 9f1f1ed0 on
           # #788) edited a lab script and sat outside the PR's project lane. The
           # guard judges only commits after the captured baseline, attributes
@@ -2717,7 +2774,10 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #692: same salvage contract as the macOS arm (see the macOS
           # salvage step): the fail-closed verify above stays red and only a
           # signed, re-fetchable partial report is published, behind a
@@ -2825,7 +2885,10 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
           if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
             echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
@@ -2907,6 +2970,7 @@ jobs:
           # redirect the job-token scratch config under an agent-writable parent.
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: the live regression. Under Git Bash on windows-latest,
           # MSYS2 path conversion rewrote the --body value "/oc maintainer"
@@ -2915,7 +2979,9 @@ jobs:
           # disables that conversion; the stdin transport below is the primary,
           # conversion-proof fix. Audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Issue #791: feed the decision file on stdin, never as a jq path
           # argument. This step carries MSYS_NO_PATHCONV=1 (issue #612), which
           # also stops Git Bash converting the /tmp path for the native
