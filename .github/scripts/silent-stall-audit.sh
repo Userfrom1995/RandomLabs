@@ -12802,7 +12802,7 @@ if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then
 fi
 if [ "$attempt" -ge 1 ]; then
   echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 1, issue #820/#836); the one fresh-run attempt is spent and no further self-dispatch occurs. The recover-arm heartbeat or the next schedule tick re-arms the lane. Escalate the provider plan or involve the Owner if it persists."
-  board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
+  board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
   if [ -n "$board" ] && [ "$board" != "null" ]; then
     note=$(printf 'Quota-wall recovery cap (issue #820/#836): run %s/%s ended on the provider daily free-usage wall with the one bounded fresh-run attempt spent. A fresh run is a lottery ticket on a pool-wide wall, not a retry: a second dispatch two minutes later lands on the same blocked pool, so the chain halts red instead of looping. The recover-arm heartbeat (issue #836) or the next schedule tick re-arms the lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")
     gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
@@ -26732,8 +26732,15 @@ esac
 # of short per-target runs nor a months-old zombie can suppress the wake.
 # Unreadable board, comment-list, or run-list reads fail closed, and a failed
 # dispatch rolls the marker back so the failed attempt cannot consume the
-# cooldown. The mock executes the body's own jq over raw GitHub-shaped JSON,
-# so the status set, age cutoff, PR exclusion, oldest-board sort, marker sort,
+# cooldown. Issue #837 evaluator findings: a valid-JSON run page of the wrong
+# shape (a non-array or entries without string status/createdAt) fails closed
+# like an unreadable read, the board query asks GitHub for the oldest board
+# first (sort=created&direction=asc), the cooldown marker must END the bot
+# body (a quoted mention is not a note), and the effective 90-minute cutoff
+# and age/since minute arithmetic is pinned exact and unique (an inserted
+# override or changed divisor is caught statically and behaviorally). The
+# mock executes the body's own jq over raw GitHub-shaped JSON,
+# so the status set, age cutoff, PR exclusion, board sort order, marker sort,
 # and STATE field are load-bearing; mutation self-tests prove both the static
 # guard and the behavioral fixtures load-bearing, and the intake and recovery
 # notes are asserted free of an inline /oc or /opencode token (issue #775;
@@ -26963,6 +26970,7 @@ if recovery_i is not None:
         "sleep $(( (RANDOM % 31) + 30 ))",
         'if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then',
         "--jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number'",
+        "labels=lab-health&sort=created&direction=asc",
     ):
         if needle not in text:
             fail("recovery-missing:%s" % needle)
@@ -27068,12 +27076,13 @@ if isinstance(recover_doc, dict):
                     "s/^Last updated: ",
                     'cutoff=$(date -u -d "${stale_minutes} minutes ago" +%Y-%m-%dT%H:%M:%SZ)',
                     "--workflow maintainer.yml --limit 1000 --json status,createdAt",
+                    "jq -e 'type == \"array\" and all(.[]; type == \"object\" and (.status | type) == \"string\" and (.createdAt | type) == \"string\")'",
                     'jq --arg cutoff "$cutoff"',
                     '[.[] | select(.status == "in_progress" or ((.status == "queued" or .status == "requested" or .status == "waiting" or .status == "pending") and .createdAt >= $cutoff))] | length',
-                    "labels=lab-health",
+                    "labels=lab-health&sort=created&direction=asc",
                     "--jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number'",
                     'select(.user.login == "github-actions[bot]")',
-                    "contains($marker)",
+                    "endswith($marker)",
                     "| sort | last // empty",
                     'if [ "$active" -gt 0 ]; then',
                     'case "$active" in',
@@ -27089,6 +27098,32 @@ if isinstance(recover_doc, dict):
                         fail("heartbeat-missing:%s" % needle)
                 if 'if [ "$newest" ]' in heartbeat_text or 'if [ -n "$newest" ]' not in heartbeat_text:
                     fail("heartbeat-cooldown-check-missing")
+                # Issue #837 evaluator finding 2: pin the EFFECTIVE staleness
+                # and cooldown arithmetic, not just the presence of the knobs.
+                # A duplicate cutoff assignment inserted after the reviewed
+                # line (the last assignment wins) or a changed minutes divisor
+                # silently shifts the 90-minute windows while every presence
+                # needle still matches. Each reviewed line must therefore be
+                # unique, and each assignment prefix must be unique too, so an
+                # override anywhere in the body is rejected.
+                heartbeat_lines = [line.strip() for line in heartbeat_text.splitlines()]
+                for label, exact_line in (
+                    (
+                        "cutoff",
+                        'cutoff=$(date -u -d "${stale_minutes} minutes ago" +%Y-%m-%dT%H:%M:%SZ)',
+                    ),
+                    ("age", "age=$(( (now - last) / 60 ))"),
+                    ("since", "since=$(( (now - posted_at) / 60 ))"),
+                ):
+                    if heartbeat_lines.count(exact_line) != 1:
+                        fail("heartbeat-arithmetic-%s-not-exact" % label)
+                for label, prefix in (
+                    ("cutoff", "cutoff=$("),
+                    ("age", "age=$(( "),
+                    ("since", "since=$(( "),
+                ):
+                    if sum(1 for line in heartbeat_lines if line.startswith(prefix)) != 1:
+                        fail("heartbeat-arithmetic-%s-override" % label)
                 if "OPENCODE_PAT" in heartbeat_text:
                     fail("heartbeat-carries-owner-pat")
                 for trigger in ("/oc", "/opencode"):
@@ -27696,14 +27731,22 @@ if [ -z "$r34_bad" ]; then
     date -u -d "@$(( $(date -u +%s) - $1 * 60 ))" '+%Y-%m-%dT%H:%M:%SZ'
   }
   r34_hb_state "$r34_hb_fixtures/state-fresh" 10
+  r34_hb_state "$r34_hb_fixtures/state-mid" 50
+  r34_hb_state "$r34_hb_fixtures/state-boundary" 90
   r34_hb_state "$r34_hb_fixtures/state-stale" 120
   : > "$r34_hb_fixtures/state-empty"
   printf '# STATE\n\nNo liveness stamp here (audit fixture).\n' | base64 | tr -d '\n' > "$r34_hb_fixtures/state-unparseable"
   printf '[]\n' > "$r34_hb_fixtures/comments-none"
   r34_hb_comments "$r34_hb_fixtures/comments-cool" "github-actions[bot]" 30
+  r34_hb_comments "$r34_hb_fixtures/comments-mid" "github-actions[bot]" 50
+  r34_hb_comments "$r34_hb_fixtures/comments-boundary" "github-actions[bot]" 90
   r34_hb_comments "$r34_hb_fixtures/comments-old" "github-actions[bot]" 120
   r34_hb_comments "$r34_hb_fixtures/comments-human" "mallory" 30
   r34_hb_comments "$r34_hb_fixtures/comments-bad-ts" "github-actions[bot]" bad
+  # A bot comment that merely QUOTES the marker mid-body must not extend the
+  # cooldown; only a body that ends with the marker is a heartbeat note.
+  printf '[[{"user":{"login":"github-actions[bot]"},"body":"quoting <!-- maintainer-heartbeat --> in prose","created_at":"%s"}]]\n' \
+    "$(r34_hb_age 30)" > "$r34_hb_fixtures/comments-quote"
   printf '[[{"user":{"login":"github-actions[bot]"},"body":"old <!-- maintainer-heartbeat -->","created_at":"%s"},{"user":{"login":"github-actions[bot]"},"body":"new <!-- maintainer-heartbeat -->","created_at":"%s"}]]\n' \
     "$(r34_hb_age 120)" "$(r34_hb_age 30)" > "$r34_hb_fixtures/comments-multi"
   printf '{"not":"a-page-array"}\n' > "$r34_hb_fixtures/comments-bad-json"
@@ -27722,6 +27765,19 @@ if [ -z "$r34_bad" ]; then
   printf '[{"status":"queued","createdAt":"%s"},{"status":"in_progress","createdAt":"%s"},{"status":"completed","createdAt":"%s"}]\n' \
     "$(r34_hb_age 43200)" "$(r34_hb_age 5)" "$(r34_hb_age 3)" > "$r34_hb_fixtures/runs-mixed"
   printf 'not json\n' > "$r34_hb_fixtures/runs-bad"
+  # Issue #837 evaluator finding 2: a queued run older than the 90-minute
+  # window must NOT suppress the heartbeat (it proves the effective cutoff,
+  # not just the presence of the assignment).
+  printf '[{"status":"queued","createdAt":"%s"}]\n' "$(r34_hb_age 300)" > "$r34_hb_fixtures/runs-queued-mid"
+  # Issue #837 evaluator finding 1: structurally invalid but valid-JSON run
+  # pages must fail closed (no dispatch), never classify as zero active runs.
+  printf '{"not":"a-run-page"}\n' > "$r34_hb_fixtures/runs-object"
+  printf '[{"status":"queued"}]\n' > "$r34_hb_fixtures/runs-missing-field"
+  printf '[{"status":1,"createdAt":2}]\n' > "$r34_hb_fixtures/runs-wrong-types"
+  # Valid JSON, wrong top-level type: only reachable past the shape guard when
+  # a mutant disables it, and it makes the classification jq fail (cannot
+  # iterate over a string), which is what the fail-closed case mutant mutates.
+  printf '"not-a-run-page"\n' > "$r34_hb_fixtures/runs-scalar"
 
   r34_hb_case fresh heartbeat.sh "$r34_hb_fixtures/state-fresh" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done"
   w="$r34_dir/hb-work-fresh"
@@ -27792,6 +27848,56 @@ if [ -z "$r34_bad" ]; then
   [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-mixed-rc"
   [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-mixed-dispatched"
 
+  # Issue #837 evaluator finding 2: pin the effective arithmetic at its
+  # boundaries. Exactly 90 minutes old is stale (the test is `< 90`), exactly
+  # 90 minutes since the marker lapses the cooldown (`< 90`), and 50 minutes
+  # is inside both windows (a /30 divisor would flip both to stale/dispatch).
+  r34_hb_case state-boundary heartbeat.sh "$r34_hb_fixtures/state-boundary" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-state-boundary"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-state-boundary-rc"
+  [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-state-boundary-not-dispatched"
+
+  r34_hb_case state-mid heartbeat.sh "$r34_hb_fixtures/state-mid" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-state-mid"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-state-mid-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-state-mid-dispatched"
+
+  r34_hb_case cooldown-boundary heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-boundary" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-cooldown-boundary"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-cooldown-boundary-rc"
+  [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-cooldown-boundary-not-dispatched"
+
+  r34_hb_case cooldown-mid heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-mid" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-cooldown-mid"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-cooldown-mid-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-cooldown-mid-dispatched"
+
+  # A queued-family run 300 minutes old is outside the effective 90-minute
+  # cutoff and must not suppress the heartbeat; a 600-minute cutoff override
+  # would classify it active.
+  r34_hb_case queued-mid heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-queued-mid"
+  w="$r34_dir/hb-work-queued-mid"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-queued-mid-rc"
+  [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-queued-mid-not-dispatched"
+
+  # Issue #837 evaluator finding 1: a structurally invalid (but valid JSON)
+  # run page must fail closed with rc 0 and no dispatch, never classify as
+  # zero active runs.
+  r34_hb_case runs-object heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-object"
+  w="$r34_dir/hb-work-runs-object"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-runs-object-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-runs-object-dispatched"
+
+  r34_hb_case runs-missing-field heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-missing-field"
+  w="$r34_dir/hb-work-runs-missing-field"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-runs-missing-field-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-runs-missing-field-dispatched"
+
+  r34_hb_case runs-wrong-types heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-wrong-types"
+  w="$r34_dir/hb-work-runs-wrong-types"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-runs-wrong-types-rc"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} hb-runs-wrong-types-dispatched"
+
   r34_hb_case cooldown heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-cool" "$r34_hb_fixtures/runs-done"
   w="$r34_dir/hb-work-cooldown"
   [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-cooldown-rc"
@@ -27812,6 +27918,13 @@ if [ -z "$r34_bad" ]; then
   r34_hb_case human-marker heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-human" "$r34_hb_fixtures/runs-done"
   w="$r34_dir/hb-work-human-marker"
   [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-human-marker-suppressed"
+
+  # Only a body that ENDS with the marker is a heartbeat note; a bot comment
+  # quoting it mid-prose must not extend the cooldown.
+  r34_hb_case marker-quoted heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-quote" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-marker-quoted"
+  [ "$(cat "$w/rc")" = "0" ] || r34_bad="${r34_bad} hb-marker-quoted-rc"
+  [ "$(grep -c . "$w/dispatch" 2>/dev/null || true)" = "1" ] || r34_bad="${r34_bad} hb-marker-quoted-suppressed"
 
   r34_hb_case bad-timestamp heartbeat.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-bad-ts" "$r34_hb_fixtures/runs-done"
   w="$r34_dir/hb-work-bad-timestamp"
@@ -28123,14 +28236,81 @@ if [ -f "$r34_dir/mut-hb-state-field/heartbeat.sh" ]; then
 else
   r34_bad="${r34_bad} mutant-hb-state-field-not-extracted"
 fi
-r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-failclosed-exit.yml" '          case "$active" in' '          case "0" in'
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-runs-shape.yml" "'type == \"array\" and all(.[]; type == \"object\" and (.status | type) == \"string\" and (.createdAt | type) == \"string\")'" "'true'"
+mkdir -p "$r34_dir/mut-hb-runs-shape"
+if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-runs-shape" "$r34_dir/mutants/hb-runs-shape.yml" > "$r34_dir/mut-hb-runs-shape/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-hb-runs-shape-not-caught"
+fi
+if [ -f "$r34_dir/mut-hb-runs-shape/heartbeat.sh" ]; then
+  cp "$r34_dir/mut-hb-runs-shape/heartbeat.sh" "$r34_dir/out/heartbeat-runs-shape.sh"
+  r34_hb_case mutant-runs-shape heartbeat-runs-shape.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-missing-field"
+  w="$r34_dir/hb-work-mutant-runs-shape"
+  [ -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-hb-runs-shape-not-observable"
+else
+  r34_bad="${r34_bad} mutant-hb-runs-shape-not-extracted"
+fi
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-cutoff-override.yml" '          cutoff=$(date -u -d "${stale_minutes} minutes ago" +%Y-%m-%dT%H:%M:%SZ)' '          cutoff=$(date -u -d "${stale_minutes} minutes ago" +%Y-%m-%dT%H:%M:%SZ)
+          cutoff=$(date -u -d "600 minutes ago" +%Y-%m-%dT%H:%M:%SZ)'
+mkdir -p "$r34_dir/mut-hb-cutoff-override"
+if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-cutoff-override" "$r34_dir/mutants/hb-cutoff-override.yml" > "$r34_dir/mut-hb-cutoff-override/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-hb-cutoff-override-not-caught"
+fi
+if [ -f "$r34_dir/mut-hb-cutoff-override/heartbeat.sh" ]; then
+  cp "$r34_dir/mut-hb-cutoff-override/heartbeat.sh" "$r34_dir/out/heartbeat-cutoff-override.sh"
+  r34_hb_case mutant-cutoff-override heartbeat-cutoff-override.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-queued-mid"
+  w="$r34_dir/hb-work-mutant-cutoff-override"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-hb-cutoff-override-not-observable"
+else
+  r34_bad="${r34_bad} mutant-hb-cutoff-override-not-extracted"
+fi
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-age-divisor.yml" 'age=$(( (now - last) / 60 ))' 'age=$(( (now - last) / 30 ))'
+mkdir -p "$r34_dir/mut-hb-age-divisor"
+if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-age-divisor" "$r34_dir/mutants/hb-age-divisor.yml" > "$r34_dir/mut-hb-age-divisor/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-hb-age-divisor-not-caught"
+fi
+if [ -f "$r34_dir/mut-hb-age-divisor/heartbeat.sh" ]; then
+  cp "$r34_dir/mut-hb-age-divisor/heartbeat.sh" "$r34_dir/out/heartbeat-age-divisor.sh"
+  r34_hb_case mutant-age-divisor heartbeat-age-divisor.sh "$r34_hb_fixtures/state-mid" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-mutant-age-divisor"
+  [ -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-hb-age-divisor-not-observable"
+else
+  r34_bad="${r34_bad} mutant-hb-age-divisor-not-extracted"
+fi
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-since-divisor.yml" 'since=$(( (now - posted_at) / 60 ))' 'since=$(( (now - posted_at) / 30 ))'
+mkdir -p "$r34_dir/mut-hb-since-divisor"
+if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-since-divisor" "$r34_dir/mutants/hb-since-divisor.yml" > "$r34_dir/mut-hb-since-divisor/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-hb-since-divisor-not-caught"
+fi
+if [ -f "$r34_dir/mut-hb-since-divisor/heartbeat.sh" ]; then
+  cp "$r34_dir/mut-hb-since-divisor/heartbeat.sh" "$r34_dir/out/heartbeat-since-divisor.sh"
+  r34_hb_case mutant-since-divisor heartbeat-since-divisor.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-mid" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-mutant-since-divisor"
+  [ -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-hb-since-divisor-not-observable"
+else
+  r34_bad="${r34_bad} mutant-hb-since-divisor-not-extracted"
+fi
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-marker-contains.yml" 'endswith($marker)' 'contains($marker)'
+mkdir -p "$r34_dir/mut-hb-marker-contains"
+if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-marker-contains" "$r34_dir/mutants/hb-marker-contains.yml" > "$r34_dir/mut-hb-marker-contains/static" 2>&1; then
+  r34_bad="${r34_bad} mutant-hb-marker-contains-not-caught"
+fi
+if [ -f "$r34_dir/mut-hb-marker-contains/heartbeat.sh" ]; then
+  cp "$r34_dir/mut-hb-marker-contains/heartbeat.sh" "$r34_dir/out/heartbeat-marker-contains.sh"
+  r34_hb_case mutant-marker-contains heartbeat-marker-contains.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-quote" "$r34_hb_fixtures/runs-done"
+  w="$r34_dir/hb-work-mutant-marker-contains"
+  [ ! -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-hb-marker-contains-not-observable"
+else
+  r34_bad="${r34_bad} mutant-hb-marker-contains-not-extracted"
+fi
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-failclosed-exit-base.yml" "'type == \"array\" and all(.[]; type == \"object\" and (.status | type) == \"string\" and (.createdAt | type) == \"string\")'" "'true'"
+r34_mutate_other "$r34_dir/mutants/hb-failclosed-exit-base.yml" "$r34_dir/mutants/hb-failclosed-exit.yml" '          case "$active" in' '          case "0" in'
 mkdir -p "$r34_dir/mut-hb-failclosed-exit"
 if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-failclosed-exit" "$r34_dir/mutants/hb-failclosed-exit.yml" > "$r34_dir/mut-hb-failclosed-exit/static" 2>&1; then
   r34_bad="${r34_bad} mutant-hb-failclosed-exit-not-caught"
 fi
 if [ -f "$r34_dir/mut-hb-failclosed-exit/heartbeat.sh" ]; then
   cp "$r34_dir/mut-hb-failclosed-exit/heartbeat.sh" "$r34_dir/out/heartbeat-failclosed-exit.sh"
-  r34_hb_case mutant-failclosed-exit heartbeat-failclosed-exit.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-bad" "$r34_dir/board.json" 0 0 0
+  r34_hb_case mutant-failclosed-exit heartbeat-failclosed-exit.sh "$r34_hb_fixtures/state-stale" "$r34_hb_fixtures/comments-none" "$r34_hb_fixtures/runs-scalar" "$r34_dir/board.json" 0 0 0
   w="$r34_dir/hb-work-mutant-failclosed-exit"
   [ -s "$w/dispatch" ] || r34_bad="${r34_bad} mutant-hb-failclosed-exit-not-observable"
 else
@@ -28292,7 +28472,7 @@ fi
 
 case "$r34_bad" in
   "")
-    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded one-attempt fresh-run chain and intercepted by wall-aware intake, and a stalled Maintainer is woken by the recover arm's cross-arm heartbeat: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature from the triggering run's CHECK-RUN ANNOTATIONS (checks: read, jobs enumerated, exact anchored message prefix, pipefail-off early-exit guard; the job log is never read, so the echoed run: script, a transcript quoting the rendered ##[error] line, and a raw provider quote are negative fixtures; the marker dedupe accepts only bot-authored comments), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches exactly one fresh run through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede; the runner's exact marker content and a failed agent outcome are required, an out-of-range input is clamped to the cap, and a rerun dispatches nothing), the recover arm runs a schedule/dispatch stale-session heartbeat (issue #836: exact id/if/shell/token env, a pinned STATE.md Last updated: stamp read from maintainer/logs, 90-minute staleness and cooldown, a newest-1000-run gate where in-progress runs count at any age and the queued/requested/waiting/pending class is age-bounded, bot-only marker dedupe with the NEWEST marker winning on the OLDEST open non-PR lab-health board, note recorded BEFORE the dispatch and rolled back when the dispatch fails, an unparseable stamp treated as stale, and fail-closed board/comment/run-list reads), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation on the oldest open non-PR board and exits 1; the intake and recovery notes are asserted free of an inline /oc or /opencode token (issue #775; the self-heal and curator cap bodies are pinned token-free by R9); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical error and warning, transcript/source/provider negatives, dedupe, spoofed dedupe, post-failure, attempt 0/1/cap/overflow/non-numeric, bad-marker, success-marker, rerun, rerun-at-cap, dispatch-failure, and green/red handoff fixtures plus fresh/stale/active-at-any-age/queued-family/queued-old/cooldown/cooldown-newest-marker/human-marker/missing-stamp/unparseable-state/bad-runs-json/unparseable-page/no-board/board-failing/comments-failing/runlist-failing/failed-post/failed-dispatch/rollback heartbeat fixtures, the mock executing the body's own jq over raw GitHub-shaped JSON so the status set, age cutoff, PR exclusion, oldest-board sort, marker sort, and STATE field are load-bearing, and mutation self-tests prove the static pins, the annotation/log/clamp/marker/outcome fixtures, and the heartbeat threshold/cooldown/marker/status-set/marker-sort/board-field/state-field/fail-closed/active-gate/trigger/step-if/ledger fixtures load-bearing" "ok"
+    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded one-attempt fresh-run chain and intercepted by wall-aware intake, and a stalled Maintainer is woken by the recover arm's cross-arm heartbeat: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature from the triggering run's CHECK-RUN ANNOTATIONS (checks: read, jobs enumerated, exact anchored message prefix, pipefail-off early-exit guard; the job log is never read, so the echoed run: script, a transcript quoting the rendered ##[error] line, and a raw provider quote are negative fixtures; the marker dedupe accepts only bot-authored comments), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches exactly one fresh run through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede; the runner's exact marker content and a failed agent outcome are required, an out-of-range input is clamped to the cap, and a rerun dispatches nothing), the recover arm runs a schedule/dispatch stale-session heartbeat (issue #836: exact id/if/shell/token env, a pinned STATE.md Last updated: stamp read from maintainer/logs, exact and unique 90-minute staleness and cooldown cutoff/age/since arithmetic, a newest-1000-run gate where in-progress runs count at any age and the queued/requested/waiting/pending class is age-bounded, a structurally validated run page (a non-array or entries without string status/createdAt fail closed), bot-only marker dedupe where the body must END with the marker and the NEWEST marker wins on the OLDEST open non-PR lab-health board (queried sort=created&direction=asc), note recorded BEFORE the dispatch and rolled back when the dispatch fails, an unparseable stamp treated as stale, and fail-closed board/comment/run-list reads), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation on the oldest open non-PR board and exits 1; the intake and recovery notes are asserted free of an inline /oc or /opencode token (issue #775; the self-heal and curator cap bodies are pinned token-free by R9); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical error and warning, transcript/source/provider negatives, dedupe, spoofed dedupe, post-failure, attempt 0/1/cap/overflow/non-numeric, bad-marker, success-marker, rerun, rerun-at-cap, dispatch-failure, and green/red handoff fixtures plus fresh/mid/boundary/stale/active-at-any-age/queued-family/queued-old/queued-past-cutoff/cooldown/cooldown-mid/cooldown-boundary/cooldown-newest-marker/marker-quoted/human-marker/missing-stamp/unparseable-state/bad-runs-json/run-object/run-missing-field/run-wrong-types/unparseable-page/no-board/board-failing/comments-failing/runlist-failing/failed-post/failed-dispatch/rollback heartbeat fixtures, the mock executing the body's own jq over raw GitHub-shaped JSON so the status set, age cutoff, PR exclusion, board sort order, marker end-anchor and sort, and STATE field are load-bearing, and mutation self-tests prove the static pins, the annotation/log/clamp/marker/outcome fixtures, and the heartbeat threshold/cooldown/marker/status-set/marker-sort/board-field/state-field/fail-closed/active-gate/trigger/step-if/ledger/run-shape/cutoff-override/age-divisor/since-divisor/marker-contains fixtures load-bearing" "ok"
     ;;
   *)
     check "R34" "Maintainer quota-wall recovery or wall-aware intake missing/bypassable:${r34_bad} (issue #820: a per-egress-IP wall cannot recover on the same runner, so a one-attempt fresh-run chain, an intake stand-down, and the recover-arm stale-session heartbeat are the recovery lanes, and only the runner's rendered fast-fail annotation may trigger the stand-down; issue #775: the intake and recovery escalation notes must carry no inline /oc or /opencode token; the periodic-arm bodies are pinned by R9)" "bad"

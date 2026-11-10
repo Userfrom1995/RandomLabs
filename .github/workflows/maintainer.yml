@@ -1028,7 +1028,7 @@ jobs:
           fi
           if [ "$attempt" -ge 1 ]; then
             echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 1, issue #820/#836); the one fresh-run attempt is spent and no further self-dispatch occurs. The recover-arm heartbeat or the next schedule tick re-arms the lane. Escalate the provider plan or involve the Owner if it persists."
-            board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
+            board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
             if [ -n "$board" ] && [ "$board" != "null" ]; then
               note=$(printf 'Quota-wall recovery cap (issue #820/#836): run %s/%s ended on the provider daily free-usage wall with the one bounded fresh-run attempt spent. A fresh run is a lottery ticket on a pool-wide wall, not a retry: a second dispatch two minutes later lands on the same blocked pool, so the chain halts red instead of looping. The recover-arm heartbeat (issue #836) or the next schedule tick re-arms the lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")
               gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
