@@ -39,7 +39,12 @@
 # delegation.md section 6) so wrong-author, unsigned, missing-report,
 # tampered-body, post-failure, and missing-comment-id paths must all fail
 # closed for all three OS labels, while CRLF report / CRLF re-fetch fixtures
-# must verify green with a byte-exact LF-normalized posted body; only the
+# must verify green with a byte-exact LF-normalized posted body; the nonce CR
+# and MSYS path-rejection fixtures are hermetic (issue #843: they write a
+# sandboxed decision file and path-substitute the extracted shipped reads, and
+# a mid-fixture abort self-test proves the live /tmp/random-lab-decision.json
+# is untouched even when the fixture process dies after its decision write);
+# only the
 # verify-step run body and exotic
 # sandbox-path fingerprinting remain review-gated boundaries (documented in
 # the R17 comment), the R18 Windows MSYS argv-conversion guard (issue #612:
@@ -5984,12 +5989,56 @@ else
     if [ -z "$r17_cr_check" ] || [ -z "$r17_cr_action" ]; then
       r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-not-found)"
     else
-      r17_decision_had=0
-      if [ -e /tmp/random-lab-decision.json ]; then
-        r17_decision_had=1
-        cp /tmp/random-lab-decision.json "$r17_cr_tmp/decision.backup"
+      # Issue #843: the fixture is hermetic. It writes only a sandboxed
+      # decision file and path-substitutes the extracted shipped reads (the
+      # R22 pattern), because the old live-path write could be killed
+      # mid-fixture (review run 42749823343 died at the 90-minute cap) and
+      # leave fixture bytes on /tmp/random-lab-decision.json for the live
+      # nonce gate to discard. A mid-fixture abort self-test below proves the
+      # live contract path stays untouched even when the fixture dies
+      # immediately after its decision write.
+      r17_cr_decision="$r17_cr_tmp/decision.json"
+      case "$r17_cr_decision" in
+        "$r17_cr_tmp"/*) ;;
+        *) r17_bad="${r17_bad} nonce-cr-fixture(decision-path-not-sandboxed)" ;;
+      esac
+      r17_cr_check=$(printf '%s\n' "$r17_cr_check" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision#g")
+      r17_cr_action=$(printf '%s\n' "$r17_cr_action" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision#g")
+      if printf '%s\n' "$r17_cr_check" "$r17_cr_action" | grep -qF '/tmp/random-lab-decision.json'; then
+        r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-not-path-substituted)"
       fi
-      printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > /tmp/random-lab-decision.json
+      if ! printf '%s\n' "$r17_cr_check" "$r17_cr_action" | grep -qF "$r17_cr_decision"; then
+        r17_bad="${r17_bad} nonce-cr-fixture(sandbox-path-not-used-by-shipped-read)"
+      fi
+      # The fixture's only decision write. Kept callable so the abort probe
+      # below executes the exact same write path the fixture uses.
+      r17_cr_prepare_decision() {
+        printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > "$1"
+      }
+      # Mid-fixture abort probe: $1 is the prepare function, $2 the observed
+      # path, $3 the scratch path. The prepare call dies immediately after it
+      # returns (subshell exit, no trap and no later fixture step), so a
+      # killed fixture must leave $2 byte-identical.
+      r17_cr_abort_probe() {
+        local r17_before r17_after
+        if [ -e "$2" ]; then r17_before="present:$(cksum < "$2" 2>/dev/null || true)"; else r17_before="absent"; fi
+        ( "$1" "$3" "$2" >/dev/null 2>&1; exit 137 ) 2>/dev/null || true
+        if [ -e "$2" ]; then r17_after="present:$(cksum < "$2" 2>/dev/null || true)"; else r17_after="absent"; fi
+        [ "$r17_before" = "$r17_after" ]
+      }
+      r17_cr_abort_probe r17_cr_prepare_decision /tmp/random-lab-decision.json "$r17_cr_tmp/abort-scratch.json" \
+        || r17_bad="${r17_bad} nonce-cr-fixture(abort-touched-live-decision)"
+      # Mutation self-test: a prepare that also writes the observed path must
+      # be caught, proving the probe is load-bearing. The mutant observes a
+      # sandbox stand-in, so this self-test itself never writes the live path.
+      r17_cr_prepare_mutant() {
+        printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > "$1"
+        printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > "$2"
+      }
+      if r17_cr_abort_probe r17_cr_prepare_mutant "$r17_cr_tmp/abort-observed.json" "$r17_cr_tmp/abort-mutant-scratch.json"; then
+        r17_bad="${r17_bad} nonce-cr-fixture(abort-probe-not-load-bearing)"
+      fi
+      r17_cr_prepare_decision "$r17_cr_decision"
 
       mkdir -p "$r17_cr_tmp/cr-bin"
       cat > "$r17_cr_tmp/cr-bin/jq" <<'R17_CR_JQ'
@@ -6020,7 +6069,7 @@ R17_CR_JQ
         fi
         {
           printf '%s\n' '#!/usr/bin/env bash' 'set -u'
-          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' < /tmp/random-lab-decision.json 2>/dev/null || true)'
+          printf '%s\n' "decision_nonce=\$(jq -r '.run_nonce // empty' < $r17_cr_decision 2>/dev/null || true)"
           printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
           printf '%s\n' '  exit 1'
           printf '%s\n' 'fi'
@@ -6033,12 +6082,14 @@ R17_CR_JQ
         fi
       fi
 
+      printf '%s\n' "$r17_cr_decision" > "$r17_cr_tmp/decision-path.txt"
       mkdir -p "$r17_cr_tmp/msys-bin"
       cat > "$r17_cr_tmp/msys-bin/jq" <<'R17_MSYS_JQ'
 #!/usr/bin/env bash
+r17_decision="$(cat "$(dirname "$0")/../decision-path.txt" 2>/dev/null || true)"
 for arg in "$@"; do
   case "$arg" in
-    *"/tmp/"*) echo "jq: error: Could not open $arg" >&2; exit 2 ;;
+    *"/tmp/"*|"$r17_decision") echo "jq: error: Could not open $arg" >&2; exit 2 ;;
   esac
 done
 case "$*" in
@@ -6058,7 +6109,7 @@ R17_MSYS_JQ
         fi
         {
           printf '%s\n' '#!/usr/bin/env bash' 'set -u'
-          printf '%s\n' 'decision_nonce=$(jq -r '\''.run_nonce // empty'\'' /tmp/random-lab-decision.json 2>/dev/null || true)'
+          printf '%s\n' "decision_nonce=\$(jq -r '.run_nonce // empty' $r17_cr_decision 2>/dev/null || true)"
           printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
           printf '%s\n' '  exit 1'
           printf '%s\n' 'fi'
@@ -6069,12 +6120,6 @@ R17_MSYS_JQ
         if [ "$r17_path_control_rc" -eq 0 ]; then
           r17_bad="${r17_bad} nonce-msys-fixture(path-control-did-not-fail)"
         fi
-      fi
-
-      if [ "$r17_decision_had" -eq 1 ]; then
-        cp "$r17_cr_tmp/decision.backup" /tmp/random-lab-decision.json
-      else
-        rm -f /tmp/random-lab-decision.json
       fi
     fi
     rm -rf "$r17_cr_tmp"
@@ -7068,9 +7113,9 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post (issues #608, #713, #763, #791)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a mid-fixture abort self-test (with a load-bearing mutation self-test) proves the live /tmp/random-lab-decision.json is untouched even when the fixture process dies immediately after its decision write (issues #608, #713, #763, #791, #843)" "ok"
 else
-  check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce)" "bad"
+  check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce; issue #843: the CR fixture wrote the live decision contract, so a killed audit left fixture bytes behind)" "bad"
 fi
 
 # [R18] Windows MSYS argv conversion guard (issue #612): the per-OS decision
