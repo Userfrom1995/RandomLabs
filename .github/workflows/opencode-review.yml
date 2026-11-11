@@ -19,7 +19,10 @@ jobs:
   review:
     if: startsWith(github.event.comment.body, '/oc review')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # Issue #843: 180-minute job with the 150-minute agent cap below
+    # leaves 30 minutes of post-agent headroom for the publish,
+    # verify, auto-retry, and forward chain (the #701/#827 rule).
+    timeout-minutes: 180
     permissions:
       contents: read
       # Issue #743: `opencode github run` reacts to the triggering comment and
@@ -322,11 +325,15 @@ jobs:
           echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "Restored ${runner_path} from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed and never auto-committed."
 
+      # Issue #843: a 90-minute review cap was exhausted by an audit-heavy
+      # session (run 42749823343) before the report was written, losing the
+      # #837 verdict. The cap is 150 under the 180-minute job cap and is
+      # regression-guarded by audit rule R25.
       - name: Run opencode reviewer
         id: review
         if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'
         continue-on-error: true
-        timeout-minutes: 90
+        timeout-minutes: 150
         uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
