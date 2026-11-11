@@ -1,39 +1,39 @@
 # STATE
 
-Last updated: 2026-11-11T07:06Z by run 42976055920 (issue_comment wake on #837: the rebase landed as 12cc5649 and the fresh review is live; all four lanes have one live pass). Next-run priorities: read the #837 review and drive test -> eval -> sweep; read the #844 review; read the #845 review and route its conflict; verify the #804 rebase push.
+Last updated: 2026-11-11T07:22Z by run 42978271427 (issue_comment wake on #837: the review approved 12cc5649 and the read-only Tester is live; every other lane has one live pass). Next-run priorities: read the #837 Tester verdict and drive the binding eval then the PAT sweep; read the #844 review; read the #845 review and route its expected rebase; verify the #804 rebase push and forwarded review.
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and post hardcoded PAT triggers that route work to the right agent. I never post triggers myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 06:57-07:05Z on 2026-11-11)
+## Right now (surveyed 07:16-07:22Z on 2026-11-11)
 
-- **#837 (rebased; fresh review live)**: head `12cc5649f8d70eb2212de091448a89bdfee4d78c`, base `304cd075b8d60e6653cd6538336d7bbc8ee37ed1`, MERGEABLE/CLEAN, 9 files, +1275/-101. The rebase lab 42975005018 completed SUCCESS at 06:57:41Z; its PAT-backed step force-pushed `211c7365e -> 12cc5649f` at 06:57:33Z (the `! [rejected] ... (non-fast-forward)` thread line is the wrapper's own end-of-session App-token push, not a lost push; `git ls-remote` confirms the tip). The rebase is content-preserving: the PR diffs of the eight non-audit files against their bases are byte-identical after normalising hunk headers, and the audit diff carries only the intended R34 failure-body merge (main's #831 wording plus the #837 one-attempt and heartbeat clause). The lab forwarded `/oc review` at 06:57:36Z; review 42976039562 has been live since 06:57:38Z. The 06:35Z Tester approval and the 9.7 evaluation were bound to `c443efae` and `211c7365`, so they are stale for this head; the chain restarts review -> read-only Tester -> binding eval -> PAT sweep. The stale Tester 42973531124 (pre-rebase head) was cancelled. The PR body ends with `Refs #836`; the self-referential `Closes #837` is gone. #836 stays open for the Owner capacity decision and the residuals.
-- **#844 (lab landed; fresh review live)**: head `86732efcc7`, base `3f6c5d5e`, MERGEABLE/CLEAN. Lab 42974049340 completed SUCCESS at 06:59:18Z; its report comment 6789312047 at 06:58:57Z records the delegation-ledger and skills-note fix plus the independent regex matrix. The lab forwarded `/oc review` at 06:59:07Z; review 42976204604 live since 06:59:09Z. #842 stays open until the fix is verified.
-- **#845 (review live; conflicting)**: head `299d3829ee`, base `3f6c5d5e`, CONFLICTING/DIRTY in `.github/scripts/silent-stall-audit.sh` after the #832 merge. Review 42971888111 has been live since 06:21:48Z (agent step since 06:22:00Z, about 40 minutes). Its verdict is expected to be `lab` on the conflict; the workflow handoff then dispatches the rebase. #843 stays open.
-- **#804 (rebase lab live)**: head `7990948224`, base `3f6c5d5e`, CONFLICTING/DIRTY in the same audit file. Rebase lab 42975007502 has been live since 06:48:28Z. #798 stays open.
+- **#837 (review approved; Tester live)**: head `12cc5649f8d70eb2212de091448a89bdfee4d78c`, base `304cd075b8d60e6653cd6538336d7bbc8ee37ed1`, MERGEABLE/CLEAN, 9 files, +1275/-101. The fresh head-bound review 42976039562 completed SUCCESS at 07:16:09Z with an approve verdict: the rebase is content-preserving, both Evaluator blocking findings remain fixed, and the full audit reports 34 passed / 0 failed. The workflow posted `/oc test` at 07:16:19Z and Tester 42978276934 has been live since 07:16:24Z. The earlier Tester approval and the 9.7 eval were bound to `c443efae` and `211c7365`, so they are stale for this head; the chain is Tester -> binding eval -> PAT sweep. The PR body ends with `Refs #836`; #836 stays open for the Owner capacity decision and the residuals.
+- **#844 (review live)**: head `86732efcc759c23c69f78b6b47c3fd5b7eea9e48`, base `3f6c5d5e`, MERGEABLE/CLEAN. Lab 42974049340 completed SUCCESS at 06:59:18Z; its report comment 6789312047 records the delegation-ledger and skills-note fix plus the independent regex matrix. Review 42976204604 live since 06:59:09Z. Then test -> eval -> sweep; #842 stays open until verified.
+- **#845 (review live; conflicting)**: head `299d3829eed22a69b6e9a78d4369912149cde7a1`, base `3f6c5d5e`, CONFLICTING/DIRTY in `.github/scripts/silent-stall-audit.sh` after the #832 merge. Review 42971888111 live since 06:21:48Z (about 56 minutes at survey). Its expected `lab` verdict routes the rebase, then review -> test -> eval -> sweep. #843 stays open until verified.
+- **#804 (rebase lab live)**: head `7990948224e89686798b333a59e4cbde7ba5dadc`, base `3f6c5d5e`, CONFLICTING/DIRTY in the same audit file. Rebase lab 42975007502 live since 06:48:28Z. Its push forwards a fresh head-bound review; then Tester -> eval -> sweep; #798 closes on approve-eval.
 - **#832 MERGED** at 06:33:28Z as `304cd075`; `closingIssuesReferences` empty, so **#831 stays open** for the Owner-requested scratch canary.
-- **main** = `304cd075`; Pages is green on the tip (workflow_dispatch 42976048526 at 06:57:43Z and 42976218139 at 06:59:16Z both SUCCESS; the #837 preview deploy 42976037412 SUCCESS at 06:57:37Z).
+- **main** = `304cd075`; Pages green on the tip (workflow_dispatch 42976218139 at 06:59:16Z), on the #837 preview `12cc5649` (42976037412 at 06:57:37Z) and on the #844 preview `86732efc` (42976194729 at 06:59:04Z); production root and `/docs/` both HTTP 200.
 - **#821** `dce109e4` MERGEABLE/CLEAN but behind main, parked on the Owner capacity decision. **#745** `7a04fa4a` CONFLICTING/DIRTY, behind #803.
 - **Open issues** (23): #836 open for the Owner capacity decision and the residuals; #842/#843 track their live lanes; no untriaged issue remains.
-- **Held runs**: zero `action_required`. **Queued**: the four documented inert runs (37344324101, 36101155868, 36101155851, 36101155844) plus the #845 push wakes (Pages preview 42971888736, maintainer 42971888815, opencode-pr-trigger 42971888785). **Pending**: skip-only review/test runs from the recent comment fan-out (42976055837, 42976055913, 42976039517, 42975005070) and the workflow_run maintainer 42976061174 (a success-conclusion gate skip).
-- **Duplicate sessions cancelled**: maintainer 42976222345 (the #844 `/oc maintainer` handoff wake, already in its agent step) so this run owns the survey; Tester 42973531124 (pre-rebase head) so the fresh test can run without waiting.
-- **Failure scan**: zero `failure`/`timed_out`/`startup_failure` in the newest 100 runs.
-- **Trigger allowlist**: exact 19/19 against the live active repo-owned names outside the self-excluded `maintainer` and the three GitHub-managed names.
-- **Model watch**: the registry serves 85 models, 11 free; the pin `opencode/deepseek-v4.1-flash-free` and both ladder rungs (`mimo-v2.6-flash-free`, `glm-5.3-flash-free`) are live. No retirement, no pin change.
-- **This run's decision**: `[]` standby; status comment on #837; cancelled the redundant maintainer 42976222345 and the stale Tester 42973531124.
+- **Held runs**: zero `action_required`. **Queued**: the four documented inert runs (37344324101, 36101155868, 36101155851, 36101155844) plus the #845 push wakes (Pages preview 42971888736, maintainer 42971888815, opencode-pr-trigger 42971888785). **Pending**: the skip-only #844 review duplicate 42976222602.
+- **Duplicate sessions cancelled**: maintainer 42978277094 (the #837 approval fan-out wake) so this run owns the survey; a `cancelled` conclusion summons no triage.
+- **Failure scan**: zero `failure`/`timed_out`/`startup_failure` in the newest 200 runs.
+- **Trigger allowlist**: exact 19/19 against the live active repo-owned names outside the self-excluded `maintainer` and the three GitHub-managed names (`Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`).
+- **Model watch**: the registry serves 85 models, 11 free; the pin `opencode/deepseek-v4.1-flash-free` and all three ladder rungs (`mimo-v2.6-flash-free`, `glm-5.3-flash-free`) are live. No retirement, no pin change.
+- **This run's decision**: `[]` standby; status comment on #837; cancelled the redundant maintainer 42978277094.
 
 ## The live lanes (do not duplicate)
 
-1. **#837** - review 42976039562 live on `12cc5649`; then the read-only Tester, the binding eval, and the PAT sweep. #836 stays open.
-2. **#844** - review 42976204604 live on `86732efc`; then Tester -> eval -> sweep. Keep #842 open until verified.
+1. **#837** - review approved `12cc5649`; Tester 42978276934 live; then the binding eval and the PAT sweep. #836 stays open.
+2. **#844** - review 42976204604 live on `86732efc`; then test -> eval -> sweep. Keep #842 open until verified.
 3. **#845** - review 42971888111 live on `299d3829`; expect a `lab` verdict on the conflict, then rebase -> review -> test -> eval -> sweep. Keep #843 open until verified.
-4. **#804** - rebase lab 42975007502 live on `79909482`; its push restarts the review, then Tester -> eval -> sweep. #798 closes on approve-eval.
+4. **#804** - rebase lab 42975007502 live on `79909482`; then review -> test -> eval -> sweep. #798 closes on approve-eval.
 5. **#832** - merged as `304cd075`; Pages green on the tip; #831 stays open for the canary.
 
 ## The serialized infra queue
 
-1. #837: review -> test -> eval -> sweep; #836 open.
+1. #837: test -> eval -> sweep; #836 open.
 2. #844: review -> test -> eval -> sweep; #842 open until verified.
 3. #845: review -> rebase -> review -> test -> eval -> sweep; #843 open until verified.
 4. #804: rebase -> review -> test -> eval -> sweep; #798 closes on approve-eval.
@@ -44,9 +44,9 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 ## Loose ends board
 
 1. **#832 merged**: project-config opt-out plus plugin-loader guard is live on main as `304cd075`. Remaining residue: the body's self-referential `Closes #832` (inert) and the Owner-requested scratch canary (unexecuted, so #831 stays open).
-2. **#837 (review live)**: the heartbeat and one-attempt quota recovery. The rebase onto `304cd075` landed as `12cc5649`; the fresh review is live. The 06:35Z approval and the 9.7 eval are stale; the chain restarts. #836 stays open for the Owner capacity decision and the residuals.
+2. **#837 (Tester live)**: the heartbeat and one-attempt quota recovery. The review approved `12cc5649` at 07:16:09Z; the read-only Tester is live on that head. The 06:35Z approval and the 9.7 eval are stale; the chain is test -> eval -> sweep. #836 stays open for the Owner capacity decision and the residuals.
 3. **#844 (review live)**: the overload-wording retry fix; the lab pass addressed the delegation ledger. Then test, eval, sweep; #842 open until verified.
-4. **#845 (review live; conflicting)**: the review cap and R17 hermeticity. The branch conflicts in the audit script after the #832 merge; the expected `lab` verdict routes the rebase. #843 open until verified and a fresh #837 review is live.
+4. **#845 (review live; conflicting)**: the review cap and R17 hermeticity. The branch conflicts in the audit script after the #832 merge; the expected `lab` verdict routes the rebase. #843 open until verified and a fresh #837 review is proven live.
 5. **#804 (rebase lab live)**: the B10 PATH prepend finding. The lifetime retry budget is spent (#803), so the rebase push plus the lab-forwarded review is the recovery lane. #798 closes on approve-eval.
 6. **The wall (2026-11-08 to 2026-11-11)**: broke around 05:35Z on 11-11; no wall deaths in the current window. The durable mitigation is the #837 heartbeat plus one-attempt cap; the Owner capacity decision is still the critical path.
 7. **The wall policy**: fresh runners are a lottery at multi-hour wall length, and the Maintainer cron is platform-throttled to about 4.2 wakes/day. Do not treat repeated wall deaths as a lab retry-exhaustion signal; if all live lanes wall again, record it and stand down until the next wake.
@@ -59,13 +59,13 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 14. **Stale verdict trap**: #837's verdicts must bind `12cc5649`; #844's must bind `86732efc`; #845's must bind `299d3829` or its rebased head; #804's must bind `79909482` or its rebased head. The R21/R22/R30 gate enforces head freshness; do not merge on a stale verdict.
 15. **Queued-run anomaly**: four permanently queued runs with no jobs; inert, recorded for the Auditor.
 16. **Model watch**: 85 models, 11 free; registry ids are unprefixed and the resolver maps `opencode/<name>`; no pin or rung change. The 1M-context free models await a benchmark pass after the infra queue clears.
-17. **Duplicate-session noise**: this wake overlapped the #844 handoff maintainer 42976222345 (cancelled) and the stale Tester 42973531124 (cancelled). Re-read trigger history before every dispatch; cancel obsolete queued/in-progress runs with `gh run cancel`.
-18. **Preview-flow wake noise**: the #845 push triggered the pages preview deploy and `opencode-pr-trigger`, whose standard `/oc maintainer` woke maintainer 42971888815; expected and normally finds the lane live.
+17. **Duplicate-session noise**: this wake overlapped the #837 approval fan-out maintainer 42978277094 (cancelled). Re-read trigger history before every dispatch; cancel obsolete queued/in-progress runs with `gh run cancel`.
+18. **Preview-flow wake noise**: the #845 push triggered the pages preview deploy and `opencode-pr-trigger`, whose standard `/oc maintainer` woke maintainer 42971888815 (still queued behind the live review); expected and normally finds the lane live.
 19. **Lab linkage guard on PR triggers**: `lab.yml` appends `Closes #<trigger>` when the body omits that token; on a PR-comment wake the trigger is the PR number, producing a self-referential `Closes <PR>`. Route the fix through `lab` (use `Refs` for PR triggers); never patch the body by hand.
 20. **Board pin**: #70 is pinned and verified.
 21. **#831 scratch canary**: needs a disposable PR that only the Owner (or a pushed branch) can create; never claim it done without live evidence or a recorded Owner waiver. The implementation is live on main; only the canary remains.
 22. **General mid-body wake noise**: the evaluator verdict comment contains the tester marker mid-sentence, so the general arm wakes spuriously; ride along in the deferred #822 residuals pass.
-23. **Pages verification**: current tip `304cd075` deployed green twice (42976048526 and 42976218139); the #837 preview deploy is green (42976037412).
+23. **Pages verification**: current tip `304cd075` deployed green (42976218139); the #837 preview `12cc5649` is green (42976037412) and the #844 preview `86732efc` is green (42976194729); production root and `/docs/` both HTTP 200.
 24. **The 1.19.5 plugin boundary is reproduced (command-qualified)**: `opencode github run` is gated by the opt-out through the legacy config/plugin path; `opencode run` is not gated for plugins through the v2 layer. Keep the sanitizer as the primary closure for the `opencode run`/v2 path plus defense in depth for the arm.
 25. **PAT sweep ignores "behind main"**: it requires only a shared merge base and `MERGEABLE`, plus the fresh head-bound markers; a docs-only main advance does not block a workflow-touching PR. It re-queries `UNKNOWN` up to six times and re-reads comments and the head immediately before merging.
 26. **Registry shape**: the model registry lists bare ids without the `opencode/` provider prefix; a raw string comparison of the pinned ref against the registry is wrong. Compare the bare id (the resolver does this mapping).
@@ -99,7 +99,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Next run
 
-1. Read the #837 review 42976039562; approve -> Tester -> binding eval -> PAT sweep; findings -> `lab`. #836 stays open.
+1. Read the #837 Tester verdict on `12cc5649`; on approval the workflow hands off and the binding eval follows; on findings route `lab`. #836 stays open.
 2. Read the #844 review 42976204604; then test -> eval -> sweep; keep #842 open until verified.
 3. Read the #845 review 42971888111; route its verdict to the workflow lab handoff (expected rebase); keep #843 open.
 4. Verify the #804 rebase push and forwarded review; then Tester -> eval -> sweep; #798 closes on approve-eval.
@@ -111,7 +111,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Open questions
 
-1. Does the #837 review approve `12cc5649`, restarting the test -> eval -> sweep chain?
+1. Does the #837 Tester approve `12cc5649`, unlocking the binding eval and the PAT sweep?
 2. Do the #844 and #845 reviews approve their heads, or return `lab` for the #845 rebase?
 3. Does the #804 rebase land and pass its forwarded review?
 4. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or approve a lower cadence), and will the scratch canary be run or waived?
