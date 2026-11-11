@@ -144,7 +144,11 @@ Public Surface / Web Track:                                              │
   path argument. Audit rule R17 regression-guards the contract across all
   three arms and their prompt files, pins the stdin and CR-normalized
   decision reads, bans the path-argument shape, and runs the CR and
-  path-reject fixtures. Round 13 also pins each per-OS agent step's
+  path-reject fixtures, which since issue #843 are hermetic (a sandboxed
+  decision file plus path-substituted shipped reads, with a mid-fixture abort
+  self-test and its load-bearing mutant, so a killed audit never leaves
+  fixture bytes on the live `/tmp/random-lab-decision.json`). Round 13 also
+  pins each per-OS agent step's
   `with.prompt` scalar by exact SHA-256 and each arm's exact ordered step
   sequence, and a staging
   validator crash now fails closed instead of silently passing. Each arm also
@@ -182,27 +186,31 @@ Public Surface / Web Track:                                              │
   regression-guards the cap shape and the salvage wiring (the salvage run
   body is pinned line-for-line; its step name must be unique across the
   workflow file, and step-level YAML overrides are banned).
-- **Lab, fix, and curator agent cap headroom (issues #701, #827)**: the lab
-  agent step runs 150 minutes under a 180-minute job, the fix agent step 120
-  under 180, and the curator agent step 90 under 120 (30, 60, and 30 minutes
-  of post-agent headroom), so a worst-case cap death still leaves room for
-  the fail-closed verify, the strip, the PAT-backed push, the decision
-  forward, and the curator's bounded self-heal to run. Before the #701 fix,
-  the lab's 90/120 shape killed lab rounds 18 on #654 and 14 on #670 and the
-  fix's 60/120 shape killed three consecutive fix sessions on #693 at the
-  wire, each with no decision file and nothing pushed. Issue #827 repeated
-  the class on the 06:00Z curator cycle: the self-heal pass completed the
-  audit and filed #825, then died at the 60-minute cap under the 75-minute
-  job one minute after creating its local remediation branch, with no
-  commit, push, PR, or decision file. The curator prompt now also mandates
-  filing the tracking issue as soon as a defect is confirmed, pushing the
-  remediation branch and writing the decision file incrementally, and
-  finishing the remediation PR before any optional exhaustive audit tail.
-  The fail-closed decision-file and PAT-push contracts are unchanged. Audit
-  rule R25 pins all three shapes (agent and job minimums plus >= 20 minutes
-  of headroom; the agent step name must be unique in its file) and
-  mutation-self-tests the agent-cap, job-cap, and headroom checks on every
-  arm in `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
+- **Lab, fix, review, and curator agent cap headroom (issues #701, #827,
+  #843)**: the lab agent step runs 150 minutes under a 180-minute job, the
+  fix agent step 120 under 180, the review agent step 150 under 180 (issue
+  #843: review run 42749823343 on #837 invoked the audit 11 times, was killed
+  at the 90-minute cap under the 120-minute job, produced no report, and the
+  leftover wrong-nonce decision was discarded with no auto-retry), and the
+  curator agent step 90 under 120 (30, 60, 30, and 30 minutes of post-agent
+  headroom), so a worst-case cap death still leaves room for the fail-closed
+  verify, the strip, the PAT-backed push, the decision forward, and the
+  curator's bounded self-heal to run. Before the #701 fix, the lab's 90/120
+  shape killed lab rounds 18 on #654 and 14 on #670 and the fix's 60/120
+  shape killed three consecutive fix sessions on #693 at the wire, each with
+  no decision file and nothing pushed. Issue #827 repeated the class on the
+  06:00Z curator cycle: the self-heal pass completed the audit and filed
+  #825, then died at the 60-minute cap under the 75-minute job one minute
+  after creating its local remediation branch, with no commit, push, PR, or
+  decision file. The curator prompt now also mandates filing the tracking
+  issue as soon as a defect is confirmed, pushing the remediation branch and
+  writing the decision file incrementally, and finishing the remediation PR
+  before any optional exhaustive audit tail. The fail-closed decision-file
+  and PAT-push contracts are unchanged. Audit rule R25 pins all four shapes
+  (agent and job minimums plus >= 20 minutes of headroom; the agent step
+  name must be unique in its file) and mutation-self-tests the agent-cap,
+  job-cap, and headroom checks on every arm in
+  `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
   inline YAML comment after the timeout digits (issue #829 review F1), so the
   rewrite helpers must accept the same trailing-comment grammar the checker
   tolerates; a helper that only matches a line ending in digits would no-op
