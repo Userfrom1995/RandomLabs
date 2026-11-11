@@ -34,22 +34,28 @@ No code change is requested or made.
 ## Verification
 
 - Independent verifier: both runner copies byte-identical after de-indent
-  (transient sha256 `ca8d18e1...`), 31/31 matrix cases per copy, 0 failures,
-  including the live phrase with and without the trailing period, all
-  prefixes, the 39/40 tail boundary, the ~160 KiB match-first window, the
-  named rejects, the legacy #653/#717/#828 accepts, and the account-funds
-  exclusion.
+  (common-indent de-indent with the trailing newline included: transient
+  sha256 `ca8d18e16bd9f9cc0c23e1051d2c10e33a19cf4ba319bf4f0df04d4fdeda247f`;
+  the per-line-lstrip spelling of the same six-line body is
+  `44874ff32517189cf98dbbe8b307218c93fb2fa66afa59c11bdb5796408b8bd6`),
+  31/31 matrix cases per copy, 0 failures, including the live phrase with
+  and without the trailing period, all prefixes, the 39/40 tail boundary,
+  the ~160 KiB match-first window, the named rejects, the legacy
+  #653/#717/#828 accepts, and the account-funds exclusion.
 - Independent mirror sweep: the wording is present in both runners
-  (`action.yml:294,416`, `maintainer.yml:478,609`), both audit run-block
-  literals and the R15/R26 pins
-  (`silent-stall-audit.sh:2678,2928,3207,12451`), and all seven doc/prompt
-  surfaces plus the original decision record; no third runner copy, no
-  contradiction, and zero em dashes in the changed files.
+  (`action.yml:294,416`, `maintainer.yml:478,609` at this pre-rebase head
+  `c1bb1f77`), both audit run-block literals and the R15/R26 pins
+  (`silent-stall-audit.sh:2678,2928,3207,12451` at `c1bb1f77`), and all
+  seven doc/prompt surfaces plus the original decision record; no third
+  runner copy, no contradiction, and zero em dashes in the changed files.
 - Independent audit-pin pass: the run-block literals match both runners
-  exactly (action 239 lines / 16,635 B, maintainer 249 lines / 17,260 B),
-  all 13 #842 fixtures and 9 behavioral scenarios are defined and exercised,
-  R33 measures 313 run scalars with 0 over 20,000 B (max 18,940 B), and the
-  full audit is 34/34.
+  exactly at `c1bb1f77` (action 239 lines / 16,635 B, maintainer 249 lines /
+  17,260 B), all 13 #842 fixtures and 9 behavioral scenarios are defined and
+  exercised, R33 measures 313 run scalars with 0 over 20,000 B (max 18,940
+  B), and the full audit is 34/34. The post-rebase head `a6152d6ed` is
+  re-measured in
+  `2026-11-11T07-30-29-842-rebase-round.md`; the rebase replay changed the
+  artifact byte counts, not the semantics.
 - Primary verified itself: `bash -n` clean, strict duplicate-key-rejecting
   PyYAML parse clean on both YAML files, `git diff --check` clean, and the
   full `bash .github/scripts/silent-stall-audit.sh` green at 34 passed,
