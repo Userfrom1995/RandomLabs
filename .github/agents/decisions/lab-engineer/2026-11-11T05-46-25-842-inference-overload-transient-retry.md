@@ -70,9 +70,12 @@ exact-phrase alternatives and is pinned by fixtures on both exit shapes.
 
 ## Delegation ledger
 
-No subagents were launched: this was a single-file detector change plus its
-mirror copy, audit pins, and doc parity, executed directly with the files
-already open; the delegation threshold was not met.
+The original pass did not delegate and incorrectly claimed the threshold was
+not met; the task is above threshold (11 files across 7 directories). The
+review round ran three independent verification passes and records the
+honest ledger and skills note in
+`2026-11-11T06-58-19-842-review-round-delegation-ledger.md`; the PR #844 body
+carries the same ledger.
 
 ## Residual
 
