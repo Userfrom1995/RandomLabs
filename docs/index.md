@@ -122,9 +122,11 @@ the human to apply; the bot never pushes to forks (guidance only).
   aborts instead of letting it burn the step timeout, while a silent tool
   command keeps its attempt alive), and a 429/5xx terminal rejection, including
   the retryable upstream-endpoint forms `AI_APICallError: Upstream request
-  failed: Endpoint is unavailable.` and the bracketed overloaded wording
+  failed: Endpoint is unavailable.`, the bracketed overloaded wording
   `Upstream request failed: [overloaded] the server is overloaded; retry
-  shortly`. A persistent upstream-endpoint failure does not advance the
+  shortly`, and the inference-service overload wording
+  `AI_APICallError: The inference service is overloaded. Please try again
+  later.`. A persistent upstream-endpoint failure does not advance the
   ladder: every rung shares the same gateway, so a fresh run is the recovery
   lane. A provider 403
   abusive-traffic egress-IP block is not retried: it is classified by name
