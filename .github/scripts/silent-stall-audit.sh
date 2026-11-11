@@ -77,17 +77,19 @@
 # survived, so every arm's agent cap must leave real headroom under its job
 # cap and the macOS/Windows arms must salvage a signed partial report through
 # the strict shared poster behind a provenance banner while the fail-closed
-# verify still concludes the run red), and the R25 lab/fix/curator agent
-# cap-headroom guard (issue #701: after the per-OS arms were fixed, the lab
-# arm's 90-minute cap under a 120-minute job killed lab rounds 18 on #654 and
-# 14 on #670, and the fix arm's 60-minute cap under a 120-minute job killed
-# three consecutive fix sessions on #693, all with no decision file and
-# nothing pushed, so the lab arm now runs 150 minutes under a 180-minute job
-# and the fix arm 120 under 180, each leaving at least 20 minutes of
+# verify still concludes the run red), and the R25 lab/fix/review/curator
+# agent cap-headroom guard (issue #701: after the per-OS arms were fixed, the
+# lab arm's 90-minute cap under a 120-minute job killed lab rounds 18 on #654
+# and 14 on #670, and the fix arm's 60-minute cap under a 120-minute job
+# killed three consecutive fix sessions on #693, all with no decision file
+# and nothing pushed, so the lab arm now runs 150 minutes under a 180-minute
+# job and the fix arm 120 under 180, each leaving at least 20 minutes of
 # post-agent headroom for the verify/push/forward chain; issue #827 then
 # lost a curator pass at its 60-minute cap under a 75-minute job one minute
 # after the audit completed and the tracking issue was filed, so the curator
-# arm now runs 90 under 120, also mutation-self-tested), and the R26 create-issue dedupe
+# arm now runs 90 under 120; issue #843 lost the #837 review verdict at the
+# reviewer step's 90-minute cap under a 120-minute job, so the review arm now
+# runs 150 under 180; all mutation-self-tested), and the R26 create-issue dedupe
 # guard (issue #668: two concurrent per-target Maintainer ticks independently filed
 # the same finding as #665/#666 because the hardcoded create_issue handler
 # never compared titles; it now queries open issues before `gh issue create`,
@@ -10563,27 +10565,34 @@ else
   check "R24" "per-OS cap headroom or partial-report salvage missing:${r24_bad} (issue #692: a 90-minute agent cap under a 120-minute job left no artifacts after a cap death)" "bad"
 fi
 
-# [R25] Lab, fix, and curator agent cap headroom (issues #701, #827): after
-# issue #692 fixed the per-OS arms, the lab and fix arms still ran near-wire
-# caps and lost near-complete work three times in one morning. Lab round 18
-# on #654 (run 39208513680) and round 14 on #670 (run 39212805887) both died
-# at the 90-minute lab agent cap under the 120-minute job with no decision
-# file, and three consecutive fix sessions on #693 (runs 39203327749,
-# 39203442325, 39208619311) died at the 60-minute fix agent cap with the
-# edits nearly complete and unpushed; in every case the fail-closed verify
-# correctly refused to publish partial state and the runner discarded the
-# session. Issue #827 repeated the class on the curator arm: the 06:00Z
+# [R25] Lab, fix, review, and curator agent cap headroom (issues #701,
+# #827, #843): after issue #692 fixed the per-OS arms, the lab and fix arms
+# still ran near-wire caps and lost near-complete work three times in one
+# morning. Lab round 18 on #654 (run 39208513680) and round 14 on #670 (run
+# 39212805887) both died at the 90-minute lab agent cap under the 120-minute
+# job with no decision file, and three consecutive fix sessions on #693 (runs
+# 39203327749, 39203442325, 39208619311) died at the 60-minute fix agent cap
+# with the edits nearly complete and unpushed; in every case the fail-closed
+# verify correctly refused to publish partial state and the runner discarded
+# the session. Issue #827 repeated the class on the curator arm: the 06:00Z
 # self-heal pass completed the audit and filed #825, then died at the
 # 60-minute cap under the 75-minute job one minute after creating its local
-# remediation branch, with no commit, push, PR, or decision file.
+# remediation branch, with no commit, push, PR, or decision file. Issue #843
+# repeated the class on the review arm: review run 42749823343 on PR #837
+# invoked this audit 11 times and was killed by the reviewer step's
+# 90-minute cap at 05:00:19Z, so the report file never existed, the publish
+# step failed, and the leftover wrong-nonce decision was discarded with no
+# auto-retry (the fresh review waited for the provider wall to lift).
 # Properties:
 #   1. the lab arm's agent-step cap is at least 150 minutes under a job cap
 #      of at least 180 minutes;
 #   2. the fix arm's agent-step cap is at least 120 minutes under a job cap
 #      of at least 180 minutes;
-#   3. the curator arm's agent-step cap is at least 90 minutes under a job
+#   3. the review arm's agent-step cap is at least 150 minutes under a job
+#      cap of at least 180 minutes (issue #843);
+#   4. the curator arm's agent-step cap is at least 90 minutes under a job
 #      cap of at least 120 minutes;
-#   4. each agent step leaves at least 20 minutes of headroom under its job
+#   5. each agent step leaves at least 20 minutes of headroom under its job
 #      cap, so the post-agent chain (verify, strip, push, forward, self-heal)
 #      still runs after a worst-case cap death.
 # The rule extracts the real job block and the canonical step block from
@@ -10871,14 +10880,16 @@ fi
 CURATOR_WF=".github/workflows/curator.yml"
 r25_check_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
 r25_check_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
+r25_check_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review"
 r25_check_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 r25_selftest_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
 r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
+r25_selftest_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review"
 r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829)" "ok"
+  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829)" "ok"
 else
-  check "R25" "lab/fix/curator cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch)" "bad"
+  check "R25" "lab/fix/review/curator cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch; issue #843: a 90-minute review cap under 120 lost the #837 verdict with no report and no retry)" "bad"
 fi
 
 # [R26] Create-issue dedupe guard (issue #668): Maintainer concurrency is
