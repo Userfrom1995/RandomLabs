@@ -466,19 +466,22 @@ jobs:
       # retry. The line can be a non-fatal per-call paid-title-path 402, so a
       # fresh run is the first recovery; both runner paths fast-fail it by name,
       # and the provider-plan/Owner escalation is for a persistent rejection.
-      # Transient HTTP-error detector (issues #653, #717, #828), same tail +
-      # column-0 terminal anchoring as the #591/#620 detectors: the observed
+      # Transient HTTP-error detector (issues #653, #717, #828, #842), same tail
+      # + column-0 terminal anchoring as the #591/#620 detectors: the observed
       # terminal forms are `AI_APICallError: Rate limit exceeded. Please try
       # again later.`, `AI_APICallError: Internal Server Error`, the standard
       # gateway phrases, the retryable upstream-endpoint form
       # `AI_APICallError: Upstream request failed: Endpoint is unavailable.`,
-      # and the overloaded gateway form
+      # the overloaded gateway form
       # `APIError: Upstream request failed: [overloaded] the server is
       # overloaded; retry shortly` (statusCode 429, type server_error,
-      # isRetryable true; issue #828). The bounded `Upstream request failed: `
-      # phrase family admits `[`, `]`, and `;` so the bracketed/semicolon
-      # gateway wording matches, while the column-0 anchor keeps the line
-      # terminal. It is never a bare `AI_APICallError:` prefix match, and the
+      # isRetryable true; issue #828), and the inference-service overload form
+      # `AI_APICallError: The inference service is overloaded. Please try
+      # again later.` (maintainer run 42941706174, 2026-11-11; issue #842).
+      # The bounded `Upstream request failed: ` phrase family admits `[`, `]`,
+      # and `;` so the bracketed/semicolon gateway wording matches, while the
+      # column-0 anchor keeps the line terminal. It is never a bare
+      # `AI_APICallError:` prefix match, and the
       # `AI_RetryError: Failed after 3 attempts. Last error: ...` summary, a
       # transcript echo, and the responseBody JSON envelope cannot match the
       # anchored whole-line form. A persistent occurrence after the one
@@ -621,7 +624,7 @@ jobs:
             if account_funds_terminal "$1"; then
               return 1
             fi
-            ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [][A-Za-z0-9_.',;-]+( [][A-Za-z0-9_.',;-]+)*)\.?$" )
+            ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|The inference service is overloaded\. Please try again later|Upstream request failed: [][A-Za-z0-9_.',;-]+( [][A-Za-z0-9_.',;-]+)*)\.?$" )
           }
           ip_block_error_terminal() {
             ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
