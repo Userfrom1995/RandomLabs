@@ -145,9 +145,10 @@ Public Surface / Web Track:                                              │
   three arms and their prompt files, pins the stdin and CR-normalized
   decision reads, bans the path-argument shape, and runs the CR and
   path-reject fixtures, which since issue #843 are hermetic (a sandboxed
-  decision file plus path-substituted shipped reads, with a mid-fixture abort
-  self-test and its load-bearing mutant, so a killed audit never leaves
-  fixture bytes on the live `/tmp/random-lab-decision.json`). Round 13 also
+  decision file plus path-substituted shipped reads, with a sandbox-only
+  helper abort probe, its load-bearing mutant, and a read-only live-path
+  snapshot, so a killed audit never leaves fixture bytes on the live
+  `/tmp/random-lab-decision.json`). Round 13 also
   pins each per-OS agent step's
   `with.prompt` scalar by exact SHA-256 and each arm's exact ordered step
   sequence, and a staging
@@ -208,9 +209,11 @@ Public Surface / Web Track:                                              │
   before any optional exhaustive audit tail. The fail-closed decision-file
   and PAT-push contracts are unchanged. Audit rule R25 pins all four shapes
   (agent and job minimums plus >= 20 minutes of headroom; the agent step
-  name must be unique in its file) and mutation-self-tests the agent-cap,
-  job-cap, and headroom checks on every arm in
-  `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
+  name must be unique in its file and the job must carry exactly one
+  opencode-run invocation in every standard step spelling, with quoted
+  values counted and YAML anchors/tags rejected) and mutation-self-tests the
+  agent-cap, job-cap, headroom, decoy-runner, and uses-indirection checks on
+  every arm in `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
   inline YAML comment after the timeout digits (issue #829 review F1), so the
   rewrite helpers must accept the same trailing-comment grammar the checker
   tolerates; a helper that only matches a line ending in digits would no-op

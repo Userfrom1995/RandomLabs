@@ -23,7 +23,9 @@
    and route through the existing Maintainer failure triage.
 4. **Only these two arms changed.** Review 120/90, test 120/90, eval
    120/105, build 120/105, the 75/60 utility arms, and the per-OS arms
-   (Linux 90/120, macOS/Windows 120/150) keep their measured caps.
+   (Linux 90/120, macOS/Windows 120/150) keep their measured caps. The
+   review line is superseded by the 2026-11-11 #843 decision (review
+   150/180); the other arms stand.
 5. **Regression guard R25.** The audit pins lab agent >= 150 under job >=
    180 and fix agent >= 120 under job >= 180, each with >= 20 minutes of
    headroom, extracted from the real job block and the canonical step block

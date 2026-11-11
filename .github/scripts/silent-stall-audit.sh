@@ -41,9 +41,9 @@
 # closed for all three OS labels, while CRLF report / CRLF re-fetch fixtures
 # must verify green with a byte-exact LF-normalized posted body; the nonce CR
 # and MSYS path-rejection fixtures are hermetic (issue #843: they write a
-# sandboxed decision file and path-substitute the extracted shipped reads, and
-# a mid-fixture abort self-test proves the live /tmp/random-lab-decision.json
-# is untouched even when the fixture process dies after its decision write);
+# sandboxed decision file and path-substitute the extracted shipped reads, with
+# a sandbox-only helper abort probe and a read-only live-path snapshot proving
+# the live /tmp/random-lab-decision.json is untouched);
 # only the verify-step run body and exotic sandbox-path fingerprinting remain
 # review-gated boundaries (documented in
 # the R17 comment), the R18 Windows MSYS argv-conversion guard (issue #612:
@@ -5984,7 +5984,8 @@ else
       $0 == "          if [ -n \"${LAB_RUN_NONCE:-}\" ]; then" { s=1 }
       s { print }
       s && $0 == "          fi" { exit }')
-    r17_cr_action=$(printf '%s\n' "$r17_cr_block" | sed 's/^[[:space:]]*//' | grep -xF -- "action=\$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo \"\")" | head -n1)
+    r17_cr_forward=$(printf '%s\n' "$r17_cr_block" | sed -n "/- name: Forward Windows tester decision/,/^      - name: /p")
+    r17_cr_action=$(printf '%s\n' "$r17_cr_forward" | sed 's/^[[:space:]]*//' | grep -xF -- "action=\$(jq -r '.action // empty' < /tmp/random-lab-decision.json 2>/dev/null | tr -d '\r' || echo \"\")" | head -n1)
     if [ -z "$r17_cr_check" ] || [ -z "$r17_cr_action" ]; then
       r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-not-found)"
     else
@@ -5993,16 +5994,13 @@ else
       # R22 pattern), because the old live-path write could be killed
       # mid-fixture (review run 42749823343 died at the 90-minute cap) and
       # leave fixture bytes on /tmp/random-lab-decision.json for the live
-      # nonce gate to discard. A mid-fixture abort self-test below proves the
-      # live contract path stays untouched even when the fixture dies
-      # immediately after its decision write.
+      # nonce gate to discard. The abort probe below observes only a sandbox
+      # stand-in, and a read-only live-path snapshot around the fixture proves
+      # the live contract path is untouched.
       r17_cr_decision="$r17_cr_tmp/decision.json"
-      case "$r17_cr_decision" in
-        "$r17_cr_tmp"/*) ;;
-        *) r17_bad="${r17_bad} nonce-cr-fixture(decision-path-not-sandboxed)" ;;
-      esac
-      r17_cr_check=$(printf '%s\n' "$r17_cr_check" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision#g")
-      r17_cr_action=$(printf '%s\n' "$r17_cr_action" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision#g")
+      r17_cr_decision_repl=$(printf '%s' "$r17_cr_decision" | sed 's/[#&\\]/\\&/g')
+      r17_cr_check=$(printf '%s\n' "$r17_cr_check" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision_repl#g")
+      r17_cr_action=$(printf '%s\n' "$r17_cr_action" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision_repl#g")
       if printf '%s\n' "$r17_cr_check" "$r17_cr_action" | grep -qF '/tmp/random-lab-decision.json'; then
         r17_bad="${r17_bad} nonce-cr-fixture(shipped-read-not-path-substituted)"
       fi
@@ -6014,19 +6012,40 @@ else
       r17_cr_prepare_decision() {
         printf '%s\n' '{"run_nonce":"a1b2c3d4","action":"fix"}' > "$1"
       }
-      # Mid-fixture abort probe: $1 is the prepare function, $2 the observed
-      # path, $3 the scratch path. The prepare call dies immediately after it
-      # returns (subshell exit, no trap and no later fixture step), so a
-      # killed fixture must leave $2 byte-identical.
+      # Helper abort probe: $1 is the prepare function, $2 the observed
+      # sandbox path, $3 the scratch path. The prepare call dies immediately
+      # after it returns (subshell exit, no trap and no later fixture step),
+      # so a killed fixture must leave $2 byte-identical. Both paths are
+      # sandbox-only; the live contract path is never handed to the helper.
       r17_cr_abort_probe() {
-        local r17_before r17_after
-        if [ -e "$2" ]; then r17_before="present:$(cksum < "$2" 2>/dev/null || true)"; else r17_before="absent"; fi
+        local r17_before r17_after r17_sum
+        if [ -e "$2" ]; then
+          r17_sum=$(cksum < "$2" 2>/dev/null) || return 1
+          r17_before="present:$r17_sum"
+        else
+          r17_before="absent"
+        fi
+        rm -f "$3"
         ( "$1" "$3" "$2" >/dev/null 2>&1; exit 137 ) 2>/dev/null || true
-        if [ -e "$2" ]; then r17_after="present:$(cksum < "$2" 2>/dev/null || true)"; else r17_after="absent"; fi
+        [ -s "$3" ] || return 1
+        if [ -e "$2" ]; then
+          r17_sum=$(cksum < "$2" 2>/dev/null) || return 1
+          r17_after="present:$r17_sum"
+        else
+          r17_after="absent"
+        fi
         [ "$r17_before" = "$r17_after" ]
       }
-      r17_cr_abort_probe r17_cr_prepare_decision /tmp/random-lab-decision.json "$r17_cr_tmp/abort-scratch.json" \
-        || r17_bad="${r17_bad} nonce-cr-fixture(abort-touched-live-decision)"
+      r17_cr_live_state() {
+        if [ -e /tmp/random-lab-decision.json ]; then
+          cksum < /tmp/random-lab-decision.json 2>/dev/null || printf '%s\n' 'present:unreadable'
+        else
+          printf '%s\n' 'absent'
+        fi
+      }
+      r17_cr_live_before=$(r17_cr_live_state)
+      r17_cr_abort_probe r17_cr_prepare_decision "$r17_cr_tmp/abort-observed.json" "$r17_cr_tmp/abort-scratch.json" \
+        || r17_bad="${r17_bad} nonce-cr-fixture(abort-probe-failed)"
       # Mutation self-test: a prepare that also writes the observed path must
       # be caught, proving the probe is load-bearing. The mutant observes a
       # sandbox stand-in, so this self-test itself never writes the live path.
@@ -6109,17 +6128,21 @@ R17_MSYS_JQ
         {
           printf '%s\n' '#!/usr/bin/env bash' 'set -u'
           printf '%s\n' "decision_nonce=\$(jq -r '.run_nonce // empty' $r17_cr_decision 2>/dev/null || true)"
-          printf '%s\n' 'if [ "$decision_nonce" != "$LAB_RUN_NONCE" ]; then'
+          printf '%s\n' 'if [ -z "$decision_nonce" ]; then'
+          printf '%s\n' '  echo path-read-rejected'
           printf '%s\n' '  exit 1'
           printf '%s\n' 'fi'
           printf '%s\n' 'exit 0'
         } > "$r17_cr_tmp/path-control.sh"
-        PATH="$r17_cr_tmp/msys-bin:$PATH" LAB_RUN_NONCE="a1b2c3d4" MSYS_NO_PATHCONV="1" bash "$r17_cr_tmp/path-control.sh" >/dev/null 2>&1
+        r17_path_control_out=$(PATH="$r17_cr_tmp/msys-bin:$PATH" LAB_RUN_NONCE="a1b2c3d4" MSYS_NO_PATHCONV="1" bash "$r17_cr_tmp/path-control.sh" 2>&1)
         r17_path_control_rc=$?
-        if [ "$r17_path_control_rc" -eq 0 ]; then
-          r17_bad="${r17_bad} nonce-msys-fixture(path-control-did-not-fail)"
+        if [ "$r17_path_control_rc" -eq 0 ] || ! printf '%s\n' "$r17_path_control_out" | grep -qxF 'path-read-rejected'; then
+          r17_bad="${r17_bad} nonce-msys-fixture(path-control-failed-for-wrong-reason:rc=${r17_path_control_rc})"
         fi
       fi
+      r17_cr_live_after=$(r17_cr_live_state)
+      [ "$r17_cr_live_before" = "$r17_cr_live_after" ] \
+        || r17_bad="${r17_bad} nonce-cr-fixture(abort-touched-live-decision)"
     fi
     rm -rf "$r17_cr_tmp"
   fi
@@ -7112,9 +7135,9 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a mid-fixture abort self-test (with a load-bearing mutation self-test) proves the live /tmp/random-lab-decision.json is untouched even when the fixture process dies immediately after its decision write (issues #608, #713, #763, #791, #843)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a read-only live-path snapshot prove the live /tmp/random-lab-decision.json is untouched (issues #608, #713, #763, #791, #843)" "ok"
 else
-  check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce; issue #843: the CR fixture wrote the live decision contract, so a killed audit left fixture bytes behind)" "bad"
+  check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce; issue #843: the CR and MSYS fixtures must never write the live decision contract, so a killed audit cannot leave fixture bytes behind)" "bad"
 fi
 
 # [R18] Windows MSYS argv conversion guard (issue #612): the per-OS decision
@@ -10704,8 +10727,11 @@ r25_check_arm() {
   fi
   step_count=$(grep -cF -- "      - name: ${step}" "$wf" || true)
   [ "$step_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(agent-step-count=${step_count},want=1)"
-  uses_count=$(printf '%s\n' "$block" | grep -cE '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:[[:space:]]*\./\.github/actions/opencode-run[[:space:]]*(#.*)?$' || true)
+  uses_count=$(printf '%s\n' "$block" | grep -cE '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:.*\./\.github/actions/opencode-run' || true)
   [ "$uses_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(agent-uses-count=${uses_count},want=1)"
+  if printf '%s\n' "$block" | grep -qE '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:[[:space:]]*[&*!|>]'; then
+    r25_bad="${r25_bad} ${tag}(agent-uses-yaml-indirection)"
+  fi
   step_block=$(printf '%s\n' "$block" | awk -v tag="      - name: ${step}" '
     $0 == tag { s=1; print; next }
     s && $0 ~ /^      - / { exit }
@@ -10734,6 +10760,46 @@ r25_mutate_agent_timeout() {
     in_step && /^      - / && $0 != step { in_step = 0 }
     in_step && /^        timeout-minutes:/ {
       sub(/[0-9]+[[:space:]]*(#.*)?$/, value)
+      print
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_mutate_decoy_runner() {
+  local wf="$1" step="$2" decoy_cap="$3" value="$4" name
+  name=${step#"      - name: "}
+  awk -v step="      - name: ${step}" -v name="$name" -v decoy_cap="$decoy_cap" -v value="$value" '
+    $0 == step {
+      print "      - name: " name
+      print "        if: ${{ false }}"
+      print "        timeout-minutes: " decoy_cap
+      print "        uses: ./.github/actions/opencode-run"
+      print "      - name : " name
+      in_step = 1
+      next
+    }
+    in_step && /^      - / { in_step = 0 }
+    in_step && /^        timeout-minutes:/ {
+      sub(/[0-9]+[[:space:]]*(#.*)?$/, value)
+      print
+      next
+    }
+    in_step && /^        uses:[[:space:]]*\.\/\.github\/actions\/opencode-run/ {
+      sub(/\.\/\.github\/actions\/opencode-run/, "\"./.github/actions/opencode-run\"")
+      print
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_mutate_runner_anchor() {
+  local wf="$1" step="$2"
+  awk -v step="      - name: ${step}" '
+    $0 == step { in_step = 1 }
+    in_step && /^      - / && $0 != step { in_step = 0 }
+    in_step && /^        uses:[[:space:]]*\.\/\.github\/actions\/opencode-run/ {
+      sub(/^        uses:[[:space:]]*/, "        uses: \\&r25_runner ")
       print
       next
     }
@@ -10914,6 +10980,35 @@ r25_selftest_arm() {
     esac
   fi
 
+  # Issue #843 review F2: a skipped canonical-named decoy step plus a real
+  # step spelled `name :` with a quoted uses must not satisfy the review
+  # guard. The decoy supplies the compliant cap while the lowered real step
+  # executes, so only the job-wide runner count catches this shape.
+  cp "$wf" "$dir/mut-decoy.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/mut-decoy.yml" ]; then
+    r25_mutate_decoy_runner "$dir/mut-decoy.yml" "$step" "$agent_min" $((agent_min - 1))
+    r25_bad=""
+    r25_check_arm "$dir/mut-decoy.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"agent-uses-count="*) ;;
+      *) saved="${saved} ${tag}(selftest-decoy-runner-not-caught:${r25_bad})" ;;
+    esac
+  fi
+
+  # Issue #843 review F2: an anchored or tagged uses value is YAML
+  # indirection the text extraction cannot bind, so it must fail closed even
+  # though the runner path text is still present.
+  cp "$wf" "$dir/mut-anchor.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/mut-anchor.yml" ]; then
+    r25_mutate_runner_anchor "$dir/mut-anchor.yml" "$step"
+    r25_bad=""
+    r25_check_arm "$dir/mut-anchor.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"agent-uses-yaml-indirection"*) ;;
+      *) saved="${saved} ${tag}(selftest-uses-indirection-not-caught:${r25_bad})" ;;
+    esac
+  fi
+
   r25_bad="$saved"
   rm -rf "$dir"
 }
@@ -10931,7 +11026,7 @@ r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
 r25_selftest_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review"
 r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, caps are canonical decimal literals (no quotes, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, and headroom checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829)" "ok"
+  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; the job key is unique, the canonical agent step is unique file-wide and the job carries exactly one opencode-run invocation in every standard step spelling with quoted values counted and YAML anchors/tags rejected, caps are canonical decimal literals (no quoted cap values, anchors, or leading zeros), and mutation self-tests prove the agent-cap, job-cap, headroom, decoy-runner, and uses-indirection checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829, #843 review F2)" "ok"
 else
   check "R25" "lab/fix/review/curator cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch; issue #843: a 90-minute review cap under 120 lost the #837 verdict with no report and no retry)" "bad"
 fi
