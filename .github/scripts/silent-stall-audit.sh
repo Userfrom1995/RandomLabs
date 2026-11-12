@@ -43,8 +43,8 @@
 # and MSYS path-rejection fixtures are hermetic (issue #843: they write a
 # sandboxed decision file and path-substitute the extracted shipped reads, with
 # a sandbox-only helper abort probe plus a fail-closed read-only live-path
-# endpoint snapshot (bytes, inode, size, mtime) that detects any change across
-# the fixture window);
+# endpoint snapshot (bytes, inode, size, mtime) that detects any persistent
+# change between the endpoint samples);
 # only the verify-step run body and exotic sandbox-path fingerprinting remain
 # review-gated boundaries (documented in
 # the R17 comment), the R18 Windows MSYS argv-conversion guard (issue #612:
@@ -5997,9 +5997,10 @@ else
       # leave fixture bytes on /tmp/random-lab-decision.json for the live
       # nonce gate to discard. The abort probe below observes only a sandbox
       # stand-in, and a fail-closed read-only live-path endpoint snapshot
-      # around the fixture detects any change; a transient write-and-restore
-      # between the two samples stays a review-gated boundary, so the
-      # sandbox-only structure above is the primary guarantee.
+      # around the fixture detects any persistent change between the two
+      # samples; a transient write-and-restore between them stays a
+      # review-gated boundary, so the sandbox-only structure above is the
+      # primary guarantee.
       r17_cr_decision="$r17_cr_tmp/decision.json"
       r17_cr_decision_repl=$(printf '%s' "$r17_cr_decision" | sed 's/[#&\\]/\\&/g')
       r17_cr_check=$(printf '%s\n' "$r17_cr_check" | sed "s#/tmp/random-lab-decision.json#$r17_cr_decision_repl#g")
@@ -6041,7 +6042,7 @@ else
       }
       r17_cr_state() {
         local path=$1 sum meta
-        if [ ! -e "$path" ]; then
+        if [ ! -e "$path" ] && [ ! -L "$path" ]; then
           printf '%s\n' 'absent'
           return 0
         fi
@@ -7152,7 +7153,7 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a fail-closed read-only live-path endpoint snapshot (bytes, inode, size, mtime; an unreadable live path fails the rule, with a sandbox unreadable fixture proving that path load-bearing) detects any change to /tmp/random-lab-decision.json across the fixture window (issues #608, #713, #763, #791, #843)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a fail-closed read-only live-path endpoint snapshot (bytes, inode, size, mtime; an unreadable live path fails the rule, with a sandbox unreadable fixture proving that path load-bearing) detects any persistent change to /tmp/random-lab-decision.json between the endpoint samples (issues #608, #713, #763, #791, #843)" "ok"
 else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce; issue #843: the CR and MSYS fixtures must never write the live decision contract, so a killed audit cannot leave fixture bytes behind)" "bad"
 fi
@@ -10732,8 +10733,9 @@ fi
 # duplicate-key-rejecting YAML parse (the R31/R15 precedent): it finds the
 # job, takes its single `uses: ./.github/actions/opencode-run` step, requires
 # that step to be the canonical agent step, and reads the parsed job and step
-# caps. Text extraction remains only for the mutation fixtures. Escape
-# classes found in adversarial verification are closed:
+# caps. A source-text tripwire rejects anchor/tag/block-indicator tokens on a
+# uses value; text extraction is otherwise used only by the mutation
+# fixtures. Escape classes found in adversarial verification are closed:
 #   - the job key must be unique in its file (a duplicate job key decoy is
 #     already invalid YAML for Actions, but the count keeps the binding
 #     truthful) and the whole file must parse with duplicate keys rejected;
@@ -10744,13 +10746,20 @@ fi
 #     (`- {name: ...}`), multiline plain-scalar, and explicit-key (`? uses`)
 #     spellings cannot hide the real step (issue #843 eval);
 #   - a canonical runner step gated on a trivially false `if` fails as
-#     disabled, because it would silently skip the audited target;
+#     disabled, because it would silently skip the audited target; the
+#     condition is whitespace-normalized and unwrapped from `${{ ... }}` before
+#     the check, so `${{false}}`, `False`, `0`, `null`, and `~` are all caught
+#     (issue #843 review F2);
 #   - only a plain decimal integer with no leading zeros and at most four
 #     digits is accepted, so quoted, anchored, block-scalar, float, boolean,
 #     and octal-looking (`0150`, `0x96`) caps fail closed; the minimum and
 #     headroom checks use the parsed values, not a text approximation;
 #   - YAML anchors, aliases, tags, and block indicators on a uses value are
-#     rejected as un-bindable indirection;
+#     rejected as un-bindable indirection; in addition, any uses scalar that
+#     contains the runner path but does not parse exactly to it (a `>` or `|`
+#     block scalar keeps a trailing newline, and an explicit-key `? uses`
+#     spelling can wrap the same value) fails as `agent-uses-unbound` instead
+#     of silently escaping the runner count (issue #843 review F2);
 #   - an optional trailing YAML comment after the digits is tolerated (the
 #     established style keeps comments above the key, but this costs
 #     nothing);
@@ -10776,7 +10785,10 @@ fi
 #     `name :` quoted-uses shape, the skipped-decoy plus multiline
 #     plain-scalar shape, a flow-mapping step, an explicit-key `? uses` step,
 #     an anchored uses, a quoted cap, and a trivially disabled canonical
-#     step; each must fail with its own error class.
+#     step. The review round adds the explicit-key block-scalar shapes
+#     (`? uses` with `: >` and `: |`), `${{false}}`, and `False`; every
+#     fixture runs on every arm, must fail with its own error class, and must
+#     be nonempty so a silent writer cannot pass vacuously.
 r25_bad=""
 r25_struct_dir=$(mktemp -d 2>/dev/null || true)
 r25_py=""
@@ -10789,7 +10801,6 @@ import sys
 import yaml
 
 RUNNER = "./.github/actions/opencode-run"
-DISABLED = {"false", "${{ false }}", "0", "${{ 0 }}", "null", "${{ null }}"}
 INDIRECT = re.compile(
     r"(?ms)^[ \t]*(?:-[ \t]+)?uses[ \t]*:[ \t\r\n]+[&*!|>]"
     r"|[\{\[,][ \t]*uses[ \t]*:[ \t\r\n]+[&*!|>]"
@@ -10838,6 +10849,12 @@ def value(node, key):
 
 def text(node):
     return node.value if isinstance(node, yaml.ScalarNode) else None
+
+
+def falsey(condition):
+    value = " ".join(condition.split()).lower()
+    value = re.sub(r"^\$\{\{\s*|\s*\}\}$", "", value).strip()
+    return value in {"false", "0", "null", "~"}
 
 
 def cap(node):
@@ -10907,7 +10924,11 @@ def main(argv):
         return finish(tag, problems)
     runners = []
     for step in steps.value:
-        uses = text(value(step, "uses"))
+        uses_node = value(step, "uses")
+        uses = text(uses_node)
+        if isinstance(uses_node, yaml.ScalarNode) and RUNNER in (uses_node.value or ""):
+            if uses != RUNNER:
+                problems.append("agent-uses-unbound")
         if uses == RUNNER:
             runners.append(step)
     if len(runners) != 1:
@@ -10917,7 +10938,7 @@ def main(argv):
         if text(value(runner, "name")) != canonical:
             problems.append("canonical-step-not-the-runner")
         condition = text(value(runner, "if"))
-        if condition is not None and " ".join(condition.split()) in DISABLED:
+        if condition is not None and falsey(condition):
             problems.append("agent-step-disabled")
     job_cap = cap(value(job, "timeout-minutes"))
     agent_cap = cap(value(runner, "timeout-minutes")) if runner is not None else None
@@ -11046,50 +11067,64 @@ r25_mutate_decoy_multiline() {
   ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
 }
 r25_mutate_agent_disabled() {
-  local wf="$1" step="$2"
-  awk -v step="      - name: ${step}" '
+  local wf="$1" step="$2" condition="$3"
+  awk -v step="      - name: ${step}" -v condition="$condition" '
     $0 == step { in_step = 1 }
     in_step && /^      - / && $0 != step { in_step = 0 }
     in_step && /^        if:/ {
-      print "        if: ${{ false }}"
+      print "        if: " condition
       next
     }
     { print }
   ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
 }
 r25_write_flow_mutant() {
-  cat > "$1" <<'R25_FLOW'
-name: r25-flow-mutant
-on: issue_comment
-jobs:
-  review:
-    timeout-minutes: 180
-    steps:
-      - name: Run opencode reviewer
-        if: ${{ false }}
-        timeout-minutes: 150
-        uses: ./.github/actions/opencode-run
-      - {name: Reviewer execution, id: review, timeout-minutes: 90, uses: "./.github/actions/opencode-run"}
-R25_FLOW
+  local file="$1" job="$2" step="$3" agent_min="$4" job_min="$5"
+  {
+    printf '%s\n' 'name: r25-flow-mutant' 'on: issue_comment' 'jobs:'
+    printf '  %s:\n' "$job"
+    printf '    timeout-minutes: %s\n' "$job_min"
+    printf '%s\n' '    steps:'
+    printf '      - name: %s\n' "$step"
+    printf '%s\n' '        if: ${{ false }}'
+    printf '        timeout-minutes: %s\n' "$agent_min"
+    printf '%s\n' '        uses: ./.github/actions/opencode-run'
+    printf '      - {name: Reviewer execution, id: review, timeout-minutes: %s, uses: "./.github/actions/opencode-run"}\n' "$((agent_min - 60))"
+  } > "$file"
 }
 r25_write_explicit_mutant() {
-  cat > "$1" <<'R25_EXPLICIT'
-name: r25-explicit-mutant
-on: issue_comment
-jobs:
-  review:
-    timeout-minutes: 180
-    steps:
-      - name: Run opencode reviewer
-        if: ${{ false }}
-        timeout-minutes: 150
-        uses: ./.github/actions/opencode-run
-      - name : Reviewer execution
-        id: review
-        timeout-minutes: 90
-        ? uses
-        : ./.github/actions/opencode-run
-R25_EXPLICIT
+  local file="$1" job="$2" step="$3" agent_min="$4" job_min="$5"
+  {
+    printf '%s\n' 'name: r25-explicit-mutant' 'on: issue_comment' 'jobs:'
+    printf '  %s:\n' "$job"
+    printf '    timeout-minutes: %s\n' "$job_min"
+    printf '%s\n' '    steps:'
+    printf '      - name: %s\n' "$step"
+    printf '%s\n' '        if: ${{ false }}'
+    printf '        timeout-minutes: %s\n' "$agent_min"
+    printf '%s\n' '        uses: ./.github/actions/opencode-run'
+    printf '%s\n' '      - name : Reviewer execution' '        id: review'
+    printf '        timeout-minutes: %s\n' "$((agent_min - 60))"
+    printf '%s\n' '        ? uses' '        : ./.github/actions/opencode-run'
+  } > "$file"
+}
+r25_write_explicit_block_mutant() {
+  local file="$1" job="$2" step="$3" agent_min="$4" job_min="$5" indicator="$6"
+  {
+    printf '%s\n' 'name: r25-explicit-block-mutant' 'on: issue_comment' 'jobs:'
+    printf '  %s:\n' "$job"
+    printf '    timeout-minutes: %s\n' "$job_min"
+    printf '%s\n' '    steps:'
+    printf '      - name: %s\n' "$step"
+    printf '%s\n' '        if: ${{false}}'
+    printf '        timeout-minutes: %s\n' "$agent_min"
+    printf '%s\n' '        uses: ./.github/actions/opencode-run'
+    printf '%s\n' '      - name : Reviewer execution' '        id: review'
+    printf '        timeout-minutes: %s\n' "$((agent_min - 60))"
+    printf '%s\n' '        ? uses'
+    printf '        : %s\n' "$indicator"
+    printf '%s\n' '          ./.github/actions/opencode-run'
+  } > "$file"
 }
 r25_mutate_job_timeout() {
   local wf="$1" job="$2" value="$3"
@@ -11309,31 +11344,64 @@ r25_selftest_arm() {
     esac
   fi
 
-  # Issue #843 eval: a flow-mapping step and an explicit-key `? uses` step
-  # parse as ordinary runner steps, so the structural count must bind both.
-  if [ "$tag" = "review" ]; then
-    r25_write_flow_mutant "$dir/mut-flow.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
-    if [ -f "$dir/mut-flow.yml" ]; then
-      r25_bad=""
-      r25_check_arm "$dir/mut-flow.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
-      case "$r25_bad" in
-        *"agent-uses-count="*) ;;
-        *) saved="${saved} ${tag}(selftest-flow-mapping-not-caught:${r25_bad})" ;;
-      esac
-    fi
-    r25_write_explicit_mutant "$dir/mut-explicit.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
-    if [ -f "$dir/mut-explicit.yml" ]; then
-      r25_bad=""
-      r25_check_arm "$dir/mut-explicit.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
-      case "$r25_bad" in
-        *"agent-uses-count="*) ;;
-        *) saved="${saved} ${tag}(selftest-explicit-key-not-caught:${r25_bad})" ;;
-      esac
-    fi
+  # Issue #843 eval and review F2: a flow-mapping step and an explicit-key
+  # `? uses` step parse as ordinary runner steps, so the structural count must
+  # bind both on every arm. Each fixture must be nonempty, so a writer that
+  # silently creates nothing cannot pass the assertion vacuously.
+  r25_write_flow_mutant "$dir/mut-flow.yml" "$job" "$step" "$agent_min" "$job_min" 2>/dev/null \
+    || saved="${saved} ${tag}(selftest-flow-write-failed)"
+  if [ -s "$dir/mut-flow.yml" ]; then
+    r25_bad=""
+    r25_check_arm "$dir/mut-flow.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"agent-uses-count="*) ;;
+      *) saved="${saved} ${tag}(selftest-flow-mapping-not-caught:${r25_bad})" ;;
+    esac
+  else
+    saved="${saved} ${tag}(selftest-flow-mapping-fixture-empty)"
+  fi
+  r25_write_explicit_mutant "$dir/mut-explicit.yml" "$job" "$step" "$agent_min" "$job_min" 2>/dev/null \
+    || saved="${saved} ${tag}(selftest-explicit-write-failed)"
+  if [ -s "$dir/mut-explicit.yml" ]; then
+    r25_bad=""
+    r25_check_arm "$dir/mut-explicit.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    case "$r25_bad" in
+      *"agent-uses-count="*) ;;
+      *) saved="${saved} ${tag}(selftest-explicit-key-not-caught:${r25_bad})" ;;
+    esac
+  else
+    saved="${saved} ${tag}(selftest-explicit-key-fixture-empty)"
   fi
 
+  # Issue #843 review F2: an explicit-key `? uses` block scalar (`: >` or
+  # `: |`) keeps a trailing newline, so it never compares equal to the runner
+  # path and the old checker silently treated it as a non-runner. The hidden
+  # step must fail as unbound, and the canonical decoy uses the normalized
+  # `${{false}}` spelling so the disabled check is exercised too.
+  for r25_indicator in '>' '|'; do
+    r25_block_fixture="$dir/mut-explicit-block-${r25_indicator}.yml"
+    r25_write_explicit_block_mutant "$r25_block_fixture" "$job" "$step" "$agent_min" "$job_min" "$r25_indicator" 2>/dev/null \
+      || saved="${saved} ${tag}(selftest-explicit-block-write-failed)"
+    if [ -s "$r25_block_fixture" ]; then
+      r25_bad=""
+      r25_check_arm "$r25_block_fixture" "$job" "$step" "$agent_min" "$job_min" "$tag"
+      case "$r25_bad" in
+        *"agent-uses-unbound"*) ;;
+        *) saved="${saved} ${tag}(selftest-explicit-block-${r25_indicator}-not-caught:${r25_bad})" ;;
+      esac
+      case "$r25_bad" in
+        *"agent-step-disabled"*) ;;
+        *) saved="${saved} ${tag}(selftest-explicit-block-${r25_indicator}-disabled-not-caught:${r25_bad})" ;;
+      esac
+    else
+      saved="${saved} ${tag}(selftest-explicit-block-${r25_indicator}-fixture-empty)"
+    fi
+  done
+
   # A quoted cap is not a plain decimal integer, and a canonical runner step
-  # gated on a trivially false if would silently skip the audited target.
+  # gated on a trivially false if would silently skip the audited target. The
+  # disabled forms cover the spaced expression, the unwrapped `${{false}}`
+  # spelling, and the plain boolean (issue #843 review F2).
   cp "$wf" "$dir/mut-quoted.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
   if [ -f "$dir/mut-quoted.yml" ]; then
     r25_mutate_agent_timeout "$dir/mut-quoted.yml" "$step" "\"${agent_min}\""
@@ -11345,16 +11413,18 @@ r25_selftest_arm() {
     esac
   fi
 
-  cp "$wf" "$dir/mut-disabled.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
-  if [ -f "$dir/mut-disabled.yml" ]; then
-    r25_mutate_agent_disabled "$dir/mut-disabled.yml" "$step"
-    r25_bad=""
-    r25_check_arm "$dir/mut-disabled.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
-    case "$r25_bad" in
-      *"agent-step-disabled"*) ;;
-      *) saved="${saved} ${tag}(selftest-disabled-step-not-caught:${r25_bad})" ;;
-    esac
-  fi
+  for r25_condition in '${{ false }}' '${{false}}' 'False'; do
+    cp "$wf" "$dir/mut-disabled.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+    if [ -f "$dir/mut-disabled.yml" ]; then
+      r25_mutate_agent_disabled "$dir/mut-disabled.yml" "$step" "$r25_condition"
+      r25_bad=""
+      r25_check_arm "$dir/mut-disabled.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+      case "$r25_bad" in
+        *"agent-step-disabled"*) ;;
+        *) saved="${saved} ${tag}(selftest-disabled-${r25_condition}-not-caught:${r25_bad})" ;;
+      esac
+    fi
+  done
 
   r25_bad="$saved"
   rm -rf "$dir"
@@ -11373,9 +11443,9 @@ r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
 r25_selftest_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review"
 r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the executing agent step is resolved from a strict duplicate-key-rejecting YAML parse: the job's unique opencode-run step must be the canonical agent step, so name-colon, flow-mapping, multiline plain-scalar, and explicit-key spellings cannot hide the real step behind a skipped decoy; the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; caps must be plain decimal integers (quoted, anchored, block-scalar, float, boolean, and octal-looking values fail closed), a trivially disabled canonical step fails, YAML anchors/tags on a uses value are rejected, and mutation self-tests prove the agent-cap, job-cap, headroom, decoy, multiline, flow-mapping, explicit-key, quoted-cap, disabled-step, and uses-indirection checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829, #843 review F2, #843 eval)" "ok"
+  check "R25" "the executing agent step is resolved from a strict duplicate-key-rejecting YAML parse: the job's unique opencode-run step must be the canonical agent step, so name-colon, flow-mapping, multiline plain-scalar, explicit-key, and block-scalar spellings cannot hide the real step behind a skipped decoy; the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; caps must be plain decimal integers (quoted, anchored, block-scalar, float, boolean, and octal-looking values fail closed), a canonical step disabled by a normalized false condition (\${{false}}, False, 0, null, or ~) fails, a uses scalar that contains the runner path but does not parse exactly to it fails as unbound, YAML anchors/tags on a uses value are rejected, and mutation self-tests prove the agent-cap, job-cap, headroom, decoy, multiline, flow-mapping, explicit-key, explicit-key block-scalar, quoted-cap, disabled-step, and uses-indirection checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829, #843 review F2, #843 eval)" "ok"
 else
-  check "R25" "lab/fix/review/curator cap headroom or agent-step binding missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch; issue #843: a 90-minute review cap under 120 lost the #837 verdict with no report and no retry; the parse binding closes name-colon, multiline, flow-mapping, explicit-key, and anchored-uses shapes that a text count could not bind)" "bad"
+  check "R25" "lab/fix/review/curator cap headroom or agent-step binding missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch; issue #843: a 90-minute review cap under 120 lost the #837 verdict with no report and no retry; the parse binding closes name-colon, multiline, flow-mapping, explicit-key, block-scalar, and anchored-uses shapes that a text count could not bind)" "bad"
 fi
 
 # [R26] Create-issue dedupe guard (issue #668): Maintainer concurrency is

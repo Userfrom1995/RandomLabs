@@ -211,13 +211,16 @@ Public Surface / Web Track:                                              │
   and PAT-push contracts are unchanged. Audit rule R25 pins all four shapes
   (agent and job minimums plus >= 20 minutes of headroom; the executing step
   is resolved from a strict duplicate-key-rejecting YAML parse, so `name :`,
-  flow-mapping, multiline plain-scalar, and explicit-key spellings cannot
-  hide a real step behind a skipped canonical-named decoy; caps must be
-  plain decimal integers, a trivially disabled canonical step fails, and
-  anchors/tags on a uses value are rejected) and mutation-self-tests the
-  agent-cap, job-cap, headroom, decoy, multiline, flow-mapping,
-  explicit-key, quoted-cap, disabled-step, and uses-indirection checks on
-  every arm in `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
+  flow-mapping, multiline plain-scalar, explicit-key, and block-scalar
+  spellings cannot hide a real step behind a skipped canonical-named decoy;
+  caps must be plain decimal integers, a canonical step disabled by a
+  normalized false condition (`${{false}}`, `False`, `0`, `null`, `~`) fails,
+  a uses scalar that contains the runner path but does not parse exactly to
+  it fails as unbound, and anchors/tags on a uses value are rejected) and
+  mutation-self-tests the agent-cap, job-cap, headroom, decoy, multiline,
+  flow-mapping, explicit-key, explicit-key block-scalar, quoted-cap,
+  disabled-step, and uses-indirection checks on every arm in
+  `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
   inline YAML comment after the timeout digits (issue #829 review F1), so the
   rewrite helpers must accept the same trailing-comment grammar the checker
   tolerates; a helper that only matches a line ending in digits would no-op
