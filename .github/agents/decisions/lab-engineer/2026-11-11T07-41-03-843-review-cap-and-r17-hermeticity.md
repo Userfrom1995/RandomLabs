@@ -31,10 +31,11 @@
    load-bearing mutant proves the probe detects a helper that writes the
    observed path, and a fail-closed read-only endpoint snapshot (cksum plus
    inode, size, and mtime; an unreadable live path fails the rule) detects
-   any change to `/tmp/random-lab-decision.json` across the fixture window.
-   A transient write-and-restore between the two samples remains a
-   review-gated boundary, not a hermetic proof. The MSYS path-rejection
-   control must fail for the path-argument reason, not any nonzero exit.
+   any persistent change to `/tmp/random-lab-decision.json` between the
+   endpoint samples. A transient write-and-restore between the two samples
+   remains a review-gated boundary, not a hermetic proof. The MSYS
+   path-rejection control must fail for the path-argument reason, not any
+   nonzero exit.
 5. **This record supersedes the review line of item 4 in the 2026-10-19
    lab/fix cap-headroom decision.** That decision said review kept a 90/120
    agent/job shape for lack of evidence; issue #843 supplies the evidence and
