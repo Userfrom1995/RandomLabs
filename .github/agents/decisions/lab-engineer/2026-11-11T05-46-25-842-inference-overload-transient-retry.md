@@ -52,10 +52,12 @@ exact-phrase alternatives and is pinned by fixtures on both exit shapes.
   directions of the shared HTTP budget against the legacy #653 429/5xx
   forms). The account-detector exclusion check covers the new phrase, and the
   R15 banners and rule comments name #842.
-- `AGENTS.md`, `LAB.md`, `docs/index.md`, `docs/index.html`,
-  `.github/agents/labengineer.md`, `.github/agents/maintainer.md`,
-  `.github/agents/auditor.md`: the provider class documentation now names the
-  inference-service overload wording and issue #842.
+- `AGENTS.md`, `LAB.md`, `.github/agents/labengineer.md`,
+  `.github/agents/maintainer.md`, `.github/agents/auditor.md`: the provider
+  class documentation now names the inference-service overload wording and
+  issue #842. `docs/index.md` and `docs/index.html` carry the wording only,
+  matching their existing citation style; they do not carry the issue
+  number.
 - This decision record.
 
 ## Verification
@@ -63,7 +65,8 @@ exact-phrase alternatives and is pinned by fixtures on both exit shapes.
 - `bash -n .github/scripts/silent-stall-audit.sh`: clean.
 - Strict PyYAML parse of `.github/actions/opencode-run/action.yml` and
   `.github/workflows/maintainer.yml`: clean.
-- `bash .github/scripts/silent-stall-audit.sh`: 34 passed, 0 failed
+- `env -u LAB_RUN_NONCE bash .github/scripts/silent-stall-audit.sh`: 34
+  passed, 0 failed
   (R1-R34), including R15 (functional fixtures and the behavioral matrix),
   R26 (the pre-handler manifest pins the updated regex line), and R33 (both
   runner run scalars stay under the 20,000-byte ceiling).
@@ -75,7 +78,9 @@ not met; the task is above threshold (11 files across 7 directories). The
 review round ran three independent verification passes and records the
 honest ledger and skills note in
 `2026-11-11T06-58-19-842-review-round-delegation-ledger.md`; the PR #844 body
-carries the same ledger.
+carries the same ledger. The eval-round rebase onto `db06e7340`, the
+re-verification, and the corrections to this record are in
+`2026-11-12T04-24-42-842-eval-round-rebase-and-record-corrections.md`.
 
 ## Residual
 
