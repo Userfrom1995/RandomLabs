@@ -146,9 +146,10 @@ Public Surface / Web Track:                                              │
   decision reads, bans the path-argument shape, and runs the CR and
   path-reject fixtures, which since issue #843 are hermetic (a sandboxed
   decision file plus path-substituted shipped reads, with a sandbox-only
-  helper abort probe, its load-bearing mutant, and a read-only live-path
-  snapshot, so a killed audit never leaves fixture bytes on the live
-  `/tmp/random-lab-decision.json`). Round 13 also
+  helper abort probe, its load-bearing mutant, and a fail-closed read-only
+  live-path endpoint snapshot of bytes, inode, size, and mtime that fails
+  when the live path is unreadable, so a killed audit never leaves fixture
+  bytes on the live `/tmp/random-lab-decision.json`). Round 13 also
   pins each per-OS agent step's
   `with.prompt` scalar by exact SHA-256 and each arm's exact ordered step
   sequence, and a staging
@@ -208,11 +209,14 @@ Public Surface / Web Track:                                              │
   writing the decision file incrementally, and finishing the remediation PR
   before any optional exhaustive audit tail. The fail-closed decision-file
   and PAT-push contracts are unchanged. Audit rule R25 pins all four shapes
-  (agent and job minimums plus >= 20 minutes of headroom; the agent step
-  name must be unique in its file and the job must carry exactly one
-  opencode-run invocation in every standard step spelling, with quoted
-  values counted and YAML anchors/tags rejected) and mutation-self-tests the
-  agent-cap, job-cap, headroom, decoy-runner, and uses-indirection checks on
+  (agent and job minimums plus >= 20 minutes of headroom; the executing step
+  is resolved from a strict duplicate-key-rejecting YAML parse, so `name :`,
+  flow-mapping, multiline plain-scalar, and explicit-key spellings cannot
+  hide a real step behind a skipped canonical-named decoy; caps must be
+  plain decimal integers, a trivially disabled canonical step fails, and
+  anchors/tags on a uses value are rejected) and mutation-self-tests the
+  agent-cap, job-cap, headroom, decoy, multiline, flow-mapping,
+  explicit-key, quoted-cap, disabled-step, and uses-indirection checks on
   every arm in `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
   inline YAML comment after the timeout digits (issue #829 review F1), so the
   rewrite helpers must accept the same trailing-comment grammar the checker
