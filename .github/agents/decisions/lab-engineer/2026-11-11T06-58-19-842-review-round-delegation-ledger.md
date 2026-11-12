@@ -47,7 +47,8 @@ No code change is requested or made.
   `c1bb1f77`), both audit run-block literals and the R15/R26 pins
   (`silent-stall-audit.sh:2678,2928,3207,12451` at `c1bb1f77`), and all
   seven doc/prompt surfaces plus the original decision record; no third
-  runner copy, no contradiction, and zero em dashes in the changed files.
+  runner copy; no contradiction remains once the two site docs are counted
+  as wording-only surfaces; zero em dashes in the changed files.
 - Independent audit-pin pass: the run-block literals match both runners
   exactly at `c1bb1f77` (action 239 lines / 16,635 B, maintainer 249 lines /
   17,260 B), all 13 #842 fixtures and 9 behavioral scenarios are defined and
