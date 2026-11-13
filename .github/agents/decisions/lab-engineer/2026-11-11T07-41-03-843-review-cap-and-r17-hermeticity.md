@@ -16,15 +16,20 @@
    job >= 180 with the same >= 20-minute headroom rule as lab, fix, and
    curator, and its mutation self-tests run on every arm.
 3. **R25 binds the executing step from the YAML parse.** The whole file must
-   parse with duplicate keys rejected; the canonical step must be unique
-   file-wide and must be the job's unique
-   `uses: ./.github/actions/opencode-run` step, so `name :`, flow-mapping,
-   multiline plain-scalar, and explicit-key spellings cannot hide a real step
-   behind a skipped canonical-named decoy. Caps must be plain decimal
-   integers, a trivially disabled canonical step fails, and anchors/tags on a
-   uses value are rejected. Mutation self-tests cover the decoy, multiline,
-   flow, explicit-key, quoted-cap, disabled-step, and anchor shapes on every
-   arm.
+   parse with duplicate keys rejected; the job must carry exactly one step
+   whose parsed `uses` normalizes to the runner (the `./` workspace and `$/`
+   self-repository forms, with path-equivalent `./a/./b` and `./a/../a/b`
+   spellings), and that step must be the canonical agent step carrying the
+   arm's expected id and exact actor gate, so `name :`, flow-mapping,
+   multiline plain-scalar, explicit-key, block-scalar, self-repository, and
+   path-equivalent spellings cannot hide a real step behind a skipped
+   canonical-named decoy. Caps must be plain decimal integers, a trivially
+   disabled canonical step fails, a gate that is not the exact actor gate
+   fails as `agent-step-if-not-exact`, and inline anchors/tags/block
+   indicators on a uses value are rejected. Mutation self-tests cover the
+   decoy, multiline, flow, explicit-key, explicit-key block-scalar,
+   quoted-cap, disabled-step, non-exact-gate, self-repository,
+   path-equivalent, and anchor shapes on every arm.
 4. **R17 nonce fixtures are hermetic.** The CR and MSYS fixtures write only a
    sandboxed decision file and path-substitute the extracted shipped reads
    (the R22 pattern). The abort probe observes only a sandbox stand-in, a
@@ -76,6 +81,16 @@
   `review(agent-uses-count=2,want=1)`; flow-mapping, explicit-key,
   anchored-uses, quoted-cap, disabled-step, and non-canonical hidden-runner
   fixtures also red, and the pristine tree stays 34/0.
+- The follow-up review round's `$/` self-repository bypass (a skipped
+  150-minute canonical decoy gated on `${{ false && true }}` plus a hidden
+  90-minute real runner using `$/.github/actions/opencode-run`) now fails as
+  `review(agent-uses-count=2,want=1)`, the path-equivalent
+  `./.github/actions/./opencode-run` shape fails the same way, a
+  constant-false canonical-only gate fails as
+  `review(agent-step-if-not-exact)`, and an honest canonical switch to `$/`
+  stays clean. The explicit-key clip/keep block-scalar shapes still fail as
+  `agent-uses-unbound` plus `agent-step-disabled`, while a strip block scalar
+  binds as a second runner and fails the count.
 
 ## Notes
 
@@ -84,6 +99,8 @@ findings are addressed on the same branch; F5 and the F6 minor nits are
 addressed in the PR body, the docs, and the R17/R25 code. The issue #843
 evaluation round's R25 multiline/flow/explicit-key bypass, R17 unreadable
 snapshot fail-open, notation, and decision-record findings are addressed on
-the same branch.
+the same branch. The follow-up review round's `$/` and path-equivalent runner
+spellings, non-exact-gate decoys, R17 scratch-directory edge, and R17 header
+transient-write boundary are addressed on the same branch.
 
 - the Lab Engineer
