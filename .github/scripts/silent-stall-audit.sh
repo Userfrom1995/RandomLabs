@@ -6524,9 +6524,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="9d1efd0ec621f2d56d42c069ef757cad17a3d165fcecacde4422676a0cc237ac" \
-  R17_MACOS_PROMPT_SHA="ac6265893251a68b5e3b1fb3d281f0e30cac6191f35d4bb54755e1c5adafaddb" \
-  R17_WINDOWS_PROMPT_SHA="68857911c7929aec3cae600b95c6918bdfb3dd818b5c09ebbe53d2e41f45f910" \
+  R17_LINUX_PROMPT_SHA="ae14816100b99672e2fe8c60a12596eb88889f0f9395ed824c2904af132579ea" \
+  R17_MACOS_PROMPT_SHA="84f14d9cb3d96ecb6d6d9232665d667b404b1b8a2b0d48ac1466c5380d610046" \
+  R17_WINDOWS_PROMPT_SHA="66281351ce55b7e4c8d03d0d0167b0f0b0475b9973494af8e73be1fd84faff60" \
   R17_LINUX_AGENT_PROMPT_SHA="b94cdb8c0dfab79e7f1ae1f29d5df0a5c897e873820db1c55e02c6194be3b5a0" \
   R17_MACOS_AGENT_PROMPT_SHA="5e055d83797453c62224290eb6832cf584f3bffff4238830a1a2796951dc9ff5" \
   R17_WINDOWS_AGENT_PROMPT_SHA="d5fa487dce7bd7b82229c69c68b170eb956598abe65313f63173bebc0beb5404" \
@@ -6729,6 +6729,23 @@ OWNER_PAT_ENV = {
     "SSL_CERT_DIR": "",
     "SSL_CERT_FILE": "",
 }
+# Issue #798 review B12: macOS resolves the Darwin loader variables, and the
+# runner's macos-run-invoker preserves DYLD_INSERT_LIBRARIES, so every macOS
+# post-agent owner-PAT step must pin them empty like the Linux LD_* set.
+# Linux and Windows have no reachable DYLD seam, so the maps stay exact there.
+DYLD_PINS = {
+    "DYLD_FALLBACK_FRAMEWORK_PATH": "",
+    "DYLD_FALLBACK_LIBRARY_PATH": "",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
+}
+
+
+def owner_env(label, base):
+    return dict(base, **DYLD_PINS) if label == "macOS" else dict(base)
+
+
 EXPECTED_FINDINGS_ENV = dict(
     OWNER_PAT_ENV,
     TARGET="${{ github.event.issue.number }}",
@@ -7291,7 +7308,7 @@ def validate(doc, expected):
                 or strip_step.get("id") != "strip_trailers"
                 or strip_step.get("if") != SANITIZE_GATE
                 or strip_step.get("shell") != trusted_shell(label)
-                or strip_step.get("env") != expected_strip_env
+                or strip_step.get("env") != owner_env(label, expected_strip_env)
             ):
                 out.append("peros-staging(%s:strip-step-keys)" % label)
             if (
@@ -7367,7 +7384,7 @@ def validate(doc, expected):
                 or scope_step.get("id") != "scope_guard"
                 or scope_step.get("if") != SANITIZE_GATE
                 or scope_step.get("shell") != trusted_shell(label)
-                or scope_step.get("env") != expected_scope_env
+                or scope_step.get("env") != owner_env(label, expected_scope_env)
             ):
                 out.append("peros-staging(%s:scope-step-keys)" % label)
             if (
@@ -7419,7 +7436,7 @@ def validate(doc, expected):
                 or post_hits[0].get("id") != "findings"
                 or post_hits[0].get("shell") != trusted_shell(label)
                 or not isinstance(post_env, dict)
-                or post_env != EXPECTED_FINDINGS_ENV
+                or post_env != owner_env(label, EXPECTED_FINDINGS_ENV)
             ):
                 out.append("peros-staging(%s:post-env-not-exact)" % label)
             out.extend(
@@ -7443,7 +7460,7 @@ def validate(doc, expected):
                 set(forward_hits[0]) != {"name", "if", "env", "shell", "run"}
                 or forward_hits[0].get("shell") != trusted_shell(label)
                 or not isinstance(forward_env, dict)
-                or forward_env != EXPECTED_FORWARD_ENV
+                or forward_env != owner_env(label, EXPECTED_FORWARD_ENV)
             ):
                 out.append(
                     "peros-staging(%s:forward-env-not-exact)" % label
@@ -7479,7 +7496,7 @@ def validate(doc, expected):
                     or salvage_hits[0].get("id") != "salvage"
                     or salvage_hits[0].get("shell") != trusted_shell(label)
                     or not isinstance(salvage_env, dict)
-                    or salvage_env != EXPECTED_FINDINGS_ENV
+                    or salvage_env != owner_env(label, EXPECTED_FINDINGS_ENV)
                 ):
                     out.append(
                         "peros-staging(%s:salvage-env-not-exact)" % label
@@ -7705,6 +7722,14 @@ if isinstance(doc, dict):
             step["env"]["LD_PRELOAD"] = "/tmp/evil.so"
     if not any("salvage-env-not-exact" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-salvage-env-weakened)")
+    # Issue #798 review B12: macOS must pin the Darwin loader variables too.
+    # Removing any one from a macOS post-agent env map must fail alone.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "findings":
+            step["env"].pop("DYLD_INSERT_LIBRARIES", None)
+    if not any("post-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-macos-dyld-pin-removed)")
     # Issue #804 review B10: the trusted PATH must actually reach the step body
     # and the shell must be the absolute pre-agent binary. Removing either from
     # any post-agent class must fail the validator alone.
@@ -19102,6 +19127,7 @@ else
   grep -qF 'Could not read commits' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-git-log-fail-closed)"
   grep -qF 'No same-repository head' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-non-repo-noop)"
   grep -qF 'opencode/*)' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-namespace-guard)"
+  grep -qF 'if [ -n "$baseline_arg" ] && ! run_git merge-base --is-ancestor' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-baseline-gated-ancestry)"
   grep -qF 'base_ref="$baseline_arg"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-baseline-binding)"
   grep -qF 'base_ref="refs/remotes/origin/main"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-ref-default)"
   grep -qF '"$base_ref..$pr_ref"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-preserving-range)"
@@ -19192,6 +19218,10 @@ stage_name = "Stage lab helper scripts (issue #690)"
 for job_name, steps in found.items():
     if len(steps) != 1:
         raise SystemExit("strip-step-duplicated:%s" % job_name)
+    if ((doc.get("jobs") or {}).get(job_name) or {}).get("runs-on") != "ubuntu-latest":
+        # The nine legacy lanes are Linux-only, so the macOS DYLD seam cannot
+        # reach their owner-PAT steps (issue #798 review B12).
+        raise SystemExit("strip-job-runs-on:%s" % job_name)
     step = steps[0]
     if set(step) != {"name", "if", "env", "run"}:
         raise SystemExit("strip-step-key-surface:%s:%r" % (job_name, sorted(step)))
@@ -19386,6 +19416,17 @@ R29GH
             -m "Co-authored-by: Userfrom1995 <owner@example.com>" \
             -m "Co-authored-by: Jane Contributor <jane@example.com>" || exit 1
           ;;
+        email-owner)
+          # Issue #798 review B13: GitHub attributes co-authors by email, so
+          # an owner-email trailer under a different display name is still an
+          # owner attribution. The shared email-aware regex must remove it.
+          GIT_AUTHOR_NAME="The Builder" \
+          GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="The Builder" \
+          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com" \
+            git commit -q -m "builder: $name" \
+            -m "Co-authored-by: Other Name <userfrom1995@users.noreply.github.com>" || exit 1
+          ;;
         builder-owner)
           # Issue #798 review B5: the nine non-per-OS lanes commit as their own
           # persona with the bot email. The legacy (non-anchored) filter must
@@ -19442,6 +19483,7 @@ R29GH
     r29_seed_branch opencode/issue582-mixed mixed || return 1
     r29_seed_branch opencode/issue582-foreign-owner foreign-owner || return 1
     r29_seed_branch opencode/issue582-builder-owner builder-owner || return 1
+    r29_seed_branch opencode/issue582-email-owner email-owner || return 1
     r29_seed_branch opencode/issue582-fixer-owner fixer-owner || return 1
     r29_seed_branch opencode/issue582-pushfail owner || return 1
     r29_seed_branch opencode/issue42-newer-owner owner || return 1
@@ -19466,6 +19508,7 @@ R29GH
   printf '%s\n' '{"headRefName":"opencode/issue582-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-mixed.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-foreign-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-foreign-owner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-builder-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-builder-owner.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-email-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-email-owner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-fixer-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-fixer-owner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-review-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review-mixed.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-deleted-head","isCrossRepository":false,"headRepository":null}' > "$r29_tmp/pr-deleted-head.json"
@@ -19479,6 +19522,7 @@ R29GH
   r29_verify_case() {
     local label="$1" script="$2" branch="$3" event="$4" json="$5" list="$6" expect_pr="$7" want_rc="$8" want_msg="$9" want_tip="${10}" want_trailer="${11}" gh_fail="${12:-}" reject_push="${13:-}"
     local work="$r29_tmp/work-$label" before_all after_all before after out rc ok=0 log_out event_name expected
+    local owner_re='^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:[[:space:]]*([Uu]serfrom1995([[:space:]]*<[^>]*>)?|[^<]*<([0-9]+\+)?[Uu]serfrom1995@[Uu]sers\.noreply\.github\.com>)[[:space:]]*$'
     rm -rf "$work"
     git clone -q "$r29_bare" "$work" 2>/dev/null || return 1
     # The whole remote is the invariant: a force-push of main (or any other
@@ -19531,16 +19575,16 @@ R29GH
     log_out="$(git --git-dir="$r29_bare" log --format=%B "refs/heads/$branch" 2>/dev/null || true)"
     case "$want_trailer" in
       present)
-        printf '%s' "$log_out" | grep -qF 'Co-authored-by: Userfrom1995' || ok=1
+        printf '%s' "$log_out" | grep -qE "$owner_re" || ok=1
         ;;
       absent)
-        if printf '%s' "$log_out" | grep -qF 'Co-authored-by: Userfrom1995'; then
+        if printf '%s' "$log_out" | grep -qE "$owner_re"; then
           ok=1
         fi
         ;;
       contributor)
         printf '%s' "$log_out" | grep -qF 'Co-authored-by: Jane Contributor' || ok=1
-        if printf '%s' "$log_out" | grep -qF 'Co-authored-by: Userfrom1995'; then
+        if printf '%s' "$log_out" | grep -qE "$owner_re"; then
           ok=1
         fi
         ;;
@@ -19588,6 +19632,7 @@ R29GH
     # foreign preservation is covered by R34.
     r29_case pr-foreign-trailer-legacy opencode/issue582-foreign-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-foreign-owner.json" "" "685" 0 "Stripping 2 leaked owner trailer" changed absent
     r29_case pr-builder-strips opencode/issue582-builder-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-builder-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_case pr-email-owner-strips opencode/issue582-email-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-email-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_case pr-fixer-strips opencode/issue582-fixer-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-fixer-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_case issue-unexpected-refused opencode/issue582-mismatch "$r29_tmp/event-issue.json" "$r29_tmp/pr-mismatch.json" "$r29_tmp/list-issue99.json" "99" 1 "Refusing to rewrite unexpected branch" same present
     r29_case issue-matching-strips opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
@@ -19718,7 +19763,7 @@ R29MUTLIT
     r29_mutant list-sort 's/| sort_by(\.createdAt) | last | \.number/| sort_by(.createdAt) | first | .number/' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_reset opencode/issue582-mixed mixed
-    r29_mutant sanitizer-broaden 's/Userfrom1995/.*/' \
+    r29_mutant sanitizer-broaden 's/\[Uu\]serfrom1995/.*/' \
       opencode/issue582-mixed "$r29_tmp/event-pr.json" "$r29_tmp/pr-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
     # Issue #798 review B5: the non-anchored lanes must keep the legacy
     # unconditional filter. Re-applying the anchored tester-only filter here
@@ -19750,6 +19795,28 @@ R29MUTLIT
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "" "$r29_tmp/list-issue42.json" "201" 1 "Could not list open PRs" same none "list"
     # Destructive pushes must be caught anywhere on the remote, not only on
     # the named target branch. This mutant runs last because it moves main.
+    # Issue #798 review B11: a legacy invocation has no explicit baseline and
+    # must still strip on a branch that is behind main. Seed the trailing
+    # owner commit on the branch, then advance main past it. The clone made
+    # for the case carries the advanced main, so the old unconditional
+    # ancestry refusal fails before the rewrite while the fixed helper
+    # strips the trailer. The unconditional-ancestry mutant runs first (the
+    # refusal leaves the remote untouched) and must fail this scenario alone.
+    r29_seed_branch opencode/issue582-behind-owner owner || r29_bad="${r29_bad} sandbox(reset-failed:behind-owner)"
+    (
+      cd "$r29_tmp/seed" || exit 1
+      git fetch -q origin main:refs/remotes/origin/main || exit 1
+      git checkout -q -B main refs/remotes/origin/main || exit 1
+      printf 'advance\n' > advance.txt
+      git add advance.txt
+      git commit -q -m "main advances past the branch" || exit 1
+      git push -q origin HEAD:main || exit 1
+    ) || r29_bad="${r29_bad} sandbox(behind-main-advance-failed)"
+    printf '%s\n' '{"headRefName":"opencode/issue582-behind-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-behind-owner.json"
+    r29_mutant_literal ancestry-unconditional 'if [ -n "$baseline_arg" ] && ! run_git merge-base --is-ancestor' 'if ! run_git merge-base --is-ancestor' \
+      opencode/issue582-behind-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-behind-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_case pr-behind-main-strips opencode/issue582-behind-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-behind-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+
     r29_reset opencode/issue582-owner owner
     r29_mutant force-push-main '$a git push --force origin "HEAD:refs/heads/main" --quiet' \
       opencode/issue582-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
@@ -30576,6 +30643,9 @@ PR_LIST = (
     '"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}]'
 )
 TRAILER = "Co-authored-by: Userfrom1995 <Userfrom1995@users.noreply.github.com>"
+# Issue #798 review B13: the owner email is the attribution key, so a trailer
+# under a different display name is still owner attribution.
+EMAIL_TRAILER = "Co-authored-by: Other Name <userfrom1995@users.noreply.github.com>"
 WANTED = {
     "anchor": ("Resolve the per-OS PR trust anchor (issue", "peros_pr"),
     "restore": ("Restore the vendored runner and findings poster from the workflow commit", None),
@@ -30671,14 +30741,29 @@ def extract_bodies():
                         "r34-extract-%s-scope-preflight-not-pinned" % arm)
                 scope_envs[arm] = step_env
         bodies[arm] = arm_bodies
+    # Issue #798 review B12: the macOS post-agent env maps deliberately add
+    # the Darwin loader pins; the rest of the map must stay arm-identical.
+    dyld_keys = (
+        "DYLD_FALLBACK_FRAMEWORK_PATH",
+        "DYLD_FALLBACK_LIBRARY_PATH",
+        "DYLD_FRAMEWORK_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+    )
+    for arm in ARMS:
+        scope_envs[arm].pop("PEROS_OS", None)
+        for key in dyld_keys:
+            if arm == "test-macos":
+                if scope_envs[arm].pop(key, None) != "":
+                    raise SystemExit(
+                        "r34-extract-%s-scope-dyld-not-pinned" % arm)
+            elif scope_envs[arm].pop(key, None) is not None:
+                raise SystemExit(
+                    "r34-extract-%s-scope-dyld-unexpected" % arm)
     for arm in ARMS[1:]:
         if bodies[arm] != bodies[ARMS[0]]:
             raise SystemExit("r34-extract-arm-bodies-differ")
-        other = dict(scope_envs[arm])
-        expected = dict(scope_envs[ARMS[0]])
-        other.pop("PEROS_OS", None)
-        expected.pop("PEROS_OS", None)
-        if other != expected:
+        if scope_envs[arm] != scope_envs[ARMS[0]]:
             raise SystemExit("r34-extract-arm-scope-envs-differ")
     linux = bodies[ARMS[0]]
     strip_fetch = (
@@ -31546,7 +31631,10 @@ def main(root):
                 if tip_after != tip_before:
                     bad.append("r34-%s(tip-moved:%s)" % (tag, tip_after))
             log = remote_log()
-            has_trailer = "Co-authored-by: Userfrom1995" in log
+            has_trailer = (
+                "Co-authored-by: Userfrom1995" in log
+                or "userfrom1995@users.noreply.github.com" in log.lower()
+            )
             if expect_foreign_trailer:
                 # Issue #798 review B5/N10: the anchored strip rewrites only
                 # the named per-OS tester commits, so a trailer-bearing foreign
@@ -31616,6 +31704,12 @@ def main(root):
         scenario("none", [], 0, False)
         scenario("trailer", [("proj/tests/trailer_test.py", "test\n")], 0, False,
                  trailers=TRAILER, expect_tip_changed=True)
+        # Issue #798 review B13: the email form must be counted and stripped
+        # exactly like the display-name form.
+        scenario("trailer-email",
+                 [("proj/tests/trailer_email_test.py", "test\n")], 0, False,
+                 trailers=EMAIL_TRAILER, expect_tip_changed=True,
+                 expect_strip_msg="Stripping 1 leaked owner trailer")
         # Issue #798 review B5/N10: in the anchored per-OS lane the strip
         # rewrites only the named tester commit; a trailer-bearing foreign
         # concurrent commit keeps its trailer (and its SHA).
@@ -32248,6 +32342,117 @@ def main(root):
             m_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
                                check=True).stdout.strip()
             run_evil_merge(m_mutant_sha, "mutant", 0, False)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 review B14: diff-tree -m reports main's protected files
+        # against the branch parent on a clean tester merge of main. The blob
+        # comparison must skip content that matches the baseline or the
+        # trusted main tip, while a merge that rewrites the protected file
+        # must still be judged. The no-comparison mutant fails the clean case.
+        def run_merge_blob(helper_sha, tag, rewrite_protected, expect_scope_rc,
+                           expect_blocked):
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+            checkout_base(helper_sha)
+            main_branch = "r34-merge-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            fixture = ".github/scripts/merge_blob_%s.py" % tag
+            commit_file(fixture, "main change\n",
+                        "main protected edit",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % main_tip], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", main_tip],
+                cwd=work, check=True)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, helper_sha],
+                cwd=work, check=True)
+            baseline = baseline_for(helper_sha, "base-merge-blob-%s" % tag)
+            merge_env = dict(os.environ)
+            merge_env.update({
+                "GIT_AUTHOR_NAME": "The Linux Tester",
+                "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "The Linux Tester",
+                "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+            })
+            merge = run([git, "merge", "--no-ff", "-m",
+                         "tester merges main", main_tip], cwd=work,
+                        env=merge_env)
+            if merge.returncode != 0:
+                bad.append("r34-merge-blob-%s(merge-failed)" % tag)
+                return
+            if rewrite_protected:
+                with open(os.path.join(work, fixture), "w") as handle:
+                    handle.write("unt trusted rewrite\n")
+                run([git, "add", "-A"], cwd=work, check=True)
+                run([git, "commit", "-q", "--amend", "--no-edit"], cwd=work,
+                    env=merge_env, check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-merge-blob-%s(setup-empty)" % tag)
+            results = sanitize(
+                helper_sha, baseline, "merge-blob-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+            )
+            if results[-1][1] != expect_scope_rc:
+                bad.append(
+                    "r34-merge-blob-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, results[-1][1], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            has_marker = run(
+                [git, "--git-dir", origin, "cat-file", "-e",
+                 "refs/heads/%s:PEROS_SCOPE_VIOLATION" % BRANCH]).returncode == 0
+            if expect_blocked:
+                if not has_marker:
+                    bad.append("r34-merge-blob-%s(no-marker:%s)"
+                               % (tag, remote_tip()))
+            else:
+                if remote_tip() == baseline:
+                    bad.append("r34-merge-blob-%s(dropped:%s)"
+                               % (tag, remote_tip()))
+                if has_marker:
+                    bad.append("r34-merge-blob-%s(unexpected-marker)" % tag)
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+
+        run_merge_blob(workflow_sha, "clean", False, 0, False)
+        run_merge_blob(workflow_sha, "protected", True, 1, True)
+        # Mutant guard: without the blob comparison the clean merge is judged
+        # as a protected edit and dropped.
+        run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+            check=True)
+        run([git, "clean", "-qfd"], cwd=work, check=True)
+        merge_guard_path = os.path.join(work, ".github", "scripts",
+                                        "peros-scope-guard.sh")
+        with open(merge_guard_path) as handle:
+            merge_guard = handle.read()
+        blob_marker = '        path_blob="$(scratch rev-parse'
+        blob_judge = '        judged_protected="$(add_unique "$path" "$judged_protected")"'
+        if blob_marker not in merge_guard or blob_judge not in merge_guard:
+            bad.append("r34-merge-blob-mutation-anchor-missing")
+        else:
+            blob_start = merge_guard.index(blob_marker)
+            blob_end = merge_guard.index(blob_judge, blob_start)
+            with open(merge_guard_path, "w") as handle:
+                handle.write(merge_guard[:blob_start] + merge_guard[blob_end:])
+            run([git, "commit", "-qam",
+                 "mutant guard without protected blob comparison"],
+                cwd=work, check=True)
+            blob_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                  check=True).stdout.strip()
+            run_merge_blob(blob_mutant_sha, "mutant", False, 1, True)
             run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
                 check=True)
             run([git, "clean", "-qfd"], cwd=work, check=True)

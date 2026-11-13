@@ -238,15 +238,18 @@ Round 13 also
   `opencode/issue<N>-*` PR), judges only commits after the captured baseline,
   scans every commit with `diff-tree -m` so a merge cannot hide an imported
   change (including a merge whose side parent predates the captured baseline,
-  where the combined diff is empty), judges protected paths regardless of committer identity, and
+  where the combined diff is empty), judges protected paths regardless of committer identity (a
+  protected path whose content in a clean merge equals the captured baseline
+  or the trusted main tip is not a tester edit), and
   accepts only project test-lane paths for tester commits. Protected lab
   paths (`.github`, `.github/*`, `AGENTS.md`, `LAB.md`, `setup.sh`,
   `shutdown.sh`, `opencode.json`, `PEROS_SCOPE_VIOLATION`) are always
   violations. A fully tester-owned violating range is dropped with a
   `--force-with-lease` reset to the baseline; a foreign commit interleaved in
   the range makes the guard record the marker and leave the branch for the
-  Maintainer. The marker is a hard stop: a later run whose baseline predates
-  it refuses before judging or pushing. A fully tester range is judged only
+  Maintainer. The marker is a hard stop: the next run's preflight refuses a
+  marker present in the checked-out head, and a concurrent advance is caught
+  by the post-agent guard after its fetch. A fully tester range is judged only
   for the named per-OS tester identity, name and email (a generic
   `github-actions[bot]` name is foreign), marker and drop pushes retry a
   bounded three times, and both helpers unset `GIT_EXEC_PATH` so an
@@ -258,13 +261,15 @@ Round 13 also
   `GIT_SSL_CAPATH`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`,
   `GIT_PROXY_COMMAND`) before the first git command so an agent-exported
   proxy can never serve a decoy branch. The anchored strip refuses an empty baseline rather
-  than falling back to `origin/main`, requires the baseline to be an ancestor
-  of the branch, and matches an owner trailer with leading whitespace and
-  case tolerated. Both sanitizers require a successful pre-agent baseline
+  than falling back to `origin/main` and requires an explicit captured baseline
+  to be an ancestor of the branch; the nine legacy lanes pass no baseline, so
+  their `origin/main` range is not given that anchored-only refusal. The strip
+  matches an owner trailer by display name or owner email, with leading
+  whitespace and case tolerated. Both sanitizers require a successful pre-agent baseline
   capture. The owner-PAT findings, forward, and salvage steps pin the
   interpreter, gh config, and proxy/TLS seams (`BASH_ENV`, `ENV`,
-  `GH_CONFIG_DIR`, `GH_HOST`, `GIT_CONFIG_*`, `LD_*`, and the eleven
-  uppercase proxy/TLS variables) on top of the trusted PATH, each step
+  `GH_CONFIG_DIR`, `GH_HOST`, `GIT_CONFIG_*`, `LD_*`, `DYLD_*` on macOS, and
+  the eleven uppercase proxy/TLS variables) on top of the trusted PATH, each step
   body unsets the four lowercase proxy spellings before its first gh
   call (GitHub rejects a workflow env map whose keys differ only by
   case, so the lowercase forms cannot also be pinned), and the
@@ -275,8 +280,9 @@ Round 13 also
   foreign-interleaved, foreign-only-trailer, generic-bot,
   tester-name-foreign-email, pre-baseline-trailer, pre-baseline-date-skew,
   bare, trailer, incident, fork, wrong-namespace, issue-triggered,
-  per-OS-identity, merge, evil-merge (side parent predating the baseline),
-  gitlink, exec-path (strip and guard), fake-object-store (strip and guard),
+  per-OS-identity, clean-merge, protected-merge, evil-merge (side parent
+  predating the baseline), gitlink, exec-path (strip and guard),
+  fake-object-store (strip and guard),
   inherited-preflight (shipped step-env pin and pin-removed mutant),
   proxy-env control and unset-removal mutant, failed-baseline, non-ancestor-baseline,
   marker-stop, marker-deletion, lease-failure, `insteadOf` (distinct evil
@@ -286,7 +292,9 @@ Round 13 also
   identity gate, the strip and guard `GIT_EXEC_PATH` unset, the `diff-tree -m`
   flag, the tester email term, the topological preflight ordering, the
   marker-deletion check, and the strip; the ancestry check is a message-bound
-  negative scenario control rather than a mutant. The proxy fixture proves the
+  negative scenario control rather than a mutant. R29 adds the legacy
+  behind-main strip case with an unconditional-ancestry mutant and the
+  owner-email trailer case. The proxy fixture proves the
   shipped helpers never contact a decoy HTTP proxy while the unset-removal
   mutant does and fails closed with the real tip intact, and a mock-gh
   effective-env assertion proves none of the eight owner-PAT

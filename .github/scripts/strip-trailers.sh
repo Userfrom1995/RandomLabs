@@ -296,7 +296,13 @@ fi
 # Issue #798 review N6: a baseline object can exist (for example as a main
 # commit) yet not be an ancestor of the branch, which would make the rewrite
 # cover pre-baseline history the scope guard never judges. Refuse instead.
-if ! run_git merge-base --is-ancestor "$base_ref" "$pr_ref"; then
+# Issue #798 review B11: that refusal is anchored-lane-only. The nine legacy
+# lanes pass no explicit baseline and default the base to origin/main, which
+# is not an ancestor of a branch that is merely behind main (the normal state
+# between rebases); the range origin/main..branch still contains only the
+# branch's own commits, so refusing there broke the legacy strip and let the
+# owner trailer survive. Gate the check on an explicit captured baseline.
+if [ -n "$baseline_arg" ] && ! run_git merge-base --is-ancestor "$base_ref" "$pr_ref"; then
   fail "The trailer-strip baseline '$base_ref' is not an ancestor of branch '$branch'; refusing to rewrite history (issue #798)."
 fi
 
@@ -305,9 +311,13 @@ if ! range_log="$(run_git log --format=%B "$base_ref..$pr_ref" 2>&1)"; then
 fi
 # Issue #798 review N9: accept leading whitespace and a case-insensitive
 # marker, so a differently-cased or indented owner trailer cannot invalidate
-# approvals while the strip reports a clean branch. The owner identity itself
-# stays exact.
-trailer_re='^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:[[:space:]]*Userfrom1995'
+# approvals. Issue #798 review B13: GitHub attributes a co-author by the
+# email, so a trailer with a different display name but the owner email is
+# still owner attribution. Use one shared, email-aware regex for the count and
+# the rewrite filter; the owner identity stays exact, and the optional numeric
+# prefix is the noreply form GitHub emits.
+trailer_re='^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:[[:space:]]*([Uu]serfrom1995([[:space:]]*<[^>]*>)?|[^<]*<([0-9]+\+)?[Uu]serfrom1995@[Uu]sers\.noreply\.github\.com>)[[:space:]]*$'
+export TRAILER_RE="$trailer_re"
 # Issue #798 review N10: in the anchored per-OS lane only the named per-OS
 # tester commits are rewritten. The previous --msg-filter ran over the whole
 # captured range and stripped an owner trailer from ANY commit, including a
@@ -331,7 +341,7 @@ count_anchored_owner_trailers() {
     name="$(run_git show -s --format=%cn "$commit" 2>/dev/null)" || return 1
     email="$(run_git show -s --format=%ce "$commit" 2>/dev/null)" || return 1
     body="$(run_git show -s --format=%B "$commit" 2>/dev/null)" || return 1
-    matches="$(printf '%s\n' "$body" | grep -cE "$trailer_re" || true)"
+    matches="$(printf '%s\n' "$body" | grep -ciE "$trailer_re" || true)"
     [ "$matches" -gt 0 ] || continue
     if [ "$email" = "github-actions[bot]@users.noreply.github.com" ]; then
       case "$name" in
@@ -365,12 +375,12 @@ if [ "${GIT_COMMITTER_EMAIL:-}" = "github-actions[bot]@users.noreply.github.com"
   esac
 fi
 if [ "$strip" -eq 1 ]; then
-  sed -E "/^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:[[:space:]]*Userfrom1995.*/d" | git commit-tree "$@"
+  sed -E "/$TRAILER_RE/d" | git commit-tree "$@"
 else
   git commit-tree "$@"
 fi'
 legacy_commit_filter='
-sed -E "/^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:[[:space:]]*Userfrom1995.*/d" | git commit-tree "$@"'
+sed -E "/$TRAILER_RE/d" | git commit-tree "$@"'
 if [ "${PEROS_ANCHOR:-}" = "1" ]; then
   commit_filter="$peros_commit_filter"
 else
@@ -392,7 +402,7 @@ if [ "${PEROS_ANCHOR:-}" = "1" ]; then
 else
   # The nine non-per-OS lanes keep the legacy whole-range count and the
   # unconditional message filter (issue #798 review B5).
-  tester_bad="$(printf '%s\n' "$range_log" | grep -cE "$trailer_re" || true)"
+  tester_bad="$(printf '%s\n' "$range_log" | grep -ciE "$trailer_re" || true)"
 fi
 
 if [ "$tester_bad" -eq 0 ]; then
