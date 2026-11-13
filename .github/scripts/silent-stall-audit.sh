@@ -30700,12 +30700,20 @@ rm -rf "$r34_dir"
 # agent-exported PEROS_PREFLIGHT=1 from $GITHUB_ENV cannot flip the guard into
 # its local-workspace preflight path; the fixture pushes a violating commit
 # and resets the workspace HEAD to the baseline, and the shipped pin still
-# drops the remote range while the pin-removed mutant hides it. Mutation
-# controls prove the protected-path pattern for every independently reachable
-# entry (the marker is covered by its creation/deletion hard stop), the
-# preflight's tester-session gate, the skip-worktree restore guard, the strip
-# and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, and the tester email
-# term are load-bearing. Issue #798 Quality Council env-seam finding: a decoy
+# drops the remote range while the pin-removed mutant hides it. The merge
+# exemption compares whole tree entries (mode, type, object id) against the
+# merge's own immutable parents and requires the second parent to be an
+# ancestor of the fetched main tip: a mode-only protected or out-of-lane
+# merge is dropped (post-agent and preflight; the blob-only mutant accepts
+# both), a clean merge stays exempt after main advances the same path again,
+# and a fabricated side parent records the marker instead of being exempt
+# (the ancestry-removal mutant accepts it). Mutation controls prove the
+# protected-path pattern for every independently reachable entry (the marker
+# is covered by its creation/deletion hard stop), the preflight's
+# tester-session gate, the skip-worktree restore guard, the strip and guard
+# GIT_EXEC_PATH unsets, the merge tree-entry comparison (blob-only mutant),
+# its first-parent term, the second-parent ancestry term, the diff-tree -m
+# flag, and the tester email term are load-bearing. Issue #798 Quality Council env-seam finding: a decoy
 # HTTP proxy proves the shipped helpers never contact an agent-exported
 # proxy/TLS redirection (the unset-removal mutant does contact it and fails
 # closed while the real tip stays intact), and the owner-PAT steps' effective
@@ -32810,6 +32818,283 @@ def main(root):
         run_merge_exemption(workflow_sha, "fake-merge",
                             "fake-merge", 1, True)
 
+        # Issue #804 Quality Council finding: the merge exemption must compare
+        # whole tree entries (mode, type, object id), not blob ids. A merge
+        # that only flips a protected or out-of-lane path from 100644 to
+        # 100755 with the second parent's blob authored a real change and
+        # must be dropped. The blob-only mutant accepts both shapes.
+        def checkout_main_ref(sha):
+            run([git, "checkout", "-q", "-f", "-B", "main", sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        def set_origin_main(sha):
+            run([git, "push", "-q", "--force", "origin", "%s:main" % sha],
+                cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", sha], cwd=work,
+                check=True)
+
+        def tester_env():
+            env = dict(os.environ)
+            env.update({
+                "GIT_AUTHOR_NAME": "The Linux Tester",
+                "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "The Linux Tester",
+                "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+            })
+            return env
+
+        def run_mode_merge(helper_sha, tag, kind, mode_preflight=False,
+                           expect_scope_rc=0, expect_drop=False):
+            set_origin_main(helper_sha)
+            checkout_base(helper_sha)
+            main_branch = "r34-mode-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            if kind == "protected":
+                fixture = ".github/infra_revert.py"
+                commit_file(fixture, "main change\n",
+                            "main protected advance",
+                            name="The Lab Engineer (CTO)",
+                            email="lab@example.invalid")
+            else:
+                fixture = "proj/src/prod_eval_%s.py" % tag
+                commit_file(fixture, "prod\n", "main out-of-lane advance",
+                            name="The Lab Engineer (CTO)",
+                            email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            set_origin_main(main_tip)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, helper_sha],
+                cwd=work, check=True)
+            baseline = baseline_for(helper_sha, "base-mode-%s" % tag)
+            merge_env = tester_env()
+            merge = run([git, "merge", "--no-ff", "-m", "tester merges main",
+                         main_tip], cwd=work, env=merge_env)
+            if merge.returncode != 0:
+                bad.append("r34-mode-%s-%s(merge-failed)" % (kind, tag))
+                return
+            run([git, "update-index", "--chmod=+x", fixture], cwd=work,
+                check=True)
+            run([git, "commit", "-q", "--amend", "--no-edit"], cwd=work,
+                env=merge_env, check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-mode-%s-%s(setup-empty)" % (kind, tag))
+            label = "r34-mode-%s-%s" % (kind, tag)
+            if mode_preflight:
+                proc, value = baseline_raw(
+                    helper_sha, "base-mode-pre-%s-%s" % (kind, tag))
+                combined = proc.stdout + proc.stderr
+                if expect_scope_rc == 0:
+                    if proc.returncode != 0 or not value:
+                        bad.append(
+                            "%s(preflight-unexpected-refusal;%s)"
+                            % (label, combined.replace("\n", " ")[:300]))
+                elif proc.returncode == 0:
+                    bad.append("%s(preflight-not-refused)" % label)
+                elif "already carries per-OS tester commits outside the project test lane" not in combined:
+                    bad.append("%s(preflight-wrong-reason)" % label)
+            else:
+                results = sanitize(
+                    helper_sha, baseline, "mode-%s-%s" % (kind, tag), event_pr,
+                    pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+                )
+                if results[-1][1] != expect_scope_rc:
+                    bad.append(
+                        "%s(scope-rc=%d,want=%d;%s)"
+                        % (label, results[-1][1], expect_scope_rc,
+                           results[-1][2].replace("\n", " ")[:300]))
+                if expect_drop:
+                    if remote_tip() != baseline:
+                        bad.append("%s(no-drop:%s)" % (label, remote_tip()))
+                elif remote_tip() == baseline:
+                    bad.append("%s(dropped:%s)" % (label, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            set_origin_main(helper_sha)
+
+        def run_after_merge_advance(helper_sha, tag):
+            set_origin_main(helper_sha)
+            checkout_base(helper_sha)
+            main_branch = "r34-after-merge-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            fixture = ".github/infra_revert.py"
+            commit_file(fixture, "main change 1\n",
+                        "main protected advance one",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            set_origin_main(main_tip)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, helper_sha],
+                cwd=work, check=True)
+            baseline = baseline_for(helper_sha, "base-after-merge-%s" % tag)
+            merge_env = tester_env()
+            merge = run([git, "merge", "--no-ff", "-m", "tester merges main",
+                         main_tip], cwd=work, env=merge_env)
+            if merge.returncode != 0:
+                bad.append("r34-after-merge-%s(merge-failed)" % tag)
+                return
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-after-merge-%s(setup-empty)" % tag)
+            # Main advances the same path again after the tester merged the
+            # earlier tip. The merge must still be judged against its own
+            # immutable parents, not the live main tip.
+            run([git, "checkout", "-q", main_branch], cwd=work, check=True)
+            commit_file(fixture, "main change 2\n",
+                        "main protected advance two",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip_two = run([git, "rev-parse", "HEAD"], cwd=work,
+                               check=True).stdout.strip()
+            set_origin_main(main_tip_two)
+            results = sanitize(
+                helper_sha, baseline, "after-merge-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+            )
+            if results[-1][1] != 0:
+                bad.append(
+                    "r34-after-merge-%s(scope-rc=%d;%s)"
+                    % (tag, results[-1][1],
+                       results[-1][2].replace("\n", " ")[:300]))
+            if remote_tip() != fixture_tip:
+                bad.append("r34-after-merge-%s(tip-moved:%s)"
+                           % (tag, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            set_origin_main(helper_sha)
+
+        def run_fake_side(helper_sha, tag, expect_scope_rc, expect_marker):
+            set_origin_main(helper_sha)
+            checkout_base(helper_sha)
+            baseline = baseline_for(helper_sha, "base-fake-side-%s" % tag)
+            side_branch = "r34-fake-side-%s" % tag
+            run([git, "checkout", "-q", "-B", side_branch, baseline],
+                cwd=work, check=True)
+            side_file = "proj/src/fake_side_%s.py" % tag
+            commit_file(side_file, "code\n", "foreign side work",
+                        name="The Fixer")
+            side_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            run([git, "checkout", "-q", BRANCH], cwd=work, check=True)
+            merge_tree = run([git, "rev-parse", "%s^{tree}" % side_tip],
+                             cwd=work, check=True).stdout.strip()
+            fake = run([git, "commit-tree", merge_tree,
+                        "-p", baseline, "-p", side_tip,
+                        "-m", "tester merges a fabricated side parent"],
+                       cwd=work, env=tester_env(), check=True).stdout.strip()
+            run([git, "update-ref", "HEAD", fake], cwd=work, check=True)
+            run([git, "reset", "-q", "--hard", fake], cwd=work, check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-fake-side-%s(setup-empty)" % tag)
+            results = sanitize(
+                helper_sha, baseline, "fake-side-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+            )
+            if results[-1][1] != expect_scope_rc:
+                bad.append(
+                    "r34-fake-side-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, results[-1][1], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            marker_rc = run(
+                [git, "--git-dir", origin, "cat-file", "-e",
+                 "%s:PEROS_SCOPE_VIOLATION" % remote_tip()]
+            ).returncode
+            if expect_marker:
+                if marker_rc != 0:
+                    bad.append("r34-fake-side-%s(no-marker)" % tag)
+                if remote_tip() == baseline:
+                    bad.append("r34-fake-side-%s(dropped:%s)"
+                               % (tag, remote_tip()))
+            else:
+                if marker_rc == 0:
+                    bad.append("r34-fake-side-%s(unexpected-marker)" % tag)
+                if remote_tip() != fixture_tip:
+                    bad.append("r34-fake-side-%s(tip-moved:%s)"
+                               % (tag, remote_tip()))
+            run([git, "branch", "-D", side_branch], cwd=work, check=False)
+            set_origin_main(helper_sha)
+
+        run_mode_merge(workflow_sha, "protected-real", "protected",
+                       expect_scope_rc=1, expect_drop=True)
+        run_mode_merge(workflow_sha, "out-of-lane-real", "out-of-lane",
+                       expect_scope_rc=1, expect_drop=True)
+        run_mode_merge(workflow_sha, "protected-pre-real", "protected",
+                       mode_preflight=True, expect_scope_rc=1)
+        run_mode_merge(workflow_sha, "out-of-lane-pre-real", "out-of-lane",
+                       mode_preflight=True, expect_scope_rc=1)
+        run_after_merge_advance(workflow_sha, "real")
+        run_fake_side(workflow_sha, "real", 1, True)
+
+        # Blob-only mutant: the old rev-parse comparison accepts both
+        # mode-only merges on the post-agent guard and the preflight.
+        checkout_main_ref(workflow_sha)
+        mode_guard_path = os.path.join(work, ".github", "scripts",
+                                       "peros-scope-guard.sh")
+        with open(mode_guard_path) as handle:
+            mode_guard = handle.read()
+        mode_entry_anchor = (
+            'git_at "$runner" ls-tree "$rev" -- "$path" 2>/dev/null'
+        )
+        if mode_entry_anchor not in mode_guard:
+            bad.append("r34-mode-merge-mutation-anchor-missing")
+        else:
+            with open(mode_guard_path, "w") as handle:
+                handle.write(mode_guard.replace(
+                    mode_entry_anchor,
+                    'git_at "$runner" rev-parse "$rev:$path" 2>/dev/null',
+                    1))
+            run([git, "commit", "-qam",
+                 "mutant guard compares blob ids only"], cwd=work, check=True)
+            mode_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                  check=True).stdout.strip()
+            run_mode_merge(mode_mutant_sha, "protected-mode-mutant",
+                           "protected", expect_scope_rc=0,
+                           expect_drop=False)
+            run_mode_merge(mode_mutant_sha, "outside-mode-mutant",
+                           "out-of-lane", expect_scope_rc=0,
+                           expect_drop=False)
+            run_mode_merge(mode_mutant_sha, "protected-pre-mode-mutant",
+                           "protected", mode_preflight=True,
+                           expect_scope_rc=0)
+            run_mode_merge(mode_mutant_sha, "outside-pre-mode-mutant",
+                           "out-of-lane", mode_preflight=True,
+                           expect_scope_rc=0)
+            checkout_main_ref(workflow_sha)
+
+        # Ancestry mutant: without the fetched-main-tip ancestry term the
+        # fabricated side parent is a clean import and its foreign out-of-lane
+        # file is accepted.
+        checkout_main_ref(workflow_sha)
+        with open(mode_guard_path) as handle:
+            ancestry_guard = handle.read()
+        ancestry_anchor = (
+            '  if ! git_at "$runner" merge-base --is-ancestor \\\n'
+            '    "$commit^2" refs/remotes/origin/main 2>/dev/null; then\n'
+            '    return 1\n'
+            '  fi\n'
+        )
+        if ancestry_anchor not in ancestry_guard:
+            bad.append("r34-fake-side-mutation-anchor-missing")
+        else:
+            with open(mode_guard_path, "w") as handle:
+                handle.write(ancestry_guard.replace(ancestry_anchor, "", 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without second-parent ancestry"],
+                cwd=work, check=True)
+            ancestry_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                      check=True).stdout.strip()
+            run_fake_side(ancestry_mutant_sha, "mutant", 0, False)
+            checkout_main_ref(workflow_sha)
+
         # Mutant guard: without the merge exemption the clean protected merge
         # is judged as a tester-owned protected edit and dropped.
         run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
@@ -32846,8 +33131,8 @@ def main(root):
         with open(merge_guard_path) as handle:
             merge_guard = handle.read()
         first_parent_line = (
-            '  if [ "$merge_blob" = "$main_blob" ] && '
-            '[ "$first_blob" = "$base_blob" ]; then'
+            '  if [ "$merge_entry" = "$second_entry" ] && '
+            '[ "$first_entry" = "$base_entry" ]; then'
         )
         if first_parent_line not in merge_guard:
             bad.append("r34-merge-first-parent-mutation-anchor-missing")
@@ -32855,7 +33140,7 @@ def main(root):
             with open(merge_guard_path, "w") as handle:
                 handle.write(merge_guard.replace(
                     first_parent_line,
-                    '  if [ "$merge_blob" = "$main_blob" ]; then', 1))
+                    '  if [ "$merge_entry" = "$second_entry" ]; then', 1))
             run([git, "commit", "-qam",
                  "mutant guard without first-parent merge term"],
                 cwd=work, check=True)
@@ -32946,7 +33231,12 @@ def main(root):
                         email="lab@example.invalid")
             baseline = baseline_for(helper_sha, "base-graft-merge-%s" % tag)
             main_branch = "r34-graft-merge-main-%s" % tag
-            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+            # Main descends from the captured baseline so the fabricated
+            # second parent below is both an ancestor of main and the real
+            # baseline, which keeps the baseline-ancestry and fetched-main
+            # checks satisfied while the graft still hides the one-parent
+            # protected revert.
+            run([git, "checkout", "-q", "-B", main_branch, baseline],
                 cwd=work, check=True)
             commit_file(fixture, "main change\n",
                         "main protected advance",
@@ -32966,16 +33256,17 @@ def main(root):
                         email="github-actions[bot]@users.noreply.github.com")
             revert = run([git, "rev-parse", "HEAD"], cwd=work,
                          check=True).stdout.strip()
-            parent = run([git, "rev-parse", "HEAD^"], cwd=work,
-                         check=True).stdout.strip()
             run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
                 check=True)
             graft = os.path.join(sandbox, "graft-merge-%s" % tag)
             with open(graft, "w") as handle:
-                # The graft makes the revert's first parent main (so the
-                # revert looks like a clean carry) and keeps the real parent
-                # as the second parent (so it still looks like a merge).
-                handle.write("%s %s %s\n" % (revert, main_tip, parent))
+                # The graft makes the revert's first parent main and its
+                # second parent the captured baseline (the second parent's
+                # protected entry equals the merge-base entry), so the revert
+                # looks like a clean carry of main while the baseline remains
+                # reachable. The real commit stays a one-parent revert once
+                # the shipped helper unsets the graft seam.
+                handle.write("%s %s %s\n" % (revert, main_tip, baseline))
             results = sanitize(
                 helper_sha, baseline, "graft-merge-%s" % tag, event_pr,
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
