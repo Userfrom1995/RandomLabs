@@ -222,11 +222,13 @@ Round 13 also
   post-agent `git show`, so an agent-exported `GIT_DIR` or
   `GIT_OBJECT_DIRECTORY` plus a fake loose object named `GITHUB_SHA`
   cannot execute attacker helper text (issue #798 review B8). Every
-  post-agent per-OS step (strip, scope, findings, salvage, forward) runs an
-  absolute `bash --noprofile --norc -e -o pipefail -p` shell and every nested
-  helper read uses `bash -p -s`, so a `BASH_FUNC_*` function or a `BASH_ENV`
-  value exported by the agent through `$GITHUB_ENV` cannot hijack a trusted
-  sanitizer, poster, or forwarder (issue #798 review). The post-agent
+  post-agent per-OS step (strip, scope, verify, findings, salvage, forward)
+  runs an absolute `bash --noprofile --norc -e -o pipefail -p` shell and
+  every nested helper read uses `bash -p -s`, so a `BASH_FUNC_*` function or
+  a `BASH_ENV` value exported by the agent through `$GITHUB_ENV` cannot
+  hijack a trusted sanitizer, verifier, poster, or forwarder (issue #798
+  review); the three verify steps also pin `BASH_ENV`/`ENV` to `/dev/null`,
+  the trusted `PATH`, and reset `PATH` from `TRUSTED_PATH` in the body. The post-agent
   scope step also pins `PEROS_PREFLIGHT: "0"` so an agent-exported
   `PEROS_PREFLIGHT=1` cannot flip the guard into its local-workspace preflight
   path and hide a violating remote tip after resetting the workspace; the
@@ -247,11 +249,13 @@ Round 13 also
   from the judged range, scans every commit with `diff-tree -m` so a merge
   cannot hide an imported change (including a merge whose side parent
   predates the captured baseline, where the combined diff is empty), judges
-  protected paths regardless of committer identity, and skips the blob
-  equality exemption only on a true merge commit (two or more parents); a
-  non-merge commit that rewrites a protected path to the captured baseline or
-  the trusted main tip is judged and fails closed, so a revert-to-main bypass
-  cannot hide a lab edit. Testers may edit only project test-lane paths. Protected lab
+  protected paths regardless of committer identity, and exempts a merge path
+  only when the merge authored nothing: a carry (the result equals the first
+  parent and main did not change the path since the merge base) or a clean
+  import (the result equals main and the first parent equals the merge base).
+  Every authored merge path and every non-merge commit is judged, so a
+  revert-to-main or revert-to-baseline merge cannot hide a lab edit and a
+  clean main merge touching only project files is not dropped as out of lane. Testers may edit only project test-lane paths. Protected lab
   paths (`.github`, `.github/*`, `AGENTS.md`, `LAB.md`, `setup.sh`,
   `shutdown.sh`, `opencode.json`, `PEROS_SCOPE_VIOLATION`) are always
   violations. A fully tester-owned violating range is dropped with a
@@ -265,7 +269,10 @@ Round 13 also
   bounded three times, and both helpers unset `GIT_EXEC_PATH` so an
   agent-exported path cannot shadow the strip's `git-filter-branch` or the
   guard's fetch transport helpers (`git diff-tree` is a builtin and is not
-  shadowable), and unset the fifteen proxy/TLS redirections (`HTTPS_PROXY`,
+  shadowable), unset `GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`,
+  `GIT_REPLACE_REF_BASE`, and the four `GIT_CONFIG_*` seams (re-exporting
+  `/dev/null` global/system config, `GIT_CONFIG_NOSYSTEM=1`, and
+  `GIT_CONFIG_COUNT=0`), and unset the fifteen proxy/TLS redirections (`HTTPS_PROXY`,
   `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `all_proxy`,
   `NO_PROXY`, `no_proxy`, `GIT_SSL_NO_VERIFY`, `GIT_SSL_CAINFO`,
   `GIT_SSL_CAPATH`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`,
@@ -292,11 +299,16 @@ Round 13 also
   origin and a mock `gh` across the clean, out-of-lane, protected,
   foreign-interleaved, foreign-only-trailer, generic-bot,
   tester-name-foreign-email, pre-baseline-trailer, pre-baseline-date-skew,
-  bare, trailer, mixed-case-trailer, incident, fork, wrong-namespace,
+  none, trailer, mixed-case-trailer, incident, fork, wrong-namespace,
   issue-triggered, issue-no-pr-anchor, per-OS-identity, clean-merge,
-  protected-merge, evil-merge (side parent predating the baseline),
+  protected-merge, clean-nonprotected-merge, main-tip-revert-merge,
+  baseline-revert-merge, fake-merge,
+  evil-merge (side parent predating the baseline),
   non-merge-revert (the pre-baseline infrastructure change is reverted to the
-  trusted main blob by a single-parent tester commit), gitlink, exec-path
+  trusted main blob by a single-parent tester commit), graft (a graft-hidden
+  protected commit is excluded from the range, and a graft-fabricated first
+  parent makes a one-parent revert look like a clean carry; the unset-removal
+  mutant accepts both), gitlink-retarget, gitlink-protected, exec-path
   (strip and guard),
   fake-object-store (strip and guard),
   inherited-preflight (shipped step-env pin and pin-removed mutant),
@@ -305,7 +317,9 @@ Round 13 also
   tip), and rejected-strip-push cases, with mutation controls for each
   independently reachable protected entry (the marker is covered by its
   creation/deletion hard stop), the skip-worktree restore guard, the preflight
-  identity gate, the strip and guard `GIT_EXEC_PATH` unset, the `diff-tree -m`
+  identity gate, the strip and guard `GIT_EXEC_PATH` unset, the merge
+  carry/clean-import comparison and its first-parent term, the strip and guard
+  graft/shallow/replace unsets, the `diff-tree -m`
   flag, the tester email term, the topological preflight ordering, the
   marker-deletion check, and the strip; the ancestry check is a message-bound
   negative scenario control rather than a mutant. R29 adds the legacy
@@ -317,8 +331,11 @@ Round 13 also
   findings/forward/salvage steps can send an `Authorization` header through a
   proxy (the no-overlay control leaks, so the assertion is load-bearing).
   R17 pins the new step bodies, gates, exact owner-PAT env
-  maps, ordering, and forward gate, including the `-p` privileged shells and
-  nested helper invocations with a shell-pin mutation control.
+  maps, ordering, and forward gate, including the `-p` privileged shells (the
+  three verify steps included, with `BASH_ENV`/`ENV` pinned to `/dev/null`,
+  the trusted `PATH`, and an in-body `PATH` reset) and nested helper
+  invocations with shell-pin, verify-shell-removal, and verify-env-removal
+  mutation controls.
   Review hardening: each owner-PAT step creates a fresh private
   `GH_CONFIG_DIR` (`mktemp -d`, `chmod 700`, a removal trap, fail closed) so
   gh can never load an agent-planted `config.yml`; the findings poster is read

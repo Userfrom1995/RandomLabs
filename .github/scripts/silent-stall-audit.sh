@@ -5959,15 +5959,17 @@ else
       line > 0 { bad=1; line=0 }
       $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
       END { exit((dcount == 0 || (dcount == 1 && ok == 1 && !bad)) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(unsafe-defaults-or-shell-override)"
-    # The verify step must keep its exact id and always() gate, and must not
-    # mask its own failure or re-shell itself (W5/W6/W7): a renamed id makes
-    # the post/forward gate conditions reference a nonexistent step.
+    # The verify step must keep its exact id and always() gate, must not mask
+    # its own failure or set a working directory, and must carry the pinned
+    # privileged shell (issue #798 review B4): a renamed id makes the
+    # post/forward gate conditions reference a nonexistent step, and an
+    # unpinned shell lets an agent-exported BASH_ENV hook no-op the check.
     printf '%s\n' "$r17_block" | awk '
       $0 == "      - name: Verify test decided, else fail closed" { v=1; seen=1; next }
       v && $0 ~ /^      - / { v=0 }
       v && $0 == "        id: verify-test" { id_ok=1 }
       v && $0 == "        if: always()" { if_ok=1 }
-      v && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
+      v && $0 ~ /^[[:space:]]*(continue-on-error|working-directory):/ { bad=1 }
       END { exit((seen && id_ok && if_ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(verify-step-weakened)"
     # Issue #713 round 16: /tmp is writable by PR-executed code, so every
     # per-OS arm binds its decision file to the trusted pre-agent nonce. The
@@ -5990,6 +5992,15 @@ else
     # arguments like the native Windows binary under the opt-out.
     r17_verify_step=$(printf '%s\n' "$r17_block" | sed -n '/- name: Verify test decided, else fail closed/,/^      - name: /p')
     r17_forward_step=$(printf '%s\n' "$r17_block" | sed -n "/- name: Forward ${r17_os_tag} tester decision/,/^      - name: /p")
+    # Issue #798 review B4: pin the verify step's privileged shell, env map,
+    # and PATH reset. The static awk above requires the shell field to exist;
+    # these exact-line checks keep it from being swapped or dropped.
+    printf '%s\n' "$r17_verify_step" | grep -qxF "        shell: '$r17_trusted_shell'" || r17_bad="${r17_bad} arm-${r17_os}(verify-shell-not-trusted)"
+    printf '%s\n' "$r17_verify_step" | grep -qxF '          BASH_ENV: /dev/null' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-bash-env-pin)"
+    printf '%s\n' "$r17_verify_step" | grep -qxF '          ENV: /dev/null' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-env-pin)"
+    printf '%s\n' "$r17_verify_step" | grep -qxF '          PATH: ${{ steps.trusted_path.outputs.path }}' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-path-pin)"
+    printf '%s\n' "$r17_verify_step" | grep -qxF '          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-trusted-path-pin)"
+    printf '%s\n' "$r17_verify_step" | grep -qxF '          PATH="$TRUSTED_PATH"; export PATH' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-path-reset)"
     if printf '%s\n' "$r17_verify_step" "$r17_forward_step" | grep -qF -- "jq -r '.run_nonce // empty' /tmp/random-lab-decision.json"; then
       r17_bad="${r17_bad} arm-${r17_os}(nonce-check-not-stdin)"
     fi
@@ -7221,6 +7232,34 @@ def validate(doc, expected):
         strip_hits = step_hits(STRIP_NAME)
         scope_hits = step_hits(SCOPE_NAME)
         verify_hits = step_hits("Verify test decided, else fail closed")
+        # Issue #798 review B4: the verdict check runs after the agent, so it
+        # must use the pinned privileged shell, the trusted pre-agent PATH, and
+        # the interpreter seams. A missing shell/env pin or PATH reset lets an
+        # agent-exported BASH_ENV hook or a shadowed jq no-op the check.
+        if len(verify_hits) != 1:
+            out.append(
+                "peros-staging(%s:verify-step-count=%d)"
+                % (label, len(verify_hits))
+            )
+        else:
+            verify_step = steps[verify_hits[0]]
+            expected_verify_env = {
+                "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
+                "BASH_ENV": "/dev/null",
+                "ENV": "/dev/null",
+                "PATH": TRUSTED_PATH_EXPR,
+                "TRUSTED_PATH": TRUSTED_PATH_EXPR,
+            }
+            if (
+                set(verify_step) != {"name", "id", "if", "env", "shell", "run"}
+                or verify_step.get("id") != "verify-test"
+                or verify_step.get("if") != "always()"
+                or verify_step.get("shell") != trusted_shell(label)
+                or (verify_step.get("env") or {}) != expected_verify_env
+                or TRUSTED_PATH_RESET + "\n"
+                not in (verify_step.get("run") or "")
+            ):
+                out.append("peros-staging(%s:verify-step-keys)" % label)
         if len(baseline_hits) != 1:
             out.append(
                 "peros-staging(%s:baseline-step-count=%d)"
@@ -7273,9 +7312,11 @@ def validate(doc, expected):
                 "GIT_CONFIG_SYSTEM": "/dev/null",
                 "GIT_EDITOR": "/bin/false",
                 "GIT_EXTERNAL_DIFF": "",
+                "GIT_GRAFT_FILE": "/dev/null",
                 "GIT_NO_REPLACE_OBJECTS": "1",
                 "GIT_PAGER": "/bin/cat",
                 "GIT_SEQUENCE_EDITOR": "/bin/false",
+                "GIT_SHALLOW_FILE": "/dev/null",
                 "GIT_TERMINAL_PROMPT": "0",
                 "GIT_TEMPLATE_DIR": "/dev/null",
                 "LD_AUDIT": "",
@@ -7347,9 +7388,11 @@ def validate(doc, expected):
                 "GIT_CONFIG_SYSTEM": "/dev/null",
                 "GIT_EDITOR": "/bin/false",
                 "GIT_EXTERNAL_DIFF": "",
+                "GIT_GRAFT_FILE": "/dev/null",
                 "GIT_NO_REPLACE_OBJECTS": "1",
                 "GIT_PAGER": "/bin/cat",
                 "GIT_SEQUENCE_EDITOR": "/bin/false",
+                "GIT_SHALLOW_FILE": "/dev/null",
                 "GIT_TERMINAL_PROMPT": "0",
                 "GIT_TEMPLATE_DIR": "/dev/null",
                 "LD_AUDIT": "",
@@ -7624,6 +7667,28 @@ if isinstance(doc, dict):
     ]
     if not any("scope-step-count=0" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-scope-removed)")
+    # Issue #798 review B4: removing the verify step's pinned shell, or one of
+    # its interpreter/PATH pins, must fail the validator alone.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "verify-test":
+            step.pop("shell", None)
+    if not any("verify-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-verify-shell-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "verify-test":
+            step["env"].pop("BASH_ENV", None)
+    if not any("verify-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-verify-env-removed)")
+    # Issue #798 review B3: the graft/shallow pins must be exact on the
+    # post-agent strip and scope steps, not merely unset inside the helpers.
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "scope_guard":
+            step["env"].pop("GIT_GRAFT_FILE", None)
+    if not any("scope-step-keys" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-scope-graft-pin-removed)")
     mutant = copy.deepcopy(doc)
     for step in mutant["jobs"]["test-linux"]["steps"]:
         if isinstance(step, dict) and step.get("id") == "strip_trailers":
@@ -32608,8 +32673,145 @@ def main(root):
         # tester-owned violation and is dropped from the baseline; it is not
         # interleaved with a foreign commit and must not leave a marker.
         run_merge_blob(workflow_sha, "protected", True, 1, True)
-        # Mutant guard: without the blob comparison the clean merge is judged
-        # as a tester-owned protected edit and dropped to the baseline.
+
+        # Issue #798 review B1/B2: the merge exemption must judge every path
+        # a merge authored. The clean protected merge above is a carry/import
+        # and stays green; the shapes below are authored reverts and must be
+        # dropped. A non-protected clean merge must also stay green even
+        # though the out-of-lane check would otherwise see main's project
+        # advance.
+        def run_merge_exemption(helper_sha, tag, kind, expect_scope_rc,
+                                expect_drop):
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+            checkout_base(helper_sha)
+            fixture = ".github/scripts/merge_exempt_%s.py" % tag
+            if kind in ("main-tip-revert", "baseline-revert", "fake-merge"):
+                commit_file(fixture, "tamper\n",
+                            "pre-baseline protected edit",
+                            name="The Lab Engineer (CTO)",
+                            email="lab@example.invalid")
+            main_branch = "r34-merge-exempt-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            if kind == "clean-nonprotected":
+                commit_file("proj/src/merge_main_%s.py" % tag,
+                            "main advance\n", "main non-protected advance",
+                            name="The Lab Engineer (CTO)",
+                            email="lab@example.invalid")
+            else:
+                commit_file(fixture, "main change\n",
+                            "main protected advance",
+                            name="The Lab Engineer (CTO)",
+                            email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % main_tip], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", main_tip],
+                cwd=work, check=True)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, helper_sha],
+                cwd=work, check=True)
+            if kind in ("main-tip-revert", "baseline-revert", "fake-merge"):
+                commit_file(fixture, "tamper\n",
+                            "pre-baseline protected edit",
+                            name="The Lab Engineer (CTO)",
+                            email="lab@example.invalid")
+            baseline = baseline_for(helper_sha, "base-merge-exempt-%s" % tag)
+            merge_env = dict(os.environ)
+            merge_env.update({
+                "GIT_AUTHOR_NAME": "The Linux Tester",
+                "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "The Linux Tester",
+                "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com",
+            })
+            if kind == "fake-merge":
+                side_branch = "r34-merge-exempt-side-%s" % tag
+                run([git, "checkout", "-q", "-B", side_branch, helper_sha],
+                    cwd=work, check=True)
+                commit_file("proj/tests/fake_side_%s.py" % tag, "test\n",
+                            "side parent test", name="The Linux Tester",
+                            email="github-actions[bot]@users.noreply.github.com")
+                side_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                               check=True).stdout.strip()
+                run([git, "checkout", "-q", BRANCH], cwd=work, check=True)
+                merge_tree = run([git, "rev-parse", "%s^{tree}" % main_tip],
+                                 cwd=work, check=True).stdout.strip()
+                first_parent = run([git, "rev-parse", "HEAD"], cwd=work,
+                                   check=True).stdout.strip()
+                fake = run([git, "commit-tree", merge_tree,
+                            "-p", first_parent, "-p", side_tip,
+                            "-m", "fake merge importing main"],
+                           cwd=work, env=merge_env, check=True).stdout.strip()
+                run([git, "update-ref", "HEAD", fake], cwd=work, check=True)
+                run([git, "reset", "-q", "--hard", fake], cwd=work,
+                    check=True)
+            else:
+                merge_cmd = [git, "merge", "--no-ff"]
+                if kind == "main-tip-revert":
+                    merge_cmd += ["-X", "theirs"]
+                elif kind == "baseline-revert":
+                    merge_cmd += ["-X", "ours"]
+                merge = run(merge_cmd + ["-m", "tester merges main", main_tip],
+                            cwd=work, env=merge_env)
+                if merge.returncode != 0:
+                    bad.append("r34-merge-exempt-%s(merge-failed)" % tag)
+                    return
+                if kind in ("main-tip-revert", "baseline-revert"):
+                    # Resolve the protected path to the main tip (the branch
+                    # edit is silently reverted) or to the baseline (main's
+                    # advance is silently dropped) and amend the merge so the
+                    # authored result is explicit.
+                    content = (
+                        "main change\n"
+                        if kind == "main-tip-revert"
+                        else "tamper\n"
+                    )
+                    with open(os.path.join(work, fixture), "w") as handle:
+                        handle.write(content)
+                    run([git, "add", "-A"], cwd=work, check=True)
+                    run([git, "commit", "-q", "--amend", "--no-edit"],
+                        cwd=work, env=merge_env, check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-merge-exempt-%s(setup-empty)" % tag)
+            results = sanitize(
+                helper_sha, baseline, "merge-exempt-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+            )
+            if results[-1][1] != expect_scope_rc:
+                bad.append(
+                    "r34-merge-exempt-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, results[-1][1], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            if expect_drop:
+                if remote_tip() != baseline:
+                    bad.append("r34-merge-exempt-%s(no-drop:%s)"
+                               % (tag, remote_tip()))
+            elif remote_tip() == baseline:
+                bad.append("r34-merge-exempt-%s(dropped:%s)"
+                           % (tag, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+
+        run_merge_exemption(workflow_sha, "clean-nonprotected",
+                            "clean-nonprotected", 0, False)
+        run_merge_exemption(workflow_sha, "main-tip-revert",
+                            "main-tip-revert", 1, True)
+        run_merge_exemption(workflow_sha, "baseline-revert",
+                            "baseline-revert", 1, True)
+        run_merge_exemption(workflow_sha, "fake-merge",
+                            "fake-merge", 1, True)
+
+        # Mutant guard: without the merge exemption the clean protected merge
+        # is judged as a tester-owned protected edit and dropped.
         run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
             check=True)
         run([git, "clean", "-qfd"], cwd=work, check=True)
@@ -32617,17 +32819,19 @@ def main(root):
                                         "peros-scope-guard.sh")
         with open(merge_guard_path) as handle:
             merge_guard = handle.read()
-        blob_marker = '        if [ "$parent_count" -ge 2 ]; then'
-        blob_judge = '        judged_protected="$(add_unique "$path" "$judged_protected")"'
-        if blob_marker not in merge_guard or blob_judge not in merge_guard:
+        exemption_block = (
+            '      if [ "$parent_count" -ge 2 ] && '
+            'merge_path_is_exempt scratch "$commit" "$path"; then\n'
+            '        continue\n'
+            '      fi\n'
+        )
+        if exemption_block not in merge_guard:
             bad.append("r34-merge-blob-mutation-anchor-missing")
         else:
-            blob_start = merge_guard.index(blob_marker)
-            blob_end = merge_guard.index(blob_judge, blob_start)
             with open(merge_guard_path, "w") as handle:
-                handle.write(merge_guard[:blob_start] + merge_guard[blob_end:])
+                handle.write(merge_guard.replace(exemption_block, "", 1))
             run([git, "commit", "-qam",
-                 "mutant guard without protected blob comparison"],
+                 "mutant guard without merge exemption"],
                 cwd=work, check=True)
             blob_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
                                   check=True).stdout.strip()
@@ -32635,6 +32839,194 @@ def main(root):
             run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
                 check=True)
             run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Mutant guard: dropping the first-parent/base term of the clean-import
+        # exemption accepts the main-tip revert, proving that term is
+        # load-bearing (the old code compared only the merge result to main).
+        with open(merge_guard_path) as handle:
+            merge_guard = handle.read()
+        first_parent_line = (
+            '  if [ "$merge_blob" = "$main_blob" ] && '
+            '[ "$first_blob" = "$base_blob" ]; then'
+        )
+        if first_parent_line not in merge_guard:
+            bad.append("r34-merge-first-parent-mutation-anchor-missing")
+        else:
+            with open(merge_guard_path, "w") as handle:
+                handle.write(merge_guard.replace(
+                    first_parent_line,
+                    '  if [ "$merge_blob" = "$main_blob" ]; then', 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without first-parent merge term"],
+                cwd=work, check=True)
+            first_parent_mutant_sha = run(
+                [git, "rev-parse", "HEAD"], cwd=work, check=True
+            ).stdout.strip()
+            run_merge_exemption(first_parent_mutant_sha,
+                                "main-tip-revert-mutant",
+                                "main-tip-revert", 0, False)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # Issue #798 review B3: GIT_GRAFT_FILE can make a hidden protected
+        # tester commit reachable from main, so the judged range excludes it.
+        # The shipped helper unsets the seam; the unset-removal mutant is
+        # fooled and accepts the branch.
+        def run_graft(helper_sha, tag, expect_scope_rc, expect_drop):
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+            checkout_base(helper_sha)
+            baseline = baseline_for(helper_sha, "base-graft-%s" % tag)
+            commit_file(".github/scripts/graft_hidden_%s.py" % tag,
+                        "tamper\n", "hidden protected tester edit",
+                        name="The Linux Tester",
+                        email="github-actions[bot]@users.noreply.github.com")
+            hidden = run([git, "rev-parse", "HEAD"], cwd=work,
+                         check=True).stdout.strip()
+            commit_file("proj/tests/graft_clean_%s.py" % tag, "test\n",
+                        "clean tester work after the hidden edit",
+                        name="The Linux Tester",
+                        email="github-actions[bot]@users.noreply.github.com")
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            main_branch = "r34-graft-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            commit_file("proj/main_graft_advance_%s.py" % tag, "main\n",
+                        "main advance for the graft fixture",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % main_tip], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", main_tip],
+                cwd=work, check=True)
+            graft = os.path.join(sandbox, "graft-%s" % tag)
+            with open(graft, "w") as handle:
+                handle.write("%s %s\n" % (main_tip, hidden))
+            results = sanitize(
+                helper_sha, baseline, "graft-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+                extra_env={"GIT_GRAFT_FILE": graft},
+            )
+            if results[-1][1] != expect_scope_rc:
+                bad.append(
+                    "r34-graft-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, results[-1][1], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            if expect_drop:
+                if remote_tip() != baseline:
+                    bad.append("r34-graft-%s(no-drop:%s)" % (tag, remote_tip()))
+            elif remote_tip() == baseline:
+                bad.append("r34-graft-%s(dropped:%s)" % (tag, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+
+        # Issue #798 review B3: GIT_GRAFT_FILE can fabricate a first parent
+        # that makes a one-parent protected revert look like a clean carry,
+        # so the merge exemption skips it. The shipped helper unsets the
+        # seam; the unset-removal mutant is fooled and accepts the branch.
+        def run_graft_merge(helper_sha, tag, expect_scope_rc, expect_drop):
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+            checkout_base(helper_sha)
+            fixture = ".github/scripts/graft_merge_%s.py" % tag
+            commit_file(fixture, "tamper\n",
+                        "pre-baseline protected edit",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            baseline = baseline_for(helper_sha, "base-graft-merge-%s" % tag)
+            main_branch = "r34-graft-merge-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            commit_file(fixture, "main change\n",
+                        "main protected advance",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % main_tip], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", main_tip],
+                cwd=work, check=True)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, baseline],
+                cwd=work, check=True)
+            commit_file(fixture, "main change\n",
+                        "tester reverts the protected edit to main",
+                        name="The Linux Tester",
+                        email="github-actions[bot]@users.noreply.github.com")
+            revert = run([git, "rev-parse", "HEAD"], cwd=work,
+                         check=True).stdout.strip()
+            parent = run([git, "rev-parse", "HEAD^"], cwd=work,
+                         check=True).stdout.strip()
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            graft = os.path.join(sandbox, "graft-merge-%s" % tag)
+            with open(graft, "w") as handle:
+                # The graft makes the revert's first parent main (so the
+                # revert looks like a clean carry) and keeps the real parent
+                # as the second parent (so it still looks like a merge).
+                handle.write("%s %s %s\n" % (revert, main_tip, parent))
+            results = sanitize(
+                helper_sha, baseline, "graft-merge-%s" % tag, event_pr,
+                pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+                extra_env={"GIT_GRAFT_FILE": graft},
+            )
+            if results[-1][1] != expect_scope_rc:
+                bad.append(
+                    "r34-graft-merge-%s(scope-rc=%d,want=%d;%s)"
+                    % (tag, results[-1][1], expect_scope_rc,
+                       results[-1][2].replace("\n", " ")[:300]))
+            if expect_drop:
+                if remote_tip() != baseline:
+                    bad.append("r34-graft-merge-%s(no-drop:%s)"
+                               % (tag, remote_tip()))
+            elif remote_tip() == baseline:
+                bad.append("r34-graft-merge-%s(dropped:%s)"
+                           % (tag, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            run([git, "push", "-q", "--force", "origin",
+                 "%s:main" % helper_sha], cwd=work, check=True)
+            run([git, "update-ref", "refs/remotes/origin/main", helper_sha],
+                cwd=work, check=True)
+
+        run_graft(workflow_sha, "real", 1, True)
+        run_graft_merge(workflow_sha, "merge-real", 1, True)
+        with open(merge_guard_path) as handle:
+            merge_guard = handle.read()
+        graft_unset = "GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE"
+        if graft_unset not in merge_guard:
+            bad.append("r34-graft-unset-mutation-anchor-missing")
+        else:
+            with open(merge_guard_path, "w") as handle:
+                handle.write(merge_guard.replace(
+                    graft_unset,
+                    "GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE", 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without the graft unset"], cwd=work, check=True)
+            graft_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                   check=True).stdout.strip()
+            run_graft(graft_mutant_sha, "mutant", 0, False)
+            run_graft_merge(graft_mutant_sha, "merge-mutant", 0, False)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
+
+        # The helper sources must keep both seams unset (the graft fixture
+        # proves the guard behavior; this pins the strip side too).
+        for helper_name in ("peros-scope-guard.sh", "strip-trailers.sh"):
+            with open(os.path.join(".github", "scripts", helper_name)) as handle:
+                if graft_unset not in handle.read():
+                    bad.append("r34-%s-graft-unset-missing" % helper_name)
 
         run([git, "checkout", "-q", "main"], cwd=work, check=True)
         guard_path = os.path.join(work, ".github", "scripts", "peros-scope-guard.sh")
@@ -32962,7 +33354,7 @@ R34PY
 fi
 case "$r34_out" in
   OK)
-    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, while the true-merge exemption remains, an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the bare .github gitlink entry, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
     ;;
   *)
     check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
