@@ -1,77 +1,77 @@
 # STATE
 
-Last updated: 2026-11-13T03:07Z by run 43355074551
+Last updated: 2026-11-13T04:25Z by run 43363803350
 
-(issue_comment wake on #845: the Tester approved `ccdcf49b5`; this run dispatches the binding eval and one fresh #804 recovery review after the wall cooldown. Standby otherwise.)
+(issue_comment wake on #845: the binding eval approved `ccdcf49b5`; the PAT sweep is landing it this run. #804 waits for the merged cap and a conflict-resolving rebase lab.)
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and write hardcoded PAT triggers that route work to the right agent. I never post triggers myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 02:52-03:07Z on 2026-11-13)
+## Right now (surveyed 04:11-04:25Z on 2026-11-13)
 
-- **Wake**: `issue_comment` at 02:51:56Z on #845: the test workflow's owner `/oc maintainer` after the Tester approval (`/oc approve-test` at 02:51:54Z). Tester run 43351448585 completed SUCCESS at 02:51:59Z after about 32 minutes. The loaded memory stamp was `2026-11-13T02:32Z by run 43351444008`.
-- **#845 TESTER APPROVED**: head `ccdcf49b52fb4d1e7506d20dd5c5aa453a944c99`, base main `678658bb8f5d0d997ab9df75cd3479b6cdc80ce5`, 0 behind / 9 ahead, MERGEABLE/CLEAN, nine linear `lab:` commits, six files. The Tester report (02:51:52Z) is approve (read-only infra verification; tree clean at `ccdcf49b5`): strict YAML gives review job 180 and `Run opencode reviewer` 150 with one runner `id: review` and the exact actor gate; nonce-unset audit 34/0; ambient-nonce audit 32/2 (exactly R17 and R19, #815); both new R25 guards load-bearing; the R17 probe/state matrix passes; a live sentinel stayed byte-identical; fixture nonce count 0. The Tester decision was `{"run_nonce":"57361d4e55291d2884f78af33c4cc4a5","action":"maintainer"}`.
-- **#845 EVAL DISPATCHED (this run)**: `{"action":"eval","pr":845}` posts `/oc eval` on `ccdcf49b5`. It is the binding Quality Council gate. Because the PR touches `.github/workflows/`, the hardcoded PAT sweep is the only landing path; the sweep runs inside a `workflow_run` maintainer wake once the eval completes. On `approve-eval` it merges, then the #843 exit evidence (a fresh review under the merged 150/180 cap) is recorded. On `fix`, route `lab` (infrastructure), never `fix`/`continue`.
-- **#845 independent verification (this run)**: strict duplicate-key-rejecting parse: review job 180, reviewer step 150, exactly one `./.github/actions/opencode-run` with `id: review` and the exact actor gate (16 steps); full nonce-unset audit on the exact head: 34 passed, 0 failed (rc 0) with R17/R19/R25/R31/R34 PASS; `/tmp/random-lab-decision.json` absent before and after; fixture nonce `a1b2c3d4` count 0; worktree clean.
-- **#804 RECOVERY REVIEW DISPATCHED (this run)**: head `6ddf009d4afe474f5acfeeed3c55a146b15c1f84`, 0 behind / 6 ahead main `678658bb`, MERGEABLE/CLEAN, unchanged since 11-12 08:19Z. Review 43347406135 (created 01:46:47Z) FAILED at 02:25:51Z on the #754 per-egress wall after the 4-attempt cap with no verdict; the quota intake 43352122103 recorded it on #843 at 02:26:10Z. The thread's lifetime retry budget is spent; the 30-minute cooldown ended at 02:55:47Z, a fresh runner showed a bucket (the #845 Tester completed at 02:51Z), and this run dispatches one fresh head-bound review on `6ddf009d4`. It runs under main's current 90/120 review cap until #845 merges; a cap death there is #843's class, not a wall retry.
-- **Wall**: the #754 per-egress daily free-usage class. #804's review died at 01:08Z and 02:25Z; the #845 review and Tester got buckets at 01:26Z and 02:20Z. It is a fresh-runner lottery: no same-IP re-dispatch, one fresh pass per lane after the cooldown, and the quota intake owns the note.
-- **main** = `678658bb` (unchanged). Pages root and `/docs/` both HTTP 200. #844 remains MERGED as `678658bb` with #842 closed COMPLETED and branch `opencode/lab-842-overload-transient-retry` intact.
-- **Runs**: held zero; queued seven stale pull_request-cohort runs (inert); in progress at survey only this maintainer run. Cancelled the never-started duplicate maintainer 43355080065 (issue_comment, 02:51:58Z, no jobs). The 02:52 workflow_run fan-out was skipped/cancelled inertly. The intake run 43352122103 left only its #843 note.
-- **Trigger allowlist**: 19/19 repo-owned names against `maintainer.yml:42` (20 workflow files including the self-excluded `maintainer`). No workflow added or renamed; #845 is unmerged.
+- **Wake**: `issue_comment` created 04:10:49Z on #845: the eval workflow's owner `/oc maintainer` after it published the `eval-verdict: approve-eval` marker at 04:10:48Z. The loaded memory stamp was `2026-11-13T03:07Z by run 43355074551`.
+- **#845 EVAL APPROVED**: head `ccdcf49b52fb4d1e7506d20dd5c5aa453a944c99`, base main `678658bb8f5d0d997ab9df75cd3479b6cdc80ce5`, 0 behind / 9 ahead, MERGEABLE/CLEAN, nine linear `lab:` commits, six files. Eval run 43357043890 completed SUCCESS at 04:11:01Z with an `approve-eval` verdict (Quality Council score 9.9/10). The owner marker comment 6843636405 at 04:10:48Z carries exactly one `eval-head` (`ccdcf49b5`) and one `eval-trigger` (6842631740, the newest `/oc eval`) and the canonical machine body shape. The only non-blocking residual the eval disclosed: a job-level `if: false` sits outside R25's step-binding contract.
+- **#845 PAT SWEEP (this run)**: the PR touches `.github/workflows/`, so the hardcoded PAT sweep is the only landing path. I replayed the sweep's own gates against the live thread: owner Tester marker 6842364701 at 02:51:54Z; owner eval marker 6843636405 at 04:10:48Z (strictly newer id); eval-head equals the current head; eval-trigger equals the newest `/oc eval`; no `/oc fix` anywhere after the Tester approval; no Quality Council rejection newer than the eval marker (the only rejection is 6815906230 from 11-12); head push time 01:13:09Z (last force push 11-12 08:19:24Z) predates the eval; MERGEABLE/CLEAN; shared merge base with main. The sweep merges by rebase and then dispatches `pages.yml` because main advances. On failure, read its step log and route `lab`; never hand-merge a workflow-touching PR.
+- **#845 independent verification (this run)**: strict duplicate-key-rejecting YAML parse: review job 180, `Run opencode reviewer` 150, exactly one `./.github/actions/opencode-run` with `id: review` and the exact actor gate (16 steps). Full nonce-unset audit on the exact head: 34 passed, 0 failed (rc 0) with R17/R19/R25/R31/R34 PASS. `bash -n` on the audit script is clean; `/tmp/random-lab-decision.json`, `/tmp/random-lab-report.md` and `/tmp/random-lab-findings.md` are all absent.
+- **#804 CONFLICT INCOMING**: head `6ddf009d4afe474f5acfeeed3c55a146b15c1f84`, 0 behind / 6 ahead main `678658bb`, CLEAN now, unchanged since 11-12 07:51Z. Review 43357044317 (dispatched 03:09:29Z) FAILED at 03:28:02Z on the #754 per-egress wall with no verdict; quota intake 43359153270 stood the lane down and posted the note on #843 at 03:28:20Z. The 30-minute cooldown ended at 03:58:02Z. There is still no review verdict on this head, and B11 (legacy trailer strip refuses a branch behind main), B12 (macOS `DYLD_*` not pinned on the owner-PAT steps), B13 (email-form owner trailer bypass), B14 (a clean tester merge of main treated as a protected edit) and B15 (docs and prompt accuracy) remain from the 07:26 review of the pre-rebase content. The #845 merge touches the same three files (#804 also changes `.github/scripts/silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`), so #804 will go CONFLICTING and needs a conflict-resolving rebase, not another review of the old base.
+- **Wall**: the #754 per-egress daily free-usage class cleared on fresh runners (the eval ran 03:09-04:11Z and this run has a bucket); #804's review died on it at 03:28Z. Fresh-runner lottery: no same-IP re-dispatch, one fresh pass per lane after the cooldown, and the intake owns the note.
+- **main** = `678658bb` until the sweep lands. Pages root and `/docs/` both HTTP 200. #844 stays merged as `678658bb`, #842 CLOSED COMPLETED, branch `opencode/lab-842-overload-transient-retry` intact at `492560d96`. #832 merged as `304cd075`; #837 merged as `db06e734`.
+- **Runs**: held zero; in progress at survey only this maintainer run; seven stale pull_request-cohort queued runs (oldest 2026-09-25) remain inert. The 04:10-04:11 duplicate maintainer fan-out is cancelled/skipped inertly; the `pull_request: closed` wake from the #845 merge (plus the schedule tick about 04:30Z and the Pages dispatch) is the next natural run.
+- **Trigger allowlist**: 19/19 repo-owned names against `maintainer.yml` (20 workflow files including the self-excluded `maintainer`). No workflow added or renamed; #845 is unmerged.
 - **Model watch**: registry 86 models, 11 free; pin `opencode/deepseek-v4.1-flash-free` (`model` and `small_model`) and all three ladder rungs (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`) live; `beam-free`, `flint-40b-free`, `iceman-free`, `inkling-2-small-free`, `longcat-2.5-free`, `minimax-m3.1-flash-free`, `nemotron-3.5-lightning-free` and `nemotron-3.5-super-vl-free` also live. No retirement and no pin change.
-- **Open issues** (22): the same tracked set. #843 tracks the review cap plus the R17 hermeticity defect and stays open for the #845 merge and a raised-cap review pass. #836 carries the capacity decision and the wall history. #798 tracks #804. #831 stays open for the canary. #821 parked on #836. #745 behind #803. No untriaged issue and no new Owner directive.
+- **Open issues** (22): the same tracked set. #843 tracks the review cap plus the R17 hermeticity defect and stays open for the merge and a post-merge review under the raised cap. #836 carries the capacity decision and the wall history. #798 tracks #804. #831 stays open for the canary. #821 parked on #836; #745 behind #803. No untriaged issue and no new Owner directive.
 - **Curator**: the 11-12 14:49 and 23:20 self-heal-exhausted notes are the #754 wall class; the next scheduled tick is about 05:18Z. No curator PR or issue is stranded.
 
 ## The live lanes (do not duplicate)
 
-1. **#845** - eval dispatched on `ccdcf49b5`. On `approve-eval`: verify the eval marker is published (first-line `eval-verdict: approve-eval`, head-bound, newer than the Tester approval) and the PAT sweep merges; then verify main advanced, Pages green, and record the #843 exit evidence (a fresh review completing under the merged 150/180 cap). On `fix`: route `lab` with the findings. Never use the `82e2cf1f` or `11b5b26d` markers.
-2. **#804** - recovery review dispatched on `6ddf009d4` (one pass after the 02:55:47Z cooldown). On `lab`: verify B11 (legacy strip ancestry), B12 (macOS `DYLD_*` seams), B13 (email-aware owner trailer), B14 (`diff-tree -m` clean-merge false positive) and B15 (docs/prompt/body wording) close rather than another rebase. Then fresh review -> Tester -> binding eval -> PAT sweep; #798 closes on merge. On a wall death: stand down and let the intake own the note. Never use the stale `0872b94c` approval.
+1. **#845** - the PAT sweep in this run merges it (all gates verified). Next wake: verify main advanced from `678658bb` to the rebase merge of `ccdcf49b5`, confirm #843 stayed open, confirm Pages deployed green, and re-run the full audit on the new main tip (R25/R17/R19 must be present). If the sweep failed, read its log and route the failure to `lab`; do not hand-merge.
+2. **#804** - after the #845 merge, dispatch ONE `lab` on the current head: rebase onto the new main preserving both sides (main's R25/R17/R19 from #845 plus #804's per-OS scope guard, strip-trailers changes, R34 additions and docs), close B11-B15, keep the body `Refs #798`, and forward a fresh review. That fresh review starts under the merged 150/180 cap and is the #843 exit evidence. Then Tester -> binding eval -> PAT sweep; #798 closes on merge. Never use the stale `0872b94c` approval, and never re-dispatch a review before the rebase (the head will be behind and conflicting).
 3. **#844** - merged as `678658bb`; #842 closed; branch intact; Pages green.
 4. **#832** - merged as `304cd075`; #831 stays open for the scratch canary.
-5. **#837** - merged as `db06e734`; its review was the #843 cap casualty, so a fresh post-#845 review under the raised cap is the exit proof.
+5. **#837** - merged as `db06e734`; its review was the #843 cap casualty, so a post-#845 review under the raised cap is the substitute exit proof.
 
 ## The serialized infra queue
 
-1. #845: eval -> PAT sweep -> #843 exit evidence (fresh review under the merged 150/180 cap).
-2. #804: recovery review -> lab forward closes B11-B15 -> fresh review -> Tester -> binding eval -> PAT sweep; #798 closes on merge.
-3. After the infra merges: the #844 eval record nits, the remaining #845 review advisories, the #804 env-seam lessons, reconcile #812/#815, the #822 residuals, then the deferred docs follow-ups (#773/#774), then #814 with #803.
+1. #845: PAT sweep (this run) -> verify the merge, Pages, and the new-main audit -> #843 exit evidence.
+2. #804: conflict-resolving rebase lab + B11-B15 -> fresh review under the raised cap (also the #843 proof) -> Tester -> binding eval -> PAT sweep; #798 closes on merge.
+3. After the infra merges: the #845 eval residual (job-level `if` outside R25), the remaining #845 review advisories, the #804 env-seam lessons, reconcile #812/#815 plus the #822 residuals, then the deferred docs follow-ups (#773/#774), then #814 with #803.
 4. #821 parked on the Owner capacity decision; #745 behind #803; #831 canary pending.
 
 ## Loose ends board
 
-1. **#845 eval live**: `/oc eval` on `ccdcf49b5`; read the verdict next wake. The Tester approval and the 34/0 audit on the exact head are verified. On `approve-eval`, the sweep's `workflow_run` wake lands it; verify the head-bound marker ordering before claiming the merge.
-2. **#843 exit evidence**: after #845 merges, prove a fresh review pass under the merged 150/180 cap (the #804 review if it is dispatched post-merge, or the next natural review), then close #843 with that evidence. The issue's literal "fresh #837 review" wording predates #837's 11-11 merge; record the substitute proof explicitly.
-3. **#804 wall-dead reviews**: 43347406135 died at 02:25:51Z on the #754 wall; intake 43352122103 noted it on #843 at 02:26:10Z. The retry budget is spent; the cooldown ended 02:55:47Z; this run dispatches one fresh head-bound review. Never use the stale `0872b94c` approval.
-4. **The wall**: #804 died at 01:08Z and 02:25Z; #845's review and Tester got buckets. Treat any new wall death as the #754 class: no same-IP dispatch, one fresh pass per lane after the cooldown.
-5. **#836 open**: the capacity decision and the wall residuals; the heartbeat and one-attempt cap are the mitigation.
-6. **#831 scratch canary**: only the Owner (or a pushed branch) can create the disposable PR; never claim it done without live evidence or a recorded Owner waiver.
-7. **#821 parked** on the Owner capacity decision; **#745** behind #803; **#792** parked with #821.
-8. **#812/#815**: #814 is parked, #815 partially covered by #843's R17 hermeticity; reconcile in the audit pass.
-9. **#817/#819 merged leftovers**: the deferred Curator docs pass and Lab Engineer docs pass.
-10. **#773/#774**: valid docs/setup gaps from the audit; deferred behind the live lanes.
-11. **Held-run watch**: zero this run. **Queued**: the seven stale pull_request-cohort runs remain inert. **Cancelled**: the never-started duplicate maintainer 43355080065; the 02:52 workflow_run cohort was skipped/cancelled inertly.
-12. **Stale verdict trap**: #804's only Tester approval binds `0872b94c`; #845's `82e2cf1f` and `11b5b26d` markers are stale; the 04:56Z `/oc approve-test` marker is superseded by the 02:51:54Z one. The R21/R22/R30 gate enforces head freshness.
-13. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes. The #804 review died at 02:25:47Z, so the cooldown ended 02:55:47Z; the wall class is exempt from lab dispatch.
-14. **Duplicate-session noise**: concurrent wake fan-outs still spawn skip-only maintainer and review runs; re-read trigger history before every dispatch and cancel never-started duplicates only. Never cancel a started real review or test run. The 02:52 cohort was all skipped/cancelled except this run.
-15. **Review-verdict staleness across a main advance**: the durable publish-time mergeability re-check remains a review-workflow follow-up. #845 is on main's tip; #804 is on main's tip until #845 merges.
-16. **Lab linkage guard on PR triggers**: `lab.yml` appends `Closes #<trigger>` when the body omits that token; the live #845 body names `PR #845` in prose and keeps the sign-off last, so the guard did not re-append. The durable guard fix remains a lab follow-up.
-17. **Board pin**: #70 is pinned and verified.
-18. **PAT sweep ignores "behind main"**: it requires a shared merge base and `MERGEABLE`, plus fresh head-bound markers; the up-to-date reviewer rule and the rebase-before-gates rule carry the behind check.
-19. **Registry shape**: the model registry lists bare ids without the `opencode/` provider prefix; compare the bare id.
-20. **Artifact-hash honesty**: always state the extraction recipe when quoting a hash.
-21. **Review-lane cap evidence**: the raised 150/180 shape is live on #845's workflow; review 43344990485 ran about 53 minutes and approved, and 43351448585 (test) plus the earlier 43181995440 ran under it. The merged cap only lands with #845. Cap deaths and wall deaths are different classes.
-22. **Wrapper non-fast-forward noise**: the App-token push rejection on a rebased workflow-touching branch is expected wrapper noise; the PAT step is the landing path.
-23. **Quota-wall intake**: it stands the workflow_run wake down when the failed run ended on the wall, posts one audit note, and does not summon an agent. Neither the intake note nor the cap escalation carries an inline trigger token.
-24. **#754 wall policy**: fresh runners are a lottery at multi-hour wall length and the cron is platform-throttled; do not treat repeated wall deaths as a lab retry-exhaustion signal. If both live lanes wall again, record it and stand down until the next heartbeat.
-25. **Manual review after a wall death**: a fresh head-bound review trigger is the recovery lane even when the head already carries an older review comment, because that run failed and the lifetime auto-retry budget is spent (#803). #804 is the live case.
-26. **Auditor bench candidates**: the daily audit names free-model candidates but makes no automatic change; keep them as future work and never swap a pin mid-lane.
-27. **Non-blocking eval/review nits are deferred, not dismissed**: fold them into the post-merge docs/lab follow-up; never open a separate lab round just for prose while the infra queue is live. The #845 review's five wording nits and the Tester's two notes are the current set.
-28. **Merge-tip verification**: after every merge, re-run the full audit on a clean clone of the new main tip, confirm the linked issue closed, and confirm Pages deployed green.
-29. **Lab under-delivery on a conflicting branch**: after a review-owned lab forward, verify the next lab push against the review findings; if it is again scoped to plumbing, dispatch one lab with an explicit finding-by-finding instruction.
-30. **Review auto-retry budgets are lifetime-per-thread**: #804 and #845 have both spent their 3 auto-retries, so any further review crash needs a manual fresh trigger.
-31. **Silent empty-decision sessions**: a green maintainer run with no decision file is a wall-class symptom during a wall, not evidence of a clean pass.
-32. **#845 review and Tester approvals verified**: review 43344990485 approved at 02:20:18Z and Tester 43351448585 approved at 02:51:59Z on `ccdcf49b5`; do not re-litigate them while the eval is live.
+1. **#845 merge pending in this run**: the sweep's conditions are verified; the next wake must confirm the landing rather than assume it. The head-bound markers are the tester 6842364701 and eval 6843636405; the `82e2cf1f` and `11b5b26d` markers are stale.
+2. **#843 exit evidence**: after #845 lands, prove a review that STARTS after the merge completes under the merged 150/180 cap (the #804 rebase review is the planned vehicle), then close #843 with the substitute-proof note (the issue's literal "fresh #837 review" wording predates #837's 11-11 merge). Record the review run id and duration.
+3. **#804 wall-dead reviews**: 43339043687 died 01:08:21Z, 43347406135 died 02:25:47Z, 43357044317 died 03:28:02Z. The intake note is on #843 at 03:28:20Z. The lifetime retry budget is spent; only a fresh trigger is the recovery lane.
+4. **#804 conflict**: after #845 merges, #804 conflicts in `.github/scripts/silent-stall-audit.sh`, `AGENTS.md`, and `LAB.md`. The lab rebase must keep both sides and every audit rule; verify against the merged main before forwarding the review.
+5. **The wall**: #754 per-egress daily free-usage class. It cleared for the eval and this run; treat any new wall death as the class: no same-IP dispatch, one fresh pass per lane after the cooldown, intake owns the note.
+6. **#836 open**: the capacity decision and the wall residuals; the heartbeat and one-attempt cap are the mitigation.
+7. **#831 scratch canary**: only the Owner (or a pushed branch) can create the disposable PR; never claim it done without live evidence or a recorded Owner waiver.
+8. **#821 parked** on the Owner capacity decision; **#745** behind #803; **#792** parked with #821.
+9. **#812/#815**: #814 is parked, #815 partially covered by #843's R17 hermeticity; reconcile in the audit pass.
+10. **#817/#819 merged leftovers**: the deferred Curator docs pass and Lab Engineer docs pass.
+11. **#773/#774**: valid docs/setup gaps from the audit; deferred behind the live lanes.
+12. **Held-run watch**: zero this run. **Queued**: the seven stale pull_request-cohort runs remain inert. **Cancelled/skipped**: the 04:10-04:11 duplicate maintainer fan-out only.
+13. **Stale verdict trap**: #804's only Tester approval binds `0872b94c`; #845's earlier `82e2cf1f` and `11b5b26d` markers are stale. The R21/R22/R30 gate enforces head freshness; the sweep's own re-read is the final guard.
+14. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes. The #804 review died at 03:28:02Z, cooldown ended 03:58:02Z; the next pass is the post-rebase review, not a retry of the old base.
+15. **Duplicate-session noise**: concurrent wake fan-outs still spawn skip-only maintainer and review runs; re-read trigger history before every dispatch and cancel never-started duplicates only. Never cancel a started real review or test run.
+16. **Review-verdict staleness across a main advance**: the durable publish-time mergeability re-check remains a review-workflow follow-up. The #804 review after #845's merge must be on the rebased head.
+17. **Lab linkage guard on PR triggers**: `lab.yml` appends `Closes #<trigger>` when the body omits that token; a body edit must name `PR #<trigger>` in prose. The durable guard fix remains a lab follow-up.
+18. **Board pin**: #70 is pinned and verified.
+19. **PAT sweep ignores "behind main"**: it requires a shared merge base and `MERGEABLE`, plus fresh head-bound markers; the up-to-date reviewer rule and the rebase-before-gates rule carry the behind check.
+20. **Registry shape**: the model registry lists bare ids without the `opencode/` provider prefix; compare the bare id.
+21. **Artifact-hash honesty**: always state the extraction recipe when quoting a hash.
+22. **Review-lane cap evidence**: the raised 150/180 shape only lands with #845. The 11-13 02:20 approval (53 min) ran under the pre-merge cap; the #804 post-rebase review is the first post-merge proof.
+23. **Wrapper non-fast-forward noise**: the App-token push rejection on a rebased workflow-touching branch is expected wrapper noise; the PAT step is the landing path.
+24. **Quota-wall intake**: it stands the workflow_run wake down when the failed run ended on the wall, posts one audit note, and does not summon an agent. Neither the intake note nor the cap escalation carries an inline trigger token.
+25. **#754 wall policy**: fresh runners are a lottery at multi-hour wall length and the cron is platform-throttled; do not treat repeated wall deaths as a lab retry-exhaustion signal. If both live lanes wall again, record it and stand down until the next heartbeat.
+26. **Manual review after a wall death**: a fresh head-bound review trigger is the recovery lane even when the head already carries an older review comment, because that run failed and the lifetime auto-retry budget is spent (#803). For #804, the rebase must come first once #845 lands.
+27. **Auditor bench candidates**: the daily audit names free-model candidates but makes no automatic change; keep them as future work and never swap a pin mid-lane.
+28. **Non-blocking eval/review nits are deferred, not dismissed**: fold them into the post-merge docs/lab follow-up. The current set is the #845 eval's job-level `if` residual, the review's five wording nits and the Tester's two notes.
+29. **Merge-tip verification**: after the #845 merge, re-run the full audit on a clean clone of the new main tip, confirm #843 stayed open, and confirm Pages deployed green.
+30. **Lab under-delivery on a conflicting branch**: after the #804 lab forward, verify the push closes B11-B15 and keeps both sides of the #845 merge; a second rebase-only push is a finding, not progress.
+31. **Review auto-retry budgets are lifetime-per-thread**: #804 and #845 have both spent their 3 auto-retries, so any further review crash needs a manual fresh trigger.
+32. **Silent empty-decision sessions**: a green maintainer run with no decision file is a wall-class symptom during a wall, not evidence of a clean pass.
 
 ## Standing rules I operate under
 
@@ -100,20 +100,19 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Next run
 
-1. Read the #845 eval verdict. On `approve-eval`: verify the published machine marker (first line `eval-verdict: approve-eval`, exactly one `eval-head` bound to `ccdcf49b5`, newer than the Tester approval and the latest eval trigger), confirm the PAT sweep merged and main advanced, then record the #843 exit evidence under the merged 150/180 cap. On `fix`: route `lab` with the findings; the cap raise stays unmerged and #804 then runs under the old cap.
-2. Read the #804 recovery review verdict. On `lab`: verify B11-B15 close rather than another rebase. On approve: Tester -> binding eval -> PAT sweep; #798 closes on merge. On a wall death: stand down; intake owns the note.
-3. After #845 merges: prove a fresh review completes under the merged cap before closing #843; re-run the full audit on the new main tip and confirm Pages green.
-4. Verify #842 stays CLOSED and the #844 branch remains intact; confirm Pages stays green.
-5. Re-check held and queued runs, the trigger allowlist, the model ladder, and the stale-verdict bindings.
+1. Verify the #845 merge: main advanced from `678658bb` to the rebase merge of `ccdcf49b5`; #843 still open; Pages deployed green. If the sweep did not merge, read its step log and route the cause to `lab`.
+2. Re-run the full silent-stall audit on the new main tip (fresh clone or checked-out main) with `LAB_RUN_NONCE` unset, and confirm R25/R17/R19 are present; note any ambient-nonce delta.
+3. Dispatch ONE `lab` on #804: rebase onto the post-#845 main preserving both sides and closing B11-B15, keep `Refs #798`/`Refs #804` semantics, and forward a fresh review. Do not review the pre-rebase head; it will be behind and conflicting.
+4. When that review completes under the merged 150/180 cap, record the run id and duration as the #843 exit evidence and close #843 (or if the review forwards another lab round, carry the evidence forward).
+5. Then #804 Tester -> binding eval -> PAT sweep; #798 closes on merge.
 6. Keep #836 open for the Owner capacity decision and the wall residuals; #831 stays open for the scratch canary; #821 parked; #745 behind #803.
-7. After the infra merges: the #844 eval record nits and the remaining #845 review advisories, the #804 env-seam lessons, reconcile #812/#815 plus the #822 residuals, then the deferred docs follow-ups (#773/#774), then #814 with #803.
-8. Fold the forward-hygiene lessons into the durable lab follow-up: the lab.yml self-linkage line, the review-verdict staleness across a main advance, the duplicate maintainer and review wakes, and the rebase-only lab under-delivery.
-9. Verify heads and artifacts against the live repo before claiming a change landed.
+7. Fold the forward-hygiene lessons into the durable lab follow-up: the lab.yml self-linkage line, review-verdict staleness across a main advance, duplicate maintainer/review wakes, and rebase-only lab under-delivery.
+8. Verify heads and artifacts against the live repo before claiming a change landed.
 
 ## Open questions
 
-1. Does the #845 binding eval approve `ccdcf49b5`, and does the PAT sweep land it without a wall death?
-2. Does #804's recovery review get a bucket and complete under the current 90-minute review cap before #845 merges?
-3. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or approve a lower cadence), and will the scratch canary be run or waived?
-4. Does the curator schedule recover at about 05:18Z, and does #843's raised-cap exit evidence land once #845 merges?
-5. Will the merged 150/180 review cap carry a fresh pass through a wall-free window to close #843's exit condition?
+1. Did the PAT sweep merge #845 cleanly on the first attempt, and did the new-main audit and Pages pass?
+2. Does the #804 conflict-resolving rebase keep both sides and close B11-B15 in one push, and does the forwarded review complete under the raised cap?
+3. Will the merged 150/180 review cap carry the first post-merge review through a wall-free window to close #843's exit condition?
+4. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or approve a lower cadence), and will the scratch canary be run or waived?
+5. Does the curator schedule recover at about 05:18Z?
