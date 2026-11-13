@@ -154,7 +154,11 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
   # commit-date ordered. Plain `--reverse` emits a newer-dated pre-tester infra
   # commit after the first tester commit, which would falsely refuse a
   # legitimate infrastructure branch under committer-date skew.
-  preflight_commits="$(git rev-list --topo-order --reverse "$preflight_base..HEAD" 2>/dev/null)" || {
+  # Issue #798 review B14: commits already on the trusted main tip are not
+  # branch-authored history. Exclude them so a clean merge of main is not
+  # judged as a protected edit; a non-merge commit on this branch is still
+  # included even when its content matches main.
+  preflight_commits="$(git rev-list --topo-order --reverse "$preflight_base..HEAD" --not refs/remotes/origin/main 2>/dev/null)" || {
     fail "Could not read the branch history after the merge base for the durable per-OS tester-lane preflight; refusing to start (issue #798)."
   }
   preflight_paths="$(mktemp 2>/dev/null || true)"
@@ -182,6 +186,12 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
       rm -f "$preflight_paths"
       fail "Could not read the file list of $preflight_commit; refusing to start (issue #798)."
     fi
+    preflight_parents="$(git rev-list --parents -n 1 "$preflight_commit" 2>/dev/null | awk 'NF > 0 { print NF - 1; exit }')" || preflight_parents=""
+    case "$preflight_parents" in
+      ''|*[!0-9]*)
+        rm -f "$preflight_paths"
+        fail "Could not read the parent count of $preflight_commit; refusing to start (issue #798)." ;;
+    esac
     while IFS= read -r -d '' preflight_path; do
       [ -n "$preflight_path" ] || continue
       # Issue #798 review B7: the violation marker is a hard stop. Any commit
@@ -204,17 +214,20 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
       if is_protected_path "$preflight_path"; then
         # Issue #798 review B14: diff-tree -m lists a protected path against
         # every parent, so a clean merge of main reports main's protected
-        # files even though the tester changed nothing. Skip a protected path
-        # whose blob in this commit matches the merge-base baseline or the
-        # trusted main tip; a merge that rewrites the content still differs
-        # and is judged below.
-        preflight_blob="$(git rev-parse "$preflight_commit:$preflight_path" 2>/dev/null || true)"
-        if [ -n "$preflight_blob" ] && {
-             { git cat-file -e "$preflight_base:$preflight_path" 2>/dev/null &&
-               [ "$preflight_blob" = "$(git rev-parse "$preflight_base:$preflight_path" 2>/dev/null)" ]; } ||
-             { git cat-file -e "refs/remotes/origin/main:$preflight_path" 2>/dev/null &&
-               [ "$preflight_blob" = "$(git rev-parse "refs/remotes/origin/main:$preflight_path" 2>/dev/null)" ]; }; }; then
-          continue
+        # files even though the tester changed nothing. Skip such a path only
+        # on a true merge commit (two or more parents); a non-merge commit
+        # that rewrites a protected path to the trusted main tip is a real
+        # revert and must be judged, never skipped. A merge that rewrites the
+        # content still differs from both references and is judged below.
+        if [ "$preflight_parents" -ge 2 ]; then
+          preflight_blob="$(git rev-parse "$preflight_commit:$preflight_path" 2>/dev/null || true)"
+          if [ -n "$preflight_blob" ] && {
+               { git cat-file -e "$preflight_base:$preflight_path" 2>/dev/null &&
+                 [ "$preflight_blob" = "$(git rev-parse "$preflight_base:$preflight_path" 2>/dev/null)" ]; } ||
+               { git cat-file -e "refs/remotes/origin/main:$preflight_path" 2>/dev/null &&
+                 [ "$preflight_blob" = "$(git rev-parse "refs/remotes/origin/main:$preflight_path" 2>/dev/null)" ]; }; }; then
+            continue
+          fi
         fi
       fi
       if is_protected_path "$preflight_path" && { [ "$preflight_tester" -eq 1 ] || [ "$preflight_seen_tester" -eq 1 ]; }; then
@@ -281,8 +294,7 @@ if [ "${PEROS_ANCHOR:-}" = "1" ]; then
   cross_repo="${PR_CROSS_REPO:-}"
   head_repo="${PR_HEAD_REPO:-}"
   if [ -z "$pr_number" ]; then
-    note "No open PR is associated with this trigger; nothing to judge."
-    exit 0
+    fail "The per-OS PR trust anchor has no PR number; refusing to judge the branch scope (issue #798, fail closed)."
   fi
   case "$pr_number" in
     *[!0-9]*)
@@ -453,6 +465,11 @@ judge_range() {
     if ! scratch diff-tree --no-commit-id --name-only -r -m --root -z "$commit" > "$paths_file"; then
       return 1
     fi
+    parent_line="$(scratch rev-list --parents -n 1 "$commit" 2>/dev/null)" || return 1
+    parent_count="$(printf '%s\n' "$parent_line" | awk 'NF > 0 { print NF - 1; exit }')"
+    case "$parent_count" in
+      ''|*[!0-9]*) return 1 ;;
+    esac
     while IFS= read -r -d '' path; do
       [ -n "$path" ] || continue
       # Issue #798 review F4: judge protected paths for every commit, not only
@@ -460,17 +477,20 @@ judge_range() {
       if is_protected_path "$path"; then
         # Issue #798 review B14: diff-tree -m lists a protected path against
         # every parent, so a clean merge of main reports main's protected
-        # files even though the tester changed nothing. Skip a protected path
-        # whose blob in this commit matches the captured baseline or the
-        # trusted main tip; a merge that rewrites the content still differs
-        # and is judged below.
-        path_blob="$(scratch rev-parse "$commit:$path" 2>/dev/null || true)"
-        if [ -n "$path_blob" ] && {
-             { scratch cat-file -e "$baseline:$path" 2>/dev/null &&
-               [ "$path_blob" = "$(scratch rev-parse "$baseline:$path" 2>/dev/null)" ]; } ||
-             { scratch cat-file -e "refs/remotes/origin/main:$path" 2>/dev/null &&
-               [ "$path_blob" = "$(scratch rev-parse "refs/remotes/origin/main:$path" 2>/dev/null)" ]; }; }; then
-          continue
+        # files even though the tester changed nothing. Skip such a path only
+        # on a true merge commit (two or more parents); a non-merge commit
+        # that rewrites a protected path to the trusted main tip is a real
+        # revert and must be judged, never skipped. A merge that rewrites the
+        # content still differs from both references and is judged below.
+        if [ "$parent_count" -ge 2 ]; then
+          path_blob="$(scratch rev-parse "$commit:$path" 2>/dev/null || true)"
+          if [ -n "$path_blob" ] && {
+               { scratch cat-file -e "$baseline:$path" 2>/dev/null &&
+                 [ "$path_blob" = "$(scratch rev-parse "$baseline:$path" 2>/dev/null)" ]; } ||
+               { scratch cat-file -e "refs/remotes/origin/main:$path" 2>/dev/null &&
+                 [ "$path_blob" = "$(scratch rev-parse "refs/remotes/origin/main:$path" 2>/dev/null)" ]; }; }; then
+            continue
+          fi
         fi
         judged_protected="$(add_unique "$path" "$judged_protected")"
         continue
@@ -507,7 +527,11 @@ while :; do
     fail "The captured baseline $baseline is not an ancestor of $branch tip $tip (a concurrent rewrite happened); refusing to judge or rewrite the branch (issue #798)."
   fi
 
-  judged_commits="$(scratch rev-list --reverse "$baseline..$tip")" || {
+  # Issue #798 review B14: a merge of main brings trusted main commits into
+  # the range. Exclude commits reachable from the fetched main tip so their
+  # protected files are not judged as branch edits; a non-merge commit on this
+  # branch is still included even when its content matches main.
+  judged_commits="$(scratch rev-list --reverse "$baseline..$tip" --not refs/remotes/origin/main)" || {
     fail "Could not read the commit range after the captured baseline; refusing to judge the branch scope (issue #798)."
   }
 
