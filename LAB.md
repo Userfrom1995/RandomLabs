@@ -148,8 +148,10 @@ Public Surface / Web Track:                                              │
   decision file plus path-substituted shipped reads, with a sandbox-only
   helper abort probe, its load-bearing mutant, and a fail-closed read-only
   live-path endpoint snapshot of bytes, inode, size, and mtime that fails
-  when the live path is unreadable, so a killed audit never leaves fixture
-  bytes on the live `/tmp/random-lab-decision.json`). Round 13 also
+  when the live path is unreadable, with a transient write-and-restore
+  between the endpoint samples recorded as a review-gated boundary, so a
+  killed audit never leaves fixture bytes on the live
+  `/tmp/random-lab-decision.json`). Round 13 also
   pins each per-OS agent step's
   `with.prompt` scalar by exact SHA-256 and each arm's exact ordered step
   sequence, and a staging
@@ -210,16 +212,22 @@ Public Surface / Web Track:                                              │
   before any optional exhaustive audit tail. The fail-closed decision-file
   and PAT-push contracts are unchanged. Audit rule R25 pins all four shapes
   (agent and job minimums plus >= 20 minutes of headroom; the executing step
-  is resolved from a strict duplicate-key-rejecting YAML parse, so `name :`,
-  flow-mapping, multiline plain-scalar, explicit-key, and block-scalar
-  spellings cannot hide a real step behind a skipped canonical-named decoy;
-  caps must be plain decimal integers, a canonical step disabled by a
-  normalized false condition (`${{false}}`, `False`, `0`, `null`, `~`) fails,
-  a uses scalar that contains the runner path but does not parse exactly to
-  it fails as unbound, and anchors/tags on a uses value are rejected) and
+  is resolved from a strict duplicate-key-rejecting YAML parse, where the `./`
+  workspace and `$/` self-repository forms and path-equivalent `./` spellings
+  all normalize to the same runner, so `name :`, flow-mapping, multiline
+  plain-scalar, explicit-key, block-scalar, self-repository, and
+  path-equivalent spellings cannot hide a real step behind a skipped
+  canonical-named decoy; the unique runner must carry the arm's expected id
+  and exact actor gate; caps must be plain decimal integers, a canonical step
+  disabled by a normalized false condition (`${{false}}`, `False`, `0`,
+  `null`, `~`) fails, a gate that is not the exact actor gate fails as
+  `agent-step-if-not-exact`, a uses scalar that contains the runner path but
+  does not normalize to it fails as unbound, and inline anchors/tags/block
+  indicators on a uses value are rejected) and
   mutation-self-tests the agent-cap, job-cap, headroom, decoy, multiline,
   flow-mapping, explicit-key, explicit-key block-scalar, quoted-cap,
-  disabled-step, and uses-indirection checks on every arm in
+  disabled-step, non-exact-gate, self-repository, path-equivalent, and
+  uses-indirection checks on every arm in
   `.github/scripts/silent-stall-audit.sh`. The mutant copies carry an
   inline YAML comment after the timeout digits (issue #829 review F1), so the
   rewrite helpers must accept the same trailing-comment grammar the checker

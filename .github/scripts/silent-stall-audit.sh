@@ -44,7 +44,8 @@
 # sandboxed decision file and path-substitute the extracted shipped reads, with
 # a sandbox-only helper abort probe plus a fail-closed read-only live-path
 # endpoint snapshot (bytes, inode, size, mtime) that detects any persistent
-# change between the endpoint samples);
+# change between the endpoint samples, with a transient write-and-restore
+# between the samples recorded as a review-gated boundary);
 # only the verify-step run body and exotic sandbox-path fingerprinting remain
 # review-gated boundaries (documented in
 # the R17 comment), the R18 Windows MSYS argv-conversion guard (issue #612:
@@ -6031,7 +6032,7 @@ else
         fi
         rm -f "$3"
         ( "$1" "$3" "$2" >/dev/null 2>&1; exit 137 ) 2>/dev/null || true
-        [ -s "$3" ] || return 1
+        [ -f "$3" ] && [ -s "$3" ] || return 1
         if [ -e "$2" ]; then
           r17_sum=$(cksum < "$2" 2>/dev/null) || return 1
           r17_after="present:$r17_sum"
@@ -10731,9 +10732,12 @@ fi
 #      still runs after a worst-case cap death.
 # The rule resolves the executing agent step from a strict
 # duplicate-key-rejecting YAML parse (the R31/R15 precedent): it finds the
-# job, takes its single `uses: ./.github/actions/opencode-run` step, requires
-# that step to be the canonical agent step, and reads the parsed job and step
-# caps. A source-text tripwire rejects anchor/tag/block-indicator tokens on a
+# job, resolves every step whose parsed `uses` normalizes to the runner (the
+# `./` workspace and `$/` self-repository forms, with path-equivalent
+# `./a/./b` and `./a/../a/b` spellings), requires exactly one such step, and
+# requires that step to carry the canonical name, the arm's expected step id,
+# and the arm's exact actor-gate `if`. It reads the parsed job and step caps.
+# A source-text tripwire rejects inline anchor/tag/block-indicator tokens on a
 # uses value; text extraction is otherwise used only by the mutation
 # fixtures. Escape classes found in adversarial verification are closed:
 #   - the job key must be unique in its file (a duplicate job key decoy is
@@ -10749,17 +10753,22 @@ fi
 #     disabled, because it would silently skip the audited target; the
 #     condition is whitespace-normalized and unwrapped from `${{ ... }}` before
 #     the check, so `${{false}}`, `False`, `0`, `null`, and `~` are all caught
-#     (issue #843 review F2);
+#     (issue #843 review F2); any other condition that is not the arm's exact
+#     actor gate fails as `agent-step-if-not-exact`, so a decoy gated on a
+#     constant-false expression such as `${{ false && true }}` or
+#     `steps.missing.outputs.x == 'true'` cannot stand in for the real step;
 #   - only a plain decimal integer with no leading zeros and at most four
-#     digits is accepted, so quoted, anchored, block-scalar, float, boolean,
-#     and octal-looking (`0150`, `0x96`) caps fail closed; the minimum and
+#     digits is accepted, so quoted, block-scalar, float, boolean, and
+#     octal-looking (`0150`, `0x96`) caps fail closed; the minimum and
 #     headroom checks use the parsed values, not a text approximation;
-#   - YAML anchors, aliases, tags, and block indicators on a uses value are
-#     rejected as un-bindable indirection; in addition, any uses scalar that
-#     contains the runner path but does not parse exactly to it (a `>` or `|`
-#     block scalar keeps a trailing newline, and an explicit-key `? uses`
-#     spelling can wrap the same value) fails as `agent-uses-unbound` instead
-#     of silently escaping the runner count (issue #843 review F2);
+#   - inline YAML anchors, aliases, tags, and block indicators on a uses value
+#     are rejected as un-bindable indirection; an explicit-key `? uses` value
+#     that resolves to the runner path is bound by the parse, while any uses
+#     scalar that contains the runner path but does not normalize to it (a
+#     clip/keep `>` or `|` block scalar keeps a trailing newline, and a
+#     path-equivalent spelling outside the resolved set) fails as
+#     `agent-uses-unbound` instead of silently escaping the runner count
+#     (issue #843 review F2);
 #   - an optional trailing YAML comment after the digits is tolerated (the
 #     established style keeps comments above the key, but this costs
 #     nothing);
@@ -10785,22 +10794,31 @@ fi
 #     `name :` quoted-uses shape, the skipped-decoy plus multiline
 #     plain-scalar shape, a flow-mapping step, an explicit-key `? uses` step,
 #     an anchored uses, a quoted cap, and a trivially disabled canonical
-#     step. The review round adds the explicit-key block-scalar shapes
-#     (`? uses` with `: >` and `: |`), `${{false}}`, and `False`; every
-#     fixture runs on every arm, must fail with its own error class, and must
-#     be nonempty so a silent writer cannot pass vacuously.
+#     step. The first review round adds the explicit-key block-scalar shapes
+#     (`? uses` with `: >` and `: |`), `${{false}}`, and `False`; the second
+#     review round adds the `$/` self-repository and path-equivalent `./`
+#     decoy shapes, an honest canonical step switched to `$/`, and
+#     constant-false gate expressions (`${{ false && true }}` and
+#     `steps.missing.outputs.x == 'true'`). Every fixture runs on every arm,
+#     must fail with its own error class, and every writer-generated fixture
+#     is asserted nonempty so a silent writer cannot pass vacuously.
 r25_bad=""
 r25_struct_dir=$(mktemp -d 2>/dev/null || true)
 r25_py=""
 if [ -n "$r25_struct_dir" ] && [ -d "$r25_struct_dir" ]; then
   r25_py="$r25_struct_dir/r25-check.py"
   cat > "$r25_py" <<'R25PY'
+import posixpath
 import re
 import sys
 
 import yaml
 
 RUNNER = "./.github/actions/opencode-run"
+RUNNER_REFS = {
+    "workspace:.github/actions/opencode-run",
+    "self:.github/actions/opencode-run",
+}
 INDIRECT = re.compile(
     r"(?ms)^[ \t]*(?:-[ \t]+)?uses[ \t]*:[ \t\r\n]+[&*!|>]"
     r"|[\{\[,][ \t]*uses[ \t]*:[ \t\r\n]+[&*!|>]"
@@ -10851,6 +10869,16 @@ def text(node):
     return node.value if isinstance(node, yaml.ScalarNode) else None
 
 
+def runner_ref(uses):
+    if not isinstance(uses, str):
+        return None
+    if uses.startswith("./"):
+        return "workspace:" + posixpath.normpath(uses[2:])
+    if uses.startswith("$/"):
+        return "self:" + posixpath.normpath(uses[2:])
+    return None
+
+
 def falsey(condition):
     value = " ".join(condition.split()).lower()
     value = re.sub(r"^\$\{\{\s*|\s*\}\}$", "", value).strip()
@@ -10877,7 +10905,7 @@ def finish(tag, problems):
 
 
 def main(argv):
-    wf, job_key, canonical, agent_min, job_min, tag = argv
+    wf, job_key, canonical, agent_min, job_min, expected_id, expected_if, tag = argv
     agent_min = int(agent_min)
     job_min = int(job_min)
     problems = []
@@ -10926,20 +10954,25 @@ def main(argv):
     for step in steps.value:
         uses_node = value(step, "uses")
         uses = text(uses_node)
-        if isinstance(uses_node, yaml.ScalarNode) and RUNNER in (uses_node.value or ""):
-            if uses != RUNNER:
-                problems.append("agent-uses-unbound")
-        if uses == RUNNER:
+        if runner_ref(uses) in RUNNER_REFS:
             runners.append(step)
+        elif isinstance(uses_node, yaml.ScalarNode) and "opencode-run" in (uses_node.value or ""):
+            problems.append("agent-uses-unbound")
     if len(runners) != 1:
         problems.append("agent-uses-count=%d,want=1" % len(runners))
     runner = runners[0] if len(runners) == 1 else None
     if runner is not None:
         if text(value(runner, "name")) != canonical:
             problems.append("canonical-step-not-the-runner")
+        if text(value(runner, "id")) != expected_id:
+            problems.append("agent-step-id-not-exact")
         condition = text(value(runner, "if"))
-        if condition is not None and falsey(condition):
+        if condition is None:
+            problems.append("agent-step-if-missing")
+        elif falsey(condition):
             problems.append("agent-step-disabled")
+        elif condition != expected_if:
+            problems.append("agent-step-if-not-exact")
     job_cap = cap(value(job, "timeout-minutes"))
     agent_cap = cap(value(runner, "timeout-minutes")) if runner is not None else None
     if job_cap is None:
@@ -10970,6 +11003,7 @@ wf_job_block() {
 }
 r25_check_arm() {
   local wf="$1" job="$2" step="$3" agent_min="$4" job_min="$5" tag="$6"
+  local expected_id="${r25_expected_id:-}" expected_if="${r25_expected_if:-}"
   local out
   if [ ! -f "$wf" ]; then
     r25_bad="${r25_bad} ${tag}(file-missing:${wf})"
@@ -10979,7 +11013,7 @@ r25_check_arm() {
     r25_bad="${r25_bad} ${tag}(checker-unavailable)"
     return
   fi
-  out=$(python3 -I "$r25_py" "$wf" "$job" "$step" "$agent_min" "$job_min" "$tag" 2>&1 || true)
+  out=$(python3 -I "$r25_py" "$wf" "$job" "$step" "$agent_min" "$job_min" "$expected_id" "$expected_if" "$tag" 2>&1 || true)
   case "$out" in
     OK) ;;
     BAD:*) r25_bad="${r25_bad} ${out#BAD:}" ;;
@@ -11078,6 +11112,44 @@ r25_mutate_agent_disabled() {
     { print }
   ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
 }
+r25_mutate_decoy_runner_path() {
+  local wf="$1" step="$2" decoy_cap="$3" value="$4" runner_path="$5" name
+  name=${step#"      - name: "}
+  awk -v step="      - name: ${step}" -v name="$name" -v decoy_cap="$decoy_cap" -v value="$value" -v runner_path="$runner_path" '
+    $0 == step {
+      print "      - name: " name
+      print "        if: ${{ false }}"
+      print "        timeout-minutes: " decoy_cap
+      print "        uses: ./.github/actions/opencode-run"
+      print "      - name : Reviewer execution"
+      in_step = 1
+      next
+    }
+    in_step && /^      - / { in_step = 0 }
+    in_step && /^        timeout-minutes:/ {
+      sub(/[0-9]+[[:space:]]*(#.*)?$/, value)
+      print
+      next
+    }
+    in_step && /^        uses:[[:space:]]*\.\/\.github\/actions\/opencode-run/ {
+      print "        uses: " runner_path
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
+r25_mutate_runner_uses() {
+  local wf="$1" step="$2" value="$3"
+  awk -v step="      - name: ${step}" -v value="$value" '
+    $0 == step { in_step = 1 }
+    in_step && /^      - / && $0 != step { in_step = 0 }
+    in_step && /^        uses:[[:space:]]*\.\/\.github\/actions\/opencode-run/ {
+      print "        uses: " value
+      next
+    }
+    { print }
+  ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
+}
 r25_write_flow_mutant() {
   local file="$1" job="$2" step="$3" agent_min="$4" job_min="$5"
   {
@@ -11168,7 +11240,8 @@ r25_comment_job_timeout() {
   ' "$wf" > "$wf.new" && mv "$wf.new" "$wf"
 }
 r25_selftest_arm() {
-  local wf="$1" job="$2" step="$3" agent_min="$4" job_min="$5" tag="$6"
+  local wf="$1" job="$2" step="$3" agent_min="$4" job_min="$5" expected_id="$6" expected_if="$7" tag="$8"
+  local r25_expected_id="$expected_id" r25_expected_if="$expected_if"
   local dir saved commented_job commented_step
   [ -f "$wf" ] || return
   dir=$(mktemp -d 2>/dev/null || true)
@@ -11374,10 +11447,12 @@ r25_selftest_arm() {
   fi
 
   # Issue #843 review F2: an explicit-key `? uses` block scalar (`: >` or
-  # `: |`) keeps a trailing newline, so it never compares equal to the runner
+  # `: |`) keeps a trailing newline, so it never normalizes to the runner
   # path and the old checker silently treated it as a non-runner. The hidden
   # step must fail as unbound, and the canonical decoy uses the normalized
-  # `${{false}}` spelling so the disabled check is exercised too.
+  # `${{false}}` spelling so the disabled check is exercised too. A strip
+  # block scalar (`>-` or `|-`) parses exactly to the runner path and is
+  # bound normally by the parse.
   for r25_indicator in '>' '|'; do
     r25_block_fixture="$dir/mut-explicit-block-${r25_indicator}.yml"
     r25_write_explicit_block_mutant "$r25_block_fixture" "$job" "$step" "$agent_min" "$job_min" "$r25_indicator" 2>/dev/null \
@@ -11395,6 +11470,50 @@ r25_selftest_arm() {
       esac
     else
       saved="${saved} ${tag}(selftest-explicit-block-${r25_indicator}-fixture-empty)"
+    fi
+  done
+
+  # Issue #843 review round: GitHub's recommended `$/` self-repository
+  # spelling and path-equivalent `./` spellings execute the same composite
+  # action, so the parse must normalize them to the same runner. A skipped
+  # canonical decoy plus a hidden real step spelled either way must fail the
+  # job-wide runner count, and an honest canonical step switched to `$/` must
+  # stay clean (the guard must not be over-strict).
+  for r25_runner_path in '$/.github/actions/opencode-run' './.github/actions/./opencode-run'; do
+    r25_path_fixture="$dir/mut-runner-path.yml"
+    cp "$wf" "$r25_path_fixture" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+    if [ -f "$r25_path_fixture" ]; then
+      r25_mutate_decoy_runner_path "$r25_path_fixture" "$step" "$agent_min" $((agent_min - 1)) "$r25_runner_path"
+      r25_bad=""
+      r25_check_arm "$r25_path_fixture" "$job" "$step" "$agent_min" "$job_min" "$tag"
+      case "$r25_bad" in
+        *"agent-uses-count="*) ;;
+        *) saved="${saved} ${tag}(selftest-runner-path-not-caught:${r25_runner_path}:${r25_bad})" ;;
+      esac
+    fi
+  done
+  cp "$wf" "$dir/self-ref.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+  if [ -f "$dir/self-ref.yml" ]; then
+    r25_mutate_runner_uses "$dir/self-ref.yml" "$step" '$/.github/actions/opencode-run'
+    r25_bad=""
+    r25_check_arm "$dir/self-ref.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+    [ -z "$r25_bad" ] || saved="${saved} ${tag}(selftest-self-ref-not-clean:${r25_bad})"
+  fi
+
+  # Issue #843 review round: the runner must carry the arm's exact actor gate,
+  # so a canonical decoy gated on a constant-false expression that the
+  # four-value denylist does not normalize (for example `${{ false && true }}`
+  # or a missing-step comparison) fails as a non-exact gate.
+  for r25_gate in '${{ false && true }}' "steps.missing.outputs.x == 'true'"; do
+    cp "$wf" "$dir/mut-gate.yml" 2>/dev/null || saved="${saved} ${tag}(selftest-copy-failed)"
+    if [ -f "$dir/mut-gate.yml" ]; then
+      r25_mutate_agent_disabled "$dir/mut-gate.yml" "$step" "$r25_gate"
+      r25_bad=""
+      r25_check_arm "$dir/mut-gate.yml" "$job" "$step" "$agent_min" "$job_min" "$tag"
+      case "$r25_bad" in
+        *"agent-step-if-not-exact"*) ;;
+        *) saved="${saved} ${tag}(selftest-gate-not-caught:${r25_gate}:${r25_bad})" ;;
+      esac
     fi
   done
 
@@ -11434,18 +11553,26 @@ if [ ! -f "$OPENCODE_WF" ] && [ -f ".github/workflows/opencode.yml" ]; then
   OPENCODE_WF=".github/workflows/opencode.yml"
 fi
 CURATOR_WF=".github/workflows/curator.yml"
+r25_expected_id="opencode"
+r25_expected_if="steps.actor_gate.outputs.run == 'true'"
 r25_check_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
+r25_expected_id="opencode"
+r25_expected_if="steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true'"
 r25_check_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
+r25_expected_id="review"
+r25_expected_if="steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'"
 r25_check_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review"
+r25_expected_id="curator"
+r25_expected_if="steps.actor_gate.outputs.run == 'true'"
 r25_check_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
-r25_selftest_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
-r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
-r25_selftest_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review"
-r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator"
+r25_selftest_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "opencode" "steps.actor_gate.outputs.run == 'true'" "lab"
+r25_selftest_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "opencode" "steps.actor_gate.outputs.run == 'true' && steps.fix_guard.outputs.open == 'true'" "fix"
+r25_selftest_arm "$REVIEW_WF" "review" "Run opencode reviewer" 150 180 "review" "steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr == 'true' && steps.review_guard.outputs.open == 'true'" "review"
+r25_selftest_arm "$CURATOR_WF" "curate" "Run curator agent" 90 120 "curator" "steps.actor_gate.outputs.run == 'true'" "curator"
 if [ -z "$r25_bad" ]; then
-  check "R25" "the executing agent step is resolved from a strict duplicate-key-rejecting YAML parse: the job's unique opencode-run step must be the canonical agent step, so name-colon, flow-mapping, multiline plain-scalar, explicit-key, and block-scalar spellings cannot hide the real step behind a skipped decoy; the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; caps must be plain decimal integers (quoted, anchored, block-scalar, float, boolean, and octal-looking values fail closed), a canonical step disabled by a normalized false condition (\${{false}}, False, 0, null, or ~) fails, a uses scalar that contains the runner path but does not parse exactly to it fails as unbound, YAML anchors/tags on a uses value are rejected, and mutation self-tests prove the agent-cap, job-cap, headroom, decoy, multiline, flow-mapping, explicit-key, explicit-key block-scalar, quoted-cap, disabled-step, and uses-indirection checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829, #843 review F2, #843 eval)" "ok"
+  check "R25" "the executing agent step is resolved from a strict duplicate-key-rejecting YAML parse: the job's unique runner step must be the canonical agent step, where the ./ workspace and \$/ self-repository forms and path-equivalent ./ spellings all normalize to the runner, and that step must carry the arm's expected id and exact actor gate, so name-colon, flow-mapping, multiline plain-scalar, explicit-key, block-scalar, self-repository, and path-equivalent spellings cannot hide the real step behind a skipped decoy; the lab agent cap is >= 150 minutes under a job cap >= 180, the fix agent cap is >= 120 under a job cap >= 180, the review agent cap is >= 150 under a job cap >= 180 (issue #843), and the curator agent cap is >= 90 under a job cap >= 120, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward/self-heal chain; caps must be plain decimal integers (quoted, block-scalar, float, boolean, and octal-looking values fail closed), a canonical step disabled by a normalized false condition (\${{false}}, False, 0, null, or ~) fails, a canonical step whose gate is not the arm's exact actor gate fails as agent-step-if-not-exact, a uses scalar that contains the runner path but does not normalize to it fails as unbound, inline YAML anchors/tags/block indicators on a uses value are rejected, and mutation self-tests prove the agent-cap, job-cap, headroom, decoy, multiline, flow-mapping, explicit-key, explicit-key block-scalar, quoted-cap, disabled-step, non-exact-gate, self-repository, path-equivalent, and uses-indirection checks load-bearing on every arm on the plain, inline-commented, and pre-commented timeout shapes the checker accepts, including that the comment helpers insert their marker and treat an already-commented target line as a successful find (issues #701, #827, #829, #843 review F2, #843 eval, #843 review round)" "ok"
 else
-  check "R25" "lab/fix/review/curator cap headroom or agent-step binding missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch; issue #843: a 90-minute review cap under 120 lost the #837 verdict with no report and no retry; the parse binding closes name-colon, multiline, flow-mapping, explicit-key, block-scalar, and anchored-uses shapes that a text count could not bind)" "bad"
+  check "R25" "lab/fix/review/curator cap headroom or agent-step binding missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire; issue #827: a 60-minute curator cap under 75 lost the #825 remediation branch; issue #843: a 90-minute review cap under 120 lost the #837 verdict with no report and no retry; the parse binding normalizes the ./ workspace and \$/ self-repository forms and path-equivalent spellings to the same runner, binds the arm's exact step id and actor gate, and closes name-colon, multiline, flow-mapping, explicit-key, block-scalar, and inline-anchored-uses shapes that a text count could not bind)" "bad"
 fi
 
 # [R26] Create-issue dedupe guard (issue #668): Maintainer concurrency is
