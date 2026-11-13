@@ -123,8 +123,7 @@ if [ "${PEROS_ANCHOR:-}" = "1" ]; then
   cross_repo="${PR_CROSS_REPO:-}"
   head_repo="${PR_HEAD_REPO:-}"
   if [ -z "$pr_number" ]; then
-    echo "No open PR is associated with this trigger; nothing to sanitize."
-    exit 0
+    fail "The per-OS PR trust anchor has no PR number; refusing to rewrite history (issue #798, fail closed)."
   fi
   case "$pr_number" in
     *[!0-9]*)
@@ -314,8 +313,10 @@ fi
 # approvals. Issue #798 review B13: GitHub attributes a co-author by the
 # email, so a trailer with a different display name but the owner email is
 # still owner attribution. Use one shared, email-aware regex for the count and
-# the rewrite filter; the owner identity stays exact, and the optional numeric
-# prefix is the noreply form GitHub emits.
+# the rewrite filter, and apply it case-insensitively on both sides: a count
+# that tolerates mixed case while the rewrite does not would print success
+# while the trailer survived. The owner identity stays exact, and the optional
+# numeric prefix is the noreply form GitHub emits.
 trailer_re='^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:[[:space:]]*([Uu]serfrom1995([[:space:]]*<[^>]*>)?|[^<]*<([0-9]+\+)?[Uu]serfrom1995@[Uu]sers\.noreply\.github\.com>)[[:space:]]*$'
 export TRAILER_RE="$trailer_re"
 # Issue #798 review N10: in the anchored per-OS lane only the named per-OS
@@ -375,12 +376,12 @@ if [ "${GIT_COMMITTER_EMAIL:-}" = "github-actions[bot]@users.noreply.github.com"
   esac
 fi
 if [ "$strip" -eq 1 ]; then
-  sed -E "/$TRAILER_RE/d" | git commit-tree "$@"
+  { grep -viE "$TRAILER_RE" || [ $? -eq 1 ]; } | git commit-tree "$@"
 else
   git commit-tree "$@"
 fi'
 legacy_commit_filter='
-sed -E "/$TRAILER_RE/d" | git commit-tree "$@"'
+{ grep -viE "$TRAILER_RE" || [ $? -eq 1 ]; } | git commit-tree "$@"'
 if [ "${PEROS_ANCHOR:-}" = "1" ]; then
   commit_filter="$peros_commit_filter"
 else
@@ -427,6 +428,15 @@ if [ "$is_pr" = "yes" ]; then
   esac
 fi
 
+verify_legacy_rewrite() {
+  local ref="$1" rewritten remaining
+  rewritten="$(run_git log --format=%B "$base_ref..$ref" 2>/dev/null)" || return 1
+  remaining="$(printf '%s\n' "$rewritten" | grep -ciE "$trailer_re" || true)"
+  case "$remaining" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$remaining" -eq 0 ]
+}
 if [ "${PEROS_ANCHOR:-}" = "1" ]; then
   echo "Stripping $tester_bad leaked owner trailer(s) from named per-OS tester commits on $branch."
 else
@@ -439,6 +449,9 @@ if [ -n "$scratch_dir" ]; then
   if ! run_git filter-branch -f --commit-filter "$commit_filter" "$base_ref..$pr_ref" >/dev/null; then
     fail "Could not rewrite branch $branch after stripping trailers; refusing to report success."
   fi
+  if [ "${PEROS_ANCHOR:-}" != "1" ] && ! verify_legacy_rewrite "$pr_ref"; then
+    fail "The trailer rewrite left an owner trailer in '$base_ref..$pr_ref' on branch '$branch'; refusing to report success (issue #798 review B13)."
+  fi
   if ! run_git push --force-with-lease="refs/heads/$branch:$tip" "$fetch_url" "$pr_ref:refs/heads/$branch"; then
     fail "Could not update branch $branch after stripping trailers; refusing to report success."
   fi
@@ -446,6 +459,9 @@ else
   git checkout --detach "$pr_ref" --quiet
   if ! git filter-branch -f --commit-filter "$commit_filter" "$base_ref..HEAD" >/dev/null; then
     fail "Could not rewrite branch $branch after stripping trailers; refusing to report success."
+  fi
+  if [ "${PEROS_ANCHOR:-}" != "1" ] && ! verify_legacy_rewrite HEAD; then
+    fail "The trailer rewrite left an owner trailer in '$base_ref..HEAD' on branch '$branch'; refusing to report success (issue #798 review B13)."
   fi
   if ! git push --force-with-lease="refs/heads/$branch:$tip" origin "HEAD:refs/heads/$branch" --quiet; then
     fail "Could not update branch $branch after stripping trailers; refusing to report success."

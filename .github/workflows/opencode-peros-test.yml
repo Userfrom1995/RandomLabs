@@ -80,8 +80,9 @@ jobs:
           # event payload or a workspace remote the agent can rewrite. Resolve
           # the trigger's PR identity before the agent starts, verify it agrees
           # with the checked-out ref, and export it for the strip and scope
-          # steps. A no-PR issue trigger exports empty values; the sanitizers
-          # then no-op.
+          # steps. An issue trigger with no anchored open PR fails closed here:
+          # the runner can create a branch or PR later, and the sanitizers
+          # would otherwise no-op while that agent work went unchecked.
           pr_number=""
           branch=""
           cross_repo=""
@@ -126,6 +127,10 @@ jobs:
               echo "::error::The PR #$pr_number head '$branch' does not match the checked-out ref '$EXPECTED_BRANCH'; a concurrent rewrite happened, refusing to start an unanchored per-OS test session (issue #798, fail closed)."
               exit 1
             fi
+          fi
+          if [ -z "$pr_number" ]; then
+            echo "::error::No open PR is associated with issue #$THREAD; refusing to start an unanchored per-OS test session (issue #798, fail closed)."
+            exit 1
           fi
           {
             echo "pr_number=$pr_number"
@@ -561,7 +566,7 @@ jobs:
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: the vendored runner auto-commits inside the agent step,
@@ -597,7 +602,7 @@ jobs:
             echo "::error::Trailer strip helper absent from workflow commit ${GITHUB_SHA}; refusing to leave an unsanitized branch (issue #798, fail closed)."
             exit 1
           fi
-          printf '%s\n' "$strip" | bash -s -- "$BASELINE_SHA"
+          printf '%s\n' "$strip" | bash -p -s -- "$BASELINE_SHA"
 
       - name: "Enforce the per-OS tester commit scope (issue #798)"
         id: scope_guard
@@ -660,7 +665,7 @@ jobs:
           # Trusted step env wins over $GITHUB_ENV, so an agent-exported value
           # can never redirect the guard's fetch/push to another repository.
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: a per-OS arm's auto-commit (the Linux arm's 9f1f1ed0 on
@@ -696,7 +701,7 @@ jobs:
             echo "::error::Per-OS scope guard absent from workflow commit ${GITHUB_SHA}; refusing to leave an unscoped branch (issue #798, fail closed)."
             exit 1
           fi
-          printf '%s\n' "$guard" | bash -s -- "$BASELINE_SHA" "$PEROS_OS"
+          printf '%s\n' "$guard" | bash -p -s -- "$BASELINE_SHA" "$PEROS_OS"
 
       - name: Verify test decided, else fail closed
         id: verify-test
@@ -791,7 +796,7 @@ jobs:
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
@@ -831,7 +836,7 @@ jobs:
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
             exit 1
           fi
-          printf '%s' "$poster" | bash -s -- linux "$TARGET"
+          printf '%s' "$poster" | bash -p -s -- linux "$TARGET"
 
       - name: Forward Linux tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'
@@ -885,7 +890,7 @@ jobs:
           # per-OS forwarders); the stdin transport below is conversion-proof by
           # construction, and audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #791: feed the decision file on stdin, never as a jq path
@@ -1014,8 +1019,9 @@ jobs:
           # event payload or a workspace remote the agent can rewrite. Resolve
           # the trigger's PR identity before the agent starts, verify it agrees
           # with the checked-out ref, and export it for the strip and scope
-          # steps. A no-PR issue trigger exports empty values; the sanitizers
-          # then no-op.
+          # steps. An issue trigger with no anchored open PR fails closed here:
+          # the runner can create a branch or PR later, and the sanitizers
+          # would otherwise no-op while that agent work went unchecked.
           pr_number=""
           branch=""
           cross_repo=""
@@ -1060,6 +1066,10 @@ jobs:
               echo "::error::The PR #$pr_number head '$branch' does not match the checked-out ref '$EXPECTED_BRANCH'; a concurrent rewrite happened, refusing to start an unanchored per-OS test session (issue #798, fail closed)."
               exit 1
             fi
+          fi
+          if [ -z "$pr_number" ]; then
+            echo "::error::No open PR is associated with issue #$THREAD; refusing to start an unanchored per-OS test session (issue #798, fail closed)."
+            exit 1
           fi
           {
             echo "pr_number=$pr_number"
@@ -1503,7 +1513,7 @@ jobs:
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: the vendored runner auto-commits inside the agent step,
@@ -1539,7 +1549,7 @@ jobs:
             echo "::error::Trailer strip helper absent from workflow commit ${GITHUB_SHA}; refusing to leave an unsanitized branch (issue #798, fail closed)."
             exit 1
           fi
-          printf '%s\n' "$strip" | bash -s -- "$BASELINE_SHA"
+          printf '%s\n' "$strip" | bash -p -s -- "$BASELINE_SHA"
 
       - name: "Enforce the per-OS tester commit scope (issue #798)"
         id: scope_guard
@@ -1607,7 +1617,7 @@ jobs:
           # Trusted step env wins over $GITHUB_ENV, so an agent-exported value
           # can never redirect the guard's fetch/push to another repository.
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: a per-OS arm's auto-commit (the Linux arm's 9f1f1ed0 on
@@ -1643,7 +1653,7 @@ jobs:
             echo "::error::Per-OS scope guard absent from workflow commit ${GITHUB_SHA}; refusing to leave an unscoped branch (issue #798, fail closed)."
             exit 1
           fi
-          printf '%s\n' "$guard" | bash -s -- "$BASELINE_SHA" "$PEROS_OS"
+          printf '%s\n' "$guard" | bash -p -s -- "$BASELINE_SHA" "$PEROS_OS"
 
       - name: Verify test decided, else fail closed
         id: verify-test
@@ -1743,7 +1753,7 @@ jobs:
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #692: run 39170578536 died at the agent-step cap with 5 of
@@ -1810,7 +1820,7 @@ jobs:
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
             exit 1
           fi
-          if printf '%s' "$poster" | bash -s -- macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
+          if printf '%s' "$poster" | bash -p -s -- macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
             echo "Salvaged partial macOS findings report; the run still concludes red."
           else
             echo "::warning::Partial macOS findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -1866,7 +1876,7 @@ jobs:
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
@@ -1906,7 +1916,7 @@ jobs:
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
             exit 1
           fi
-          printf '%s' "$poster" | bash -s -- macos "$TARGET"
+          printf '%s' "$poster" | bash -p -s -- macos "$TARGET"
 
       - name: Forward macOS tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'
@@ -1960,7 +1970,7 @@ jobs:
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
-        shell: '/bin/bash --noprofile --norc -e -o pipefail {0}'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #791: feed the decision file on stdin, never as a jq path
@@ -2087,8 +2097,9 @@ jobs:
           # event payload or a workspace remote the agent can rewrite. Resolve
           # the trigger's PR identity before the agent starts, verify it agrees
           # with the checked-out ref, and export it for the strip and scope
-          # steps. A no-PR issue trigger exports empty values; the sanitizers
-          # then no-op.
+          # steps. An issue trigger with no anchored open PR fails closed here:
+          # the runner can create a branch or PR later, and the sanitizers
+          # would otherwise no-op while that agent work went unchecked.
           pr_number=""
           branch=""
           cross_repo=""
@@ -2133,6 +2144,10 @@ jobs:
               echo "::error::The PR #$pr_number head '$branch' does not match the checked-out ref '$EXPECTED_BRANCH'; a concurrent rewrite happened, refusing to start an unanchored per-OS test session (issue #798, fail closed)."
               exit 1
             fi
+          fi
+          if [ -z "$pr_number" ]; then
+            echo "::error::No open PR is associated with issue #$THREAD; refusing to start an unanchored per-OS test session (issue #798, fail closed)."
+            exit 1
           fi
           {
             echo "pr_number=$pr_number"
@@ -2570,7 +2585,7 @@ jobs:
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
           BASELINE_SHA: ${{ steps.pre_agent_baseline.outputs.sha }}
           HEAD_REF: ${{ steps.peros_pr.outputs.branch }}
-        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: the vendored runner auto-commits inside the agent step,
@@ -2606,7 +2621,7 @@ jobs:
             echo "::error::Trailer strip helper absent from workflow commit ${GITHUB_SHA}; refusing to leave an unsanitized branch (issue #798, fail closed)."
             exit 1
           fi
-          printf '%s\n' "$strip" | bash -s -- "$BASELINE_SHA"
+          printf '%s\n' "$strip" | bash -p -s -- "$BASELINE_SHA"
 
       - name: "Enforce the per-OS tester commit scope (issue #798)"
         id: scope_guard
@@ -2669,7 +2684,7 @@ jobs:
           # Trusted step env wins over $GITHUB_ENV, so an agent-exported value
           # can never redirect the guard's fetch/push to another repository.
           REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}
-        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #798: a per-OS arm's auto-commit (the Linux arm's 9f1f1ed0 on
@@ -2705,7 +2720,7 @@ jobs:
             echo "::error::Per-OS scope guard absent from workflow commit ${GITHUB_SHA}; refusing to leave an unscoped branch (issue #798, fail closed)."
             exit 1
           fi
-          printf '%s\n' "$guard" | bash -s -- "$BASELINE_SHA" "$PEROS_OS"
+          printf '%s\n' "$guard" | bash -p -s -- "$BASELINE_SHA" "$PEROS_OS"
 
       - name: Verify test decided, else fail closed
         id: verify-test
@@ -2800,7 +2815,7 @@ jobs:
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
-        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #692: same salvage contract as the macOS arm (see the macOS
@@ -2860,7 +2875,7 @@ jobs:
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
             exit 1
           fi
-          if printf '%s' "$poster" | bash -s -- windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
+          if printf '%s' "$poster" | bash -p -s -- windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
             echo "Salvaged partial Windows findings report; the run still concludes red."
           else
             echo "::warning::Partial Windows findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -2911,7 +2926,7 @@ jobs:
           TMPDIR: /tmp
           PATH: ${{ steps.trusted_path.outputs.path }}
           TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
-        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
@@ -2951,7 +2966,7 @@ jobs:
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
             exit 1
           fi
-          printf '%s' "$poster" | bash -s -- windows "$TARGET"
+          printf '%s' "$poster" | bash -p -s -- windows "$TARGET"
 
       - name: Forward Windows tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'
@@ -3004,7 +3019,7 @@ jobs:
           # disables that conversion; the stdin transport below is the primary,
           # conversion-proof fix. Audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
-        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH="$TRUSTED_PATH"; export PATH
           # Issue #791: feed the decision file on stdin, never as a jq path

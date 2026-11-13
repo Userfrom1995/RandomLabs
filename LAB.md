@@ -221,7 +221,12 @@ Round 13 also
   `GH_HOST: github.com`, and the lowercase-proxy unset), never with a
   post-agent `git show`, so an agent-exported `GIT_DIR` or
   `GIT_OBJECT_DIRECTORY` plus a fake loose object named `GITHUB_SHA`
-  cannot execute attacker helper text (issue #798 review B8). The post-agent
+  cannot execute attacker helper text (issue #798 review B8). Every
+  post-agent per-OS step (strip, scope, findings, salvage, forward) runs an
+  absolute `bash --noprofile --norc -e -o pipefail -p` shell and every nested
+  helper read uses `bash -p -s`, so a `BASH_FUNC_*` function or a `BASH_ENV`
+  value exported by the agent through `$GITHUB_ENV` cannot hijack a trusted
+  sanitizer, poster, or forwarder (issue #798 review). The post-agent
   scope step also pins `PEROS_PREFLIGHT: "0"` so an agent-exported
   `PEROS_PREFLIGHT=1` cannot flip the guard into its local-workspace preflight
   path and hide a violating remote tip after resetting the workspace; the
@@ -235,13 +240,18 @@ Round 13 also
   rewritten range before printing success, so a foreign-only trailer can
   never produce a false success line. The guard resolves the same-repository PR head (fork
   and deleted heads are loud no-ops; an issue trigger follows its open
-  `opencode/issue<N>-*` PR), judges only commits after the captured baseline,
-  scans every commit with `diff-tree -m` so a merge cannot hide an imported
-  change (including a merge whose side parent predates the captured baseline,
-  where the combined diff is empty), judges protected paths regardless of committer identity (a
-  protected path whose content in a clean merge equals the captured baseline
-  or the trusted main tip is not a tester edit), and
-  accepts only project test-lane paths for tester commits. Protected lab
+  `opencode/issue<N>-*` PR, and an issue trigger with no open anchored PR
+  fails closed before the agent because the runner can create a branch or PR
+  later and the sanitizers would otherwise no-op), judges only commits after
+  the captured baseline, excludes commits already on the trusted main tip
+  from the judged range, scans every commit with `diff-tree -m` so a merge
+  cannot hide an imported change (including a merge whose side parent
+  predates the captured baseline, where the combined diff is empty), judges
+  protected paths regardless of committer identity, and skips the blob
+  equality exemption only on a true merge commit (two or more parents); a
+  non-merge commit that rewrites a protected path to the captured baseline or
+  the trusted main tip is judged and fails closed, so a revert-to-main bypass
+  cannot hide a lab edit. Testers may edit only project test-lane paths. Protected lab
   paths (`.github`, `.github/*`, `AGENTS.md`, `LAB.md`, `setup.sh`,
   `shutdown.sh`, `opencode.json`, `PEROS_SCOPE_VIOLATION`) are always
   violations. A fully tester-owned violating range is dropped with a
@@ -265,7 +275,10 @@ Round 13 also
   to be an ancestor of the branch; the nine legacy lanes pass no baseline, so
   their `origin/main` range is not given that anchored-only refusal. The strip
   matches an owner trailer by display name or owner email, with leading
-  whitespace and case tolerated. Both sanitizers require a successful pre-agent baseline
+  whitespace and case tolerated, and applies the same case-insensitive matcher
+  to the count, the rewrite filter, and the post-rewrite verification on both
+  the anchored and legacy lanes, so a mixed-case trailer can never print
+  success while it survives. Both sanitizers require a successful pre-agent baseline
   capture. The owner-PAT findings, forward, and salvage steps pin the
   interpreter, gh config, and proxy/TLS seams (`BASH_ENV`, `ENV`,
   `GH_CONFIG_DIR`, `GH_HOST`, `GIT_CONFIG_*`, `LD_*`, `DYLD_*` on macOS, and
@@ -279,9 +292,12 @@ Round 13 also
   origin and a mock `gh` across the clean, out-of-lane, protected,
   foreign-interleaved, foreign-only-trailer, generic-bot,
   tester-name-foreign-email, pre-baseline-trailer, pre-baseline-date-skew,
-  bare, trailer, incident, fork, wrong-namespace, issue-triggered,
-  per-OS-identity, clean-merge, protected-merge, evil-merge (side parent
-  predating the baseline), gitlink, exec-path (strip and guard),
+  bare, trailer, mixed-case-trailer, incident, fork, wrong-namespace,
+  issue-triggered, issue-no-pr-anchor, per-OS-identity, clean-merge,
+  protected-merge, evil-merge (side parent predating the baseline),
+  non-merge-revert (the pre-baseline infrastructure change is reverted to the
+  trusted main blob by a single-parent tester commit), gitlink, exec-path
+  (strip and guard),
   fake-object-store (strip and guard),
   inherited-preflight (shipped step-env pin and pin-removed mutant),
   proxy-env control and unset-removal mutant, failed-baseline, non-ancestor-baseline,
@@ -301,7 +317,8 @@ Round 13 also
   findings/forward/salvage steps can send an `Authorization` header through a
   proxy (the no-overlay control leaks, so the assertion is load-bearing).
   R17 pins the new step bodies, gates, exact owner-PAT env
-  maps, ordering, and forward gate.
+  maps, ordering, and forward gate, including the `-p` privileged shells and
+  nested helper invocations with a shell-pin mutation control.
   Review hardening: each owner-PAT step creates a fresh private
   `GH_CONFIG_DIR` (`mktemp -d`, `chmod 700`, a removal trap, fail closed) so
   gh can never load an agent-planted `config.yml`; the findings poster is read
