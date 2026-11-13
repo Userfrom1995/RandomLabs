@@ -33042,7 +33042,7 @@ def main(root):
         with open(mode_guard_path) as handle:
             mode_guard = handle.read()
         mode_entry_anchor = (
-            'git_at "$runner" ls-tree "$rev" -- "$path" 2>/dev/null'
+            'git_at "$runner" ls-tree --full-tree "$rev" -- "$path" 2>/dev/null'
         )
         if mode_entry_anchor not in mode_guard:
             bad.append("r34-mode-merge-mutation-anchor-missing")

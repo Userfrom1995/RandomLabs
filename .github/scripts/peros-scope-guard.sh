@@ -164,7 +164,7 @@ git_at() {
 
 entry_of() {
   local runner="$1" rev="$2" path="$3" entry
-  if entry="$(git_at "$runner" ls-tree "$rev" -- "$path" 2>/dev/null)"; then
+  if entry="$(git_at "$runner" ls-tree --full-tree "$rev" -- "$path" 2>/dev/null)"; then
     if [ -n "$entry" ]; then
       printf '%s' "$entry"
       return 0
