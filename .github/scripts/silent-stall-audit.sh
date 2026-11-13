@@ -33034,6 +33034,287 @@ def main(root):
         run_after_merge_advance(workflow_sha, "real")
         run_fake_side(workflow_sha, "real", 1, True)
 
+        # Issue #798 review B1: the tree-entry lookup must parse the diff path
+        # literally and fail closed. A root-level name such as ":evil.py" is
+        # read as pathspec magic by ls-tree, and folding a lookup failure into
+        # ABSENT lets four ABSENT entries compare equal and exempt a merge that
+        # authored a real path. The shipped guard drops both crafted merges;
+        # removing :(literal) accepts ":evil.py", and folding the lookup error
+        # accepts ":(glob)evil.py".
+        def run_crafted_path_merge(helper_sha, tag, crafted,
+                                   mode_preflight=False, expect_scope_rc=0,
+                                   expect_drop=False):
+            set_origin_main(helper_sha)
+            checkout_base(helper_sha)
+            main_branch = "r34-crafted-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            commit_file("proj/src/crafted_main_%s.py" % tag, "main\n",
+                        "main out-of-lane advance",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            set_origin_main(main_tip)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, helper_sha],
+                cwd=work, check=True)
+            baseline = baseline_for(helper_sha, "base-crafted-%s" % tag)
+            blob_file = os.path.join(sandbox, "crafted-blob-%s" % tag)
+            with open(blob_file, "w") as handle:
+                handle.write("evil\n")
+            blob = run([git, "hash-object", "-w", blob_file], cwd=work,
+                       check=True).stdout.strip()
+            tmp_index = os.path.join(sandbox, "crafted-index-%s" % tag)
+            index_env = dict(os.environ, GIT_INDEX_FILE=tmp_index)
+            run([git, "read-tree", main_tip], cwd=work, check=True,
+                env=index_env)
+            run([git, "update-index", "--add", "--cacheinfo",
+                 "100644,%s,%s" % (blob, crafted)], cwd=work, check=True,
+                env=index_env)
+            merge_tree = run([git, "write-tree"], cwd=work, check=True,
+                             env=index_env).stdout.strip()
+            os.unlink(tmp_index)
+            merge = run([git, "commit-tree", merge_tree,
+                         "-p", baseline, "-p", main_tip,
+                         "-m", "tester merge authors %s" % crafted],
+                        cwd=work, env=tester_env(), check=True).stdout.strip()
+            run([git, "update-ref", "HEAD", merge], cwd=work, check=True)
+            run([git, "reset", "-q", "--hard", merge], cwd=work, check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-crafted-%s(setup-empty)" % tag)
+            label = "r34-crafted-%s" % tag
+            if mode_preflight:
+                proc, value = baseline_raw(
+                    helper_sha, "base-crafted-pre-%s" % tag)
+                combined = proc.stdout + proc.stderr
+                if expect_scope_rc == 0:
+                    if proc.returncode != 0 or not value:
+                        bad.append(
+                            "%s(preflight-unexpected-refusal;%s)"
+                            % (label, combined.replace("\n", " ")[:300]))
+                elif proc.returncode == 0:
+                    bad.append("%s(preflight-not-refused)" % label)
+                elif "already carries per-OS tester commits outside the project test lane" not in combined:
+                    bad.append("%s(preflight-wrong-reason)" % label)
+            else:
+                results = sanitize(
+                    helper_sha, baseline, "crafted-%s" % tag, event_pr,
+                    pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+                )
+                if results[-1][1] != expect_scope_rc:
+                    bad.append(
+                        "%s(scope-rc=%d,want=%d;%s)"
+                        % (label, results[-1][1], expect_scope_rc,
+                           results[-1][2].replace("\n", " ")[:300]))
+                if expect_drop:
+                    if remote_tip() != baseline:
+                        bad.append("%s(no-drop:%s)" % (label, remote_tip()))
+                elif remote_tip() == baseline:
+                    bad.append("%s(dropped:%s)" % (label, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            set_origin_main(helper_sha)
+
+        run_crafted_path_merge(workflow_sha, "colon-real", ":evil.py",
+                               expect_scope_rc=1, expect_drop=True)
+        run_crafted_path_merge(workflow_sha, "glob-real", ":(glob)evil.py",
+                               expect_scope_rc=1, expect_drop=True)
+        run_crafted_path_merge(workflow_sha, "colon-pre-real", ":evil.py",
+                               mode_preflight=True, expect_scope_rc=1)
+        run_crafted_path_merge(workflow_sha, "glob-pre-real",
+                               ":(glob)evil.py", mode_preflight=True,
+                               expect_scope_rc=1)
+
+        # Issue #798 review: `:(literal)` still lets ls-tree normalize a
+        # non-canonical raw tree name (an empty, "." or ".." component, or a
+        # leading/trailing slash) away, returning an empty successful lookup.
+        # The guard refuses such a path up front, so a caller that authored one
+        # is judged and dropped; removing the refusal exempts it as four
+        # ABSENT entries.
+        def run_malformed_path_merge(helper_sha, tag, malformed,
+                                     mode_preflight=False,
+                                     expect_scope_rc=0, expect_drop=False):
+            set_origin_main(helper_sha)
+            checkout_base(helper_sha)
+            main_branch = "r34-malformed-main-%s" % tag
+            run([git, "checkout", "-q", "-B", main_branch, helper_sha],
+                cwd=work, check=True)
+            commit_file("proj/src/malformed_main_%s.py" % tag, "main\n",
+                        "main out-of-lane advance",
+                        name="The Lab Engineer (CTO)",
+                        email="lab@example.invalid")
+            main_tip = run([git, "rev-parse", "HEAD"], cwd=work,
+                           check=True).stdout.strip()
+            set_origin_main(main_tip)
+            run([git, "checkout", "-q", "-f", "-B", BRANCH, helper_sha],
+                cwd=work, check=True)
+            baseline = baseline_for(helper_sha, "base-malformed-%s" % tag)
+            blob_file = os.path.join(sandbox, "malformed-blob-%s" % tag)
+            with open(blob_file, "w") as handle:
+                handle.write("evil\n")
+            blob = run([git, "hash-object", "-w", blob_file], cwd=work,
+                       check=True).stdout.strip()
+            main_tree = run([git, "rev-parse", "%s^{tree}" % main_tip],
+                            cwd=work, check=True).stdout.strip()
+            raw_tree = subprocess.run(
+                [git, "cat-file", "tree", main_tree], cwd=work,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
+            ).stdout
+            entries = []
+            offset = 0
+            while offset < len(raw_tree):
+                space = raw_tree.index(b" ", offset)
+                nul = raw_tree.index(b"\0", space)
+                entries.append((
+                    raw_tree[offset:space],
+                    raw_tree[space + 1:nul],
+                    raw_tree[nul + 1:nul + 21],
+                ))
+                offset = nul + 21
+            entries.append((b"100644", malformed.encode(),
+                            bytes.fromhex(blob)))
+            # Git sorts tree entries by name, with a tree compared as if its
+            # name ended in "/".
+            entries.sort(key=lambda entry: entry[1] + (
+                b"/" if entry[0] == b"40000" else b""))
+            crafted = b"".join(
+                entry[0] + b" " + entry[1] + b"\0" + entry[2]
+                for entry in entries
+            )
+            raw_file = os.path.join(sandbox, "malformed-tree-%s" % tag)
+            with open(raw_file, "wb") as handle:
+                handle.write(crafted)
+            merge_tree = run(
+                [git, "hash-object", "-t", "tree", "-w", "--literally",
+                 raw_file], cwd=work, check=True).stdout.strip()
+            merge = run([git, "commit-tree", merge_tree,
+                         "-p", baseline, "-p", main_tip,
+                         "-m", "tester merge authors a malformed path"],
+                        cwd=work, env=tester_env(), check=True).stdout.strip()
+            run([git, "update-ref", "HEAD", merge], cwd=work, check=True)
+            run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
+                check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-malformed-%s(setup-empty)" % tag)
+            label = "r34-malformed-%s" % tag
+            if mode_preflight:
+                proc, value = baseline_raw(
+                    helper_sha, "base-malformed-pre-%s" % tag)
+                combined = proc.stdout + proc.stderr
+                if expect_scope_rc == 0:
+                    if proc.returncode != 0 or not value:
+                        bad.append(
+                            "%s(preflight-unexpected-refusal;%s)"
+                            % (label, combined.replace("\n", " ")[:300]))
+                elif proc.returncode == 0:
+                    bad.append("%s(preflight-not-refused)" % label)
+                elif "already carries per-OS tester commits outside the project test lane" not in combined:
+                    bad.append("%s(preflight-wrong-reason)" % label)
+            else:
+                results = sanitize(
+                    helper_sha, baseline, "malformed-%s" % tag, event_pr,
+                    pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+                )
+                if results[-1][1] != expect_scope_rc:
+                    bad.append(
+                        "%s(scope-rc=%d,want=%d;%s)"
+                        % (label, results[-1][1], expect_scope_rc,
+                           results[-1][2].replace("\n", " ")[:300]))
+                if expect_drop:
+                    if remote_tip() != baseline:
+                        bad.append("%s(no-drop:%s)" % (label, remote_tip()))
+                elif remote_tip() == baseline:
+                    bad.append("%s(dropped:%s)" % (label, remote_tip()))
+            run([git, "branch", "-D", main_branch], cwd=work, check=False)
+            set_origin_main(helper_sha)
+
+        run_malformed_path_merge(workflow_sha, "double-slash-real", "a//b",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "dot-real", "a/./b",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "double-slash-pre-real",
+                                 "a//b", mode_preflight=True,
+                                 expect_scope_rc=1)
+
+        # Mutant: dropping :(literal) makes ls-tree parse ":evil.py" as
+        # pathspec magic and accept the merge.
+        checkout_main_ref(workflow_sha)
+        crafted_guard_path = os.path.join(
+            work, ".github", "scripts", "peros-scope-guard.sh")
+        with open(crafted_guard_path) as handle:
+            crafted_guard = handle.read()
+        literal_anchor = '-- ":(literal)$path"'
+        if literal_anchor not in crafted_guard:
+            bad.append("r34-crafted-literal-mutation-anchor-missing")
+        else:
+            with open(crafted_guard_path, "w") as handle:
+                handle.write(crafted_guard.replace(
+                    literal_anchor, '-- "$path"', 1))
+            run([git, "commit", "-qam",
+                 "mutant guard parses the path as pathspec magic"], cwd=work,
+                check=True)
+            literal_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                     check=True).stdout.strip()
+            run_crafted_path_merge(literal_mutant_sha, "colon-literal-mutant",
+                                   ":evil.py", expect_scope_rc=0,
+                                   expect_drop=False)
+            run_crafted_path_merge(literal_mutant_sha,
+                                   "colon-pre-literal-mutant", ":evil.py",
+                                   mode_preflight=True, expect_scope_rc=0)
+            checkout_main_ref(workflow_sha)
+
+        # Mutant: restoring the old non-literal, error-folding lookup accepts
+        # the merge that authors ":(glob)evil.py".
+        with open(crafted_guard_path) as handle:
+            folded_guard = handle.read()
+        fail_closed_anchor = '-- ":(literal)$path" 2>/dev/null)" || return 1'
+        if fail_closed_anchor not in folded_guard:
+            bad.append("r34-crafted-fail-closed-mutation-anchor-missing")
+        else:
+            with open(crafted_guard_path, "w") as handle:
+                handle.write(folded_guard.replace(
+                    fail_closed_anchor,
+                    '-- "$path" 2>/dev/null)" || true', 1))
+            run([git, "commit", "-qam",
+                 "mutant guard folds a lookup failure into ABSENT"], cwd=work,
+                check=True)
+            folded_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                    check=True).stdout.strip()
+            run_crafted_path_merge(folded_mutant_sha, "glob-folded-mutant",
+                                   ":(glob)evil.py", expect_scope_rc=0,
+                                   expect_drop=False)
+            run_crafted_path_merge(folded_mutant_sha,
+                                   "glob-pre-folded-mutant", ":(glob)evil.py",
+                                   mode_preflight=True, expect_scope_rc=0)
+            checkout_main_ref(workflow_sha)
+
+        # Mutant: without the canonical-path refusal the malformed raw entry
+        # normalizes to an empty successful lookup and the merge is exempted.
+        with open(crafted_guard_path) as handle:
+            canonical_guard = handle.read()
+        canonical_anchor = '  is_canonical_repo_path "$path" || return 1\n'
+        if canonical_anchor not in canonical_guard:
+            bad.append("r34-crafted-canonical-mutation-anchor-missing")
+        else:
+            with open(crafted_guard_path, "w") as handle:
+                handle.write(canonical_guard.replace(canonical_anchor, "", 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without the canonical-path refusal"],
+                cwd=work, check=True)
+            canonical_mutant_sha = run(
+                [git, "rev-parse", "HEAD"], cwd=work,
+                check=True).stdout.strip()
+            run_malformed_path_merge(canonical_mutant_sha,
+                                     "double-slash-mutant", "a//b",
+                                     expect_scope_rc=0, expect_drop=False)
+            run_malformed_path_merge(canonical_mutant_sha,
+                                     "double-slash-pre-mutant", "a//b",
+                                     mode_preflight=True, expect_scope_rc=0)
+            checkout_main_ref(workflow_sha)
+
         # Blob-only mutant: the old rev-parse comparison accepts both
         # mode-only merges on the post-agent guard and the preflight.
         checkout_main_ref(workflow_sha)
@@ -33042,7 +33323,8 @@ def main(root):
         with open(mode_guard_path) as handle:
             mode_guard = handle.read()
         mode_entry_anchor = (
-            'git_at "$runner" ls-tree --full-tree "$rev" -- "$path" 2>/dev/null'
+            'git_at "$runner" ls-tree --full-tree "$rev" -- ":(literal)$path" '
+            '2>/dev/null'
         )
         if mode_entry_anchor not in mode_guard:
             bad.append("r34-mode-merge-mutation-anchor-missing")
@@ -33050,7 +33332,8 @@ def main(root):
             with open(mode_guard_path, "w") as handle:
                 handle.write(mode_guard.replace(
                     mode_entry_anchor,
-                    'git_at "$runner" rev-parse "$rev:$path" 2>/dev/null',
+                    'git_at "$runner" rev-parse --verify --quiet '
+                    '"$rev:$path" || true',
                     1))
             run([git, "commit", "-qam",
                  "mutant guard compares blob ids only"], cwd=work, check=True)
@@ -33645,7 +33928,7 @@ R34PY
 fi
 case "$r34_out" in
   OK)
-    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, a mode-only protected or out-of-lane merge is dropped on the post-agent guard and the preflight (the blob-only mutant accepts both), a clean merge of main stays exempt after main advances the same path again, a fabricated second parent without main ancestry records the marker (the ancestry-removal mutant accepts it), and a merge authoring a crafted root-level ':evil.py' or ':(glob)evil.py' path is dropped by the literal, fail-closed tree-entry lookup (the literal-strip and lookup-folding mutants accept them), a merge authoring a non-canonical raw-tree path with an empty, '.' or '..' component is dropped by the canonical-path refusal (the canonical-refusal-removal mutant accepts it), an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
     ;;
   *)
     check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
