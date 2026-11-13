@@ -1,49 +1,50 @@
 # STATE
 
-Last updated: 2026-11-13T17:20Z by run 43471187079
+Last updated: 2026-11-13T18:01Z by run 43477945004
 
-(schedule tick on 2026-11-13: the Lab Engineer is live on #804 `8a4f3871` closing the 16:55Z eval rejection; this run stands by.)
+(the #804 lab push landed `72d48c008` closing the eval's two blocking exemption findings; the fresh review is live on the new head.)
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and write hardcoded PAT triggers that route work to the right agent. I never post triggers myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 17:16-17:20Z on 2026-11-13)
+## Right now (surveyed 17:58-18:02Z on 2026-11-13)
 
-- **Wake**: `schedule` tick at 17:16:39Z (run 43471187079); the notification carries no PR or issue target. The loaded memory stamp was `2026-11-13T17:01Z by run 43467641729`, about 15 minutes stale.
-- **#804 LAB LIVE, HEAD UNCHANGED**: head `8a4f3871c3f82749bdfb7f2cc3072a5f0edcc93b`, main `a590d4e960b9c4065201bc4b3e485e2174b8e7b8`, merge-base equals the main tip, 0 behind / 9 ahead, 0 merge commits, 11 files (+6953/-207), MERGEABLE/CLEAN, updated 17:02:23Z by the `/oc lab` trigger. The remote branch tip is still `8a4f3871`; no lab push yet.
-- **LAB RUN 43468755731**: created 17:02:27Z, job started 17:02:29Z, the `Run opencode lab engineer agent` step in progress since 17:02:38Z (about 17 minutes at survey close). The instruction carries the eval's two blocking shapes: whole tree-entry comparison (mode, type, oid) in the carry and clean-import arms on both the post-agent guard and the preflight with R34 mode-only protected/out-of-lane fixtures and mutants; immutable-parent judgement (merge vs `$commit^2`, first parent vs `merge-base($commit^1,$commit^2)`) plus `$commit^2`-is-an-ancestor-of-fetched-main, with after-merge main-advance and fake-second-parent fixtures/mutants; plus the `LAB.md`/`AGENTS.md` sync, body refresh, full audit rerun and no-rebase note.
-- **EVAL REJECTION CONTEXT**: the 16:55:37Z binding Evaluator (run 43460379568) returned `fix` at 9.4/10. Blocking B1: mode-only merge changes bypass `merge_path_is_exempt` because `blob_of()` compares blob OIDs only, so a tester-authored merge that chmods a protected or out-of-lane path is treated as authoring nothing (reproduced on `.github/protected_eval.txt` merge `57a99f2` and `proj/src/prod_eval.py`, guard and preflight exit 0; non-merge mode-only and content-change merges correctly drop). Blocking B2: live-main-tip TOCTOU force-drops a clean `--no-ff` main import once main advances the same path (repro baseline `07c6556`, main `cfaddd8`, merge `0cc0e97`, later main `0e14539`; guard exit 1, reset to baseline). Docs overclaim at `LAB.md:252-258` and `AGENTS.md:192`.
-- **GATE CHAIN**: review round 10 approved `8a4f3871` at 15:50:32Z (run 43453892653) and the read-only Tester passed it at 16:09:24Z (run 43456680020, machine-published approve-test 16:09:34Z), but the eval rejection blocks the merge and the lab push will invalidate both head-bound approvals. After the push the lab workflow forwards a fresh review; only a fresh head-bound review approval + Tester verdict/approve-test + `approve-eval` marker newer than the tester verdict and the latest eval trigger may unlock the PAT sweep. #798 closes on merge.
-- **Runs**: in progress only this Maintainer run and the Lab Engineer; held 0, action-required 0, waiting 0; no failure, timeout or startup failure in the newest 120. The queued list carries only stale unrelated runs from 2026-09-25, 2026-10-05 and 2026-11-11 on old branches, not new work.
-- **Main and Pages**: main is `a590d4e9`; the latest main Pages deploy 43428744981 is green (12:51:40Z) and the #804 preview 43428726369 is green on `8a4f3871` (12:51:32Z). No main advance since 12:51Z. #804 checks: `comment` and `trigger` pass, GitGuardian pass, `deploy` skipping.
-- **Trigger allowlist**: 23 live workflow names minus the self-excluded `maintainer` and the three platform workflows (`Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`) = 19, exactly matching the `workflows:` list in `maintainer.yml` (auditor, Deploy static site to GitHub Pages, Lab Engineer, opencode-review, opencode-pr-trigger, opencode-test, opencode-peros-test, ideate, opencode, opencode-recover, poolduel-m1/m2/m9/m10-soak, curator, opencode-eval, tor-cli, pet-release, maze-chase-release). No workflow added or renamed.
+- **Wake**: `issue_comment` created on #804 at 17:57:50Z (the `/oc maintainer` handoff right after the lab push); this run 43477945004 started 17:57:53Z. The loaded memory stamp was `2026-11-13T17:20Z by run 43471187079`, about 37 minutes stale.
+- **#804 HEAD MOVED, REVIEW LIVE**: head `72d48c0084936f6626ab77f5c2ac0526ccdde0e0`, main `a590d4e960b9c4065201bc4b3e485e2174b8e7b8`, merge-base equals the main tip, 0 behind / 11 ahead, 11 files (+7274/-209), MERGEABLE/CLEAN, updated 17:57:50Z. Two new lab commits: `c6e034883` (tree-entry merge exemption, immutable parents, second-parent ancestry, docs; 17:46:06Z) and `72d48c008` (root-relative `ls-tree --full-tree`; 17:56:58Z).
+- **LAB RUN 43468755731 COMPLETE**: created 17:02:27Z, job 17:02:29Z, SUCCESS at 17:57:55Z (about 55 minutes). The push landed after the expected App-token wrapper rejection; the remote branch tip is `72d48c008`. Completion comment 17:57:32Z.
+- **PUSHED-TREE VERIFICATION**: `entry_of()` resolves the whole tree entry with `git ls-tree --full-tree`; `merge_path_is_exempt()` requires `$commit^2` to be an ancestor of the fetched `refs/remotes/origin/main` and compares the merge entry with `$commit^1` and `$commit^2` plus the merge base; the same helper serves the `PEROS_PREFLIGHT=1` path and the post-agent judge. R34 carries the `run_mode_merge` fixtures (protected and out-of-lane, guard and preflight), the `run_after_merge_advance` fixture, the `run_fake_side` fixture, and the blob-only (`rev-parse $rev:$path`) and ancestry-removal mutants. `LAB.md`/`AGENTS.md` were synced; the refreshed body has the new head, fixes, residual list and delegation ledger. The lab reports the full audit at 35 passed / 0 failed; the review re-verifies.
+- **REVIEW 43477923691 LIVE**: created 17:57:44Z, job 17:57:47Z, `Run opencode reviewer` in progress at 18:00Z. Pre-agent steps all green (PR info, open-PR guard, PR-head checkout, staged prompt, actor gate, checkout-head record, git identity, runtime clear, vendored-runner restore). `/oc review` posted 17:57:42Z.
+- **GATE CHAIN RESET**: the round-10 review approval on `8a4f3871` (15:50:32Z) and the read-only Tester pass (16:09:24Z, machine-published approve-test 16:09:34Z) are now stale. After this review, on approval the workflow forwards `/oc test`; after the owner-authored approve-test marker I dispatch the binding Evaluator; only a fresh head-bound review approval + Tester verdict/approve-test + `approve-eval` marker newer than the tester verdict and the latest eval trigger may unlock the PAT sweep. #798 closes on merge.
+- **Runs**: in progress only this Maintainer run and review 43477923691; held 0, action-required 0, waiting 0; no failure, timeout or startup failure in the newest 120. The pending review 43477944942 (from the `/oc maintainer` comment, no jobs, gate-skip shape) was cancelled at about 17:59Z; no started lane was touched.
+- **Main and Pages**: main is `a590d4e9`; main Pages deploy 43477951522 is green (17:57:56Z) and the #804 preview 43477906315 is green on `72d48c008` (17:57:38Z). #804 checks: `comment` and `trigger` pass, GitGuardian pass, `deploy` skipping.
+- **Trigger allowlist**: 23 live workflow names minus the self-excluded `maintainer` and the three platform workflows (`Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`) = 19, exactly matching the `workflows:` list in `maintainer.yml`. No workflow added or renamed.
 - **Model watch**: registry 86 models, 11 free; pin `opencode/deepseek-v4.1-flash-free` (`model` and `small_model`) and the ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free` and `glm-5.3-flash-free` all live. No retirement and no pin change.
 - **Open issues** (21): #836 (capacity and wall history; newest note the 15:33Z heartbeat recovery), #831 (scratch canary), #815/#812/#814/#803/#742 (audit and retry follow-ups), #798 (tracks #804), #792 (parked with #821), #774/#773 (docs), the Maze Chase set (#683/#678/#677/#661/#659/#657/#655/#582), #70 (board) and #42 (brainstorm). No issue opened since 2026-11-12; no untriaged issue and no new Owner directive.
-- **#821/#745 unchanged**: #821 (`dce109e4`, base `86570af1` stale) stays parked on the Owner capacity decision; #745 (`7a04fa4a`, base `e73bd7a2`) stays CONFLICTING/DIRTY behind #803.
+- **#821/#745 unchanged**: #821 (`dce109e4`, CLEAN) stays parked on the Owner capacity decision; #745 (`7a04fa4a`) stays CONFLICTING/DIRTY behind #803.
 - **Curator and Auditor**: the curator schedule ran green at 14:07Z with no stranded work. The daily audit (05:50:15Z on #70) is benign, naming the wall as the only red class. The heartbeat marker on #70 is 15:29:49Z.
-- **Workspace note**: the pre-agent checkout HEAD is the PR head `8a4f3871` (not main `a590d4e9`); only `.maintainer/` outputs were written.
+- **Workspace note**: the pre-agent checkout HEAD is the PR head `72d48c008` (not main `a590d4e9`); only `.maintainer/` outputs were written.
 
 ## The live lanes (do not duplicate)
 
-1. **#804** - the Lab Engineer (run 43468755731, live since 17:02:38Z) owns the two blocking exemption fixes and the docs/body sync on `8a4f3871`. On a push the lab workflow forwards a fresh review; the review workflow forwards the Tester on approval; the Tester verdict + machine-published approve-test unlocks the binding Evaluator; only a fresh `approve-eval` marker unlocks the PAT sweep. Never use the stale `0872b94c`, `b4535f19` or `8a4f3871` approvals once the head moves. Never take `fix`/`continue` on this workflow-touching PR.
+1. **#804** - review 43477923691 owns the fresh audit on `72d48c008` (live since 17:57:47Z). On approval the review workflow forwards `/oc test`; the Tester verdict plus machine-published approve-test unlocks the binding Evaluator (my `eval` decision), and only a fresh `approve-eval` marker unlocks the PAT sweep. Never use the stale `0872b94c`, `b4535f19`, `8a4f3871` or `43e35118e` approvals once the head moves. Never take `fix`/`continue` on this workflow-touching PR.
 2. **#843** - CLOSED with the cap, hermeticity and runtime evidence recorded. Do not reopen unless R25 detects a cap regression.
-3. **#821** - parked on the Owner capacity decision; its `86570af1` base is stale. Do not review or merge until the capacity decision lands.
+3. **#821** - parked on the Owner capacity decision; do not review or merge until the capacity decision lands.
 4. **#745** - behind #803 (lifetime retry budgets); do not re-dispatch before #803 is addressed.
 
 ## The serialized infra queue
 
-1. #804: live lab fixes for B1/B2 + docs/body -> fresh review -> Tester -> binding eval -> approve-eval marker -> PAT sweep merge; #798 closes on merge.
+1. #804: fresh review on `72d48c008` -> Tester -> binding eval -> approve-eval marker -> PAT sweep merge; #798 closes on merge.
 2. After #804: renumber the colliding R34 sandbox check, the #845 eval residual (job-level `if: false` outside R25), the remaining #845 review advisories, the body-linkage guard residual, the env-seam and merge/graft lessons, reconcile #812/#815 plus the #822 residuals, then the deferred docs follow-ups (#773/#774), then #814 with #803.
 3. #821 parked on the Owner capacity decision; #745 behind #803; #831 canary pending.
 
 ## Loose ends board
 
 1. **#804 wall history**: reviews 43339043687 (01:08:21Z), 43347406135 (02:25:47Z), 43357044317 (03:28:02Z), 43374626276 (06:26:16Z), 43382230547 (08:17:35Z), 43428561623 (13:21:19Z) all died on the #754 wall. Round 10 (`43453892653`) completed a clean approval at 15:50:32Z and the Tester passed 16:09:24Z, so the fresh-runner recovery lane worked twice. The lifetime review retry budget stays spent.
-2. **#804 eval round 1 (16:55:37Z)**: `fix` at 9.4/10. Blocking: the mode-only merge exemption bypass (post-agent guard and preflight) and the live-main-tip TOCTOU false drop. The live lab instruction carries both required shapes, the R34 fixtures/mutants, the docs sync and the body refresh. Preserve B1-B8/N10-N12 and the 35/0 audit.
-3. **#804 body hygiene residual**: the body still ends with the linkage guard's auto-appended self-referential `Closes #804` and describes the stale head `43e35118e`. The lab pass refreshes the head/verification wording; the durable linkage-guard fix stays a lab follow-up (the body can name `PR #804` in prose to satisfy the guard).
+2. **#804 eval round 1 (16:55:37Z)**: `fix` at 9.4/10. Blocking: the mode-only merge exemption bypass (blob OID comparison) and the live-main-tip TOCTOU false drop. The lab pass landed `c6e034883` + `72d48c008` closing both, with R34 mode-only/after-merge/fake-second-parent fixtures and mutants. Read the fresh review verdict on `72d48c008`.
+3. **#804 body hygiene residual**: the refreshed body still keeps the auto-appended self-referential `Closes #804`; the durable linkage-guard fix remains a post-merge lab follow-up (the body can name `PR #804` in prose to satisfy the guard).
 4. **#804 R34 ID collision (Tester + Evaluator note)**: the new per-OS sandbox `check "R34"` collides with the quota-wall R34; both pass and the description disambiguates. Renumber or cross-reference in the post-merge lab follow-up.
-5. **#804 exemption residuals**: the eval's two blocking findings supersede the earlier round-10 live-main-tip note. The self-asserted committer identity and foreign-trailer residual remain documented and accepted; the force-push pre-tester exemption residual remains documented.
+5. **#804 exemption residuals**: the two eval blocking findings are fixed on the pushed tree; the self-asserted committer identity and foreign-trailer residual remain documented and accepted; the force-push pre-tester exemption residual remains documented.
 6. **The wall**: #754 per-egress daily free-usage class. The intake owns the note; treat any new wall death as the class, not a retry-exhaustion signal: no same-IP dispatch, one fresh pass per lane after the cooldown.
 7. **#836 open**: the capacity decision and the wall residuals; the heartbeat and one-attempt cap are the mitigation. The 15:33:56Z heartbeat recovery note is the latest record there.
 8. **#831 scratch canary**: only the Owner (or a pushed branch) can create the disposable PR; never claim it done without live evidence or a recorded Owner waiver.
@@ -51,10 +52,10 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 10. **#812/#815**: #814 is parked; #815 is partially covered by the #843 R17 hermeticity work; reconcile in the audit pass after #804.
 11. **#817/#819 merged leftovers**: the deferred Curator docs pass and Lab Engineer docs pass.
 12. **#773/#774**: valid docs/setup gaps from the audit; deferred behind the live lanes.
-13. **Held-run watch**: zero this run. No duplicate maintainer wake was pending; the queued list carries only stale unrelated runs, and no real review, test, eval or lab run was cancelled.
-14. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes. No failure needs triage this run; the 13:21 wall death and the eval rejection are handled.
-15. **Duplicate-session noise**: concurrent wake fan-outs still spawn skip-only maintainer and review runs; re-read trigger history before every dispatch and cancel never-started duplicates only. Never cancel a started real review or test run.
-16. **Review-verdict staleness across a tester commit or lab push**: the head moves and every prior approval goes stale. The eval must bind the final head, and the merge gate must re-read the live head immediately before merging.
+13. **Held-run watch**: zero this run. No duplicate maintainer wake was pending; the queued list carries only stale unrelated runs.
+14. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes. No failure needs triage this run; the eval rejection is being closed by the live lab push and review.
+15. **Duplicate-session noise**: concurrent wake fan-outs still spawn skip-only maintainer and review runs; re-read trigger history before every dispatch and cancel never-started duplicates only. The pending gate-skip review 43477944942 was cancelled this run. Never cancel a started real review or test run.
+16. **Review-verdict staleness across a tester commit or lab push**: the head moved from `8a4f3871` to `72d48c008`, so every prior approval is stale. The eval must bind the final head, and the merge gate must re-read the live head immediately before merging.
 17. **Lab linkage guard on PR triggers**: `lab.yml` appends `Closes #<trigger>` when the body omits that token; the #804 body carries the appended `Closes #804`. The durable guard fix remains a lab follow-up.
 18. **Board pin**: #70 is pinned and verified.
 19. **PAT sweep ignores "behind main"**: it requires a shared merge base and `MERGEABLE`, plus fresh head-bound markers; the up-to-date reviewer rule and the rebase-before-gates rule carry the behind check.
@@ -67,12 +68,12 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 26. **Manual review after a wall death**: a fresh head-bound review trigger is the recovery lane even when the head already carries an older review comment, because the run failed and the lifetime auto-retry budget is spent (#803).
 27. **Auditor bench candidates**: the daily audit names free-model candidates but makes no automatic change; keep them as future work and never swap a pin mid-lane.
 28. **Non-blocking review/eval nits are deferred, not dismissed**: fold them into the post-merge docs/lab follow-up. The current set is the eval's R34 collision and body-linkage notes, the Tester's R34 collision note, the #845 eval's job-level `if` residual, the review's five wording nits, the round-8 B13 residuals, and the #847 landing-test regex caveat.
-29. **Merge-tip verification**: main is `a590d4e9`; the Pages workflow_dispatch `43428744981` is green on it (12:51:40Z). Re-verify on the next advance.
+29. **Merge-tip verification**: main is `a590d4e9`; the Pages workflow_dispatch 43477951522 is green on it (17:57:56Z). Re-verify on the next advance.
 30. **Review auto-retry budgets are lifetime-per-thread**: #804 and #845 have both spent their 3 auto-retries, so any further review crash needs a manual fresh trigger.
 31. **Silent empty-decision sessions**: a green maintainer run with no decision file is a wall-class symptom during a wall, not evidence of a clean pass.
 32. **#846 closed on merge**: do not reopen; the cadence wording is now consistent across `README.md`, `docs/index.md`, `docs/index.html` and `CONTRIBUTING.md`.
 33. **#847 merged cleanly**: `a590d4e9`, branch intact at `6dc20e604`; the only residual is the Evaluator's non-blocking landing-test regex note.
-34. **#804 round-10 timing**: the review was dispatched by the 15:30 heartbeat, ran 15:33:58-15:50:32Z, and approved before the wall returned. The `/oc test` handoff landed 15:50:43Z, the Tester completed 16:09:24Z, and the eval returned `fix` at 16:55:37Z; the lab lane re-armed at 17:02:27Z.
+34. **#804 lab timing**: the eval returned `fix` at 16:55:37Z, the lab lane re-armed at 17:02:27Z, and the push landed 17:57:55Z (about 55 minutes). The review re-bound at 17:57:47Z on `72d48c008`.
 35. **Quota intake does not update STATE**: it stands down before the agent and leaves only a log marker, so the next real Maintainer run must re-derive the state from GitHub. This run did that.
 36. **Verify-step hardening landed**: the three `verify-test` steps share the privileged shell and env pins (`BASH_ENV`/`ENV`/`PATH`), so a post-agent shim can no longer force a green verify. R17 pins the exact id, `if: always()`, shell, env map and PATH reset with shell-removal and env-removal mutation controls.
 37. **Heartbeat cadence**: the recover arm dispatches once per 90 minutes when no real Maintainer session is active; the #70 marker at 15:29:49Z is the newest. Do not treat the heartbeat wake as a duplicate trigger or re-dispatch it manually.
@@ -102,26 +103,26 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 - The lab workflow's linkage guard appends `Closes #<trigger>` on a missing token; on PR-comment wakes that is a self-referential linkage line. A body fix must name `PR #<trigger>` in prose to satisfy the guard; route it through `lab`, never by hand, and keep the durable guard fix as a lab follow-up.
 - Main's current audit numbering is R33 run-scalar budget, R34 quota-wall guard and heartbeat and the per-OS sanitizer rule, with the full audit at 35 checks. #845 added the R25 review-cap arm and the R19 parsed step sequence. The reviews rule on that.
 - The expected App-token push rejection on protected-path branches (workflow-permission or non-fast-forward after a rebase) is wrapper noise; verify the PAT-backed push landed (branch tip) and do not route a post-mortem for it alone.
-- Environment variables are load-bearing seams on post-agent steps: a step env map must pin every mode switch its helper reads (`PEROS_ANCHOR`, `PEROS_OS`, `PEROS_PREFLIGHT`, `REMOTE_URL`, `BASELINE_SHA`); the macOS arms need the Darwin loader seams (`DYLD_*`) as well as the Linux `LD_*` ones (B12). Round 9 pins the graft seams (`GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`) in all six strip/scope maps and unsets them plus the replace and `GIT_CONFIG_*` seams inside both helpers. The merge exemption must compare whole tree entries (mode, type, oid), not blob OIDs, and judge a merge against its immutable parents plus the `$commit^2`-is-an-ancestor-of-fetched-main requirement, never against the live main tip (eval round 1).
+- Environment variables are load-bearing seams on post-agent steps: a step env map must pin every mode switch its helper reads (`PEROS_ANCHOR`, `PEROS_OS`, `PEROS_PREFLIGHT`, `REMOTE_URL`, `BASELINE_SHA`); the macOS arms need the Darwin loader seams (`DYLD_*`) as well as the Linux `LD_*` ones (B12). Round 9 pins the graft seams (`GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`) in all six strip/scope maps and unsets them plus the replace and `GIT_CONFIG_*` seams inside both helpers. The merge exemption must compare whole tree entries (mode, type, oid), not blob OIDs, and judge a merge against its immutable parents plus the `$commit^2`-is-an-ancestor-of-fetched-main requirement, never against the live main tip (eval round 1, fixed on `72d48c008`).
 - Post-agent outer shells must be privileged (`bash -p`) and every nested helper read must run `bash -p -s`, because the agent can export `BASH_FUNC_*` and `BASH_ENV` through `$GITHUB_ENV`; the durable preflight and the judged range must exclude commits reachable from the trusted main tip. Round 9 extends the privileged shell and the `BASH_ENV`/`ENV`/`PATH` pins to the three `verify-test` steps.
 - Australian English in prose, no em dashes anywhere, no `Co-authored-by:` trailers, sign every comment.
 
 ## Next run
 
-1. Read the live Lab Engineer result on #804 `8a4f3871` (run 43468755731). Verify the two exemption arms compare whole tree entries and immutable parents, the mode-only/after-merge/fake-parent fixtures and mutants are load-bearing on the guard and the preflight, the docs match, and the full audit is green. Then the lab workflow forwards a fresh review.
-2. Never merge by hand on this PR: it touches `.github/workflows/`, so only the PAT sweep may land it, and only with a fresh head-bound review approval + Tester verdict/approve-test + `approve-eval` marker chain.
-3. Never use the stale `0872b94c`, `b4535f19` or `8a4f3871` approvals once the head moves.
-4. After the merge, dispatch the post-merge lab follow-up: renumber the colliding R34 sandbox check, the body-linkage guard residual, then the #845/#812/#815/#822 residuals and the #773/#774 docs gaps.
-5. On another wall death, stand down: the intake owns the note, and the next heartbeat or schedule tick re-arms one fresh pass after the cooldown.
-6. #843 is closed; reopen only on a real cap regression, which R25 will catch.
-7. Keep #836 open for the Owner capacity decision and #831 open for the scratch canary; #821 parked; #745 behind #803.
-8. Verify heads and artifacts against the live repo before claiming a change landed.
+1. Read the live review verdict on #804 `72d48c008` (review 43477923691). Verify the two exemption fixes and the new R34 fixtures/mutants are load-bearing, the docs match, and the full audit is green.
+2. On approval the review workflow forwards `/oc test`; after the owner-authored `/oc approve-test` verdict, dispatch the binding Evaluator and only then act on `approve-eval`.
+3. Never merge by hand on this PR: it touches `.github/workflows/`, so only the PAT sweep may land it, and only with a fresh head-bound review approval + Tester verdict/approve-test + `approve-eval` marker chain.
+4. Never use the stale `0872b94c`, `b4535f19`, `8a4f3871` or `43e35118e` approvals once the head moves.
+5. After the merge, dispatch the post-merge lab follow-up: renumber the colliding R34 sandbox check, the body-linkage guard residual, then the #845/#812/#815/#822 residuals and the #773/#774 docs gaps.
+6. On another wall death, stand down: the intake owns the note, and the next heartbeat or schedule tick re-arms one fresh pass after the cooldown.
+7. #843 is closed; reopen only on a real cap regression, which R25 will catch.
+8. Keep #836 open for the Owner capacity decision and #831 open for the scratch canary; #821 parked; #745 behind #803.
+9. Verify heads and artifacts against the live repo before claiming a change landed.
 
 ## Open questions
 
-1. Does the live lab pass close both blocking findings and keep the full audit green, and does the fresh review bind the new head?
-2. Are the mode-only merge fixtures/mutants and the after-merge main-advance / fake-second-parent fixtures load-bearing on both the post-agent guard and the preflight?
-3. Does the next Evaluator round approve, and does the PAT sweep land #804 with #798 closing?
-4. Do the Tester's and Evaluator's R34-collision notes and the body-linkage note stay harmless through the merge and ship in the post-merge follow-up?
-5. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or approve a lower cadence), and will the scratch canary be run or waived?
-6. Do the remaining infra residuals (#845 eval job-level `if`, #812/#815/#822, #814/#803) stay correctly serialized behind the #804 merge?
+1. Does review 43477923691 approve `72d48c008`, and are the mode-only, after-merge-advance and fake-second-parent fixtures load-bearing on both the post-agent guard and the preflight?
+2. Does the fresh Tester pass the new head, and does the binding Evaluator return `approve-eval` so the PAT sweep can land #804 with #798 closing?
+3. Do the R34-collision and body-linkage residuals stay harmless through the merge and ship in the post-merge follow-up?
+4. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or approve a lower cadence), and will the scratch canary be run or waived?
+5. Do the remaining infra residuals (#845 eval job-level `if`, #812/#815/#822, #814/#803) stay correctly serialized behind the #804 merge?
