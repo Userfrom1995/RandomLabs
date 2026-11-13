@@ -257,7 +257,12 @@ Round 13 also
   second parent to match with the first parent equal to the merge base. The
   second parent must also be an ancestor of the fetched main tip, so a
   fabricated side branch cannot masquerade as a clean import, and a mode-only
-  change with the same blob is still an authored path.
+  change with the same blob is still an authored path. Tree entries are
+  resolved as literal root-relative paths (pathspec magic is neutralized) and
+  a failed lookup fails closed, so a crafted root-level name cannot be
+  exempted; a non-canonical path (an empty, `.` or `..` component, or a
+  leading or trailing slash) that only a raw tree can carry is refused before
+  the lookup, because `ls-tree` would normalize it to an empty success.
   Every authored merge path and every non-merge commit is judged, so a
   revert-to-main or revert-to-baseline merge cannot hide a lab edit and a
   clean main merge touching only project files is not dropped as out of lane. Testers may edit only project test-lane paths. Protected lab
@@ -313,7 +318,12 @@ Round 13 also
   after-merge-main-advance (main advances the merged path again after a
   clean merge of the earlier tip), fake-second-parent (a fabricated side
   parent is not an ancestor of main and its foreign out-of-lane file records
-  the marker; the ancestry-removal mutant accepts it),
+  the marker; the ancestry-removal mutant accepts it), crafted-path-merge
+  (`:evil.py` and `:(glob)evil.py` root-level paths authored by the merge
+  are dropped by the literal, fail-closed tree-entry lookup; the
+  literal-strip and lookup-folding mutants accept them), malformed-path-merge
+  (a raw tree carrying an `a//b` path is refused by the canonical-path check
+  before the lookup; the canonical-refusal-removal mutant accepts it),
   evil-merge (side parent predating the baseline),
   non-merge-revert (the pre-baseline infrastructure change is reverted to the
   trusted main blob by a single-parent tester commit), graft (a graft-hidden

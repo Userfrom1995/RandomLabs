@@ -162,15 +162,37 @@ git_at() {
   fi
 }
 
+# A canonical repository path has no empty, "." or ".." component and no
+# leading or trailing slash. A crafted raw tree written with git hash-object
+# --literally can carry such a name, and diff-tree reports it verbatim, but
+# ls-tree normalizes the components away and returns an empty successful
+# lookup. Refuse the path up front so the empty result can never be read as
+# ABSENT (issue #798 review).
+is_canonical_repo_path() {
+  case "$1" in
+    ''|/*|*/) return 1 ;;
+  esac
+  case "/$1/" in
+    *//*|*/./*|*/../*) return 1 ;;
+  esac
+  return 0
+}
+
 entry_of() {
   local runner="$1" rev="$2" path="$3" entry
-  if entry="$(git_at "$runner" ls-tree --full-tree "$rev" -- "$path" 2>/dev/null)"; then
-    if [ -n "$entry" ]; then
-      printf '%s' "$entry"
-      return 0
-    fi
+  # Issue #798 review: the diff path is literal data, but ls-tree parses its
+  # final argument as a pathspec, so a root-level name such as ":evil.py" or
+  # ":(glob)evil.py" is read as pathspec magic. `:(literal)` neutralizes the
+  # magic, and a failed lookup returns nonzero instead of pretending the path
+  # is ABSENT, so a lookup error can never compare equal to another ABSENT and
+  # exempt a merge that authored a real path.
+  is_canonical_repo_path "$path" || return 1
+  entry="$(git_at "$runner" ls-tree --full-tree "$rev" -- ":(literal)$path" 2>/dev/null)" || return 1
+  if [ -n "$entry" ]; then
+    printf '%s' "$entry"
+  else
+    printf 'ABSENT'
   fi
-  printf 'ABSENT'
 }
 
 merge_base_of() {
@@ -185,14 +207,14 @@ merge_path_is_exempt() {
     "$commit^2" refs/remotes/origin/main 2>/dev/null; then
     return 1
   fi
-  merge_entry="$(entry_of "$runner" "$commit" "$path")"
-  first_entry="$(entry_of "$runner" "$commit^1" "$path")"
-  second_entry="$(entry_of "$runner" "$commit^2" "$path")"
+  merge_entry="$(entry_of "$runner" "$commit" "$path")" || return 1
+  first_entry="$(entry_of "$runner" "$commit^1" "$path")" || return 1
+  second_entry="$(entry_of "$runner" "$commit^2" "$path")" || return 1
   merge_base="$(merge_base_of "$runner" "$commit^1" "$commit^2")"
   if [ -z "$merge_base" ]; then
     return 1
   fi
-  base_entry="$(entry_of "$runner" "$merge_base" "$path")"
+  base_entry="$(entry_of "$runner" "$merge_base" "$path")" || return 1
   if [ "$merge_entry" = "$first_entry" ] && [ "$second_entry" = "$base_entry" ]; then
     return 0
   fi
