@@ -140,11 +140,18 @@ is_test_lane_path() {
 # whose merge blob matched main or the baseline, even when the merge authored a
 # revert or dropped main's advance, and it ran only inside the protected branch
 # so a clean main merge touching non-protected files was dropped as out of
-# lane. A merge path is exempt only when the merge itself authored nothing:
-# a carry (result equals the first parent and main did not change the path
-# since the merge base) or a clean import (result equals main and the first
-# parent equals the merge base). Both the durable preflight and the post-agent
-# judge use this helper so the two decisions cannot drift.
+# lane. A merge path is exempt only when the merge itself authored nothing.
+# Issue #804 Quality Council findings: compare whole tree entries (mode, type,
+# and object id), not just blob ids, so a mode-only change with the same blob
+# is still an authored path. Judge the merge against its own immutable parents,
+# not the live main tip fetched after the agent, so a genuinely clean merge of
+# main stays exempt after main advances again. A carry is a merge whose result
+# equals the first parent and whose second parent's entry equals the merge-base
+# entry; a clean import is a merge whose result equals the second parent and
+# whose first parent's entry equals the merge-base entry. The second parent
+# must also be an ancestor of the fetched main tip, so a fabricated side branch
+# cannot masquerade as a clean import. Both the durable preflight and the
+# post-agent judge use this helper so the two decisions cannot drift.
 git_at() {
   local runner="$1"
   shift
@@ -155,13 +162,15 @@ git_at() {
   fi
 }
 
-blob_of() {
-  local runner="$1" rev="$2" path="$3" blob
-  if blob="$(git_at "$runner" rev-parse "$rev:$path" 2>/dev/null)"; then
-    printf '%s' "$blob"
-  else
-    printf 'ABSENT'
+entry_of() {
+  local runner="$1" rev="$2" path="$3" entry
+  if entry="$(git_at "$runner" ls-tree "$rev" -- "$path" 2>/dev/null)"; then
+    if [ -n "$entry" ]; then
+      printf '%s' "$entry"
+      return 0
+    fi
   fi
+  printf 'ABSENT'
 }
 
 merge_base_of() {
@@ -171,19 +180,23 @@ merge_base_of() {
 
 merge_path_is_exempt() {
   local runner="$1" commit="$2" path="$3"
-  local merge_blob first_blob main_blob merge_base base_blob
-  merge_blob="$(blob_of "$runner" "$commit" "$path")"
-  first_blob="$(blob_of "$runner" "$commit^1" "$path")"
-  main_blob="$(blob_of "$runner" refs/remotes/origin/main "$path")"
-  merge_base="$(merge_base_of "$runner" "$commit^1" refs/remotes/origin/main)"
-  base_blob="ABSENT"
-  if [ -n "$merge_base" ]; then
-    base_blob="$(blob_of "$runner" "$merge_base" "$path")"
+  local merge_entry first_entry second_entry base_entry merge_base
+  if ! git_at "$runner" merge-base --is-ancestor \
+    "$commit^2" refs/remotes/origin/main 2>/dev/null; then
+    return 1
   fi
-  if [ "$merge_blob" = "$first_blob" ] && [ "$main_blob" = "$base_blob" ]; then
+  merge_entry="$(entry_of "$runner" "$commit" "$path")"
+  first_entry="$(entry_of "$runner" "$commit^1" "$path")"
+  second_entry="$(entry_of "$runner" "$commit^2" "$path")"
+  merge_base="$(merge_base_of "$runner" "$commit^1" "$commit^2")"
+  if [ -z "$merge_base" ]; then
+    return 1
+  fi
+  base_entry="$(entry_of "$runner" "$merge_base" "$path")"
+  if [ "$merge_entry" = "$first_entry" ] && [ "$second_entry" = "$base_entry" ]; then
     return 0
   fi
-  if [ "$merge_blob" = "$main_blob" ] && [ "$first_blob" = "$base_blob" ]; then
+  if [ "$merge_entry" = "$second_entry" ] && [ "$first_entry" = "$base_entry" ]; then
     return 0
   fi
   return 1
@@ -267,10 +280,11 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
         preflight_bad="${preflight_bad} ${preflight_commit:0:12}(protected:${preflight_path})"
         continue
       fi
-      # Issue #798 review B1/B2: a merge path is exempt only when the merge
-      # authored nothing (carry or clean import), and the exemption applies to
-      # every path, before the protected/out-of-lane classification, so a
-      # clean main merge touching only project files is not dropped.
+      # Issue #798 review B1/B2 and issue #804 Quality Council: a merge path is
+      # exempt only when the merge authored nothing (tree-entry carry or clean
+      # import against its own parents), and the exemption applies to every
+      # path, before the protected/out-of-lane classification, so a clean main
+      # merge touching only project files is not dropped.
       if [ "$preflight_parents" -ge 2 ] && merge_path_is_exempt workspace "$preflight_commit" "$preflight_path"; then
         continue
       fi
@@ -525,10 +539,11 @@ judge_range() {
     esac
     while IFS= read -r -d '' path; do
       [ -n "$path" ] || continue
-      # Issue #798 review B1/B2: a merge path is exempt only when the merge
-      # authored nothing (carry or clean import), and the exemption applies to
-      # every path, before the protected/out-of-lane classification, so a
-      # clean main merge touching only project files is not dropped.
+      # Issue #798 review B1/B2 and issue #804 Quality Council: a merge path is
+      # exempt only when the merge authored nothing (tree-entry carry or clean
+      # import against its own parents), and the exemption applies to every
+      # path, before the protected/out-of-lane classification, so a clean main
+      # merge touching only project files is not dropped.
       if [ "$parent_count" -ge 2 ] && merge_path_is_exempt scratch "$commit" "$path"; then
         continue
       fi

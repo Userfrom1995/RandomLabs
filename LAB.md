@@ -250,9 +250,14 @@ Round 13 also
   cannot hide an imported change (including a merge whose side parent
   predates the captured baseline, where the combined diff is empty), judges
   protected paths regardless of committer identity, and exempts a merge path
-  only when the merge authored nothing: a carry (the result equals the first
-  parent and main did not change the path since the merge base) or a clean
-  import (the result equals main and the first parent equals the merge base).
+  only when the merge authored nothing against its own immutable parents:
+  whole tree entries (mode, type, and object id) are compared, a carry
+  requires the result and the first parent to match with the second parent
+  equal to the merge base, and a clean import requires the result and the
+  second parent to match with the first parent equal to the merge base. The
+  second parent must also be an ancestor of the fetched main tip, so a
+  fabricated side branch cannot masquerade as a clean import, and a mode-only
+  change with the same blob is still an authored path.
   Every authored merge path and every non-merge commit is judged, so a
   revert-to-main or revert-to-baseline merge cannot hide a lab edit and a
   clean main merge touching only project files is not dropped as out of lane. Testers may edit only project test-lane paths. Protected lab
@@ -302,7 +307,13 @@ Round 13 also
   none, trailer, mixed-case-trailer, incident, fork, wrong-namespace,
   issue-triggered, issue-no-pr-anchor, per-OS-identity, clean-merge,
   protected-merge, clean-nonprotected-merge, main-tip-revert-merge,
-  baseline-revert-merge, fake-merge,
+  baseline-revert-merge, fake-merge, mode-only-protected-merge,
+  mode-only-out-of-lane-merge (both on the post-agent guard and the
+  preflight, and the blob-only mutant accepts both),
+  after-merge-main-advance (main advances the merged path again after a
+  clean merge of the earlier tip), fake-second-parent (a fabricated side
+  parent is not an ancestor of main and its foreign out-of-lane file records
+  the marker; the ancestry-removal mutant accepts it),
   evil-merge (side parent predating the baseline),
   non-merge-revert (the pre-baseline infrastructure change is reverted to the
   trusted main blob by a single-parent tester commit), graft (a graft-hidden
@@ -318,11 +329,13 @@ Round 13 also
   independently reachable protected entry (the marker is covered by its
   creation/deletion hard stop), the skip-worktree restore guard, the preflight
   identity gate, the strip and guard `GIT_EXEC_PATH` unset, the merge
-  carry/clean-import comparison and its first-parent term, the strip and guard
+  tree-entry carry/clean-import comparison, its first-parent term, the
+  blob-only mode mutant, the second-parent ancestry term, the strip and guard
   graft/shallow/replace unsets, the `diff-tree -m`
   flag, the tester email term, the topological preflight ordering, the
-  marker-deletion check, and the strip; the ancestry check is a message-bound
-  negative scenario control rather than a mutant. R29 adds the legacy
+  marker-deletion check, and the strip; the strip's captured-baseline
+  ancestry check is a message-bound negative scenario control rather than a
+  mutant. R29 adds the legacy
   behind-main strip case with an unconditional-ancestry mutant and the
   owner-email trailer case. The proxy fixture proves the
   shipped helpers never contact a decoy HTTP proxy while the unset-removal
