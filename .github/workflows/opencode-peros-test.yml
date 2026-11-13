@@ -531,7 +531,12 @@ jobs:
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_EDITOR: /bin/false
           GIT_EXTERNAL_DIFF: ""
+          # Issue #798 review B3: pin the graft/shallow seams empty so an
+          # agent-exported file cannot fabricate a merge parent or hide the
+          # commits being stripped/judged.
+          GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -622,7 +627,12 @@ jobs:
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_EDITOR: /bin/false
           GIT_EXTERNAL_DIFF: ""
+          # Issue #798 review B3: pin the graft/shallow seams empty so an
+          # agent-exported file cannot fabricate a merge parent or hide the
+          # commits being stripped/judged.
+          GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -708,7 +718,17 @@ jobs:
         if: always()
         env:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          # Issue #798 review B4: this step runs after the agent, so pin the
+          # privileged shell and the interpreter/PATH seams the agent can
+          # export through $GITHUB_ENV. Without the reset below an injected
+          # BASH_ENV hook or a shadowed jq could no-op the verdict check.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Terminal third outcome for a gate skip (issue #428): the
           # Linux tester step never started, so a missing decision file is a
           # DENIAL, not a crash - skip cleanly (no fail-closed red, no owner
@@ -1473,7 +1493,12 @@ jobs:
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_EDITOR: /bin/false
           GIT_EXTERNAL_DIFF: ""
+          # Issue #798 review B3: pin the graft/shallow seams empty so an
+          # agent-exported file cannot fabricate a merge parent or hide the
+          # commits being stripped/judged.
+          GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -1569,7 +1594,12 @@ jobs:
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_EDITOR: /bin/false
           GIT_EXTERNAL_DIFF: ""
+          # Issue #798 review B3: pin the graft/shallow seams empty so an
+          # agent-exported file cannot fabricate a merge parent or hide the
+          # commits being stripped/judged.
+          GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -1660,7 +1690,17 @@ jobs:
         if: always()
         env:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          # Issue #798 review B4: this step runs after the agent, so pin the
+          # privileged shell and the interpreter/PATH seams the agent can
+          # export through $GITHUB_ENV. Without the reset below an injected
+          # BASH_ENV hook or a shadowed jq could no-op the verdict check.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Terminal third outcome for a gate skip (issue #428): the
           # macOS tester step never started, so a missing decision file is a
           # DENIAL, not a crash - skip cleanly (no fail-closed red, no owner
@@ -2550,7 +2590,12 @@ jobs:
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_EDITOR: /bin/false
           GIT_EXTERNAL_DIFF: ""
+          # Issue #798 review B3: pin the graft/shallow seams empty so an
+          # agent-exported file cannot fabricate a merge parent or hide the
+          # commits being stripped/judged.
+          GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -2641,7 +2686,12 @@ jobs:
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_EDITOR: /bin/false
           GIT_EXTERNAL_DIFF: ""
+          # Issue #798 review B3: pin the graft/shallow seams empty so an
+          # agent-exported file cannot fabricate a merge parent or hide the
+          # commits being stripped/judged.
+          GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -2727,7 +2777,17 @@ jobs:
         if: always()
         env:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          # Issue #798 review B4: this step runs after the agent, so pin the
+          # privileged shell and the interpreter/PATH seams the agent can
+          # export through $GITHUB_ENV. Without the reset below an injected
+          # BASH_ENV hook or a shadowed jq could no-op the verdict check.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          PATH: ${{ steps.trusted_path.outputs.path }}
+          TRUSTED_PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH="$TRUSTED_PATH"; export PATH
           # Terminal third outcome for a gate skip (issue #428): the
           # Windows tester step never started, so a missing decision file is a
           # DENIAL, not a crash - skip cleanly (no fail-closed red, no owner

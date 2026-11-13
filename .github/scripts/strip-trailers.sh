@@ -64,10 +64,22 @@ set -euo pipefail
 # included because git resolves subcommands (git-filter-branch) and remote
 # helpers through it: an agent-exported path could turn the strip into a
 # no-op while the leaked owner trailer ships, or execute agent code inside
-# this step (issue #798 review N2).
+# this step (issue #798 review N2). GIT_GRAFT_FILE and GIT_SHALLOW_FILE can
+# fabricate parents or hide the commits being rewritten, and
+# GIT_REPLACE_REF_BASE can substitute objects, so all three are unset too
+# (issue #798 review B3). The GIT_CONFIG_* names are re-pinned to safe values
+# below so unsetting an agent-exported value never falls back to a writable
+# global file.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
   GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE \
-  GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_EXEC_PATH 2>/dev/null || true
+  GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_EXEC_PATH \
+  GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE \
+  GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM \
+  GIT_CONFIG_COUNT 2>/dev/null || true
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_COUNT=0
 # Issue #798 Quality Council env-seam finding: an agent can export proxy/TLS
 # redirections through $GITHUB_ENV, and the post-agent step env is not the only
 # path those values can reach this helper. Remove them before the first git

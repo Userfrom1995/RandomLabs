@@ -59,10 +59,22 @@ set -euo pipefail
 
 # Drop Git plumbing seams an agent could have exported through $GITHUB_ENV.
 # The workflow also pins the GIT_CONFIG_* files; this removes the remaining
-# environment redirections before any git command runs.
+# environment redirections before any git command runs. GIT_GRAFT_FILE and
+# GIT_SHALLOW_FILE can fabricate a second parent (skipping the merge
+# exemption) or make main a child of a violating revert (excluding it from the
+# judged range), so both are unset alongside the replace seam (issue #798
+# review B3). The GIT_CONFIG_* names are re-pinned to safe values below so
+# unsetting an agent-exported value never falls back to a writable global file.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
   GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE \
-  GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_EXEC_PATH 2>/dev/null || true
+  GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_EXEC_PATH \
+  GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE \
+  GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM \
+  GIT_CONFIG_COUNT 2>/dev/null || true
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_COUNT=0
 # Issue #798 Quality Council env-seam finding: an agent can export proxy/TLS
 # redirections through $GITHUB_ENV, and the post-agent step env is not the only
 # path those values can reach this helper. Remove them before the first git
@@ -121,6 +133,59 @@ is_test_lane_path() {
       return 0
       ;;
   esac
+  return 1
+}
+
+# Issue #798 review B1/B2: the old merge exemption skipped any protected path
+# whose merge blob matched main or the baseline, even when the merge authored a
+# revert or dropped main's advance, and it ran only inside the protected branch
+# so a clean main merge touching non-protected files was dropped as out of
+# lane. A merge path is exempt only when the merge itself authored nothing:
+# a carry (result equals the first parent and main did not change the path
+# since the merge base) or a clean import (result equals main and the first
+# parent equals the merge base). Both the durable preflight and the post-agent
+# judge use this helper so the two decisions cannot drift.
+git_at() {
+  local runner="$1"
+  shift
+  if [ "$runner" = "scratch" ]; then
+    scratch "$@"
+  else
+    git "$@"
+  fi
+}
+
+blob_of() {
+  local runner="$1" rev="$2" path="$3" blob
+  if blob="$(git_at "$runner" rev-parse "$rev:$path" 2>/dev/null)"; then
+    printf '%s' "$blob"
+  else
+    printf 'ABSENT'
+  fi
+}
+
+merge_base_of() {
+  local runner="$1" first="$2" second="$3"
+  git_at "$runner" merge-base "$first" "$second" 2>/dev/null || true
+}
+
+merge_path_is_exempt() {
+  local runner="$1" commit="$2" path="$3"
+  local merge_blob first_blob main_blob merge_base base_blob
+  merge_blob="$(blob_of "$runner" "$commit" "$path")"
+  first_blob="$(blob_of "$runner" "$commit^1" "$path")"
+  main_blob="$(blob_of "$runner" refs/remotes/origin/main "$path")"
+  merge_base="$(merge_base_of "$runner" "$commit^1" refs/remotes/origin/main)"
+  base_blob="ABSENT"
+  if [ -n "$merge_base" ]; then
+    base_blob="$(blob_of "$runner" "$merge_base" "$path")"
+  fi
+  if [ "$merge_blob" = "$first_blob" ] && [ "$main_blob" = "$base_blob" ]; then
+    return 0
+  fi
+  if [ "$merge_blob" = "$main_blob" ] && [ "$first_blob" = "$base_blob" ]; then
+    return 0
+  fi
   return 1
 }
 
@@ -202,6 +267,13 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
         preflight_bad="${preflight_bad} ${preflight_commit:0:12}(protected:${preflight_path})"
         continue
       fi
+      # Issue #798 review B1/B2: a merge path is exempt only when the merge
+      # authored nothing (carry or clean import), and the exemption applies to
+      # every path, before the protected/out-of-lane classification, so a
+      # clean main merge touching only project files is not dropped.
+      if [ "$preflight_parents" -ge 2 ] && merge_path_is_exempt workspace "$preflight_commit" "$preflight_path"; then
+        continue
+      fi
       # Issue #798 review B6/B7: a protected edit is a durable violation when a
       # named per-OS tester made it, and also when any commit at or after the
       # first named tester commit in the range touches it (identity is
@@ -211,25 +283,6 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
       # edits, so it is exempt: the read-only per-OS session on an infra PR
       # must still start (B7). Only the out-of-lane check stays tester-specific,
       # because another lane may legitimately touch project code.
-      if is_protected_path "$preflight_path"; then
-        # Issue #798 review B14: diff-tree -m lists a protected path against
-        # every parent, so a clean merge of main reports main's protected
-        # files even though the tester changed nothing. Skip such a path only
-        # on a true merge commit (two or more parents); a non-merge commit
-        # that rewrites a protected path to the trusted main tip is a real
-        # revert and must be judged, never skipped. A merge that rewrites the
-        # content still differs from both references and is judged below.
-        if [ "$preflight_parents" -ge 2 ]; then
-          preflight_blob="$(git rev-parse "$preflight_commit:$preflight_path" 2>/dev/null || true)"
-          if [ -n "$preflight_blob" ] && {
-               { git cat-file -e "$preflight_base:$preflight_path" 2>/dev/null &&
-                 [ "$preflight_blob" = "$(git rev-parse "$preflight_base:$preflight_path" 2>/dev/null)" ]; } ||
-               { git cat-file -e "refs/remotes/origin/main:$preflight_path" 2>/dev/null &&
-                 [ "$preflight_blob" = "$(git rev-parse "refs/remotes/origin/main:$preflight_path" 2>/dev/null)" ]; }; }; then
-            continue
-          fi
-        fi
-      fi
       if is_protected_path "$preflight_path" && { [ "$preflight_tester" -eq 1 ] || [ "$preflight_seen_tester" -eq 1 ]; }; then
         preflight_bad="${preflight_bad} ${preflight_commit:0:12}(protected:${preflight_path})"
       elif [ "$preflight_tester" -eq 1 ] && ! is_test_lane_path "$preflight_path"; then
@@ -472,26 +525,16 @@ judge_range() {
     esac
     while IFS= read -r -d '' path; do
       [ -n "$path" ] || continue
+      # Issue #798 review B1/B2: a merge path is exempt only when the merge
+      # authored nothing (carry or clean import), and the exemption applies to
+      # every path, before the protected/out-of-lane classification, so a
+      # clean main merge touching only project files is not dropped.
+      if [ "$parent_count" -ge 2 ] && merge_path_is_exempt scratch "$commit" "$path"; then
+        continue
+      fi
       # Issue #798 review F4: judge protected paths for every commit, not only
       # tester-attributed ones; committer identity is self-asserted.
       if is_protected_path "$path"; then
-        # Issue #798 review B14: diff-tree -m lists a protected path against
-        # every parent, so a clean merge of main reports main's protected
-        # files even though the tester changed nothing. Skip such a path only
-        # on a true merge commit (two or more parents); a non-merge commit
-        # that rewrites a protected path to the trusted main tip is a real
-        # revert and must be judged, never skipped. A merge that rewrites the
-        # content still differs from both references and is judged below.
-        if [ "$parent_count" -ge 2 ]; then
-          path_blob="$(scratch rev-parse "$commit:$path" 2>/dev/null || true)"
-          if [ -n "$path_blob" ] && {
-               { scratch cat-file -e "$baseline:$path" 2>/dev/null &&
-                 [ "$path_blob" = "$(scratch rev-parse "$baseline:$path" 2>/dev/null)" ]; } ||
-               { scratch cat-file -e "refs/remotes/origin/main:$path" 2>/dev/null &&
-                 [ "$path_blob" = "$(scratch rev-parse "refs/remotes/origin/main:$path" 2>/dev/null)" ]; }; }; then
-            continue
-          fi
-        fi
         judged_protected="$(add_unique "$path" "$judged_protected")"
         continue
       fi
