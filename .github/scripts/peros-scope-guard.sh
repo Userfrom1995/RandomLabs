@@ -201,6 +201,22 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
       # edits, so it is exempt: the read-only per-OS session on an infra PR
       # must still start (B7). Only the out-of-lane check stays tester-specific,
       # because another lane may legitimately touch project code.
+      if is_protected_path "$preflight_path"; then
+        # Issue #798 review B14: diff-tree -m lists a protected path against
+        # every parent, so a clean merge of main reports main's protected
+        # files even though the tester changed nothing. Skip a protected path
+        # whose blob in this commit matches the merge-base baseline or the
+        # trusted main tip; a merge that rewrites the content still differs
+        # and is judged below.
+        preflight_blob="$(git rev-parse "$preflight_commit:$preflight_path" 2>/dev/null || true)"
+        if [ -n "$preflight_blob" ] && {
+             { git cat-file -e "$preflight_base:$preflight_path" 2>/dev/null &&
+               [ "$preflight_blob" = "$(git rev-parse "$preflight_base:$preflight_path" 2>/dev/null)" ]; } ||
+             { git cat-file -e "refs/remotes/origin/main:$preflight_path" 2>/dev/null &&
+               [ "$preflight_blob" = "$(git rev-parse "refs/remotes/origin/main:$preflight_path" 2>/dev/null)" ]; }; }; then
+          continue
+        fi
+      fi
       if is_protected_path "$preflight_path" && { [ "$preflight_tester" -eq 1 ] || [ "$preflight_seen_tester" -eq 1 ]; }; then
         preflight_bad="${preflight_bad} ${preflight_commit:0:12}(protected:${preflight_path})"
       elif [ "$preflight_tester" -eq 1 ] && ! is_test_lane_path "$preflight_path"; then
@@ -442,6 +458,20 @@ judge_range() {
       # Issue #798 review F4: judge protected paths for every commit, not only
       # tester-attributed ones; committer identity is self-asserted.
       if is_protected_path "$path"; then
+        # Issue #798 review B14: diff-tree -m lists a protected path against
+        # every parent, so a clean merge of main reports main's protected
+        # files even though the tester changed nothing. Skip a protected path
+        # whose blob in this commit matches the captured baseline or the
+        # trusted main tip; a merge that rewrites the content still differs
+        # and is judged below.
+        path_blob="$(scratch rev-parse "$commit:$path" 2>/dev/null || true)"
+        if [ -n "$path_blob" ] && {
+             { scratch cat-file -e "$baseline:$path" 2>/dev/null &&
+               [ "$path_blob" = "$(scratch rev-parse "$baseline:$path" 2>/dev/null)" ]; } ||
+             { scratch cat-file -e "refs/remotes/origin/main:$path" 2>/dev/null &&
+               [ "$path_blob" = "$(scratch rev-parse "refs/remotes/origin/main:$path" 2>/dev/null)" ]; }; }; then
+          continue
+        fi
         judged_protected="$(add_unique "$path" "$judged_protected")"
         continue
       fi
