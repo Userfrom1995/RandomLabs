@@ -110,6 +110,9 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
@@ -166,6 +169,9 @@ jobs:
       - name: Forward auditor decision
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           if [ ! -f /tmp/random-lab-decision.json ]; then

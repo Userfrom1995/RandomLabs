@@ -27,6 +27,9 @@ jobs:
     steps:
       - name: Post /oc maintainer as owner to wake up Maintainer
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set -euo pipefail

@@ -168,7 +168,7 @@
 # spellings empty, the control never contacts the proxy, the unset-removal
 # mutant contacts it and fails closed with the real tip intact, and every
 # owner-PAT step's effective env records no Authorization leak).
-# Wired into auditor.yml as the R1-R34 matrix.
+# Wired into auditor.yml as the R1-R35 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
 # R1-R6 are scoped to <path-to-opencode.yml>; R7-R34 audit the whole tree
@@ -242,12 +242,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R34 PASS] $name: $desc"
+  [R1-R35 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R34 FAIL] $name: $desc"
+  [R1-R35 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -5862,14 +5862,16 @@ else
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Post ${r17_os_tag} tester findings report" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" '
       done { next }
       $0 == "- name: " tag { seq=1; next }
-      seq >= 6 && $0 ~ /^- name: / { done=1; next }
+      seq >= 9 && $0 ~ /^- name: / { done=1; next }
       seq == 1 { if ($0 == "id: findings") { seq=2 } else { bad=1; seq=9 }; next }
       seq == 2 { if ($0 == gate) { seq=3 } else { bad=1; seq=9 }; next }
       seq == 3 { if ($0 == "env:") { seq=4 } else { bad=1; seq=9 }; next }
-      seq == 4 { if ($0 == "GH_TOKEN: ${{ secrets.OPENCODE_PAT }}") { seq=5 } else { bad=1; seq=9 }; next }
-      seq == 5 { if ($0 == "TARGET: ${{ github.event.issue.number }}") { ok=1; seq=6 } else { bad=1; seq=9 }; next }
-      seq == 6 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
-      seq == 9 { next }
+      seq == 4 { if ($0 == "GH_PAGER: /bin/cat") { seq=5 } else { bad=1; seq=9 }; next }
+      seq == 5 { if ($0 == "PAGER: /bin/cat") { seq=6 } else { bad=1; seq=9 }; next }
+      seq == 6 { if ($0 == "GH_FORCE_TTY: \"\"") { seq=7 } else { bad=1; seq=9 }; next }
+      seq == 7 { if ($0 == "GH_TOKEN: ${{ secrets.OPENCODE_PAT }}") { seq=8 } else { bad=1; seq=9 }; next }
+      seq == 8 { if ($0 == "TARGET: ${{ github.event.issue.number }}") { ok=1; seq=9 } else { bad=1; seq=9 }; next }
+      seq == 9 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
       END { exit((ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-step-sequence-broken)"
     # The forward gate must live on the forward step itself, the arm must carry
     # exactly one post step and one forward step, and the post step must
@@ -6751,6 +6753,9 @@ OWNER_PAT_ENV = {
     "BASH_ENV": "/dev/null",
     "ENV": "/dev/null",
     "GH_HOST": "github.com",
+    "GH_PAGER": "/bin/cat",
+    "PAGER": "/bin/cat",
+    "GH_FORCE_TTY": "",
     "GIT_CONFIG_COUNT": "0",
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_NOSYSTEM": "1",
@@ -7136,6 +7141,9 @@ def validate(doc, expected):
             anchor_run = anchor.get("run")
             expected_anchor_env = {
                 "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+                "GH_PAGER": "/bin/cat",
+                "PAGER": "/bin/cat",
+                "GH_FORCE_TTY": "",
                 "THREAD": "${{ github.event.issue.number }}",
                 "EVENT_IS_PR": "${{ github.event.issue.pull_request.html_url }}",
                 "EXPECTED_BRANCH": "${{ steps.pr-info.outputs.head_ref }}",
@@ -7356,6 +7364,9 @@ def validate(doc, expected):
                 "GIT_GRAFT_FILE": "/dev/null",
                 "GIT_NO_REPLACE_OBJECTS": "1",
                 "GIT_PAGER": "/bin/cat",
+                "GH_PAGER": "/bin/cat",
+                "PAGER": "/bin/cat",
+                "GH_FORCE_TTY": "",
                 "GIT_SEQUENCE_EDITOR": "/bin/false",
                 "GIT_SHALLOW_FILE": "/dev/null",
                 "GIT_TERMINAL_PROMPT": "0",
@@ -7438,6 +7449,9 @@ def validate(doc, expected):
                 "GIT_ICASE_PATHSPECS": "0",
                 "GIT_NO_REPLACE_OBJECTS": "1",
                 "GIT_PAGER": "/bin/cat",
+                "GH_PAGER": "/bin/cat",
+                "PAGER": "/bin/cat",
+                "GH_FORCE_TTY": "",
                 "GIT_SEQUENCE_EDITOR": "/bin/false",
                 "GIT_SHALLOW_FILE": "/dev/null",
                 "GIT_TERMINAL_PROMPT": "0",
@@ -9054,6 +9068,11 @@ fi
 r19_bad=""
 R19_SCRIPT=".github/scripts/review-comment-published.sh"
 R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true'"
+# Issue #798 review round 18 F2 follow-up: the force-lab writer now edits the
+# decision with jq and can fail. The forward must not post the stale
+# fix/continue decision in that case, so it is gated on the writer step's own
+# outcome.
+R19_FORWARD_GATE="$R19_VERDICT_GATE && steps.force-lab.outcome == 'success'"
 # Issue #743 retry-lane predicates (duplicate #744 finding). A posted
 # auto-retry is a successful handoff, so the verify step must mark the run
 # (`retry=true` written immediately before the retry POST) and both
@@ -9478,7 +9497,7 @@ else
     r19_retry_marker_ok "$REVIEW_WF" || r19_bad="${r19_bad} review.yml(retry-marker-not-before-post)"
     r19_retry_gate_ok "$REVIEW_WF" || r19_bad="${r19_bad} review.yml(retry-gated-forward-count-not-2)"
     printf '%s\n' "$(grep -A1 -F -- '- name: Force lab routing for infrastructure PRs' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(force-lab-step-not-gated)"
-    printf '%s\n' "$(grep -A1 -F -- '- name: Forward reviewer decision' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(forward-step-not-gated)"
+    printf '%s\n' "$(grep -A1 -F -- '- name: Forward reviewer decision' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_FORWARD_GATE" || r19_bad="${r19_bad} review.yml(forward-step-not-gated)"
     # Mutation self-tests: each load-bearing retry-lane piece is proven
     # catchable by the SAME predicate applied to the shipped file above, so a
     # refactor that neuters the check itself is caught too.
@@ -13828,6 +13847,9 @@ ISO_ENV = {
     "GIT_NAMESPACE": "",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
+    "GH_PAGER": "/bin/cat",
+    "PAGER": "/bin/cat",
+    "GH_FORCE_TTY": "",
     "GIT_SEQUENCE_EDITOR": "/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
@@ -15162,7 +15184,7 @@ while IFS= read -r br; do
   gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
 done < "$branch_list"
 echo "stray cleanup complete"
-### 18 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin"}
+### 18 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_FORCE_TTY": "", "GH_PAGER": "/bin/cat", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PAGER": "/bin/cat", "PATH": "/usr/bin:/bin"}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
 if [ -z "$dirty" ]; then
   echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -18220,6 +18242,9 @@ OWNER_PAT_ISO_ENV = {
     "GIT_NAMESPACE": "",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
+    "GH_PAGER": "/bin/cat",
+    "PAGER": "/bin/cat",
+    "GH_FORCE_TTY": "",
     "GIT_SEQUENCE_EDITOR": "/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
@@ -20493,6 +20518,9 @@ OWNER_PAT_ISOLATION_ENV = {
     "GIT_NAMESPACE": "",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
+    "GH_PAGER": "/bin/cat",
+    "PAGER": "/bin/cat",
+    "GH_FORCE_TTY": "",
     "GIT_SEQUENCE_EDITOR": "/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
@@ -20659,6 +20687,9 @@ EXPECTED_ARM_LANE_GUARD_ENV = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
+    "GH_PAGER": "/bin/cat",
+    "PAGER": "/bin/cat",
+    "GH_FORCE_TTY": "",
     "GIT_SEQUENCE_EDITOR": "/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
@@ -26938,6 +26969,7 @@ esac
 # removal of the success clause.
 r32_out=$(python3 -I - <<'PY'
 import copy
+import json
 import os
 import re
 import shutil
@@ -27001,6 +27033,9 @@ REVIEW_FORWARD_PREFIX = (
     " && steps.verify-review.outcome == 'success'"
     " && steps.verify-review.outputs.retry != 'true'"
     " && steps.verify-review.outputs.skip_forward != 'true'"
+)
+REVIEW_FORWARD_GATED_IF = (
+    REVIEW_FORWARD_PREFIX + " && steps.force-lab.outcome == 'success'"
 )
 REVIEW_OPEN_OR_NON_PR_IF = (
     "steps.pr-info.outputs.is_pr != 'true'"
@@ -27799,6 +27834,7 @@ CLAUSES = {
     "steps.verify-review.outcome == 'success'": lambda values: values.get("verify_success") == "true",
     "steps.verify-review.outputs.retry != 'true'": lambda values: values.get("retry") != "true",
     "steps.verify-review.outputs.skip_forward != 'true'": lambda values: values.get("skip_forward") != "true",
+    "steps.force-lab.outcome == 'success'": lambda values: values.get("force_lab_success") == "true",
 }
 
 
@@ -28108,6 +28144,7 @@ def simulate_review(doc, problems):
             agent_runs = eval_expr(if_of(agents[0]), values)
             verify_runs = eval_expr(if_of(verify), values)
             values["verify_success"] = "true" if verify_runs else "false"
+            values["force_lab_success"] = "true" if verify_runs else "false"
             publish_runs = eval_expr(if_of(publish), values)
             forward_runs = eval_expr(if_of(forward), values)
             skip_runs = eval_expr(if_of(skip), values)
@@ -28174,6 +28211,144 @@ def behavioral_review_guard(doc, problems):
                 problems.append("review-guard-%s(posted-comment)" % name)
     except (OSError, subprocess.TimeoutExpired):
         problems.append("review-guard-behavioral-harness-failure")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def behavioral_force_lab(step, problems):
+    # Issue #798 review round 18 F1/F2: execute the real force-lab owner-PAT
+    # body twice. First with the hostile pager variables layered under the
+    # step env map (the runner applies the map after $GITHUB_ENV), then with
+    # only the in-body reset. A mock gh honors GH_FORCE_TTY exactly like gh,
+    # so a pager that consumes the API output can forge the file list and is
+    # visible as a marker file. The same runs assert the lab rewrite keeps
+    # .run_nonce and every other field.
+    try:
+        root, mock_dir = make_sandbox()
+    except OSError:
+        problems.append("force-lab-sandbox-unavailable")
+        return
+    try:
+        marker = os.path.join(root, "pager-marker")
+        pager = os.path.join(root, "pager.sh")
+        with open(pager, "w") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                "printf 'pager-ran\\n' >> \"$PAGER_MARKER\"\n"
+                "printf 'README.md\\n'\n"
+            )
+        os.chmod(pager, 0o755)
+        mock = os.path.join(mock_dir, "gh")
+        with open(mock, "w") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                "set -u\n"
+                "if [ \"${1:-}\" = \"api\" ]; then\n"
+                "  if [ -n \"${GH_FORCE_TTY:-}\" ]; then\n"
+                "    pager=\"${GH_PAGER:-${PAGER:-}}\"\n"
+                "    if [ -n \"$pager\" ] && [ -x \"$pager\" ]; then\n"
+                "      printf '%s\\n' \"${MOCK_FILES:-}\" | \"$pager\"\n"
+                "      exit 0\n"
+                "    fi\n"
+                "  fi\n"
+                "  [ -z \"${MOCK_FILES:-}\" ] || printf '%s\\n' \"$MOCK_FILES\"\n"
+                "  exit 0\n"
+                "fi\n"
+                "exit 1\n"
+            )
+        os.chmod(mock, 0o755)
+        decision = os.path.join(root, "decision.json")
+        body = expand(run_of(step), pr_number="781")
+        body = body.replace(
+            "PATH=/usr/bin:/bin; export PATH",
+            "PATH=%s:/usr/bin:/bin; export PATH" % mock_dir,
+        )
+        body = body.replace(
+            'decision="/tmp/random-lab-decision.json"',
+            'decision="%s"' % decision,
+        )
+        if "${{" in body:
+            problems.append("force-lab-functional(unexpanded-expression)")
+            return
+        step_env = step.get("env") if isinstance(step.get("env"), dict) else {}
+
+        def run_case(name, files, overlay, expected_action, expect_marker, text=None):
+            with open(decision, "w") as handle:
+                json.dump(
+                    {"action": "fix", "run_nonce": "sandboxnonce", "keep": "yes"},
+                    handle,
+                )
+            with open(marker, "w"):
+                pass
+            env = sandbox_env(
+                mock_dir,
+                {
+                    "LAB_RUN_NONCE": "sandboxnonce",
+                    "MOCK_FILES": files,
+                    "PAGER_MARKER": marker,
+                    "GH_FORCE_TTY": "1",
+                    "GH_PAGER": pager,
+                    "PAGER": pager,
+                },
+            )
+            if overlay:
+                for key in ("GH_PAGER", "PAGER", "GH_FORCE_TTY"):
+                    if key in step_env:
+                        env[key] = step_env[key]
+            result = run_script(body if text is None else text, env, root)
+            if result.returncode != 0:
+                problems.append(
+                    "force-lab-functional-%s(rc=%d)" % (name, result.returncode)
+                )
+            try:
+                with open(decision) as handle:
+                    data = json.load(handle)
+            except (OSError, ValueError):
+                problems.append("force-lab-functional-%s(decision-unreadable)" % name)
+                return
+            if data.get("action") != expected_action:
+                problems.append(
+                    "force-lab-functional-%s(action=%r,want=%r)"
+                    % (name, data.get("action"), expected_action)
+                )
+            if data.get("run_nonce") != "sandboxnonce":
+                problems.append(
+                    "force-lab-functional-%s(nonce=%r)"
+                    % (name, data.get("run_nonce"))
+                )
+            if data.get("keep") != "yes":
+                problems.append(
+                    "force-lab-functional-%s(other-field-dropped)" % name
+                )
+            pager_ran = os.path.exists(marker) and os.path.getsize(marker) > 0
+            if pager_ran != expect_marker:
+                problems.append(
+                    "force-lab-functional-%s(pager=%r,want=%r)"
+                    % (name, pager_ran, expect_marker)
+                )
+
+        run_case("empty", "", True, "lab", False)
+        run_case("touched", ".github/workflows/opencode.yml", True, "lab", False)
+        run_case("untouched", "src/app.js", True, "fix", False)
+        run_case("reset-only", ".github/workflows/opencode.yml", False, "lab", False)
+        reset = (
+            "unset GH_FORCE_TTY 2>/dev/null || true\n"
+            "export GH_PAGER=/bin/cat PAGER=/bin/cat\n"
+        )
+        stripped = body.replace(reset, "")
+        if stripped == body:
+            problems.append("force-lab-functional(reset-missing)")
+        else:
+            run_case(
+                "reset-control",
+                ".github/workflows/opencode.yml",
+                False,
+                "fix",
+                True,
+                stripped,
+            )
+    except (OSError, subprocess.TimeoutExpired):
+        problems.append("force-lab-functional-harness-failure")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -28513,7 +28688,7 @@ def validate_review(doc, problems):
         if norm_pinned_lines(run_of(verify)) != list(REVIEW_VERIFY_BODY):
             problems.append("review-verify(body-not-exact)")
     forward = exactly_one(steps, REVIEW_FORWARD, "review-forward", problems)
-    if forward is not None and if_of(forward) != REVIEW_FORWARD_PREFIX:
+    if forward is not None and if_of(forward) != REVIEW_FORWARD_GATED_IF:
         problems.append("review-forward(if=%r)" % if_of(forward))
     if forward is not None:
         # Issue #781 review round 3 M3: the decision handoff targets the
@@ -28545,6 +28720,33 @@ def validate_review(doc, problems):
             problems.append("review-force-lab(event-issue-read)")
         if re.search(r"\bgit (?:fetch|show|diff|cat-file)\b", force_body):
             problems.append("review-force-lab(workspace-git-read)")
+        # Issue #798 review round 18 F1: the runner applies $GITHUB_ENV after
+        # the job env, so only the step env map can stop an agent-exported
+        # GH_FORCE_TTY/GH_PAGER/PAGER from running an agent-selected pager with
+        # the owner PAT. N1 adds previous_filename and documents the 3,000 cap.
+        force_env = force_lab.get("env") if isinstance(force_lab.get("env"), dict) else {}
+        for pager_key, pager_value in (
+            ("GH_PAGER", "/bin/cat"),
+            ("PAGER", "/bin/cat"),
+            ("GH_FORCE_TTY", ""),
+        ):
+            if force_env.get(pager_key) != pager_value:
+                problems.append("review-force-lab(pager-pin:%s)" % pager_key)
+        for needle, label in (
+            ("unset GH_FORCE_TTY 2>/dev/null || true", "no-pager-reset"),
+            ("export GH_PAGER=/bin/cat PAGER=/bin/cat", "no-pager-export"),
+            ("write_lab_decision() {", "no-lab-writer"),
+            (
+                '.action = "lab" | if $n == "" then . else .run_nonce = $n end',
+                "no-nonce-preservation",
+            ),
+            (".filename, (.previous_filename // empty)", "no-previous-filename"),
+        ):
+            if needle not in force_body:
+                problems.append("review-force-lab(%s)" % label)
+        if 'echo \'{"action":"lab"}\' > "$decision"' in force_body:
+            problems.append("review-force-lab(raw-lab-write)")
+        behavioral_force_lab(force_lab, problems)
     # Issue #781 F3/F4: no PR-head or post-agent step may run before the guard
     # decided, and both handoffs must sit after the verify hard stop.
     order = (
@@ -28872,6 +29074,12 @@ MUTANTS = (
         "      - name: Force lab routing for infrastructure PRs\n",
     ),
     (
+        "review-forward-force-lab-gate",
+        REVIEW,
+        " && steps.force-lab.outcome == 'success'",
+        "",
+    ),
+    (
         "peros-live-query",
         PEROS,
         PEROS_LIVE_STATE_QUERY,
@@ -29097,6 +29305,39 @@ MUTANTS = (
         REVIEW,
         '            linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \\\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")',
         '            linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \\\n              # tamper\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .number\' 2>/dev/null || echo "")',
+    ),
+    # Issue #798 review round 18 F1: removing the step-env pager pins must fail
+    # the force-lab map pin and the execution fixture (the hostile pager wins).
+    (
+        'review-force-lab-pager-pins',
+        REVIEW,
+        '          GH_PAGER: /bin/cat\n          PAGER: /bin/cat\n          GH_FORCE_TTY: ""\n',
+        '',
+    ),
+    # Issue #798 review round 18 F1: removing the in-body reset must fail the
+    # reset-only fixture even if a future map edit kept the env pins.
+    (
+        'review-force-lab-pager-reset',
+        REVIEW,
+        '          unset GH_FORCE_TTY 2>/dev/null || true\n'
+        '          export GH_PAGER=/bin/cat PAGER=/bin/cat\n',
+        '',
+    ),
+    # Issue #798 review round 18 F2: a lab rewrite that drops .run_nonce must
+    # fail the nonce fixture before the forward check can see it.
+    (
+        'review-force-lab-nonce-drop',
+        REVIEW,
+        '.action = "lab" | if $n == "" then . else .run_nonce = $n end',
+        '.action = "lab"',
+    ),
+    # Issue #798 review round 18 F2: replacing the atomic helper with the old
+    # whole-file echo must fail the raw-write pin.
+    (
+        'review-force-lab-raw-write',
+        REVIEW,
+        '            write_lab_decision || exit 1\n          else',
+        '            echo \'{"action":"lab"}\' > "$decision"\n          else',
     ),
 )
 
@@ -34963,16 +35204,156 @@ case "$r34_out" in
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R34) on ${WF}: ${pass} passed, ${fail} failed."
+# [R35] Owner-PAT pager pin (issue #798 review round 18 F1): the runner
+# applies $GITHUB_ENV after the job env, so an agent can export GH_FORCE_TTY
+# plus GH_PAGER/PAGER and make a later gh invocation run an agent-selected
+# pager. In a step that holds the owner PAT the pager inherits the PAT, and it
+# can consume the real API output and print a forged file list (the force-lab
+# infrastructure check). Every step whose env references the owner PAT, and
+# every step that already pins GIT_PAGER, must also pin the gh pager: GH_PAGER
+# and PAGER to /bin/cat and GH_FORCE_TTY empty (gh treats any non-empty value,
+# including "0", as force). A duplicate-key-rejecting YAML parse keeps the
+# sweep fail-closed, and mutants remove each pin from an owner-PAT step, the
+# Tester lane guard, and a per-OS strip step to prove the sweep is load-bearing.
+r35_out=$(python3 -I - <<'PY'
+import copy
+import glob
+import sys
+
+import yaml
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping
+)
+
+PINS = {"GH_PAGER": "/bin/cat", "PAGER": "/bin/cat", "GH_FORCE_TTY": ""}
+
+
+def load(path):
+    with open(path) as handle:
+        return yaml.load(handle, Loader=StrictLoader)
+
+
+def steps_of(doc):
+    for job_name, job in ((doc or {}).get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps") or []:
+            if isinstance(step, dict):
+                yield job_name, step
+
+
+def check(docs):
+    problems = []
+    for path, doc in docs.items():
+        for job_name, step in steps_of(doc):
+            env = step.get("env")
+            if not isinstance(env, dict):
+                continue
+            owner_pat = any(
+                isinstance(value, str) and "secrets.OPENCODE_PAT" in value
+                for value in env.values()
+            )
+            pins_git_pager = env.get("GIT_PAGER") == "/bin/cat"
+            if not (owner_pat or pins_git_pager):
+                continue
+            for key, value in PINS.items():
+                if env.get(key) != value:
+                    problems.append(
+                        "%s:%s:%s:%s" % (path, job_name, step.get("name"), key)
+                    )
+    return problems
+
+
+paths = sorted(
+    glob.glob(".github/workflows/*.yml") + glob.glob(".github/workflows/*.yaml")
+)
+docs = {}
+for path in paths:
+    docs[path] = load(path)
+
+problems = check(docs)
+if problems:
+    print("BAD:" + " ".join(problems[:8]))
+    sys.exit(0)
+
+
+def mutant(label, path, step_name, key, owner_pat=False):
+    mutated = copy.deepcopy(docs[path])
+    target = None
+    for _job_name, step in steps_of(mutated):
+        if step_name is not None:
+            if step.get("name") == step_name:
+                target = step
+                break
+        else:
+            env = step.get("env")
+            if not isinstance(env, dict):
+                continue
+            if owner_pat and any(
+                isinstance(value, str) and "secrets.OPENCODE_PAT" in value
+                for value in env.values()
+            ):
+                target = step
+                break
+            if not owner_pat and env.get("GIT_PAGER") == "/bin/cat":
+                target = step
+                break
+    if target is None:
+        print("BAD:mutant-%s(setup-not-found)" % label)
+        return
+    target["env"].pop(key, None)
+    if not check({path: mutated}):
+        print("BAD:mutant-%s(not-caught)" % label)
+
+
+mutant("owner-pat", ".github/workflows/lab.yml", None, "GH_PAGER", owner_pat=True)
+mutant(
+    "lane-guard",
+    ".github/workflows/opencode-test.yml",
+    "Verify the Tester stayed in lane (issue 807)",
+    "GH_FORCE_TTY",
+)
+mutant("peros-strip", ".github/workflows/opencode-peros-test.yml", None, "PAGER")
+print("OK")
+PY
+)
+case "$r35_out" in
+  OK)
+    check "R35" "every step that references the owner PAT, and every step that pins GIT_PAGER, also pins GH_PAGER and PAGER to /bin/cat and GH_FORCE_TTY empty, so an agent-exported pager from \$GITHUB_ENV can never run with the owner PAT or consume and forge the API output (issue #798 review round 18 F1), with owner-PAT, lane-guard, and per-OS strip mutants proving the sweep is load-bearing" "ok"
+    ;;
+  *)
+    check "R35" "owner-PAT pager pin missing or bypassable: ${r35_out} (issue #798 review round 18 F1: the runner applies \$GITHUB_ENV after the job env, so GH_FORCE_TTY plus GH_PAGER/PAGER must be pinned in the step env map of every owner-PAT step and every GIT_PAGER-pinned step; a pager otherwise inherits the PAT and can print a forged file list)" "bad"
+    ;;
+esac
+
+summary="Silent-stall regression audit (R1-R35) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R34)
+  body="## Silent-stall regression audit FAILED (R1-R35)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case plus fails closed on any non-ASCII path in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case plus fails closed on any non-ASCII path in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)), or R35 owner-PAT pager pin (every step that references the owner PAT, and every step that pins GIT_PAGER, also pins GH_PAGER/PAGER to /bin/cat and GH_FORCE_TTY empty, so an agent-exported pager from $GITHUB_ENV can never run with the owner PAT or forge the force-lab API file list, with owner-PAT, lane-guard, and per-OS strip mutation controls)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then

@@ -58,6 +58,9 @@ jobs:
         continue-on-error: true
         if: always()
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set +e
@@ -306,6 +309,9 @@ jobs:
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set +e

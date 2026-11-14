@@ -532,15 +532,17 @@ Round 13 also
   never reads the agent-mutable workspace copy or the sudo-replaceable
   `/opt/lab-scripts/` staged copy. The review, Tester, and per-OS
   verify/forward steps read the helper through the GitHub contents API at
-  `${GITHUB_SHA}` and execute it with `/bin/bash -p -s` (PR #804). Two surfaces
-  still read through `git show` and pipe to an unprivileged shell, which trusts
-  the agent-writable object store: `opencode.yml`'s `Approve held CI runs`
-  (`git show "${{ github.workflow_sha }}:.github/scripts/<helper>"`) and the
-  eval marker/forward helpers (`git show "${GITHUB_SHA}:..."` and
+  `${GITHUB_SHA}` and execute it with `/bin/bash -p -s` (PR #804). Three
+  surfaces still read through `git show` and pipe to an unprivileged shell,
+  which trusts the agent-writable object store: `opencode.yml`'s `Approve held
+  CI runs` (`git show "${{ github.workflow_sha }}:.github/scripts/<helper>"`),
+  the eval marker/forward helpers (`git show "${GITHUB_SHA}:..."` and
   `git show "${TRUSTED_SHA}:..."` in `maintainer.yml`, where `TRUSTED_SHA` is
   the freshly fetched default-branch tip the actor-gate step publishes as a
-  step output); both are tracked in issue #849. Each read fails closed when it
-  fails, and R28 (all steps) and R30
+  step output), and the phase-lane resolver/strip/classifier helper reads in
+  `opencode.yml` (`git show "${{ github.workflow_sha }}:.github/scripts/<helper>"`
+  piped to `bash -s`); all are tracked in issue #849. Each read fails closed
+  when it fails, and R28 (all steps) and R30
   (maintainer) reject any helper basename outside its trusted capture line in
   any spelling except a non-piped diagnostic `echo`/`printf`. The review
   workflow's non-PR skip notice now posts with the job-scoped `github.token`

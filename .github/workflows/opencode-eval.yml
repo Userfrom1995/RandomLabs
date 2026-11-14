@@ -60,6 +60,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -181,6 +184,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -392,6 +398,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -488,6 +497,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -609,6 +621,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -672,6 +687,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false

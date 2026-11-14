@@ -41,6 +41,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -217,6 +220,9 @@ jobs:
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_SSH_COMMAND: ssh
@@ -373,6 +379,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -484,6 +493,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -782,9 +794,13 @@ jobs:
 
       - name: Force lab routing for infrastructure PRs
         if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true'
+        id: force-lab
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -827,6 +843,13 @@ jobs:
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH=/usr/bin:/bin; export PATH
+          # Issue #798 review round 18 F1: the agent can export GH_FORCE_TTY
+          # and GH_PAGER/PAGER through $GITHUB_ENV, and the runner applies them
+          # to this owner-PAT step unless the step env map overrides them. The
+          # env map pins all three; reset them here too so a future lane that
+          # forgets the map cannot hand the PAT to an agent-selected pager.
+          unset GH_FORCE_TTY 2>/dev/null || true
+          export GH_PAGER=/bin/cat PAGER=/bin/cat
           # Issue #798 review round 16: this step holds the owner PAT after the
           # untrusted agent. Pin a fresh private GH_CONFIG_DIR in-body so an
           # agent-planted config.yml (for example an http_unix_socket) cannot
@@ -850,6 +873,22 @@ jobs:
             echo "No decision file; nothing to enforce."
             exit 0
           fi
+          write_lab_decision() {
+            local tmp
+            tmp="$(mktemp)" || { echo "::error::cannot create a temporary decision file"; return 1; }
+            if ! jq --arg n "${LAB_RUN_NONCE:-}" \
+                 '.action = "lab" | if $n == "" then . else .run_nonce = $n end' \
+                 "$decision" > "$tmp"; then
+              rm -f "$tmp"
+              echo "::error::cannot update the decision file; failing closed"
+              return 1
+            fi
+            if ! mv "$tmp" "$decision"; then
+              rm -f "$tmp"
+              echo "::error::cannot replace the decision file; failing closed"
+              return 1
+            fi
+          }
           action=$(jq -r '.action // empty' "$decision" 2>/dev/null || echo "")
           # Only fix/continue can be a misroute onto infrastructure files.
           if [ "$action" != "fix" ] && [ "$action" != "continue" ]; then
@@ -861,26 +900,34 @@ jobs:
           # there). Issue #798 review round 17 B1: read the files through the
           # API instead of the agent-writable checkout, so a planted git hook,
           # object, or local config can never run with the owner PAT.
-          files=$(gh api --hostname github.com --paginate "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.pr-info.outputs.pr_number }}/files?per_page=100" --jq '.[].filename' 2>/dev/null) || files=""
+          # Issue #798 review round 18 N1: include previous_filename so a
+          # rename out of an infrastructure path is still detected; the API
+          # caps this list at 3,000 files, so a file beyond the cap can be
+          # missed (documented residual, not a regression from the previous
+          # name-only read).
+          files=$(gh api --hostname github.com --paginate "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.pr-info.outputs.pr_number }}/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)' 2>/dev/null) || files=""
           if [ -z "$files" ]; then
             echo "::error::Could not read the changed files for PR #${{ steps.pr-info.outputs.pr_number }}; routing to lab (fail closed, issue #798)."
-            echo '{"action":"lab"}' > "$decision"
+            write_lab_decision || exit 1
             exit 0
           fi
           touched=$(printf '%s\n' "$files" | grep -E '^\.github/(workflows/|agents/)|(^|/)(AGENTS|LAB)\.md$' || true)
           if [ -n "$touched" ]; then
             echo "Infrastructure files touched by this PR; overriding reviewer decision '$action' -> lab:"
             echo "$touched"
-            echo '{"action":"lab"}' > "$decision"
+            write_lab_decision || exit 1
           else
             echo "No infrastructure files touched; leaving decision '$action' as-is."
           fi
 
       - name: Forward reviewer decision
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true' && steps.verify-review.outputs.skip_forward != 'true' && steps.force-lab.outcome == 'success'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
