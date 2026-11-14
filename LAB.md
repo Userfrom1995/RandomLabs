@@ -300,7 +300,18 @@ Round 13 also
   `opencode-test.yml` applies the same fold and non-ASCII gate and runs under
   a privileged `bash -p` shell so an exported `BASH_FUNC_*` cannot no-op it,
   and its protected list includes `opencode.json` and
-  `peros_scope_violation`. A
+  `peros_scope_violation`. The lane guard also resets `PATH` to
+  `/usr/bin:/bin` in the body before its first external lookup (issue #798
+  review B20), because the runner prepends the agent-writable `$GITHUB_PATH`
+  entries (the vendored runner's `$HOME/.opencode/bin`) ahead of the step env
+  map. Every post-agent step in the Tester lane runs under the same absolute
+  privileged shell, resets `PATH` in the body before its first lookup, and
+  invokes nested helper bodies as `/bin/bash -p -s` (issue #798 review B21),
+  so an agent-planted `git`, `gh`, `tr`, or `grep` cannot intercept the
+  verdict, the owner PAT, or the non-ASCII gate. R22 executes the lane guard
+  with a fakebin prepended to `PATH` (the shipped body still fails closed; the
+  reset-removed mutant accepts the non-ASCII alias), and R30 mutation-tests
+  the post-agent shell, reset, and nested-shell pins. A
   fully tester-owned violating range is dropped with a
   `--force-with-lease` reset to the baseline; a foreign commit interleaved in
   the range makes the guard record the marker and leave the branch for the

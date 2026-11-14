@@ -289,6 +289,12 @@ jobs:
           PATH: /usr/bin:/bin
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          # Issue #798 review B20: the runner prepends the agent-writable
+          # $GITHUB_PATH entries to PATH ahead of this step's env map, so an
+          # unqualified git, mktemp, tr, or grep below could execute an
+          # agent-planted tool and no-op the non-ASCII path gate. Reset PATH to
+          # the pinned system directories before the first external lookup.
+          PATH=/usr/bin:/bin; export PATH
           set -o pipefail
           # Issue #807: the Tester only authors project test files. A protected
           # lab path in this run's commits or working tree means the branch head
@@ -402,7 +408,12 @@ jobs:
         if: always()
         env:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          PATH: /usr/bin:/bin
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
           # Terminal third outcome for a gate skip (issue #428): the tester
           # step never started, so a missing decision file is a DENIAL, not a
           # crash - fail open as a clean skip instead of failing the job red
@@ -437,7 +448,13 @@ jobs:
       - name: Enforce live-execution evidence gate
         id: evidence-gate
         if: always() && steps.actor_gate.outputs.run == 'true'
+        env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          PATH: /usr/bin:/bin
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
           # Hard gate (issue-style fix for green-but-never-ran approvals): a
           # {"action":"maintainer"} verdict on a standard PR requires proof that
           # the SHIPPED artifact was really executed. Missing file, or evidence
@@ -518,7 +535,9 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
           # Issue #713: the tester agent executes PR-controlled code, and its
           # job token holds issues: write only so the CLI session can start
           # (issue #743). The report is a file contract, and this hardcoded
@@ -544,7 +563,7 @@ jobs:
             echo "::error::Report publisher absent from workflow commit ${GITHUB_SHA}; refusing to forward an unpublished verdict (issue #713, fail closed)."
             exit 1
           fi
-          if ! printf '%s' "$publisher" | bash -s -- "$TARGET" "$report" "- the Tester"; then
+          if ! printf '%s' "$publisher" | /bin/bash -p -s -- "$TARGET" "$report" "- the Tester"; then
             echo "::error::Tester report publication failed; refusing to forward an unpublished verdict (issue #713)."
             exit 1
           fi
@@ -553,12 +572,16 @@ jobs:
         id: publish-gate
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-report.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ github.token }}
           PATH: /usr/bin:/bin
           # Env indirection (audit R10): the trigger timestamp reaches the
           # publication checker as data, never expanded into the shell text.
           SINCE: ${{ github.event.comment.created_at }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
           # Issue #629/#713: a present decision file is only a real verdict
           # once the Tester's signed decision report is actually published on
           # the PR thread. The hardcoded owner-PAT step above posts it; this
@@ -596,7 +619,7 @@ jobs:
             exit 1
           fi
           pub_rc=0
-          printf '%s' "$evidence_script" | bash -s -- "$pr" "$SINCE" || pub_rc=$?
+          printf '%s' "$evidence_script" | /bin/bash -p -s -- "$pr" "$SINCE" || pub_rc=$?
           case "$pub_rc" in
             0)
               echo "Tester decision comment published; the maintainer decision may proceed."
@@ -645,7 +668,9 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
           # Issue #629/#713: the merge sweep's first-line anchor (R21) is
           # satisfied by a workflow-published canonical marker instead of
           # agent prose compliance. This step runs only after the evidence gate
@@ -690,7 +715,7 @@ jobs:
             echo "::error::Marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unpublished marker to the merge sweep (issue #629, fail closed)."
             exit 1
           fi
-          if ! printf '%s' "$publisher" | bash -s -- "$pr" "$scope"; then
+          if ! printf '%s' "$publisher" | /bin/bash -p -s -- "$pr" "$scope"; then
             echo "::error::Tester approval marker publication failed; the merge sweep would never recognize this verdict (issue #629). Failing closed."
             exit 1
           fi
@@ -728,7 +753,9 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."
