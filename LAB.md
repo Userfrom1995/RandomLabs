@@ -1733,7 +1733,11 @@ on a new runner, so it may get a fresh bucket), sleeps a 30-60 second
 inclusive jitter, passes the attempt number through the `quota_recovery`
 dispatch input, and hands the byte-pinned verify step an empty decision list
 so the dispatch concludes green; at the cap it posts one lab-health
-escalation and exits 1 so the chain is visibly red. Issue #836 caps the
+escalation and exits 1 so the chain is visibly red. Both post-agent board
+reads (the Auditor forward and this cap escalation) fetch
+`health-board.sh` from the actor gate's trusted commit through the contents
+API and execute it from memory, never from the agent-writable workspace,
+and an empty trusted SHA fails closed (issue #848 review F1). Issue #836 caps the
 chain at ONE fresh-run attempt: the 2026-11-08/09 starvation proved a second
 dispatch two minutes later is a lottery ticket on the same pool-wide wall,
 not a retry, so the recover-arm heartbeat (below) or the next schedule tick
