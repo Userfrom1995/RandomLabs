@@ -1,39 +1,35 @@
 # STATE
 
-Last updated: 2026-11-14T19:08Z by run 43629853934
+Last updated: 2026-11-14T20:11Z by run 43635679628
 
-(#850 review round 1 returned changes required; the `/oc lab` lane (run 43628785027) is live fixing F1-F3. This run was woken by the delayed PR-open `/oc maintainer` trigger, surveyed the live repo, cancelled the 0-job Lab Engineer fan-out and stood by.)
+(#850 round-1 lab fixes landed as head `40d411d1`, the body is F2-compliant and `closingIssuesReferences` is [848] only; review round 2 is live on the new head. This run cancelled one 0-job duplicate maintainer session and stood by.)
 
 ## Who I am
 
 Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement. I wake on schedule, on PR activity, on issue comments, on failures, and on dispatch, re-survey GitHub fresh, and write hardcoded PAT triggers that route work to the right agent. I never post triggers myself, never create issues/PRs or push code except through my decision file, and never edit `.github/workflows/**`, `.github/agents/**`, `opencode.json`, `AGENTS.md`, or `LAB.md` (those go to the Lab Engineer via `{"action":"lab"}`). `emergency.json` exists only for the direct-to-main revival path and is never used for convenience. I succeeded founding Maintainer Mae on 2026-08-27.
 
-## Right now (surveyed 19:03-19:07Z on 2026-11-14)
+## Right now (surveyed 20:06-20:11Z on 2026-11-14)
 
-- **#850 IS THE #848 LAB LANE**: `opencode/lab-848-shared-health-board-selector`, head `363781c9498d929e049e619d5a88d9a368f2cec2`, MERGEABLE/CLEAN, 12 files, +475/-66, one commit. The three held `action_required` runs were released by the previous maintainer's approve-held step: the delayed `opencode-pr-trigger` 43622963203 ran 19:01:56-19:01:59Z and posted a bare `/oc maintainer` (comment 6882665339); the Pages and comment checks pass, `deploy` skips.
-- **REVIEW ROUND 1: CHANGES REQUIRED** (review run 43622964093 green; report published 18:49:58Z as the owner identity):
-  - F1 (blocking, security): `.github/workflows/auditor.yml:196` executes the PR-controlled `health-board.sh` in the post-agent `Forward auditor decision` step, which holds `secrets.OPENCODE_PAT` and runs `if: always()`. Fix with the trusted contents-API read at `${GITHUB_SHA}` piped into `/bin/bash -p -s`, and split the R36 call-site pin so the post-agent site expects the trusted invocation. Same class, lower exposure: `maintainer.yml:1034` should stage the helper into `/opt/lab-scripts` and call `/opt/lab-scripts/health-board.sh`, updating the R34 embedded recovery body/pins.
-  - F2 (blocking, process): the PR artifact carries no delegation ledger, no skills note and no `- the Lab Engineer` sign-off. Append all three truthfully after `Closes #848`.
-  - F3 (required, docs parity): `AGENTS.md:318-320` still documents the old oldest-first heartbeat selector; update it to the shared helper order.
-  - Five non-blocking notes: the label-read failure discards a resolved title board; the board-title literal is duplicated between the constant and the jq filter; `grep -c '[0-9]'` accepts blank/CR/null output; the R36 sweep misses `.github/actions/**` and quoted `--label "lab-health"` while the rule claims full coverage; the duplicate-title warning and the live unlabeled-title state are not exercised.
-- **LAB LANE LIVE**: `/oc lab` posted 18:50:02Z (comment 6882506568); Lab Engineer run 43628785027 created 18:50:04Z, job started 18:50:06Z, `Run opencode lab engineer agent` still in progress at 19:07Z (about 17 minutes). Branch tip is still `363781c9`; no push yet. Do not post a second lab trigger.
-- **THIS RUN**: maintainer 43629853934 was created 19:02:01Z by the delayed PR-open `/oc maintainer` comment, not by an Owner directive. The same event's Lab Engineer fan-out 43629853937 (0 jobs, pending, gate-skip because the comment starts with `/oc maintainer`) was cancelled at 19:06Z so one pass per lane remains. Decision `[]` and no public comment: the 19:01:29Z and 19:01:41Z notes from the previous session already state the lane status.
-- **#836 FALSE CLOSE RISK PERSISTS**: `closingIssuesReferences` on #850 is still [836, 848]. The body sentence "schedule self-heal escalations resolved #836" is parsed as a closing keyword. The lab pass should reword it while fixing F2; if the merge closes #836 anyway, reopen it with a note pointing at the false keyword. #836 must stay open for the Owner capacity decision.
-- **Open PRs** (3): #850 above; #821 (`dce109e4`, CLEAN/MERGEABLE, parked since 2026-11-07 on the Owner capacity decision); #745 (`7a04fa4a`, CONFLICTING/DIRTY, behind #803 since 2026-10-23). No new comments on the two parked PRs.
+- **#850 ROUND-1 FIXES LANDED**: `opencode/lab-848-shared-health-board-selector`, head `40d411d12d82583aa0c27b7a178b51e12934f4c0` (new commit 20:05:22Z), MERGEABLE/CLEAN, 12 files, +655/-76, two commits. The round-1 Lab Engineer run 43628785027 (18:50:04-20:06:09Z) concluded `success`; its PAT-backed push landed `40d411d1`. The App-token rejection comment at 20:05:55Z is expected wrapper noise on a workflow-touching branch.
+- **F1-F3 APPLIED IN THE NEW HEAD**: `auditor.yml` reads `health-board.sh` through the contents API at `${GITHUB_SHA}` and pipes it to `/bin/bash -p -s` (empty read fails closed); `maintainer.yml`'s quota-recovery cap reads it at `TRUSTED_SHA` the same way; `AGENTS.md:318-320` now describes the title-first universal board; R36/R34 pins are split for the trusted reads; the helper carries the label-read-keeps-title warning, `printf` title interpolation and an anchored numeric parse; the R36 sweep covers `.github/actions` and quoted spellings. The body carries the delegation ledger, the skills line and the `- the Lab Engineer` sign-off.
+- **#836 FALSE CLOSE FIXED**: `closingIssuesReferences` on #850 is now [848] only. #836 is OPEN and unlabelled, safe for the Owner capacity decision. #848 stays OPEN and closes on merge.
+- **REVIEW ROUND 2 LIVE**: the lab handoff posted `/oc review` at 20:06:06Z (comment 6883466612, PAT-posted); `opencode-review` run 43635669634 started 20:06:09Z and `Run opencode reviewer` was in progress at 20:11Z on `40d411d1`. A second review run 43635679669 (from the `/oc maintainer` fan-out) is pending with zero jobs and will gate-skip. No verdict exists for `40d411d1` yet.
+- **THIS RUN**: maintainer 43635679628 was created 20:06:15Z by the PAT-posted `/oc maintainer` handoff (comment 6883467832). I cancelled the pending 0-job duplicate maintainer `workflow_run` 43635687197 at 20:08Z; the started review run was untouched. Decision `[]`: the review workflow owns the next handoff.
+- **Open PRs** (3): #850 above; #821 (`dce109e44`, CLEAN/MERGEABLE, parked since 2026-11-07 on the Owner capacity decision); #745 (`7a04fa4a9`, CONFLICTING/DIRTY, behind #803 since 2026-10-23). No new comments on the two parked PRs.
 - **Open issues** (22 non-PR): #849, #848, #836, #831, #815, #814, #812, #803, #792, #774, #773, #742, #683, #678, #677, #661, #659, #657, #655, #582, #70, #42. No untriaged issue and no new issue.
 - **#849 QUEUED**: no `/oc` trigger and no `opencode/lab-849-*` branch; it stays serialized behind #850 because both touch `silent-stall-audit.sh` and `LAB.md`.
 - **Board invariant holds**: only #70 (OPEN) carries `lab-health` and only #70 carries the exact `Lab Health & Audit Logs` title. Last notes: 15:37:14Z heartbeat, 14:13:07Z quota-wall intake, 05:54:25Z daily audit (operational; bench candidates named, no change proposed). #836/#848/#849 carry `[]`.
 - **Trigger allowlist**: 23 active workflow names minus the self-excluded `maintainer` and the three platform workflows (`Dependabot Updates`, `Dependency Graph`, `pages-build-deployment`) = 19, exactly matching the `workflows:` list in `maintainer.yml` at `main`. No drift.
 - **Model watch**: 86 registry models, 11 free; `model` and `small_model` are `opencode/deepseek-v4.1-flash-free`; ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free` live and free; `maintainer.yml` `REQUESTED_MODEL` matches. No pin change mid-lane.
-- **Runs**: this maintainer 43629853934 and Lab Engineer 43628785027 are the live runs. Zero failed/timed_out/startup_failure in the newest 200. Held `action_required` = 0 and `waiting` = 0 after the approve-held; the seven historical queued runs (2026-09-25, 2026-10-05, 2026-11-11) remain inert. Pages dispatch 43629858168 is green on `620bb8d2e`.
+- **Runs**: this maintainer 43635679628 and review 43635669634 are the live runs. Zero failed/timed_out/startup_failure in the newest 200. Held `action_required` = 0 and `waiting` = 0 after the new push; the seven historical queued runs (2026-09-25, 2026-10-05, 2026-11-11) remain inert. Pages dispatch 43635679305 is green on `620bb8d2e`.
 - **Auditor and Curator**: last scheduled audit 43561307992 green 05:23:32-05:55:01Z; curator schedule 43598287085 green 13:08:54Z; both re-arm on their schedules; no dispatch.
-- **Workspace note**: `issue_comment` on PR #850; the CLI checked out the PR head `363781c9` here (the trusted pre-agent checkout was main `620bb8d2e`), so project files in this workspace are PR content. I treated them as untrusted, read the staged prompt and my memory, verified live state with `gh` and a fresh `/tmp` clone of `origin/main`, and wrote only `.maintainer/` outputs. No protected-path edits, no branch commands, no `emergency.json`.
+- **Workspace note**: `issue_comment` on PR #850; the CLI checked out the PR head `40d411d1` here (the trusted pre-agent checkout was main `620bb8d2e`), so project files in this workspace are PR content. I treated them as untrusted, verified live state with `gh`, and read the head tree only in an isolated `/tmp/pr850head` clone. I wrote only `.maintainer/` outputs. No protected-path edits, no branch commands, no `emergency.json`.
 
 ## The live lanes (do not duplicate)
 
-1. **#850** - the #848 lab lane, live now (run 43628785027, review F1-F3). Watch for the new head push, the lab workflow's own `/oc review` forward, then review -> test -> eval -> PAT sweep. Never post a second `/oc lab` while this lane is live; the lab group is FIFO (`lab-850`, queue: max), so a duplicate would run after the first and churn the review chain.
+1. **#850** - the #848 lab lane; round-1 fixes landed at head `40d411d1` and review round 2 (run 43635669634) is live. Watch its verdict: approve -> `/oc test`; changes -> the review workflow posts `/oc lab`. Then test -> eval -> PAT sweep. Never post a duplicate trigger while a round is live.
 2. **#849** - queued until the #850 PR lands. Shared `silent-stall-audit.sh` and `LAB.md` make concurrent lanes conflict-prone.
-3. **#836** - open, unlabelled, the Owner capacity and wall-history thread; every future quota-wall and self-heal note goes to #70, never #836. Reopen if the #850 merge closes it.
+3. **#836** - open, unlabelled, the Owner capacity and wall-history thread; every future quota-wall and self-heal note goes to #70, never #836. The #850 body no longer carries a closing keyword for it.
 4. **#821** - parked on the Owner capacity decision; do not review or merge until that decision lands.
 5. **#745** - behind #803 (lifetime retry budgets) and conflicting; no approve-test verdict. Do not re-dispatch before #803 is addressed.
 6. **#742** - open owner-PAT-extension tracker; #849 owns the specific eval-lane/approve-held-runs/phase-lane scope.
@@ -41,7 +37,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## The serialized infra queue
 
-1. **#850 now**: the lab lane is live on the review findings; verify the new head and let the review/test/eval chain run. Stand down on duplicate triggers.
+1. **#850 now**: head `40d411d1` carries the round-1 F1-F3 fixes and the body is clean ([848] only); review round 2 is live. Let the review/test/eval chain run and stand down on duplicate triggers.
 2. **After the #850 PR lands**: `{"action":"lab","issue":849}` with its acceptance criteria plus the phase-lane expansion (contents-API helper reads for the eval lane, approve-held-runs and the 30 `opencode.yml` phase-lane reads; `/bin/bash -p -s`; the gh host/config/proxy pins; whole-body summary screening; R30/`check_post_agent_hardening`/`HELPER_EXECUTE_FORMS` coverage) and the round-19 docs nits (`LAB.md:539-540` eval-marker location, the R1-R36 label refresh, the R35 env-only scope note, the classifier wording), folding in the five #850 round-1 non-blocking notes.
 3. **Then the #804 post-merge residuals**: the NTFS trailing-dot/space, backslash and 8.3 short-name aliases (bounded by git tree paths plus `core.protectNTFS`), the marker-alias policy note, the R34 rule-ID collision renumber (the quota-wall guard and the per-OS sandbox both use R34), the self-referential `Closes #804` linkage guard, the native Windows/macOS arm proof, the self-asserted committer identity and foreign trailer preservation, the #845 eval residual (job-level `if: false` outside R25), the remaining #845 review advisories, the env-seam and merge/graft lessons, then reconcile #812/#815 and the #822 residuals.
 4. **Then the deferred docs follow-ups** (#773/#774), the `/oc plan` alias docs note, and the #582 tracker-hygiene sweep.
@@ -49,13 +45,13 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Loose ends board
 
-1. **#850 merge hygiene**: the body's "resolved #836" is a false closing keyword; `closingIssuesReferences` = 836, 848. Reword during the lab body edit if possible; otherwise reopen #836 after the merge and note why. #848 should close normally on merge.
-2. **#850 lab timing**: review report 18:49:58Z, `/oc lab` 18:50:02Z, Lab Engineer run live since 18:50:06Z. A wall death there is the #754 class, not a retry-exhaustion signal; one fresh pass after the cooldown, never two same-IP dispatches.
-3. **#850 held runs cleared**: the approved PR-open trigger run 43622963203 posted the delayed `/oc maintainer`; the Pages/comment/trigger checks pass and `deploy` skips. Re-check after the lane completes that no new held runs appear on the next head.
+1. **#850 merge hygiene**: FIXED - the body no longer carries a closing keyword for #836; `closingIssuesReferences` = [848] only. Re-check at merge time; #836 must stay open, #848 closes normally.
+2. **#850 lab timing**: round-1 lab run 43628785027 completed green at 20:06:09Z after pushing `40d411d1`; the App-token rejection at 20:05:55Z was expected wrapper noise, not a lost push. Review round 2 started 20:06:11Z.
+3. **#850 held runs cleared**: the new head created no held runs (waiting 0, action_required 0); the PR checks are comment/trigger pass and deploy skipping. Re-check on every push.
 4. **#804 merged cleanly**: `620bb8d2e` on `main`, #798 closed, Pages green, branch archived at `fbcf89d99`. Do not reopen or re-merge.
 5. **#804 residual set after the merge**: the NTFS aliases, the marker-alias policy, the R34 collision, the body linkage guard, the identity/trailer preservation, the native arm proof, the R35 env-only scope, and the 3,000-file pulls-files API cap. Fold them into the post-#850/#849 lab passes; they are not blockers on `main`.
 6. **#804 body hygiene**: the merged body carries `Closes #798` and a self-referential `Closes #804`; the durable `lab.yml` self-reference guard remains a lab follow-up.
-7. **#850 review history**: round 1 changes required (F1-F3 + 5 notes). The new head starts a fresh review round and a fresh lifetime review budget; never reuse an older-head approval.
+7. **#850 review history**: round 1 changes required (F1-F3 + 5 notes); the fixes landed at `40d411d1` and round 2 is live. Never reuse an older-head approval.
 8. **#836/#848/#849 board state**: #836 is open and unlabelled; #848 is the durable-selector lane now in PR #850; #849 carries the expanded phase-lane scope. Only #70 carries `lab-health`.
 9. **#831 scratch canary**: only the Owner (or a pushed branch) can create the disposable PR; never claim it done without live evidence or a recorded Owner waiver.
 10. **#821 parked** on the Owner capacity decision; **#745** behind #803; **#792** parked with #821.
@@ -63,7 +59,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 12. **#817/#819 merged leftovers**: the deferred Curator docs pass and Lab Engineer docs pass.
 13. **#773/#774**: valid docs/setup gaps from the audit; deferred behind the live lanes.
 14. **Held-run watch**: zero `action_required` and zero `waiting` at this survey; seven historical queued runs are inert.
-15. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes. The #850 lab lane is the only live lane, so no cooldown applies now.
+15. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes. The #850 review round is the only live lane, so no cooldown applies now.
 16. **Duplicate-session noise**: concurrent wake fan-outs still spawn skip-only maintainer and lab runs. This run cancelled the pending 0-job Lab Engineer 43629853937 (gate-skip from the `/oc maintainer` comment). Never cancel a started real review, test, lab, or maintainer session.
 17. **Review-verdict staleness across a head move**: any approval on an older head is stale. The #804 chain is closed; the #850 chain is fresh.
 18. **Lab linkage guard on PR triggers**: `lab.yml` appends `Closes #<trigger>` when the body omits that token; on a PR-comment wake that is self-referential. A #850 body fix must name `PR #<trigger>` in prose to satisfy the guard; route it through `lab`, never by hand.
@@ -85,7 +81,7 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 34. **#847 merged cleanly**: `a590d4e9`, branch intact at `6dc20e604`; the only residual is the Evaluator's non-blocking landing-test regex note.
 35. **Quota intake does not update STATE**: it stands down before the agent and leaves only a log marker, so the next real Maintainer run must re-derive the state from GitHub. This run re-derived it live.
 36. **Verify-step hardening landed**: the three `verify-test` steps share the privileged shell and env pins (`BASH_ENV`/`ENV`/`PATH`), and B21 extends the same contract to the evidence, publication and forward gates with in-body resets. R17/R30 pin the exact shells, first-line resets and nested `/bin/bash -p -s` calls with mutation controls. Round 16 adds the loader pins (`LD_*`, the `GIT_*` block on `publish-gate`) and the runless-post-agent validator with its mutation controls. Round 17 closed the force-lab API read (B1) and the screen parity (B2); round 18 added the pager pin class (F1, R35) and the nonce-preservation class (F2) plus the fail-closed Forward gate; round 19, the Tester and the Evaluator approved them; the eval lane, approve-held-runs and the 30 phase-lane reads are #849.
-37. **Heartbeat cadence**: the recover arm dispatches once per 90 minutes when no real Maintainer session is active; the #70 heartbeats are 01:45:56Z and 15:37:14Z. This real session refreshes the STATE stamp at 19:08Z.
+37. **Heartbeat cadence**: the recover arm dispatches once per 90 minutes when no real Maintainer session is active; the #70 heartbeats are 01:45:56Z and 15:37:14Z. This real session refreshes the STATE stamp at 20:11Z.
 38. **Maintainer comment gating**: an `issue_comment` maintainer run is gated to a non-trigger human comment or an explicit maintainer command; the owner identity posts review/tester reports, which is why report comments wake a maintainer pass while fan-out runs gate-skip. The delayed PR-open `/oc maintainer` is the same wake class and carries no new information.
 39. **Infra Tester is read-only**: on a protected-path PR the Tester validates the merged tree and never commits; its approval marker is machine-published and must bind the then-live head, and the eval follows the maintainer handoff.
 40. **Eval marker binding**: the merge sweep rejects an eval marker whose `eval-head` is not the live head, whose `eval-trigger` is not the latest eval trigger, or that is older than the tester approval; the PAT sweep is the only merge path for a workflow-touching PR.
@@ -137,11 +133,11 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Next run
 
-1. Verify the #850 lab lane: the new head push, the lab workflow's own `/oc review` forward, and that no new held runs appear. If the lab run died, record it; only re-post once through the decision file if the trigger itself never landed.
-2. When the new head has a fresh review approval, the Tester runs; after the owner-authored `/oc approve-test` verdict, dispatch `{"action":"eval","pr":850}`; only a fresh head-bound `approve-eval` unlocks the PAT sweep. Verify the live head and markers at every step.
-3. At merge time, check `closingIssuesReferences` for #850. #848 should close; #836 must stay open. If #836 closed, reopen it with a note pointing at the false keyword.
+1. Watch review round 2 on `40d411d1`: on approval the review workflow posts `/oc test`; on changes required it posts `/oc lab` (infra rewrite). Verify the new head and let the next round run; never reuse a round-1 or round-2 verdict on a later head.
+2. After the owner-authored `/oc approve-test` verdict, dispatch `{"action":"eval","pr":850}`; only a fresh head-bound `approve-eval` unlocks the PAT sweep. Verify the live head and markers at every step.
+3. At merge time, check `closingIssuesReferences` for #850. #848 should close; #836 must stay open. The body no longer carries a closing keyword for #836.
 4. If the #850 lab run dies on the wall, stand down (the #754 class) and let the next schedule tick or heartbeat re-arm one fresh pass after the cooldown. Never route the wall itself to lab.
-5. **When (and only when) the #850 PR has landed**, dispatch `{"action":"lab","issue":849}` with its acceptance criteria plus the phase-lane expansion and the round-19 docs nits, and fold in the #850 round-1 non-blocking notes.
+5. **When (and only when) the #850 PR has landed**, dispatch `{"action":"lab","issue":849}` with its acceptance criteria plus the phase-lane expansion and the round-19 docs nits, and fold in any residual #850 round-2 notes.
 6. Then the #804 post-merge residual set, the #845/#812/#815/#822 residuals, the #773/#774 docs gaps, the `/oc plan` alias note, the #582 tracker-hygiene sweep, then #814 with #803.
 7. #843 is closed; reopen only on a real cap regression, which R25 will catch.
 8. Keep #836 open (unlabelled) for the Owner capacity decision and #831 open for the scratch canary; #821 parked; #745 behind #803.
@@ -149,9 +145,9 @@ Hephaestus, the Maintainer of the Random Lab. I orchestrate, I do not implement.
 
 ## Open questions
 
-1. Does the #850 lab pass land F1-F3 cleanly on the first try, including the contents-API execution fix in the auditor forward step and the `/opt/lab-scripts` staging for the recovery cap?
-2. Does the lab body edit also drop the false `Closes #836` reference, or will #836 need reopening after the merge?
-3. Does the expanded #849 scope (eval lane, approve-held-runs, the 30 phase-lane helper reads, R30/R32/R35 coverage, and the round-19 docs nits plus the #850 notes) remain the right split from #742?
+1. Does review round 2 approve `40d411d1`, or does it return residual findings for a third lab round?
+2. Do the trusted-read pins and the widened R36 sweep hold under the round-2 audit?
+3. Does the expanded #849 scope (eval lane, approve-held-runs, the 30 phase-lane helper reads, R30/R32/R35 coverage, and the round-19 docs nits plus any #850 notes) remain the right split from #742?
 4. Do the NTFS aliases, marker-alias policy, R34 renumber, body linkage and identity/trailer residuals stay harmless on `main` until their post-merge lab pass ships?
 5. Will the Owner take the capacity decision (fund OpenCode Go, raise the allowance, or approve a lower cadence), and will the scratch canary be run or waived?
 6. Do the remaining infra residuals (#845 eval job-level `if`, #812/#815/#822, #814/#803) stay correctly serialized behind the #850 and #849 passes?
