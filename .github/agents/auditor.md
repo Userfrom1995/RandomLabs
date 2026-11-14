@@ -36,8 +36,9 @@ When you are invoked, you must follow this exact sequence:
    - **Crucial Rule**: Make sure whatever issue you are flagging is really, really valid. Absolutely NO negative flagging and no false positives. Only raise real, systemic roadblocks.
 
 2. **The Universal Health Report**:
-   - There is a universal pinned issue titled `Lab Health & Audit Logs` (labeled `lab-health`).
-   - If it does not exist, use the `gh` CLI to create it.
+   - There is one universal pinned issue titled `Lab Health & Audit Logs`, and only it may carry the `lab-health` label. Resolve it by running `.github/scripts/health-board.sh` (title first, then the oldest open non-PR issue labeled `lab-health`); never pick the newest transient `[Audit]` issue.
+   - NEVER add `lab-health` to a newly opened or transient `[Audit]` issue. Only the universal board carries the label; if the helper warns that a second issue carries it, report the duplicate in your summary instead of posting there.
+   - If the universal issue does not exist, use the `gh` CLI to create it and label only that issue.
    - You MUST post a summary comment on this universal issue detailing the current health of the lab (including active models and pipeline status).
    - If everything is working perfectly, your comment should simply state that all pipelines are green and no stalls were detected.
 
