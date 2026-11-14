@@ -6283,8 +6283,12 @@ else
   # Issue #798 review round 16: the command workflows match triggers anywhere
   # in the raw comment body, so the findings poster must scan the whole report
   # (backticks stripped) and refuse any line-start or space-prefixed trigger or
-  # the merge-gate marker. The old first-line-only guard must be gone.
-  grep -qF '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)|(^|[[:space:]])eval-verdict:' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-whole-body-trigger-or-marker-ban)"
+  # the merge-gate marker. Review round 17 B2: the trigger word itself is the
+  # token, so suffix punctuation (for example /oc: or /opencode/foo) must also
+  # match; no trailing boundary may reopen the bypass. The old first-line-only
+  # guard must be gone.
+  grep -qF '(^|[[:space:]])/(oc|opencode)|(^|[[:space:]])eval-verdict:' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-whole-body-trigger-or-marker-ban)"
+  grep -qF '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)' "$R17_SCRIPT" && r17_bad="${r17_bad} script(trailing-boundary-trigger-ban)"
   grep -qF 'expected_body" | tr -d' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-backtick-normalization)"
   grep -qF 'contains the command trigger or merge-gate marker' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-whole-body-refusal-message)"
   grep -qF 'first_line=$(awk' "$R17_SCRIPT" && r17_bad="${r17_bad} script(first-line-only-trigger-guard)"
@@ -6488,8 +6492,21 @@ R17_MOCK
       r17_case trigger-mid-body 1 linux "$r17_trigger_mid" "posted_capture=$r17_tmp/trigger-mid-body-posted.md"
       r17_case trigger-after-banner 1 linux "$r17_trigger_banner" "posted_capture=$r17_tmp/trigger-after-banner-posted.md"
       r17_case trigger-opencode-mid 1 linux "$r17_trigger_opencode" "posted_capture=$r17_tmp/trigger-opencode-mid-posted.md"
-      # The scan is precise: a trigger glued to punctuation is not a command
-      # token and must still post.
+      # Issue #798 review round 17 B2: suffix punctuation after the command
+      # word does not make it inert (the command jobs match the bare token),
+      # so a line-start /oc: and a space-prefixed /opencode/foo or /oc, must
+      # be refused before gh runs.
+      r17_trigger_suffix_colon="$r17_tmp/trigger-suffix-colon.md"
+      printf '/oc: test\n\nFinding one.\n\n- the Linux Tester\n' > "$r17_trigger_suffix_colon"
+      r17_trigger_suffix_slash="$r17_tmp/trigger-suffix-slash.md"
+      printf 'Finding one.\n\nThe upstream trigger was /opencode/foo.\n\n- the Linux Tester\n' > "$r17_trigger_suffix_slash"
+      r17_trigger_suffix_comma="$r17_tmp/trigger-suffix-comma.md"
+      printf 'Finding one.\n\nDo not run /oc, then continue.\n\n- the Linux Tester\n' > "$r17_trigger_suffix_comma"
+      r17_case trigger-suffix-colon 1 linux "$r17_trigger_suffix_colon" "posted_capture=$r17_tmp/trigger-suffix-colon-posted.md"
+      r17_case trigger-suffix-slash 1 linux "$r17_trigger_suffix_slash" "posted_capture=$r17_tmp/trigger-suffix-slash-posted.md"
+      r17_case trigger-suffix-comma 1 linux "$r17_trigger_suffix_comma" "posted_capture=$r17_tmp/trigger-suffix-comma-posted.md"
+      # The scan is precise: a trigger glued to a PRECEDING word is not a
+      # whitespace-prefixed command token and must still post.
       r17_trigger_glued="$r17_tmp/trigger-glued.md"
       printf 'Finding one: see trigger:/oc test in the log.\n\n- the Linux Tester\n' > "$r17_trigger_glued"
       r17_case trigger-glued 0 linux "$r17_trigger_glued" "posted_capture=$r17_tmp/trigger-glued-posted.md"
@@ -6501,7 +6518,10 @@ R17_MOCK
         "$r17_tmp/eval-marker-trailing-posted.md" \
         "$r17_tmp/trigger-mid-body-posted.md" \
         "$r17_tmp/trigger-after-banner-posted.md" \
-        "$r17_tmp/trigger-opencode-mid-posted.md"; do
+        "$r17_tmp/trigger-opencode-mid-posted.md" \
+        "$r17_tmp/trigger-suffix-colon-posted.md" \
+        "$r17_tmp/trigger-suffix-slash-posted.md" \
+        "$r17_tmp/trigger-suffix-comma-posted.md"; do
         if [ -e "$r17_refused_posted" ]; then
           r17_bad="${r17_bad} script(functional-$(basename "$r17_refused_posted")-reached-gh)"
         fi
@@ -8354,7 +8374,7 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed; the strip and scope sanitizers read the reviewed helpers through the GitHub contents API, never a post-agent git show that would trust an agent-exported GIT_DIR or GIT_OBJECT_DIRECTORY plus a fake loose object named GITHUB_SHA, with the fresh private GH_CONFIG_DIR prelude, the GH_HOST pin, and the lowercase-proxy unset pinned, and revert/prelude/gh-host mutation self-tests keeping the API read and prelude load-bearing; issue #798 review B8)), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a fail-closed read-only live-path endpoint snapshot (bytes, inode, size, mtime; an unreadable live path fails the rule, with a sandbox unreadable fixture proving that path load-bearing) detects any persistent change to /tmp/random-lab-decision.json between the endpoint samples (issues #608, #713, #763, #791, #843)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed; the strip and scope sanitizers read the reviewed helpers through the GitHub contents API, never a post-agent git show that would trust an agent-exported GIT_DIR or GIT_OBJECT_DIRECTORY plus a fake loose object named GITHUB_SHA, with the fresh private GH_CONFIG_DIR prelude, the GH_HOST pin, and the lowercase-proxy unset pinned, and revert/prelude/gh-host mutation self-tests keeping the API read and prelude load-bearing; issue #798 review B8)), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger or eval marker in any line position, including plain, backticked, trailing-space, and suffix-punctuation forms (issues #713 round 19, #798 round 17; behaviorally proven), and the trusted-path capture is pinned bash-3.2-safe (the whole run body is case-free: the path and mode filters plus the macOS dependency walk use if tests, with backslash-newline normalization, no terminator-bounded early exit, and mutation self-tests proving the whole-run ban, the Windows and macOS arms, and the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs; every per-OS verify and forward reads the decision file on stdin (never as a jq path argument, which MSYS_NO_PATHCONV=1 makes unopenable for a native Windows jq) and strips CR from the decoded nonce (and the forward's action), with the path-argument shape banned and functional CRLF and MSYS path-conversion fixtures executing the shipped read plus raw controls that must fail, so neither a native-Windows jq text-mode CR nor the issue #612 path-conversion opt-out can reject a valid handoff after the findings post, and the nonce fixtures are hermetic: the fixture decision file lives in the sandbox, the extracted shipped reads are path-substituted, and a sandbox-only helper abort probe (with a load-bearing mutation self-test) plus a fail-closed read-only live-path endpoint snapshot (bytes, inode, size, mtime; an unreadable live path fails the rule, with a sandbox unreadable fixture proving that path load-bearing) detects any persistent change to /tmp/random-lab-decision.json between the endpoint samples (issues #608, #713, #763, #791, #843)" "ok"
 else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issues #608, #791: a PR-creating arm run drops the report and only the run log has it, and an MSYS-opt-out jq path argument or a CR-bearing value rejects a valid decision nonce; issue #843: the CR and MSYS fixtures must never write the live decision contract, so a killed audit cannot leave fixture bytes behind)" "bad"
 fi
@@ -9111,8 +9131,12 @@ else
   # Issue #798 review round 16: the command workflows match triggers anywhere
   # in the raw body, so the publisher must scan the whole report (backticks
   # stripped) and refuse any line-start or space-prefixed trigger or the
-  # merge-gate marker. The old first-line-only guard must be gone.
-  grep -qF '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)|(^|[[:space:]])eval-verdict:' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-whole-body-trigger-or-marker-ban)"
+  # merge-gate marker. Review round 17 B2: the trigger word itself is the
+  # token, so suffix punctuation (for example /oc: or /opencode/foo) must also
+  # match; no trailing boundary may reopen the bypass. The old first-line-only
+  # guard must be gone.
+  grep -qF '(^|[[:space:]])/(oc|opencode)|(^|[[:space:]])eval-verdict:' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-whole-body-trigger-or-marker-ban)"
+  grep -qF '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(trailing-boundary-trigger-ban)"
   grep -qF 'expected_body" | tr -d' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-backtick-normalization)"
   grep -qF 'contains the command trigger or merge-gate marker' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-whole-body-refusal-message)"
   grep -qF 'first_line=$(awk' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(first-line-only-trigger-guard)"
@@ -9163,6 +9187,31 @@ else
       r19_bad="${r19_bad} publisher(banner-trigger-report-reached-gh)"
     fi
     printf '%s\n' "$r19g_out9" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(banner-trigger-guard-did-not-refuse)"
+    # Issue #798 review round 17 B2: suffix punctuation after the command word
+    # does not make it inert (the command jobs match the bare token), so a
+    # line-start /oc: and a space-prefixed /opencode/foo or /oc, must be
+    # refused before gh runs.
+    printf '/oc: test\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/trigger-suffix-colon.md"
+    : > "$r19g_log"
+    r19g_out10=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/trigger-suffix-colon.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(suffix-colon-trigger-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out10" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(suffix-colon-trigger-guard-did-not-refuse)"
+    printf 'Signed report body.\n\nThe upstream trigger was /opencode/foo.\n\n- the Tester\n' > "$r19g_dir/trigger-suffix-slash.md"
+    : > "$r19g_log"
+    r19g_out11=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/trigger-suffix-slash.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(suffix-slash-trigger-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out11" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(suffix-slash-trigger-guard-did-not-refuse)"
+    printf 'Signed report body.\n\nDo not run /oc, then continue.\n\n- the Tester\n' > "$r19g_dir/trigger-suffix-comma.md"
+    : > "$r19g_log"
+    r19g_out12=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/trigger-suffix-comma.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(suffix-comma-trigger-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out12" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(suffix-comma-trigger-guard-did-not-refuse)"
     # Issue #713 review round 19: the owner-PAT report publishers must also
     # refuse the merge-gate marker, in plain, backticked, and trailing-space
     # forms, or a report could be consumed as an owner-authored eval approval.
@@ -9936,7 +9985,7 @@ else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report whose first non-blank line is a command trigger or the eval merge marker in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report containing a command trigger or the eval merge marker in any line, including plain, backticked, trailing-space, and suffix-punctuation forms (issues #713 round 19, #798 round 17; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
 else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
@@ -26848,7 +26897,8 @@ esac
 # review publisher and verify including their own hard-stop `exit 0` inside
 # the close block, exactly one resolved-PR live binding per re-read, the
 # skip_forward gates on both review handoffs, the Record/Configure/Clear
-# open-gates, the resolved-PR force-lab base read, the resolved-PR decision
+# open-gates, the resolved-PR force-lab API file read (never a workspace git
+# read), the resolved-PR decision
 # handoff target, and the per-OS live-state pre-check (the dead job-start
 # pr_state snapshot is gone and the live check gates every forwarding
 # action, not just fix). Review round 3 made the critical bodies immune to
@@ -26861,8 +26911,9 @@ esac
 # guard bodies against a mocked gh for OPEN, CLOSED, MERGED, and unknown
 # states; the mock enforces the exact `pr view <resolved-pr> --repo <repo>
 # --json state --jq .state` argv, so a linked-issue trigger that queries the
-# issue number fails as a wrong-target read, and the force-lab base read is
-# pinned to the resolved PR. It executes the fix verify hard stop under a race
+# issue number fails as a wrong-target read, and the force-lab file read is
+# pinned to the pulls-files API on the resolved PR with no workspace git
+# command. It executes the fix verify hard stop under a race
 # (guard passed, state now MERGED); the review verify hard stop is executed
 # under the same decision-absent close race by R19's mid-run-close fixture
 # (this rule pins its exact close region statically), each requiring
@@ -28481,15 +28532,19 @@ def validate_review(doc, problems):
     if force_lab is not None:
         if if_of(force_lab) != REVIEW_FORWARD_PREFIX:
             problems.append("review-force-lab(if=%r)" % if_of(force_lab))
-        # Issue #781 M6: the base read must target the resolved PR. On a
-        # linked-issue trigger the event issue number has no baseRefName, so
-        # a wrong-target read silently falls back to main and the infra
-        # override misses (or misreads) the changed files.
+        # Issue #781 M6: the changed-file read must target the resolved PR. On
+        # a linked-issue trigger the event issue number is not a PR, so a
+        # wrong-target read cannot see the infra files.
+        # Issue #798 review round 17 B1: the read must go through the API, not
+        # the agent-writable checkout, so a planted hook, object, or local
+        # config can never run with the owner PAT.
         force_body = run_of(force_lab)
-        if 'gh pr view "${{ steps.pr-info.outputs.pr_number }}"' not in force_body:
-            problems.append("review-force-lab(no-resolved-pr-base-read)")
-        if 'gh pr view "${{ github.event.issue.number }}"' in force_body:
-            problems.append("review-force-lab(event-issue-base-read)")
+        if 'gh api --hostname github.com --paginate "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.pr-info.outputs.pr_number }}/files?per_page=100"' not in force_body:
+            problems.append("review-force-lab(no-resolved-pr-files-read)")
+        if 'github.event.issue.number' in force_body:
+            problems.append("review-force-lab(event-issue-read)")
+        if re.search(r"\bgit (?:fetch|show|diff|cat-file)\b", force_body):
+            problems.append("review-force-lab(workspace-git-read)")
     # Issue #781 F3/F4: no PR-head or post-agent step may run before the guard
     # decided, and both handoffs must sit after the verify hard stop.
     order = (
@@ -28879,8 +28934,16 @@ MUTANTS = (
     (
         "review-force-lab-issue-read",
         REVIEW,
-        'base=$(gh pr view "${{ steps.pr-info.outputs.pr_number }}"',
-        'base=$(gh pr view "${{ github.event.issue.number }}"',
+        'pulls/${{ steps.pr-info.outputs.pr_number }}/files',
+        'pulls/${{ github.event.issue.number }}/files',
+    ),
+    # Issue #798 review round 17 B1: reintroducing a workspace git read into
+    # the owner-PAT step must fail the workspace-git pin.
+    (
+        "review-force-lab-workspace-read",
+        REVIEW,
+        '          files=$(gh api --hostname github.com --paginate',
+        '          git fetch origin main --quiet 2>/dev/null || true\n          files=$(gh api --hostname github.com --paginate',
     ),
     (
         "review-publish-live-close-exit",
@@ -29107,7 +29170,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab base read targets the resolved PR), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab base read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), and removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), and removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, the per-OS forwarders could post /oc fix on a closed PR, a prefixed second live_pr/linked_pr binding or a live_state override could restore a wrong-target or dead close check, and a linked-issue handoff could land on the issue thread; the pre-fix unguarded shapes are the regression)" "bad"
