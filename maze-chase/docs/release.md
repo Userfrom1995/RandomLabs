@@ -30,8 +30,9 @@ parity gate in [parity.md](parity.md).
   Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 22+ (the CDP harnesses use the built-in
-  WebSocket; no npm packages) plus a headless chromium; serving uses
-  `python3 -m http.server` (`python -m http.server` on Windows).
+  WebSocket; no npm packages) plus a headless chromium; the runner starts
+  its own HTTP/1.1 keep-alive `web/e2e/serve-site.js`, and python3 is only
+  needed for free-port allocation.
 - Debian/Ubuntu packaging: `dpkg-dev`, `rpm`, `rpm2cpio`, `cpio`, plus
   `libasound2-dev` and `libudev-dev` for the desktop build, and
   `libxkbcommon-x11-0` so the Xvfb-gated windowed probe can load winit's

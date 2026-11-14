@@ -19,7 +19,9 @@ that distinguishes "answers the probe" from "answers neither" evidence;
 it feeds no game code and changes no state outside the terminal.
 
 Exit status: 0 when the window closed normally (capture may still be
-short), 2 when stdin is not a terminal, 3 on a bad window argument.
+short), 2 when stdin is not a terminal, 3 on a bad window argument, 4
+when the platform has no POSIX terminal control (Windows has no termios,
+so the probe is only meaningful inside a POSIX pty).
 """
 
 import base64
@@ -27,9 +29,7 @@ import os
 import select
 import struct
 import sys
-import termios
 import time
-import tty
 import zlib
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
@@ -82,6 +82,19 @@ def main():
     if not os.isatty(0):
         print("probe-graphics: stdin is not a terminal", file=sys.stderr)
         return 2
+    # termios and tty are POSIX-only. Import them after the tty check so
+    # the module stays importable (and the help path usable) everywhere,
+    # including the Windows host that runs this harness's unit suite.
+    try:
+        import termios
+        import tty
+    except ImportError as exc:
+        print(
+            "probe-graphics: POSIX terminal control is unavailable on this "
+            f"platform ({exc})",
+            file=sys.stderr,
+        )
+        return 4
 
     png = probe_png()
     request = (
