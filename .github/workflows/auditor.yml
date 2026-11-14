@@ -61,15 +61,16 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Silent-stall regression audit (R1-R34)
+      - name: Silent-stall regression audit (R1-R36)
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          HEALTH_BOARD_LIVE_CHECK: "1"
         run: |
-          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh
+          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh .github/scripts/health-board.sh
           health_issue=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+            health_issue=$(bash .github/scripts/health-board.sh || true)
           fi
           .github/scripts/silent-stall-audit.sh ".github/workflows/opencode.yml" "${health_issue}"
 
@@ -104,7 +105,7 @@ jobs:
             - You NEVER commit code, push, or modify the repository.
             - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`.
             - Before ending the run, you MUST write your structured machine handoff decision to `/tmp/random-lab-decision.json`: `[{"action": "maintainer", "issue": <new_issue_number>}]` for each opened bug issue, or `[{"action": "maintainer"}]` to notify on the health board. The hardcoded workflow step reads this file and posts `/oc maintainer` with owner PAT.
-            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue (create it with label `lab-health` if missing).
+            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue. Resolve it with `.github/scripts/health-board.sh` (title first, then the oldest open non-PR issue labeled `lab-health`) and create it with label `lab-health` only if missing. Never add `lab-health` to a transient `[Audit]` issue: only the universal board may carry the label.
 
       - name: Verify auditor decided, else self-heal on schedule/dispatch
         id: verify-decision
@@ -173,6 +174,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found (/tmp/random-lab-decision.json)."
@@ -192,7 +194,20 @@ jobs:
                 echo "Forwarding to Maintainer on issue #$target (/oc maintainer)"
                 gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on issue #$target"
               else
-                health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+                # Issue #848 review F1: the agent shares this workspace and a
+                # PR-triggered run checks out the PR head mid-run, so a
+                # post-agent workspace helper would be PR-controlled code
+                # under the owner PAT. Read the helper from this run's
+                # workflow commit through the contents API and execute it
+                # from memory (the review publisher pattern, issue #798).
+                helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+                  "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/health-board.sh?ref=${GITHUB_SHA}" 2>/dev/null) || helper=""
+                if [ -z "$helper" ]; then
+                  echo "::warning::health-board helper absent from workflow commit ${GITHUB_SHA}; cannot resolve the health board (fail closed)."
+                  health_issue=""
+                else
+                  health_issue=$(printf '%s' "$helper" | /bin/bash -p -s || true)
+                fi
                 if [ -n "$health_issue" ] && [ "$health_issue" != "null" ]; then
                   echo "Forwarding to Maintainer on health board #$health_issue (/oc maintainer)"
                   gh issue comment "$health_issue" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on health board #$health_issue"
