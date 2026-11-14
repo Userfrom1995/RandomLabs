@@ -14334,7 +14334,7 @@ _SCRIPT_SHA256 = {
     # Issue #848: the universal lab-health board helper is executed by the
     # Maintainer's pinned pre-handler intake step, so it joins the F44
     # exact-body inventory instead of tripping handler-pre-script-unexpected.
-    ".github/scripts/health-board.sh": "8ab1e5010ed525552c74af851b3b7af7a8a2125e9412bd05f8b6604102f6e3ad",
+    ".github/scripts/health-board.sh": "e8ad58b46ddd0a1d2837548101bfe9a0e6a2efa7d2dd3808c1daee2787c9645f",
 }
 
 
@@ -15068,7 +15068,7 @@ for model in $candidates; do
 done
 echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
 exit 1
-### 15 name=Recover from provider daily free-usage wall (issue #820) | id=quota_recovery | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}", "GH_TOKEN": "${{ github.token }}", "QUOTA_RECOVERY_ATTEMPT": "${{ inputs.quota_recovery }}", "RUN_ID": "${{ github.run_id }}"}
+### 15 name=Recover from provider daily free-usage wall (issue #820) | id=quota_recovery | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}", "GH_TOKEN": "${{ github.token }}", "PATH": "/usr/bin:/bin", "QUOTA_RECOVERY_ATTEMPT": "${{ inputs.quota_recovery }}", "RUN_ID": "${{ github.run_id }}", "TRUSTED_SHA": "${{ steps.actor_gate.outputs.trusted_sha }}"}
 # Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
 # when it fast-fails on the daily free-usage allowance. A run on that
 # egress IP cannot recover itself, so dispatch one fresh run (it
@@ -15124,7 +15124,23 @@ if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then
 fi
 if [ "$attempt" -ge 1 ]; then
   echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 1, issue #820/#836); the one fresh-run attempt is spent and no further self-dispatch occurs. The recover-arm heartbeat or the next schedule tick re-arms the lane. Escalate the provider plan or involve the Owner if it persists."
-  board=$(bash .github/scripts/health-board.sh || true)
+  # Issue #848 review F1: read the trusted helper from the actor
+  # gate's default-branch commit through the contents API and
+  # execute it from memory; the workspace copy is agent-writable.
+  # An empty trusted SHA must fail closed instead of letting the
+  # contents API fall back to the default-branch tip implicitly.
+  board=""
+  if [ -z "${TRUSTED_SHA:-}" ]; then
+    echo "::warning::trusted commit SHA is empty; the quota-wall cap escalation cannot resolve the board (fail closed)."
+  else
+    helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+      "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/health-board.sh?ref=${TRUSTED_SHA}" 2>/dev/null) || helper=""
+    if [ -z "$helper" ]; then
+      echo "::warning::health-board helper absent from trusted commit ${TRUSTED_SHA}; the quota-wall cap escalation cannot resolve the board (fail closed)."
+    else
+      board=$(printf '%s' "$helper" | /bin/bash -p -s || true)
+    fi
+  fi
   if [ -n "$board" ] && [ "$board" != "null" ]; then
     note=$(printf 'Quota-wall recovery cap (issue #820/#836): run %s/%s ended on the provider daily free-usage wall with the one bounded fresh-run attempt spent. A fresh run is a lottery ticket on a pool-wide wall, not a retry: a second dispatch two minutes later lands on the same blocked pool, so the chain halts red instead of looping. The recover-arm heartbeat (issue #836) or the next schedule tick re-arms the lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")
     gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
@@ -29883,7 +29899,7 @@ if recovery_i is not None:
     if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
         fail("recovery-if")
     env = step.get("env")
-    if not isinstance(env, dict) or set(env) != {"GH_TOKEN", "QUOTA_RECOVERY_ATTEMPT", "RUN_ID", "AGENT_OUTCOME"}:
+    if not isinstance(env, dict) or set(env) != {"GH_TOKEN", "QUOTA_RECOVERY_ATTEMPT", "RUN_ID", "AGENT_OUTCOME", "TRUSTED_SHA", "PATH"}:
         fail("recovery-env")
     else:
         if env.get("QUOTA_RECOVERY_ATTEMPT") != "${{ inputs.quota_recovery }}":
@@ -29892,6 +29908,10 @@ if recovery_i is not None:
             fail("recovery-run-id-binding")
         if env.get("AGENT_OUTCOME") != "${{ steps.maintainer_run.outcome }}":
             fail("recovery-agent-outcome-binding")
+        if env.get("TRUSTED_SHA") != "${{ steps.actor_gate.outputs.trusted_sha }}":
+            fail("recovery-trusted-sha-binding")
+        if env.get("PATH") != "/usr/bin:/bin":
+            fail("recovery-path-binding")
     text = body(recovery_i)
     if text:
         with open(os.path.join(outdir, "recovery.sh"), "w", encoding="utf-8") as handle:
@@ -29915,10 +29935,18 @@ if recovery_i is not None:
         "printf '[]\\n' > .maintainer/decision.json",
         "sleep $(( (RANDOM % 31) + 30 ))",
         'if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then',
-        "board=$(bash .github/scripts/health-board.sh || true)",
+        'if [ -z "${TRUSTED_SHA:-}" ]; then',
+        'contents/.github/scripts/health-board.sh?ref=${TRUSTED_SHA}',
+        'printf \'%s\' "$helper" | /bin/bash -p -s',
+        "::warning::trusted commit SHA is empty",
+        "::warning::health-board helper absent from trusted commit",
     ):
         if needle not in text:
             fail("recovery-missing:%s" % needle)
+    # Issue #848 review F1: the post-agent cap step must never execute the
+    # agent-writable workspace helper again.
+    if "bash .github/scripts/health-board.sh" in text:
+        fail("recovery-executes-workspace-helper")
     # Tester finding 1 on #837: the cap note is one printf whose format has
     # exactly two specifiers (the run URL) and takes exactly those two
     # arguments. A stray third argument makes bash reuse the format and post
@@ -30259,8 +30287,22 @@ case "${1:-}" in
     fi
     exit 0 ;;
   api)
-    arg="${2:-}"
+    # Resolve the repository path argument past global flags: the trusted
+    # helper read passes --hostname and -H before the URL (issue #848 F1).
+    arg=""
+    for _arg in "$@"; do
+      case "$_arg" in repos/*) arg="$_arg" ;; esac
+    done
+    [ -n "$arg" ] || arg="${2:-}"
     case "$arg" in
+      *"/contents/.github/scripts/health-board.sh"*)
+        [ "${MOCK_HELPER_FAIL:-0}" = "1" ] && exit 1
+        if [ -n "${MOCK_HELPER_PATH:-}" ] && [ -f "$MOCK_HELPER_PATH" ]; then
+          cat "$MOCK_HELPER_PATH"
+        else
+          exit 1
+        fi
+        exit 0 ;;
       *"/contents/STATE.md"*)
         [ "${MOCK_STATE_FAIL:-0}" = "1" ] && exit 1
         content=""
@@ -30392,6 +30434,8 @@ r34_case() {
   r34_case_outcome="${11:-failure}"
   r34_case_marker_body="${12:-provider-daily-free-usage-wall}"
   r34_case_marker_author="${13:-github-actions[bot]}"
+  r34_case_helper_fail="${14:-0}"
+  r34_case_trusted_sha="${15-0123456789abcdef0123456789abcdef01234567}"
   r34_case_work="$r34_dir/work-$r34_case_name"
   rm -rf "$r34_case_work"
   mkdir -p "$r34_case_work/.github/scripts"
@@ -30418,6 +30462,8 @@ r34_case() {
       MOCK_BOARD_JSON="$r34_dir/board.json" MOCK_HAS_MARKER="$r34_case_marker" \
       MOCK_MARKER_AUTHOR="$r34_case_marker_author" \
       MOCK_DISPATCH_FAIL="$r34_case_dispatch_fail" MOCK_POST_FAIL="$r34_case_post_fail" \
+      MOCK_HELPER_PATH="$HEALTH_BOARD_SCRIPT" MOCK_HELPER_FAIL="$r34_case_helper_fail" \
+      TRUSTED_SHA="$r34_case_trusted_sha" \
       MOCK_RUN_ID=4242 \
       bash --noprofile --norc -eo pipefail "$r34_case_path"
   ) > "$r34_case_work/stdout" 2> "$r34_case_work/stderr"
@@ -30601,6 +30647,22 @@ if [ -z "$r34_bad" ]; then
   r34_has "/opencode" "$w/posted" && r34_bad="${r34_bad} recovery-cap-inline-trigger-opencode"
   r34_has "issue comment 70 " "$w/calls" || r34_bad="${r34_bad} recovery-cap-board"
   [ ! -f "$w/.maintainer/decision.json" ] || r34_bad="${r34_bad} recovery-cap-wrote-decision"
+
+  # Issue #848 review F1: a missing trusted helper fails closed. The cap
+  # stays red and no board post is attempted from the workspace copy.
+  r34_case recovery-helper-fail recovery.sh 1 0 "" 0 1 0 "" 1 failure provider-daily-free-usage-wall 'github-actions[bot]' 1
+  w="$r34_dir/work-recovery-helper-fail"
+  [ "$(cat "$w/rc")" = "1" ] || r34_bad="${r34_bad} recovery-helper-fail-not-red"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} recovery-helper-fail-posted"
+  r34_has "health-board helper absent from trusted commit" "$w/stdout" || r34_bad="${r34_bad} recovery-helper-fail-no-warning"
+
+  # An empty trusted SHA must fail closed rather than let the contents API
+  # silently resolve the default-branch tip from an empty ref.
+  r34_case recovery-trusted-sha-empty recovery.sh 1 0 "" 0 1 0 "" 1 failure provider-daily-free-usage-wall 'github-actions[bot]' 0 ""
+  w="$r34_dir/work-recovery-trusted-sha-empty"
+  [ "$(cat "$w/rc")" = "1" ] || r34_bad="${r34_bad} recovery-trusted-sha-empty-not-red"
+  [ ! -s "$w/posted" ] || r34_bad="${r34_bad} recovery-trusted-sha-empty-posted"
+  r34_has "trusted commit SHA is empty" "$w/stdout" || r34_bad="${r34_bad} recovery-trusted-sha-empty-no-warning"
 
   r34_case recovery-second recovery.sh 2 0 "" 0 1
   w="$r34_dir/work-recovery-second"
@@ -31427,7 +31489,7 @@ fi
 
 case "$r34_bad" in
   "")
-    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded one-attempt fresh-run chain and intercepted by wall-aware intake, and a stalled Maintainer is woken by the recover arm's cross-arm heartbeat: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature from the triggering run's CHECK-RUN ANNOTATIONS (checks: read, jobs enumerated, exact anchored message prefix, pipefail-off early-exit guard; the job log is never read, so the echoed run: script, a transcript quoting the rendered ##[error] line, and a raw provider quote are negative fixtures; the marker dedupe accepts only bot-authored comments), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches exactly one fresh run through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede; the runner's exact marker content and a failed agent outcome are required, an out-of-range input is clamped to the cap, and a rerun dispatches nothing), the recover arm runs a schedule/dispatch stale-session heartbeat (issue #836: exact id/if/shell/token env, a pinned STATE.md Last updated: stamp read from maintainer/logs, exact and unique 90-minute staleness and cooldown cutoff/age/since arithmetic, a newest-1000-run gate where in-progress runs count at any age and the queued/requested/waiting/pending class is age-bounded, a structurally validated run page (a non-array or entries without string status/createdAt fail closed), bot-only marker dedupe where the body must END with the marker and the NEWEST marker wins on the OLDEST open non-PR lab-health board (queried sort=created&direction=asc), note recorded BEFORE the dispatch and rolled back when the dispatch fails, an unparseable stamp treated as stale, and fail-closed board/comment/run-list reads), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation on the oldest open non-PR board and exits 1; the intake and recovery notes are asserted free of an inline /oc or /opencode token (issue #775; the self-heal and curator cap bodies are pinned token-free by R9); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical error and warning, transcript/source/provider negatives, dedupe, spoofed dedupe, post-failure, attempt 0/1/cap/overflow/non-numeric, bad-marker, success-marker, rerun, rerun-at-cap, dispatch-failure, and green/red handoff fixtures plus fresh/mid/boundary/stale/active-at-any-age/queued-family/queued-old/queued-past-cutoff/cooldown/cooldown-mid/cooldown-boundary/cooldown-newest-marker/marker-quoted/human-marker/missing-stamp/unparseable-state/bad-runs-json/run-object/run-missing-field/run-wrong-types/unparseable-page/no-board/board-failing/comments-failing/runlist-failing/failed-post/failed-dispatch/rollback heartbeat fixtures, the mock executing the body's own jq over raw GitHub-shaped JSON so the status set, age cutoff, PR exclusion, board sort order, marker end-anchor and sort, and STATE field are load-bearing, and mutation self-tests prove the static pins, the annotation/log/clamp/marker/outcome fixtures, and the heartbeat threshold/cooldown/marker/status-set/marker-sort/board-field/state-field/fail-closed/active-gate/trigger/step-if/ledger/run-shape/cutoff-override/age-divisor/since-divisor/marker-contains fixtures load-bearing" "ok"
+    check "R34" "the Maintainer daily free-usage wall (per egress IP, issue #820) is recovered by a bounded one-attempt fresh-run chain and intercepted by wall-aware intake, and a stalled Maintainer is woken by the recover arm's cross-arm heartbeat: the inline runner writes .maintainer/quota-wall before each quota fast-fail (both exit branches, before the canonical echo, helper exact), a pre-agent workflow_run intake detects the #754 signature from the triggering run's CHECK-RUN ANNOTATIONS (checks: read, jobs enumerated, exact anchored message prefix, pipefail-off early-exit guard; the job log is never read, so the echoed run: script, a transcript quoting the rendered ##[error] line, and a raw provider quote are negative fixtures; the marker dedupe accepts only bot-authored comments), stands the agent down through the quota_intake output, writes an empty decision list, and posts one deduped lab-health note keyed by the run id; a post-agent recovery dispatches exactly one fresh run through the quota_recovery input (30-60s jitter, maintainer.yml on main, attempt counter, fixed quota-recovery concurrency group that a schedule tick cannot supersede; the runner's exact marker content and a failed agent outcome are required, an out-of-range input is clamped to the cap, and a rerun dispatches nothing), the recover arm runs a schedule/dispatch stale-session heartbeat (issue #836: exact id/if/shell/token env, a pinned STATE.md Last updated: stamp read from maintainer/logs, exact and unique 90-minute staleness and cooldown cutoff/age/since arithmetic, a newest-1000-run gate where in-progress runs count at any age and the queued/requested/waiting/pending class is age-bounded, a structurally validated run page (a non-array or entries without string status/createdAt fail closed), bot-only marker dedupe where the body must END with the marker and the NEWEST marker wins on the universal title-first board (then the oldest open non-PR labeled fallback), note recorded BEFORE the dispatch and rolled back when the dispatch fails, an unparseable stamp treated as stale, and fail-closed board/comment/run-list reads), hands the byte-pinned verify an empty decision list so the dispatch concludes green, and at the cap posts one token-free escalation on the universal board and exits 1; the intake and recovery notes are asserted free of an inline /oc or /opencode token (issue #775; the self-heal and curator cap bodies are pinned token-free by R9); the real intake, recovery, and verify bodies are executed against a mock gh and sleep across non-wall, canonical error and warning, transcript/source/provider negatives, dedupe, spoofed dedupe, post-failure, attempt 0/1/cap/overflow/non-numeric, bad-marker, success-marker, rerun, rerun-at-cap, dispatch-failure, and green/red handoff fixtures plus fresh/mid/boundary/stale/active-at-any-age/queued-family/queued-old/queued-past-cutoff/cooldown/cooldown-mid/cooldown-boundary/cooldown-newest-marker/marker-quoted/human-marker/missing-stamp/unparseable-state/bad-runs-json/run-object/run-missing-field/run-wrong-types/unparseable-page/no-board/board-failing/comments-failing/runlist-failing/failed-post/failed-dispatch/rollback heartbeat fixtures, the mock executing the body's own jq over raw GitHub-shaped JSON so the status set, age cutoff, PR exclusion, board sort order, marker end-anchor and sort, and STATE field are load-bearing, and mutation self-tests prove the static pins, the annotation/log/clamp/marker/outcome fixtures, and the heartbeat threshold/cooldown/marker/status-set/marker-sort/board-field/state-field/fail-closed/active-gate/trigger/step-if/ledger/run-shape/cutoff-override/age-divisor/since-divisor/marker-contains fixtures load-bearing" "ok"
     ;;
   *)
     check "R34" "Maintainer quota-wall recovery or wall-aware intake missing/bypassable:${r34_bad} (issue #820: a per-egress-IP wall cannot recover on the same runner, so a one-attempt fresh-run chain, an intake stand-down, and the recover-arm stale-session heartbeat are the recovery lanes, and only the runner's rendered fast-fail annotation may trigger the stand-down; issue #775: the intake and recovery escalation notes must carry no inline /oc or /opencode token; the periodic-arm bodies are pinned by R9)" "bad"
@@ -35407,13 +35469,37 @@ r36_sites_bad=""
 r36_need_helpers() {
   local file="$1" want="$2" label="$3" got
   got=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$file" 2>/dev/null || true)
-  [ "${got:-0}" -ge "$want" ] || r36_sites_bad="${r36_sites_bad} ${label}(helper-calls-${got:-0})"
+  [ "${got:-0}" -eq "$want" ] || r36_sites_bad="${r36_sites_bad} ${label}(direct-helper-calls-${got:-0})"
 }
-r36_need_helpers .github/workflows/auditor.yml 2 auditor
-r36_need_helpers .github/workflows/maintainer.yml 2 maintainer
+r36_need_trusted() {
+  local file="$1" ref="$2" label="$3"
+  grep -qF -- "contents/.github/scripts/health-board.sh?ref=${ref}" "$file" 2>/dev/null \
+    || r36_sites_bad="${r36_sites_bad} ${label}(no-trusted-helper-read)"
+  grep -qF -- '/bin/bash -p -s' "$file" 2>/dev/null \
+    || r36_sites_bad="${r36_sites_bad} ${label}(no-memory-execution)"
+}
+r36_need_helpers .github/workflows/auditor.yml 1 auditor
+r36_need_helpers .github/workflows/maintainer.yml 1 maintainer
 r36_need_helpers .github/workflows/opencode-recover.yml 1 recover
+r36_need_trusted .github/workflows/auditor.yml '${GITHUB_SHA}' auditor
+r36_need_trusted .github/workflows/maintainer.yml '${TRUSTED_SHA}' maintainer
 grep -qF 'bash "$(dirname "$0")/health-board.sh"' .github/scripts/schedule-selfheal.sh 2>/dev/null \
   || r36_sites_bad="${r36_sites_bad} selfheal(no-shared-helper)"
+# The direct workspace call is the pre-agent arm only; every post-agent board
+# read must go through the trusted contents-API invocation (issue #848
+# review F1).
+r36_site_order() {
+  local file="$1" agent="$2" direct trusted agent_line
+  direct=$(grep -nF -- 'bash .github/scripts/health-board.sh' "$file" 2>/dev/null | head -n 1 | cut -d: -f1)
+  trusted=$(grep -nF -- 'health-board.sh?ref=' "$file" 2>/dev/null | head -n 1 | cut -d: -f1)
+  agent_line=$(grep -nF -- "$agent" "$file" 2>/dev/null | head -n 1 | cut -d: -f1)
+  if [ -z "$direct" ] || [ -z "$trusted" ] || [ -z "$agent_line" ] \
+      || [ "$direct" -ge "$agent_line" ] || [ "$trusted" -le "$agent_line" ]; then
+    r36_sites_bad="${r36_sites_bad} $(basename "$file")(trusted-boundary)"
+  fi
+}
+r36_site_order .github/workflows/auditor.yml 'Run auditor agent'
+r36_site_order .github/workflows/maintainer.yml 'Run Maintainer agent'
 if [ -n "$r36_sites_bad" ]; then
   r36_bad="${r36_bad} sites:${r36_sites_bad}"
 fi
@@ -35424,11 +35510,11 @@ r36_direct_scan() {
     case "$file" in
       *health-board.sh|*silent-stall-audit.sh) continue ;;
     esac
-    hits=$(grep -nE 'labels=lab-health|labels\[\]=lab-health|--label[= ]lab-health' "$file" 2>/dev/null || true)
+    hits=$(grep -nE -- 'labels=lab-health|labels\[\]=lab-health|--(add-)?label(=|[[:space:]])[[:space:]]*"?lab-health' "$file" 2>/dev/null || true)
     [ -z "$hits" ] || printf '%s:%s\n' "$file" "$(printf '%s' "$hits" | head -n 1)"
   done
 }
-r36_direct=$(r36_direct_scan .github/workflows/*.yml .github/scripts/*.sh 2>/dev/null || true)
+r36_direct=$(r36_direct_scan .github/workflows/*.yml .github/scripts/*.sh .github/actions/*/*.yml .github/actions/*/*.yaml .github/actions/*/*.sh 2>/dev/null || true)
 if [ -n "$r36_direct" ]; then
   r36_bad="${r36_bad} direct-selector:$(printf '%s' "$r36_direct" | tr '\n' ' ')"
 fi
@@ -35492,6 +35578,8 @@ r36_write labeled-order.json '[{"number":70,"title":"[Audit] issue 70","pull_req
 r36_write issues-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
 r36_write labeled-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
 r36_write issues-title-unlabeled.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
+r36_write issues-title-dup.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":80,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write issues-title-null.json '[{"number":null,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
 r36_write labeled-empty.json '[]'
 r36_write issues-empty.json '[]'
 
@@ -35539,12 +35627,18 @@ r36_run pr-excluded "$r36_dir/issues-pr.json" "$r36_dir/labeled-pr.json"
 r36_expect pr-excluded 0 70 ''
 r36_run title-unlabeled "$r36_dir/issues-title-unlabeled.json" "$r36_dir/labeled-empty.json"
 r36_expect title-unlabeled 0 70 ''
+r36_run title-dup "$r36_dir/issues-title-dup.json" "$r36_dir/labeled-empty.json"
+r36_expect title-dup 0 70 '2 open non-PR issues are titled'
+r36_run title-null "$r36_dir/issues-title-null.json" "$r36_dir/labeled-empty.json"
+r36_expect title-null 0 70 ''
 r36_run empty "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json"
 r36_expect empty 0 ''
 r36_run issues-fail "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json" 1 0
 r36_expect issues-fail 1 '' 'could not read open issues'
 r36_run labeled-fail "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-empty.json" 0 1
-r36_expect labeled-fail 1 '' 'could not read open lab-health issues'
+r36_expect labeled-fail 0 70 'could not verify the lab-health invariant'
+r36_run labeled-fail-no-title "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json" 0 1
+r36_expect labeled-fail-no-title 1 '' 'could not read open lab-health issues'
 
 r36_mutate_helper() {
   r36_mh_name="$1"
@@ -35616,9 +35710,35 @@ open(dst, 'w', encoding='utf-8').write(text.replace(old, 'health_issue=""', 1))
 R36SITEMUT
 if [ -f "$r36_dir/auditor-missing.yml" ]; then
   r36_missing_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r36_dir/auditor-missing.yml" 2>/dev/null || true)
-  [ "${r36_missing_count:-0}" -lt 2 ] || r36_bad="${r36_bad} mutant-helper-call-count-not-caught"
+  [ "${r36_missing_count:-0}" -lt 1 ] || r36_bad="${r36_bad} mutant-helper-call-count-not-caught"
 else
   r36_bad="${r36_bad} mutant-helper-call-count-anchor-missing"
+fi
+python3 - .github/workflows/auditor.yml "$r36_dir/auditor-post-direct.yml" <<'R36SITEMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = '''                helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \\
+                  "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/health-board.sh?ref=${GITHUB_SHA}" 2>/dev/null) || helper=""
+                if [ -z "$helper" ]; then
+                  echo "::warning::health-board helper absent from workflow commit ${GITHUB_SHA}; cannot resolve the health board (fail closed)."
+                  health_issue=""
+                else
+                  health_issue=$(printf '%s' "$helper" | /bin/bash -p -s || true)
+                fi'''
+new = '                health_issue=$(bash .github/scripts/health-board.sh || true)'
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R36SITEMUT
+if [ -f "$r36_dir/auditor-post-direct.yml" ]; then
+  if grep -qF -- 'contents/.github/scripts/health-board.sh?ref=${GITHUB_SHA}' "$r36_dir/auditor-post-direct.yml" 2>/dev/null; then
+    r36_bad="${r36_bad} mutant-trusted-read-removal-not-caught"
+  fi
+  r36_post_direct_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r36_dir/auditor-post-direct.yml" 2>/dev/null || true)
+  [ "${r36_post_direct_count:-0}" -gt 1 ] || r36_bad="${r36_bad} mutant-post-direct-call-not-caught"
+else
+  r36_bad="${r36_bad} mutant-trusted-read-anchor-missing"
 fi
 
 if [ "${HEALTH_BOARD_LIVE_CHECK:-}" = "1" ]; then
@@ -35629,14 +35749,14 @@ if [ "${HEALTH_BOARD_LIVE_CHECK:-}" = "1" ]; then
       r36_bad="${r36_bad} live(label-query-failed)"
       r36_live_label_count=-1
     else
-      r36_live_label_count=$(printf '%s\n' "$r36_live_labels" | grep -c '[0-9]' || true)
+      r36_live_label_count=$(printf '%s\n' "$r36_live_labels" | grep -cE '^[0-9]+$' || true)
       [ "$r36_live_label_count" -eq 1 ] || r36_bad="${r36_bad} live(lab-health-count-${r36_live_label_count}:$(printf '%s' "$r36_live_labels" | tr '\n' ' '))"
     fi
     if ! r36_live_titles=$(gh api "repos/${REPO}/issues?state=open&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | select(.title == "Lab Health & Audit Logs") | .number' 2>/dev/null); then
       r36_bad="${r36_bad} live(title-query-failed)"
       r36_live_title_count=-1
     else
-      r36_live_title_count=$(printf '%s\n' "$r36_live_titles" | grep -c '[0-9]' || true)
+      r36_live_title_count=$(printf '%s\n' "$r36_live_titles" | grep -cE '^[0-9]+$' || true)
       [ "$r36_live_title_count" -eq 1 ] || r36_bad="${r36_bad} live(title-count-${r36_live_title_count})"
     fi
     if [ "${r36_live_label_count:--1}" -eq 1 ] && [ "${r36_live_title_count:--1}" -eq 1 ] \
@@ -35649,7 +35769,7 @@ fi
 rm -rf "$r36_dir"
 case "$r36_bad" in
   "")
-    check "R36" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-label, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants, the six call sites (auditor.yml x2, maintainer.yml x2, opencode-recover.yml, schedule-selfheal.sh) are pinned to the shared helper, and any direct lab-health selector outside the helper is rejected (issue #848)" "ok"
+    check "R36" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned to the trusted contents-API invocation instead of the agent-writable workspace helper, and any direct lab-health selector outside the helper is rejected (issue #848, review F1)" "ok"
     ;;
   *)
     check "R36" "lab-health board selector split or bypassable:${r36_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"

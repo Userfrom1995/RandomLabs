@@ -29,7 +29,9 @@
 # naming the extra board-bearing issues; silent-stall audit rule R36 fails on
 # a second board-bearing issue so the split audit trail cannot persist.
 #
-# Exit codes: 0 = resolved or empty, 1 = the open-issue list could not be read.
+# Exit codes: 0 = resolved or empty, 1 = the title/source issue list could
+# not be read and no title board resolves (a label-read failure after the
+# title resolves is a loud warning, not an outage).
 
 set -u
 
@@ -42,9 +44,11 @@ if [ -z "$repo" ]; then
 fi
 
 list_title() {
+  local expr
+  expr=$(printf '.[] | select(.pull_request == null) | select(.title == "%s") | .number' "$BOARD_TITLE")
   gh api "repos/${repo}/issues?state=open&sort=created&direction=asc&per_page=100" \
     --paginate \
-    --jq '.[] | select(.pull_request == null) | select(.title == "Lab Health & Audit Logs") | .number' \
+    --jq "$expr" \
     2>/dev/null
 }
 
@@ -56,11 +60,11 @@ list_labeled() {
 }
 
 count_lines() {
-  printf '%s\n' "$1" | grep -c '[0-9]' 2>/dev/null || true
+  printf '%s\n' "$1" | grep -cE '^[0-9]+$' 2>/dev/null || true
 }
 
 first_line() {
-  printf '%s\n' "$1" | sed -n '1p'
+  printf '%s\n' "$1" | grep -E '^[0-9]+$' 2>/dev/null | sed -n '1p'
 }
 
 # Both reads run even when the title resolves: the labeled count is the
@@ -71,8 +75,12 @@ if ! title_hits=$(list_title); then
   exit 1
 fi
 if ! labeled_hits=$(list_labeled); then
-  echo "health-board: could not read open lab-health issues for ${repo}." >&2
-  exit 1
+  if [ -z "$(first_line "$title_hits")" ]; then
+    echo "health-board: could not read open lab-health issues for ${repo}." >&2
+    exit 1
+  fi
+  echo "::warning::health-board: could not verify the lab-health invariant for ${repo}; using the title board." >&2
+  labeled_hits=""
 fi
 
 title_count=$(count_lines "$title_hits")

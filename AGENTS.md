@@ -315,9 +315,10 @@ Public Surface / Web Track:                                              │
   the Maintainer (issue #836), the recover arm's schedule/dispatch path also
   runs a bounded stale-session heartbeat: a pinned `STATE.md` `Last updated:`
   stamp older than 90 minutes with no active Maintainer run triggers one
-  deduped `maintainer.yml` dispatch (90-minute cooldown marker on the oldest
-  open non-PR lab-health board, queried oldest-first with
-  `sort=created&direction=asc`, and only a body that ends with the marker
+  deduped `maintainer.yml` dispatch (90-minute cooldown marker on the
+  universal board resolved by `.github/scripts/health-board.sh`, the
+  `Lab Health & Audit Logs` title first, then the oldest open non-PR issue
+  labeled `lab-health`, and only a body that ends with the marker
   counts; board, comment, and run-list reads fail closed, including a
   valid-JSON run page that is not an array of objects with string status and
   createdAt, the run gate reads the newest 1000 runs with an exact age bound
