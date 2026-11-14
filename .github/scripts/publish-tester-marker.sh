@@ -52,7 +52,7 @@ body=$(printf '%s\n' \
   '' \
   "Machine-published Tester verdict for PR #${target} (evidence scope: ${scope}): the Tester's signed decision report is on this thread and the live-execution evidence gate passed. Published by the opencode-test workflow (issue #629) so the merge sweep's first-line marker shape is guaranteed by the workflow rather than by agent prose formatting.")
 
-response=$(gh api "repos/${repo}/issues/${target}/comments" -f body="$body" 2>&1) || {
+response=$(gh api --hostname github.com "repos/${repo}/issues/${target}/comments" -f body="$body" 2>&1) || {
   echo "::error::publish-tester-marker.sh: posting the tester approval marker to #${target} failed: ${response}"
   exit 1
 }
@@ -63,7 +63,7 @@ if [ -z "$comment_id" ]; then
   exit 1
 fi
 
-fetched=$(gh api "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
+fetched=$(gh api --hostname github.com "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
   echo "::error::publish-tester-marker.sh: could not re-fetch posted marker comment ${comment_id}: ${fetched}"
   exit 1
 }

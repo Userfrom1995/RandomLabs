@@ -6280,13 +6280,14 @@ else
   grep -qF 'gh api --hostname github.com "repos/${repo}/issues/${target}/comments"' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-post-host-pin)"
   grep -qF 'gh api --hostname github.com "repos/${repo}/issues/comments/${comment_id}"' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-fetch-host-pin)"
   grep -qF 'Verified owner-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
-  # Issue #713 round 16: the parallel tester lane anchors its verdict to the
-  # first line of an owner-authored post, so the findings poster must refuse
-  # report content whose first non-blank line is a command trigger.
-  grep -qF 'first_line=$(awk' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-first-line-trigger-guard)"
-  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trigger-or-marker-prefix-ban)"
-  grep -qF 'gsub(/`/' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-backtick-normalization)"
-  grep -qF 'sub(/[[:space:]]+$/, "", line)' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trailing-space-normalization)"
+  # Issue #798 review round 16: the command workflows match triggers anywhere
+  # in the raw comment body, so the findings poster must scan the whole report
+  # (backticks stripped) and refuse any line-start or space-prefixed trigger or
+  # the merge-gate marker. The old first-line-only guard must be gone.
+  grep -qF '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)|(^|[[:space:]])eval-verdict:' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-whole-body-trigger-or-marker-ban)"
+  grep -qF 'expected_body" | tr -d' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-backtick-normalization)"
+  grep -qF 'contains the command trigger or merge-gate marker' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-whole-body-refusal-message)"
+  grep -qF 'first_line=$(awk' "$R17_SCRIPT" && r17_bad="${r17_bad} script(first-line-only-trigger-guard)"
   # Issue #713 round 18: the findings report is bound to this run's nonce so
   # a stale or blind replacement is refused before the owner-PAT post.
   grep -qF 'run-nonce:' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-report-nonce-contract)"
@@ -6475,14 +6476,34 @@ R17_MOCK
       r17_case eval-marker-plain 1 linux "$r17_eval_plain" "posted_capture=$r17_tmp/eval-marker-plain-posted.md"
       r17_case eval-marker-backticked 1 linux "$r17_eval_backticked" "posted_capture=$r17_tmp/eval-marker-backticked-posted.md"
       r17_case eval-marker-trailing 1 linux "$r17_eval_trailing" "posted_capture=$r17_tmp/eval-marker-trailing-posted.md"
-      # Prove the refusal happens BEFORE gh runs: a captured body would mean
-      # the marker-leading report was posted and could be consumed as an
-      # owner-authored eval approval.
-      for r17_eval_posted in "$r17_tmp/eval-marker-plain-posted.md" \
+      # Issue #798 review round 16: the trigger ban covers every line, not
+      # just the lead. A mid-body trigger, a trigger below a salvage banner,
+      # and a mid-body /opencode trigger must all be refused before gh runs.
+      r17_trigger_mid="$r17_tmp/trigger-mid-body.md"
+      printf 'Finding one.\n\nDo not run /oc build here.\n\n- the Linux Tester\n' > "$r17_trigger_mid"
+      r17_trigger_banner="$r17_tmp/trigger-after-banner.md"
+      printf '> Salvaged partial report.\n> Provenance: banner prepended by the workflow.\n\n/oc test\n\n- the Linux Tester\n' > "$r17_trigger_banner"
+      r17_trigger_opencode="$r17_tmp/trigger-opencode-mid.md"
+      printf 'Finding one.\n\nThe upstream trigger was /opencode test.\n\n- the Linux Tester\n' > "$r17_trigger_opencode"
+      r17_case trigger-mid-body 1 linux "$r17_trigger_mid" "posted_capture=$r17_tmp/trigger-mid-body-posted.md"
+      r17_case trigger-after-banner 1 linux "$r17_trigger_banner" "posted_capture=$r17_tmp/trigger-after-banner-posted.md"
+      r17_case trigger-opencode-mid 1 linux "$r17_trigger_opencode" "posted_capture=$r17_tmp/trigger-opencode-mid-posted.md"
+      # The scan is precise: a trigger glued to punctuation is not a command
+      # token and must still post.
+      r17_trigger_glued="$r17_tmp/trigger-glued.md"
+      printf 'Finding one: see trigger:/oc test in the log.\n\n- the Linux Tester\n' > "$r17_trigger_glued"
+      r17_case trigger-glued 0 linux "$r17_trigger_glued" "posted_capture=$r17_tmp/trigger-glued-posted.md"
+      # Prove the refusals happen BEFORE gh runs: a captured body would mean
+      # the trigger-bearing report was posted and could be consumed as an
+      # owner-authored command or val approval marker.
+      for r17_refused_posted in "$r17_tmp/eval-marker-plain-posted.md" \
         "$r17_tmp/eval-marker-backticked-posted.md" \
-        "$r17_tmp/eval-marker-trailing-posted.md"; do
-        if [ -e "$r17_eval_posted" ]; then
-          r17_bad="${r17_bad} script(functional-$(basename "$r17_eval_posted")-reached-gh)"
+        "$r17_tmp/eval-marker-trailing-posted.md" \
+        "$r17_tmp/trigger-mid-body-posted.md" \
+        "$r17_tmp/trigger-after-banner-posted.md" \
+        "$r17_tmp/trigger-opencode-mid-posted.md"; do
+        if [ -e "$r17_refused_posted" ]; then
+          r17_bad="${r17_bad} script(functional-$(basename "$r17_refused_posted")-reached-gh)"
         fi
       done
       r17_case crlf-fetch-linux 0 linux "$r17_good_linux" 'crlf_fetch="1"'
@@ -6535,9 +6556,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="a32589227adcb50c3642396bc6f5ebb08faf440e91902ec8e1708e31d76c408c" \
-  R17_MACOS_PROMPT_SHA="21a599ecedc1e5793a9e9032aec87c59082eafbd976feb37123a981667853ef6" \
-  R17_WINDOWS_PROMPT_SHA="dad619872bdce1159b9fc3f1c97b0deaf609865a6a8b73946172f14f33a370c6" \
+  R17_LINUX_PROMPT_SHA="dc11476837dfd285e984ba9b56f7acfb2d4eacfb74f1e4031e0441ba8bd530ff" \
+  R17_MACOS_PROMPT_SHA="970df3fa670d449e0605a8fbe865e63e6d2f0498cafdee92d99f92bbdc5d5e35" \
+  R17_WINDOWS_PROMPT_SHA="c378a89b4ac91735d24a07aa22ff61756f06fe70d3e9f210ec0c0c9c6a859def" \
   R17_LINUX_AGENT_PROMPT_SHA="b94cdb8c0dfab79e7f1ae1f29d5df0a5c897e873820db1c55e02c6194be3b5a0" \
   R17_MACOS_AGENT_PROMPT_SHA="5e055d83797453c62224290eb6832cf584f3bffff4238830a1a2796951dc9ff5" \
   R17_WINDOWS_AGENT_PROMPT_SHA="d5fa487dce7bd7b82229c69c68b170eb956598abe65313f63173bebc0beb5404" \
@@ -9047,7 +9068,7 @@ else
   sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF '| select(.body | test("(?m)^- the Reviewer[ \t]*$"))' || r19_bad="${r19_bad} script(no-signoff-regex)"
   # Paginated, slurped fetch (a single unpaginated page would miss the
   # decision comment on busy threads and silently read as unpublished).
-  sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF 'payload=$(gh api "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {' || r19_bad="${r19_bad} script(no-paginated-slurp-fetch)"
+  sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF 'payload=$(gh api --hostname github.com "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {' || r19_bad="${r19_bad} script(no-paginated-slurp-fetch)"
   # Exit-code contract: exactly one published exit 0 and one not-published
   # exit 1; every failure path exits 2. An added silent `exit 0` (e.g. in
   # front of the fetch guard) or a weakened failure exit trips the counts.
@@ -9087,13 +9108,14 @@ else
   # or blind replacement is refused before the owner-PAT post.
   grep -qF 'run-nonce:' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-report-nonce-contract)"
   grep -qF 'expected_nonce="${LAB_RUN_NONCE:-}"' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-report-nonce-binding)"
-  # Issue #713 round 16: the R21 tester anchor reads the first line of this
-  # owner-authored post, so the publisher must refuse report content whose
-  # first non-blank line is a command trigger.
-  grep -qF 'first_line=$(awk' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-first-line-trigger-guard)"
-  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)" "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-trigger-or-marker-prefix-ban)"
-  grep -qF 'gsub(/`/' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-backtick-normalization)"
-  grep -qF 'sub(/[[:space:]]+$/, "", line)' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-trailing-space-normalization)"
+  # Issue #798 review round 16: the command workflows match triggers anywhere
+  # in the raw body, so the publisher must scan the whole report (backticks
+  # stripped) and refuse any line-start or space-prefixed trigger or the
+  # merge-gate marker. The old first-line-only guard must be gone.
+  grep -qF '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)|(^|[[:space:]])eval-verdict:' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-whole-body-trigger-or-marker-ban)"
+  grep -qF 'expected_body" | tr -d' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-backtick-normalization)"
+  grep -qF 'contains the command trigger or merge-gate marker' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-whole-body-refusal-message)"
+  grep -qF 'first_line=$(awk' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(first-line-only-trigger-guard)"
   grep -qF 'GITHUB_ACTIONS' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(references-GITHUB_ACTIONS)"
   grep -qF 'MOCK_' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(references-MOCK)"
   grep -qF 'RandomLabs/' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(hardcodes-repo-slug)"
@@ -9112,19 +9134,35 @@ else
     if [ -s "$r19g_log" ]; then
       r19_bad="${r19_bad} publisher(trigger-leading-report-reached-gh)"
     fi
-    printf '%s\n' "$r19g_out" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(trigger-guard-did-not-refuse)"
+    printf '%s\n' "$r19g_out" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(trigger-guard-did-not-refuse)"
     printf '/opencode eval\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/opencode-report.md"
     r19g_out2=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/opencode-report.md" "- the Tester" 2>&1 || true)
     if [ -s "$r19g_log" ]; then
       r19_bad="${r19_bad} publisher(slash-opencode-report-reached-gh)"
     fi
-    printf '%s\n' "$r19g_out2" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(slash-opencode-guard-did-not-refuse)"
+    printf '%s\n' "$r19g_out2" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(slash-opencode-guard-did-not-refuse)"
     printf '`/oc approve-test`\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/backticked.md"
     r19g_out3=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/backticked.md" "- the Tester" 2>&1 || true)
     if [ -s "$r19g_log" ]; then
       r19_bad="${r19_bad} publisher(backticked-marker-report-reached-gh)"
     fi
-    printf '%s\n' "$r19g_out3" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(backticked-marker-guard-did-not-refuse)"
+    printf '%s\n' "$r19g_out3" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(backticked-marker-guard-did-not-refuse)"
+    # Issue #798 review round 16: every line is screened, so a mid-body
+    # trigger and a trigger below a salvage banner must be refused before gh.
+    printf 'Signed report body.\n\nDo not run /oc build here.\n\n- the Tester\n' > "$r19g_dir/trigger-mid.md"
+    : > "$r19g_log"
+    r19g_out8=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/trigger-mid.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(mid-body-trigger-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out8" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(mid-body-trigger-guard-did-not-refuse)"
+    printf '> Salvaged partial report.\n> Provenance banner prepended by the workflow.\n\n/opencode test\n\n- the Tester\n' > "$r19g_dir/trigger-banner.md"
+    : > "$r19g_log"
+    r19g_out9=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/trigger-banner.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(banner-trigger-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out9" | grep -qF 'contains the command trigger' || r19_bad="${r19_bad} publisher(banner-trigger-guard-did-not-refuse)"
     # Issue #713 review round 19: the owner-PAT report publishers must also
     # refuse the merge-gate marker, in plain, backticked, and trailing-space
     # forms, or a report could be consumed as an owner-authored eval approval.
@@ -9134,21 +9172,21 @@ else
     if [ -s "$r19g_log" ]; then
       r19_bad="${r19_bad} publisher(eval-marker-report-reached-gh)"
     fi
-    printf '%s\n' "$r19g_out5" | grep -qF 'begins with the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(eval-marker-guard-did-not-refuse)"
+    printf '%s\n' "$r19g_out5" | grep -qF 'contains the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(eval-marker-guard-did-not-refuse)"
     printf '`eval-verdict: approve-eval`\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/eval-marker-backticked.md"
     : > "$r19g_log"
     r19g_out6=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/eval-marker-backticked.md" "- the Tester" 2>&1 || true)
     if [ -s "$r19g_log" ]; then
       r19_bad="${r19_bad} publisher(backticked-eval-marker-report-reached-gh)"
     fi
-    printf '%s\n' "$r19g_out6" | grep -qF 'begins with the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(backticked-eval-marker-guard-did-not-refuse)"
+    printf '%s\n' "$r19g_out6" | grep -qF 'contains the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(backticked-eval-marker-guard-did-not-refuse)"
     printf 'eval-verdict: approve-eval   \n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/eval-marker-trailing.md"
     : > "$r19g_log"
     r19g_out7=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/eval-marker-trailing.md" "- the Tester" 2>&1 || true)
     if [ -s "$r19g_log" ]; then
       r19_bad="${r19_bad} publisher(trailing-space-eval-marker-report-reached-gh)"
     fi
-    printf '%s\n' "$r19g_out7" | grep -qF 'begins with the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(trailing-space-eval-marker-guard-did-not-refuse)"
+    printf '%s\n' "$r19g_out7" | grep -qF 'contains the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(trailing-space-eval-marker-guard-did-not-refuse)"
     printf '## Findings\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/control.md"
     : > "$r19g_log"
     PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/control.md" "- the Tester" >/dev/null 2>&1 || true
@@ -9219,7 +9257,20 @@ else
     [ "$r19_runkey_count" -eq 1 ] || r19_bad="${r19_bad} review.yml(run-key-count=${r19_runkey_count},want=1)"
     r19_step_end_line=$(awk -v s="$r19_name_line" 'NR > s && /^      - name: / { print NR; exit }' "$REVIEW_WF")
     [ -n "$r19_step_end_line" ] || r19_step_end_line=$(wc -l < "$REVIEW_WF" | tr -d '[:space:]')
-    sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    # Issue #798 review round 16: the post-agent verify step now runs under
+    # the privileged absolute shell so an agent-exported BASH_FUNC_* cannot
+    # no-op it; continue-on-error/defaults would still swallow the failure.
+    printf '%s\n' "$r19_step_header" | grep -qxF "        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'" || r19_bad="${r19_bad} review.yml(verify-step-shell-not-privileged)"
+    sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF" | grep -qE '^[[:space:]]*(continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    # Issue #798 review round 16: the post-agent owner-PAT step resets PATH in
+    # the body and creates a fresh private gh config directory, and pins
+    # GH_HOST in the env map, so agent-exported state cannot intercept the PAT.
+    printf '%s\n' "$r19_step_header" | grep -qxF '          GH_HOST: github.com' || r19_bad="${r19_bad} review.yml(verify-gh-host-not-pinned)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'PATH=/usr/bin:/bin; export PATH' || r19_bad="${r19_bad} review.yml(verify-no-trusted-path-reset)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""' || r19_bad="${r19_bad} review.yml(verify-no-fresh-gh-config)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'export GH_CONFIG_DIR="$gh_cfg"' || r19_bad="${r19_bad} review.yml(verify-no-gh-config-export)"
+    printf '%s\n' "$r19_verify_block" | grep -qF "trap 'rm -rf \"\$gh_cfg\"' EXIT" || r19_bad="${r19_bad} review.yml(verify-no-gh-config-cleanup)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'unset all_proxy http_proxy https_proxy no_proxy' || r19_bad="${r19_bad} review.yml(verify-no-proxy-unset)"
     awk '/^  review:$/ { f=1; next } f && /^  [A-Za-z_]+:/ { exit } f && /^    (defaults|shell|continue-on-error):/ { print }' "$REVIEW_WF" | grep -q . && r19_bad="${r19_bad} review.yml(job-run-attribute-override)"
     grep -qE '^defaults:' "$REVIEW_WF" && r19_bad="${r19_bad} review.yml(workflow-run-defaults-override)"
     printf '%s\n' "$r19_step_header" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(verify-gh-token-not-PAT)"
@@ -9235,10 +9286,10 @@ else
     # invocation is whole-line pinned for the same reason: its `"$SINCE"`
     # argument must be the real env indirection, never a literal that lets an
     # old signed comment satisfy the gate.
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then' || r19_bad="${r19_bad} review.yml(workflow-commit-probe-not-exact)"
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null) || evidence_script=""' || r19_bad="${r19_bad} review.yml(workflow-commit-extract-not-exact)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'evidence_script=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/review-comment-published.sh?ref=${GITHUB_SHA}" 2>/dev/null) || evidence_script=""' || r19_bad="${r19_bad} review.yml(workflow-commit-extract-not-exact)"
+    printf '%s\n' "$r19_verify_block" | grep -qE 'git (cat-file|show).*review-comment-published\.sh' && r19_bad="${r19_bad} review.yml(object-store-provenance-read)"
     printf '%s\n' "$r19_verify_block" | grep -q 'bash \.github/scripts/review-comment-published\.sh' && r19_bad="${r19_bad} review.yml(head-workspace-script-invocation)"
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF "printf '%s' \"\$evidence_script\" | bash -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r19_bad="${r19_bad} review.yml(evidence-invocation-not-exact)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF "printf '%s' \"\$evidence_script\" | /bin/bash -p -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r19_bad="${r19_bad} review.yml(evidence-invocation-not-exact)"
     # Fail-closed when the script cannot be extracted.
     printf '%s\n' "$r19_verify_block" | grep -qF 'if [ -z "$evidence_script" ]; then' || r19_bad="${r19_bad} review.yml(no-fail-closed-on-missing-script)"
     # Exit-code mapping: 0 published / 1 unpublished / anything else refuse.
@@ -9255,7 +9306,7 @@ else
     # the published guard, published guard before its exit 0, and the discard
     # of an unpublished verdict between the guard and the retry block.
     r19_line() { printf '%s\n' "$r19_verify_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
-    r19_ev_line=$(r19_line "printf '%s' \"\$evidence_script\" | bash -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?")
+    r19_ev_line=$(r19_line "printf '%s' \"\$evidence_script\" | /bin/bash -p -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?")
     r19_verdict_line=$(r19_line 'if [ -f /tmp/random-lab-decision.json ]; then')
     r19_pubtrue_line=$(r19_line 'if [ "$published" = "true" ]; then')
     r19_pubexit_line=$(r19_line 'Review decision file present and the decision comment is published; gate produced a verdict.')
@@ -9280,9 +9331,11 @@ else
       r19_bad="${r19_bad} review.yml(report-publish-step-missing)"
     else
       printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.review_guard.outputs.open == 'true'" || r19_bad="${r19_bad} review.yml(report-publish-not-actor-gated)"
-      printf '%s\n' "$r19_pub_step" | grep -q 'mktemp' && r19_bad="${r19_bad} review.yml(report-publisher-tempfile-staging)"
-      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF 'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""' || r19_bad="${r19_bad} review.yml(report-publisher-not-workflow-commit-in-memory)"
-      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$TARGET\" \"\$report\" \"- the Reviewer\"; then" || r19_bad="${r19_bad} review.yml(report-publisher-invocation-not-pipe-form)"
+      r19_pub_extra_mktemp=$(printf '%s\n' "$r19_pub_step" | grep 'mktemp' | grep -cvF 'gh_cfg="$(mktemp -d 2>/dev/null)"' || true)
+      [ "$r19_pub_extra_mktemp" -eq 0 ] || r19_bad="${r19_bad} review.yml(report-publisher-tempfile-staging)"
+      printf '%s\n' "$r19_pub_step" | grep -qF 'publisher=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/publish-agent-report.sh?ref=${GITHUB_SHA}" 2>/dev/null) || publisher=""' || r19_bad="${r19_bad} review.yml(report-publisher-not-workflow-commit-in-memory)"
+      printf '%s\n' "$r19_pub_step" | grep -qE 'git (cat-file|show).*publish-agent-report\.sh' && r19_bad="${r19_bad} review.yml(report-publisher-object-store-read)"
+      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if ! printf '%s' \"\$publisher\" | /bin/bash -p -s -- \"\$TARGET\" \"\$report\" \"- the Reviewer\"; then" || r19_bad="${r19_bad} review.yml(report-publisher-invocation-not-pipe-form)"
     fi
     if [ -z "$r19_ev_line" ] || [ -z "$r19_verdict_line" ] || [ "$r19_ev_line" -ge "$r19_verdict_line" ]; then
       r19_bad="${r19_bad} review.yml(evidence-not-before-verdict:${r19_ev_line:-none}/${r19_verdict_line:-none})"
@@ -9334,12 +9387,15 @@ else
     printf '%s\n' "$r19_verify_block" | grep -qF 'select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry"))' || r19_bad="${r19_bad} review.yml(counter-predicate-weakened)"
     printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'pr="${{ github.event.issue.number }}"' || r19_bad="${r19_bad} review.yml(pr-not-bound-to-event)"
     # F13 (review round 3): the fingerprint ban covers every ambient CI env
-    # var the case environment does not set realistically. GITHUB_ACTIONS and
-    # GITHUB_REPOSITORY are both set to production-shaped values in the sandbox
-    # (so a branch on them is behaviorally visible), and the rest are banned
-    # statically here (branching on a runner-specific value would behave
-    # differently in the sandbox than on the runner).
-    printf '%s\n' "$r19_verify_block" | grep -qE 'mockowner|mockrepo|R19P_|GITHUB_EVENT_PATH|GITHUB_RUN_ID|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_WORKFLOW|GITHUB_JOB|GITHUB_EVENT_NAME|GITHUB_ACTOR|RUNNER_OS|(^|[^A-Za-z_])CI([^A-Za-z_]|$)' && r19_bad="${r19_bad} review.yml(harness-literal-or-env-fingerprint)"
+    # var the case environment does not set realistically. GITHUB_ACTIONS is
+    # set to a production-shaped value in the sandbox (so a branch on it is
+    # behaviorally visible), and the rest are banned statically here
+    # (branching on a runner-specific value would behave differently in the
+    # sandbox than on the runner). GITHUB_REPOSITORY is deliberately exempt:
+    # review round 16's contents-API read addresses the reviewed helper with
+    # repos/${GITHUB_REPOSITORY}/contents/..., and the sandbox sets it to
+    # mockowner/mockrepo, so a literal branch remains behaviorally visible.
+    printf '%s\n' "$r19_verify_block" | grep -qE 'mockowner|mockrepo|R19P_|GITHUB_EVENT_PATH|GITHUB_RUN_ID|GITHUB_ACTIONS|GITHUB_WORKFLOW|GITHUB_JOB|GITHUB_EVENT_NAME|GITHUB_ACTOR|RUNNER_OS|(^|[^A-Za-z_])CI([^A-Za-z_]|$)' && r19_bad="${r19_bad} review.yml(harness-literal-or-env-fingerprint)"
     # F20 (review round 4): provenance invariance beyond the whole-line pins
     # above. A `GITHUB_SHA=` reassignment (e.g. to `git rev-parse HEAD`)
     # defeats the workflow-commit probe/extraction pins textually, and a
@@ -9353,8 +9409,11 @@ else
     printf '%s\n' "$r19_verify_block" | grep -qF 'HEAD:.github/scripts/review-comment-published.sh' && r19_bad="${r19_bad} review.yml(pr-head-provenance)"
     # F8/F11 (review rounds 2 and 3): no fail-fast bypass. `set +e` (quoted or
     # not) or a `trap` would disable the runner's `bash -e` baseline the retry
-    # POST's fail-fast guarantee depends on.
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qE "(^|[[:space:];])(set[[:space:]]+[\"']?\+|trap )" && r19_bad="${r19_bad} review.yml(fail-fast-bypass)"
+    # POST's fail-fast guarantee depends on. Review round 16 permits exactly
+    # the one fresh-gh-config cleanup trap and nothing else.
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qE "(^|[[:space:];])set[[:space:]]+[\"']?\+" && r19_bad="${r19_bad} review.yml(fail-fast-bypass)"
+    r19_verify_other_traps=$(printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -E '(^|[[:space:];])trap[[:space:]]' | grep -cvxF "trap 'rm -rf \"\$gh_cfg\"' EXIT" || true)
+    [ "$r19_verify_other_traps" -eq 0 ] || r19_bad="${r19_bad} review.yml(fail-fast-bypass)"
     # F9 (review round 2): the missing-evidence branch is unreachable in the
     # sandbox (the stub is always committed there), so its fail-closed exit
     # must be pinned statically: an `exit 1` silently turned `exit 0` would
@@ -9405,7 +9464,8 @@ else
         'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"'; do
         printf '%s\n' "$r19_fwd_block" | sed 's/^[[:space:]]*//' | grep -qxF "$r19_body" || r19_bad="${r19_bad} review.yml(forward-body-not-exact)"
       done
-      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qxF "        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'" || r19_bad="${r19_bad} review.yml(forward-shell-not-privileged)"
+      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
       printf '%s\n' "$r19_fwd_block" | grep -qF 'run_nonce' || r19_bad="${r19_bad} review.yml(forward-no-nonce-check)"
       printf '%s\n' "$r19_fwd_block" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(forward-gh-token-not-PAT)"
     else
@@ -9655,7 +9715,8 @@ elif [ -f "$REVIEW_WF" ]; then
             -e 's/\${{ github\.repository }}/mockrepo/g' \
             -e 's/\${{ steps\.pr-info\.outputs\.pr_number }}/614/g' \
             -e 's/\${{ steps\.review\.outcome }}/\${R19P_OUTCOME}/g' \
-            -e 's#/tmp/random-lab-decision\.json#${R19P_DECISION}#g' > "$r19p_block"
+            -e 's#/tmp/random-lab-decision\.json#${R19P_DECISION}#g' \
+            -e "s#^PATH=/usr/bin:/bin; export PATH\$#PATH=$r19p_tmp/bin:/usr/bin:/bin; export PATH#" > "$r19p_block"
     if [ -z "$r19p_run" ] || grep -q '\${{' "$r19p_block" 2>/dev/null \
        || grep -qF '/tmp/random-lab-decision.json' "$r19p_block" 2>/dev/null \
        || ! grep -qF 'crash_signature="true"' "$r19p_block" 2>/dev/null \
@@ -9697,6 +9758,7 @@ R19P_EVIDENCE
         # production) pulls the poisoned copy and fails the unpublished and
         # unverifiable cases behaviorally, so provenance escapes are caught
         # even when their syntax dodges the static bans.
+        cp .github/scripts/review-comment-published.sh "$r19p_tmp/evidence-stub.sh"
         printf '#!/usr/bin/env bash\nexit 0\n' > "$r19p_repo/.github/scripts/review-comment-published.sh"
         "$r19p_git_bin" add .github/scripts/review-comment-published.sh
         "$r19p_git_bin" commit --quiet -m "r19p head tip (poisoned copy)"
@@ -9715,6 +9777,12 @@ R19P_EVIDENCE
 # other call outright, so a retry posted to, or an enumeration read from,
 # another endpoint is a failed case, not a false green.
 case "$*" in
+  *"/contents/.github/scripts/review-comment-published.sh"*)
+    case "$*" in
+      *"ref=$R19P_SHA"*) cat "$R19P_STUB" ;;
+      *) cat "$R19P_POISONED" ;;
+    esac
+    ;;
   *"repos/mockrepo/issues/614/comments"*"--paginate --slurp"*)
     if [ "${R19P_ENUM_FAIL:-0}" = "1" ]; then
       echo "mock gh: enumeration failure" >&2
@@ -9781,6 +9849,7 @@ R19P_GH
                 AGENT_GATE="$gate" R19P_OUTCOME="$outcome" R19P_DECISION="$r19p_tmp/decision.json" \
                 R19P_EVIDENCE_RC="$ev_rc" R19P_PAYLOAD="$payload" R19P_ENUM_FAIL="$enum_fail" R19P_POSTS="$r19p_tmp/posts" \
                 R19P_POST_FAIL="$post_fail" R19P_PR_STATE="$pr_state" \
+                R19P_SHA="$r19p_sha" R19P_STUB="$r19p_tmp/evidence-stub.sh" R19P_POISONED="$r19p_repo/.github/scripts/review-comment-published.sh" \
                 "$r19p_bash_bin" -e "$r19p_block"
             ) > "$r19p_tmp/out" 2>&1
             r19p_rc=$?
@@ -10580,7 +10649,7 @@ else
   sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF '| select(.body | test("(?m)^- the Tester[ \t]*$"))' || r22_bad="${r22_bad} checker(no-signoff-regex)"
   # Paginated, slurped fetch (a single unpaginated page would miss the
   # decision comment on busy threads and silently read as unpublished; R20).
-  sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF 'payload=$(gh api "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {' || r22_bad="${r22_bad} checker(no-paginated-slurp-fetch)"
+  sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF 'payload=$(gh api --hostname github.com "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {' || r22_bad="${r22_bad} checker(no-paginated-slurp-fetch)"
   # Exit-code contract: exactly one published exit 0 and one not-published
   # exit 1; every failure path exits 2. An added silent `exit 0` (e.g. in
   # front of the fetch guard) or a weakened failure exit trips the counts.
@@ -10696,12 +10765,16 @@ else
     # with the verdict discarded on every non-published outcome.
     printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-report.outcome == 'success'" || r22_bad="${r22_bad} test.yml(publish-gate-not-exact)"
     printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF 'SINCE: ${{ github.event.comment.created_at }}' || r22_bad="${r22_bad} test.yml(no-since-env)"
-    printf '%s\n' "$r22_pub_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-probe)"
-    printf '%s\n' "$r22_pub_block" | grep -qF 'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null) || evidence_script=""' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-extraction)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'evidence_script=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/test-comment-published.sh?ref=${GITHUB_SHA}" 2>/dev/null) || evidence_script=""' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-extraction)"
+    printf '%s\n' "$r22_pub_block" | grep -qE 'git (cat-file|show).*test-comment-published\.sh' && r22_bad="${r22_bad} test.yml(checker-object-store-read)"
     printf '%s\n' "$r22_pub_block" | grep -q 'bash \.github/scripts/test-comment-published\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-checker-invocation)"
     printf '%s\n' "$r22_pub_block" | grep -qF "printf '%s' \"\$evidence_script\" | /bin/bash -p -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r22_bad="${r22_bad} test.yml(no-evidence-invocation)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'if [ -z "$evidence_script" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-checker)"
-    printf '%s\n' "$r22_pub_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(checker-tempfile-staging)"
+    r22_pub_extra_mktemp=$(printf '%s\n' "$r22_pub_block" | grep 'mktemp' | grep -cvF 'gh_cfg="$(mktemp -d 2>/dev/null)"' || true)
+    [ "$r22_pub_extra_mktemp" -eq 0 ] || r22_bad="${r22_bad} test.yml(checker-tempfile-staging)"
+    printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_HOST: github.com' || r22_bad="${r22_bad} test.yml(publish-gate-no-gh-host)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'export GH_CONFIG_DIR="$gh_cfg"' || r22_bad="${r22_bad} test.yml(publish-gate-no-fresh-gh-config)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'unset all_proxy http_proxy https_proxy no_proxy' || r22_bad="${r22_bad} test.yml(publish-gate-no-proxy-unset)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'Tester wrote a decision file but no signed decision comment was published' || r22_bad="${r22_bad} test.yml(no-unpublished-branch)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'Could not verify whether the Tester' || r22_bad="${r22_bad} test.yml(no-unverifiable-branch)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'if [ "$action" != "maintainer" ]; then' || r22_bad="${r22_bad} test.yml(no-maintainer-scope-guard)"
@@ -10711,11 +10784,15 @@ else
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success' && steps.lane-guard.outcome == 'success'" || r22_bad="${r22_bad} test.yml(marker-gate-not-exact)"
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r22_bad="${r22_bad} test.yml(marker-not-owner-pat)"
     printf '%s\n' "$r22_marker_block" | grep -q 'github\.token' && r22_bad="${r22_bad} test.yml(marker-references-github-token)"
-    printf '%s\n' "$r22_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-probe)"
-    printf '%s\n' "$r22_marker_block" | grep -qF 'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null) || publisher=""' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-extraction)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'publisher=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/publish-tester-marker.sh?ref=${GITHUB_SHA}" 2>/dev/null) || publisher=""' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-extraction)"
+    printf '%s\n' "$r22_marker_block" | grep -qE 'git (cat-file|show).*publish-tester-marker\.sh' && r22_bad="${r22_bad} test.yml(marker-object-store-read)"
     printf '%s\n' "$r22_marker_block" | grep -q 'bash \.github/scripts/publish-tester-marker\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'if [ -z "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
-    printf '%s\n' "$r22_marker_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(marker-tempfile-staging)"
+    r22_marker_extra_mktemp=$(printf '%s\n' "$r22_marker_block" | grep 'mktemp' | grep -cvF 'gh_cfg="$(mktemp -d 2>/dev/null)"' || true)
+    [ "$r22_marker_extra_mktemp" -eq 0 ] || r22_bad="${r22_bad} test.yml(marker-tempfile-staging)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_HOST: github.com' || r22_bad="${r22_bad} test.yml(marker-no-gh-host)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'export GH_CONFIG_DIR="$gh_cfg"' || r22_bad="${r22_bad} test.yml(marker-no-fresh-gh-config)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'unset all_proxy http_proxy https_proxy no_proxy' || r22_bad="${r22_bad} test.yml(marker-no-proxy-unset)"
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
     printf '%s\n' "$r22_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | /bin/bash -p -s -- \"\$pr\" \"\$scope\"; then" || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(no-marker-ok-default)"
@@ -10725,6 +10802,9 @@ else
     r22_fwd_gate=$(grep -A1 -F -- '- name: Forward tester decision' "$R22_WF" | tail -1 | sed 's/^[[:space:]]*//')
     printf '%s\n' "$r22_fwd_gate" | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'" || r22_bad="${r22_bad} test.yml(forward-gate-not-exact)"
     printf '%s\n' "$r22_fwd_block" | grep -qF '/oc maintainer' || r22_bad="${r22_bad} test.yml(forward-maintainer-mapping-missing)"
+    printf '%s\n' "$r22_fwd_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_HOST: github.com' || r22_bad="${r22_bad} test.yml(forward-no-gh-host)"
+    printf '%s\n' "$r22_fwd_block" | grep -qF 'export GH_CONFIG_DIR="$gh_cfg"' || r22_bad="${r22_bad} test.yml(forward-no-fresh-gh-config)"
+    printf '%s\n' "$r22_fwd_block" | grep -qF 'unset all_proxy http_proxy https_proxy no_proxy' || r22_bad="${r22_bad} test.yml(forward-no-proxy-unset)"
     # Ordering: evidence gate -> publication gate -> marker -> forward.
     r22_line() { grep -nF -- "$1" "$R22_WF" | head -1 | cut -d: -f1; }
     r22_ev_ln=$(r22_line '- name: Enforce live-execution evidence gate')
@@ -20471,7 +20551,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "15c92427b90590806d46cb99ace7971dfee9e10f92d33916ac1b7cee0fc9e455"
+EXPECTED_TEST_PROMPT_SHA256 = "506c322b4f44473becbe1f85ba04c3563d21744b52abe85674788e2e23c91619"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -20486,7 +20566,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "da9e6fc22b52b7233918e3122dff06e36a23edc9fefbe01738f7a3c5373ac4c7"
+EXPECTED_REVIEW_PROMPT_SHA256 = "ebb0aefee566ff7629215481b91ec876d15a2f113a4d8821676ea0428827b472"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "9a2158b4eda725b1e554eb7a7d1b5a8e389f436c72529d9f3e9a4904cdc52cb2"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
@@ -20575,8 +20655,11 @@ EXPECTED_REVIEW_OPEN_OR_NON_PR_IF = "steps.pr-info.outputs.is_pr != 'true' || st
 # PATH, and no push anywhere in the workflow. The observer's exact body is
 # pinned so a future edit cannot reintroduce a write path behind this rule.
 REVIEW_OBSERVER_NAME = "Detect unexpected PR head movement (reviewer is read-only)"
+REVIEW_PUBLISH = "Publish reviewer decision report (owner PAT)"
+REVIEW_VERIFY = "Verify review decided, else auto-retry"
 EXPECTED_REVIEW_OBSERVER_ENV = {
     "GH_TOKEN": "${{ github.token }}",
+    "GH_HOST": "github.com",
     "PATH": SYSTEM_PATH,
     # Issue #781 M6: a linked-issue trigger has no PR state at the event issue
     # number; the observer must read the resolved PR (Get PR info output).
@@ -20585,8 +20668,23 @@ EXPECTED_REVIEW_OBSERVER_ENV = {
     "RECORDED": "${{ steps.pr-info.outputs.head_oid }}",
     "CHECKOUT_OID": "${{ steps.checkout-head.outputs.oid }}",
     "REPO": "${{ github.repository }}",
+    "ALL_PROXY": "",
+    "CURL_CA_BUNDLE": "",
+    "GIT_PROXY_COMMAND": "",
+    "GIT_SSL_CAINFO": "",
+    "GIT_SSL_CAPATH": "",
+    "GIT_SSL_NO_VERIFY": "",
+    "HTTP_PROXY": "",
+    "HTTPS_PROXY": "",
+    "NO_PROXY": "",
+    "SSL_CERT_DIR": "",
+    "SSL_CERT_FILE": "",
+    "TMPDIR": "/tmp",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
 }
-EXPECTED_REVIEW_OBSERVER_BLOCK_SHA256 = "196946fe08a5bb20e8549704e559c7e638c0e1aeeeeb66a13b5a042cadccc878"
+EXPECTED_REVIEW_OBSERVER_BLOCK_SHA256 = "a19c047e69816a314e83a579f988662df38fe9a74d5843d56ef9df0fcc0772b5"
 EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "a3b907775fe95c3c892b911d7602df2a56fbf89ee87d834ee5c039fb4ab4bf1e"
 EXPECTED_JOB_IF = (
     "github.event.issue.pull_request != null && ( "
@@ -21527,35 +21625,48 @@ def check_arm_surface(doc, job_name, workflow_keys, job_keys, label, sink):
         sink.append("%s(self-test-job-env-not-caught)" % label)
 
 
-def check_post_agent_hardening(steps, agent_index, sink):
+def check_post_agent_hardening(steps, agent_index, sink, label="test.yml", allow=()):
     # Issue #798 review B20/B21: the runner prepends the agent-writable
     # GITHUB_PATH entries to PATH ahead of the step env map. Escape the agent
     # step only after every post-agent step pins the privileged shell, resets
     # PATH in-body before its first lookup, and invokes nested helper bodies
     # through the absolute privileged bash. Otherwise an agent-planted
     # git/gh/tr/grep shim can run with the job token or the owner PAT.
+    # Review round 16 F5: a post-agent step with no run body is an unexamined
+    # execution surface, so it fails unless explicitly allowlisted, and every
+    # pipe into bash must use the absolute privileged shell (the old variable
+    # heuristic missed a helper piped under another name).
     for step in steps[agent_index + 1:]:
         if not isinstance(step, dict):
-            continue
-        run = step.get("run")
-        if not isinstance(run, str) or not run.strip():
+            sink.append("%s(post-agent-step-not-mapping)" % label)
             continue
         name = step.get("name")
+        run = step.get("run")
+        if not isinstance(run, str) or not run.strip():
+            if name not in allow:
+                sink.append("%s(post-agent-step-without-run:%s)" % (label, name))
+            continue
         if step.get("shell") != POST_AGENT_SHELL:
-            sink.append("test.yml(post-agent-shell-not-privileged:%s)" % name)
+            sink.append("%s(post-agent-shell-not-privileged:%s)" % (label, name))
         body = [
             line.strip()
             for line in run.splitlines()
             if line.strip() and not line.strip().startswith("#")
         ]
         if not body or body[0] != POST_AGENT_TRUSTED_PATH_RESET:
-            sink.append("test.yml(post-agent-trusted-path-reset-missing:%s)" % name)
+            sink.append("%s(post-agent-trusted-path-reset-missing:%s)" % (label, name))
         if re.search(r"(?<![A-Za-z0-9_./-])bash\s+-s\b", run):
-            sink.append("test.yml(post-agent-relative-bash-invocation:%s)" % name)
-        if ('"$publisher"' in run or '"$evidence_script"' in run) and (
-            "/bin/bash -p -s" not in run
-        ):
-            sink.append("test.yml(post-agent-nested-bash-not-privileged:%s)" % name)
+            sink.append("%s(post-agent-relative-bash-invocation:%s)" % (label, name))
+        if re.search(r"/bin/bash\s+-s\b", run):
+            sink.append("%s(post-agent-unprivileged-absolute-bash:%s)" % (label, name))
+        for line in run.splitlines():
+            if re.search(r"\|\s*\S*bash\b", line) and not re.search(
+                r"\|\s*/bin/bash\s+-p\s+-s\b", line
+            ):
+                sink.append(
+                    "%s(post-agent-nested-bash-not-privileged:%s)" % (label, name)
+                )
+                break
 
 
 def validate_test(doc, sink):
@@ -21732,7 +21843,7 @@ def validate_test(doc, sink):
         ):
             sink.append("test.yml(agent-prompt-not-exact)")
     if len(agent) == 1:
-        check_post_agent_hardening(steps, agent[0], sink)
+        check_post_agent_hardening(steps, agent[0], sink, "test.yml")
 
 
 def validate_review(doc, sink):
@@ -21831,8 +21942,10 @@ def validate_review(doc, sink):
         sink.append("review.yml(head-observer-step-not-unique)")
     else:
         observer = observers[0]
-        if set(observer) != {"name", "if", "env", "run"}:
+        if set(observer) != {"name", "if", "env", "shell", "run"}:
             sink.append("review.yml(head-observer-keys-not-exact)")
+        if observer.get("shell") != POST_AGENT_SHELL:
+            sink.append("review.yml(head-observer-shell-not-privileged)")
         if (
             observer.get("if")
             != "steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'"
@@ -21918,6 +22031,7 @@ def validate_review(doc, sink):
                     != EXPECTED_REVIEW_AGENT_PROMPT_SHA256
                 ):
                     sink.append("review.yml(agent-prompt-not-exact)")
+            check_post_agent_hardening(steps, agent_index, sink, "review.yml")
     if file_sha256(".github/agents/reviewer.md") != EXPECTED_REVIEW_PROMPT_SHA256:
         sink.append("agents.yml(reviewer-prompt-not-reviewed)")
 
@@ -23078,6 +23192,58 @@ if review_doc is not None:
             for p in review_observer_push_local
         ):
             problems.append("review.yml(structural-self-test-observer-push)")
+        # Issue #798 review round 16 F5: the post-agent validator now covers
+        # the review lane too. Removing the observer's privileged shell, the
+        # verify step's in-body reset, the privileged nested shell, or adding a
+        # post-agent step with no run body must each fail the real validator.
+        review_observer_shell = copy.deepcopy(review_doc)
+        for step in review_observer_shell["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_OBSERVER_NAME:
+                step.pop("shell", None)
+        review_observer_shell_local = []
+        validate_review(review_observer_shell, review_observer_shell_local)
+        if not any(
+            "review.yml(head-observer-shell-not-privileged)" in p
+            for p in review_observer_shell_local
+        ):
+            problems.append("review.yml(structural-self-test-observer-shell)")
+        review_verify_reset = copy.deepcopy(review_doc)
+        for step in review_verify_reset["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_VERIFY:
+                step["run"] = re.sub(
+                    r"(?m)^PATH=/usr/bin:/bin; export PATH\n", "", step["run"]
+                )
+        review_verify_reset_local = []
+        validate_review(review_verify_reset, review_verify_reset_local)
+        if not any(
+            "review.yml(post-agent-trusted-path-reset-missing" in p
+            for p in review_verify_reset_local
+        ):
+            problems.append("review.yml(structural-self-test-verify-reset)")
+        review_nested_bash = copy.deepcopy(review_doc)
+        for step in review_nested_bash["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_PUBLISH:
+                step["run"] = step["run"].replace("/bin/bash -p -s", "bash -s")
+        review_nested_bash_local = []
+        validate_review(review_nested_bash, review_nested_bash_local)
+        if not any(
+            "review.yml(post-agent-relative-bash-invocation" in p
+            for p in review_nested_bash_local
+        ):
+            problems.append("review.yml(structural-self-test-verify-nested-bash)")
+        review_extra_step = copy.deepcopy(review_doc)
+        review_steps = review_extra_step["jobs"]["review"]["steps"]
+        for index, step in enumerate(review_steps):
+            if isinstance(step, dict) and step.get("id") == "review":
+                review_steps.insert(index + 1, {"name": "Extra post-agent step"})
+                break
+        review_extra_step_local = []
+        validate_review(review_extra_step, review_extra_step_local)
+        if not any(
+            "review.yml(post-agent-step-without-run:Extra post-agent step)" in p
+            for p in review_extra_step_local
+        ):
+            problems.append("review.yml(structural-self-test-post-agent-no-run)")
         review_step_push = copy.deepcopy(review_doc)
         for step in review_step_push["jobs"]["review"]["steps"]:
             if isinstance(step, dict) and step.get("name") == "Record checked-out PR head":
@@ -26850,6 +27016,19 @@ REVIEW_PR_INFO_BODY = (
 )
 
 REVIEW_PUBLISH_BODY = (
+    'PATH=/usr/bin:/bin; export PATH',
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    'trap \'rm -rf "$gh_cfg"\' EXIT',
+    'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true',
     'live_pr="${{ steps.pr-info.outputs.pr_number }}"',
     'live_state=$(gh pr view "$live_pr" --repo "${{ github.repository }}" --json state --jq \'.state\' 2>/dev/null || echo "")',
     'if [ "$live_state" != "OPEN" ]; then',
@@ -26865,21 +27044,31 @@ REVIEW_PUBLISH_BODY = (
     'echo "::error::Reviewer decision file is present but /tmp/random-lab-report.md is missing or empty; refusing to forward an unpublished verdict (issue #713)."',
     'exit 1',
     'fi',
-    'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then',
-    'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true',
-    'fi',
-    'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""',
+    'publisher=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/publish-agent-report.sh?ref=${GITHUB_SHA}" 2>/dev/null) || publisher=""',
     'if [ -z "$publisher" ]; then',
     'echo "::error::Report publisher absent from workflow commit ${GITHUB_SHA}; refusing to forward an unpublished verdict (issue #713, fail closed)."',
     'exit 1',
     'fi',
-    'if ! printf \'%s\' "$publisher" | bash -s -- "$TARGET" "$report" "- the Reviewer"; then',
+    'if ! printf \'%s\' "$publisher" | /bin/bash -p -s -- "$TARGET" "$report" "- the Reviewer"; then',
     'echo "::error::Reviewer report publication failed; refusing to forward an unpublished verdict (issue #713)."',
     'exit 1',
     'fi',
 )
 
 REVIEW_VERIFY_BODY = (
+    'PATH=/usr/bin:/bin; export PATH',
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    'trap \'rm -rf "$gh_cfg"\' EXIT',
+    'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true',
     'if [ "${AGENT_GATE:-}" != "true" ]; then',
     'echo "::notice::Actor write gate skipped the reviewer agent (issue #428): denial is not a crash - no auto-retry, no escalation."',
     'echo "outcome=skipped" >> "$GITHUB_OUTPUT"',
@@ -26899,17 +27088,14 @@ REVIEW_VERIFY_BODY = (
     'echo "::error::Reviewer decision file does not carry this run\'s contract nonce; discarding it as untrusted because /tmp is writable by PR-executed code (issue #713 round 16)."',
     'exit 1',
     'fi',
-    'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then',
-    'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true',
-    'fi',
-    'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null) || evidence_script=""',
+    'evidence_script=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/review-comment-published.sh?ref=${GITHUB_SHA}" 2>/dev/null) || evidence_script=""',
     'if [ -z "$evidence_script" ]; then',
     'rm -f /tmp/random-lab-decision.json',
     'echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #616, fail closed)."',
     'exit 1',
     'fi',
     'pub_rc=0',
-    'printf \'%s\' "$evidence_script" | bash -s -- "$pr" "$SINCE" || pub_rc=$?',
+    'printf \'%s\' "$evidence_script" | /bin/bash -p -s -- "$pr" "$SINCE" || pub_rc=$?',
     'published="false"',
     'case "$pub_rc" in',
     '0) published="true" ;;',
@@ -27032,6 +27218,19 @@ REVIEW_GUARD_BODY = (
 )
 
 REVIEW_FORWARD_BODY = (
+    'PATH=/usr/bin:/bin; export PATH',
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+    'if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then',
+    'echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'if ! chmod 700 "$gh_cfg"; then',
+    'echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."',
+    'exit 1',
+    'fi',
+    'export GH_CONFIG_DIR="$gh_cfg"',
+    'trap \'rm -rf "$gh_cfg"\' EXIT',
+    'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true',
     'pr="${{ steps.pr-info.outputs.pr_number }}"',
     'if [ ! -f /tmp/random-lab-decision.json ]; then',
     'echo "::error::No decision file found; verify step above already failed the job closed."',
