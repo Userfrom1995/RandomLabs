@@ -856,11 +856,18 @@ jobs:
             echo "Decision '$action' is not fix/continue; no infra override needed."
             exit 0
           fi
-          # Issue #781 M6: the base read must target the resolved PR, not the
-          # event issue number (a linked-issue trigger has no PR state there).
-          base=$(gh pr view "${{ steps.pr-info.outputs.pr_number }}" --repo "${{ github.repository }}" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "main")
-          git fetch origin "$base" --quiet 2>/dev/null || true
-          touched=$(git diff --name-only "origin/$base"...HEAD 2>/dev/null | grep -E '^\.github/(workflows/|agents/)|(^|/)(AGENTS|LAB)\.md$' || true)
+          # Issue #781 M6: the changed-file read must target the resolved PR,
+          # not the event issue number (a linked-issue trigger has no PR state
+          # there). Issue #798 review round 17 B1: read the files through the
+          # API instead of the agent-writable checkout, so a planted git hook,
+          # object, or local config can never run with the owner PAT.
+          files=$(gh api --hostname github.com --paginate "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.pr-info.outputs.pr_number }}/files?per_page=100" --jq '.[].filename' 2>/dev/null) || files=""
+          if [ -z "$files" ]; then
+            echo "::error::Could not read the changed files for PR #${{ steps.pr-info.outputs.pr_number }}; routing to lab (fail closed, issue #798)."
+            echo '{"action":"lab"}' > "$decision"
+            exit 0
+          fi
+          touched=$(printf '%s\n' "$files" | grep -E '^\.github/(workflows/|agents/)|(^|/)(AGENTS|LAB)\.md$' || true)
           if [ -n "$touched" ]; then
             echo "Infrastructure files touched by this PR; overriding reviewer decision '$action' -> lab:"
             echo "$touched"

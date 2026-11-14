@@ -87,15 +87,17 @@ else
 fi
 
 # Issue #798 review round 16: the command workflows match triggers anywhere
-# in the raw comment body (opencode.yml gates the Builder on
-# `contains(body, ' /oc build')`), so screening only the first non-blank line
-# let a trigger on any later line be consumed as an owner-authored command; a
-# salvaged report also prepends a provenance banner, which moves the report's
-# own first line down. Scan the whole body instead. Backticks are stripped
-# first so a backticked trigger still counts when the raw text carries the
-# whitespace the workflow predicates match; a trigger glued to punctuation
-# (for example `trigger:/oc`) never matches those predicates.
-if printf '%s\n' "$expected_body" | tr -d '`' | grep -Eq '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)|(^|[[:space:]])eval-verdict:'; then
+# in the raw comment body (opencode.yml consumes the bare token with
+# `contains(body, ' /oc')` and `startsWith(body, '/oc')`), so screening only
+# the first non-blank line let a trigger on any later line be consumed as an
+# owner-authored command; a salvaged report also prepends a provenance banner,
+# which moves the report's own first line down. Scan the whole body instead.
+# Backticks are stripped first so a backticked trigger still counts when the
+# raw text carries the whitespace the workflow predicates match; a trigger
+# followed by punctuation (for example `/oc:` or `/opencode/foo`) is still a
+# command word and must be refused, while a trigger glued to a preceding word
+# (for example `trigger:/oc`) is not preceded by whitespace and still posts.
+if printf '%s\n' "$expected_body" | tr -d '`' | grep -Eq '(^|[[:space:]])/(oc|opencode)|(^|[[:space:]])eval-verdict:'; then
   echo "::error::publish-agent-report.sh: report '$report' contains the command trigger or merge-gate marker; refusing to publish a report that could be consumed as a verdict (issue #713)."
   exit 1
 fi
