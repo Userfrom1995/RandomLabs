@@ -631,6 +631,16 @@ jobs:
           # agent-exported file cannot fabricate a merge parent or hide the
           # commits being stripped/judged.
           GIT_GRAFT_FILE: /dev/null
+          # Issue #798 review B16: pin the pathspec environment. The guard
+          # passes `:(literal)` explicitly, but an agent-exported
+          # GIT_LITERAL_PATHSPECS makes that prefix a literal filename (four
+          # ABSENT lookups compare equal and exempt a crafted merge), and the
+          # glob/icase variants can change which entry a lookup returns. The
+          # helper also unsets all four before its first git command.
+          GIT_LITERAL_PATHSPECS: "0"
+          GIT_GLOB_PATHSPECS: "0"
+          GIT_NOGLOB_PATHSPECS: "0"
+          GIT_ICASE_PATHSPECS: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
@@ -1598,6 +1608,16 @@ jobs:
           # agent-exported file cannot fabricate a merge parent or hide the
           # commits being stripped/judged.
           GIT_GRAFT_FILE: /dev/null
+          # Issue #798 review B16: pin the pathspec environment. The guard
+          # passes `:(literal)` explicitly, but an agent-exported
+          # GIT_LITERAL_PATHSPECS makes that prefix a literal filename (four
+          # ABSENT lookups compare equal and exempt a crafted merge), and the
+          # glob/icase variants can change which entry a lookup returns. The
+          # helper also unsets all four before its first git command.
+          GIT_LITERAL_PATHSPECS: "0"
+          GIT_GLOB_PATHSPECS: "0"
+          GIT_NOGLOB_PATHSPECS: "0"
+          GIT_ICASE_PATHSPECS: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat
@@ -2690,6 +2710,16 @@ jobs:
           # agent-exported file cannot fabricate a merge parent or hide the
           # commits being stripped/judged.
           GIT_GRAFT_FILE: /dev/null
+          # Issue #798 review B16: pin the pathspec environment. The guard
+          # passes `:(literal)` explicitly, but an agent-exported
+          # GIT_LITERAL_PATHSPECS makes that prefix a literal filename (four
+          # ABSENT lookups compare equal and exempt a crafted merge), and the
+          # glob/icase variants can change which entry a lookup returns. The
+          # helper also unsets all four before its first git command.
+          GIT_LITERAL_PATHSPECS: "0"
+          GIT_GLOB_PATHSPECS: "0"
+          GIT_NOGLOB_PATHSPECS: "0"
+          GIT_ICASE_PATHSPECS: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
           GIT_PAGER: /bin/cat

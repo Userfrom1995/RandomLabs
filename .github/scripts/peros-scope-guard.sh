@@ -65,12 +65,19 @@ set -euo pipefail
 # judged range), so both are unset alongside the replace seam (issue #798
 # review B3). The GIT_CONFIG_* names are re-pinned to safe values below so
 # unsetting an agent-exported value never falls back to a writable global file.
+# Issue #798 review B16: the pathspec environment overrides the explicit
+# `:(literal)` magic. With GIT_LITERAL_PATHSPECS=1 the whole
+# `:(literal)$path` string is treated as a literal filename, so a crafted
+# root-level entry such as ":evil.py" misses every lookup and four ABSENT
+# entries compare equal; the glob/icase variants can likewise change which
+# entry a lookup returns. Remove all four before the first git command.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
   GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE \
   GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_EXEC_PATH \
   GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE \
   GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM \
-  GIT_CONFIG_COUNT 2>/dev/null || true
+  GIT_CONFIG_COUNT GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS \
+  GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS 2>/dev/null || true
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_SYSTEM=/dev/null
 export GIT_CONFIG_NOSYSTEM=1
@@ -186,8 +193,19 @@ entry_of() {
   # magic, and a failed lookup returns nonzero instead of pretending the path
   # is ABSENT, so a lookup error can never compare equal to another ABSENT and
   # exempt a merge that authored a real path.
+  #
+  # Issue #798 review platform note: the raw-tree name must reach Git byte for
+  # byte. Git for Windows' MSYS bash rewrites MSYS-style path arguments before
+  # a native program sees them, and macOS precomposeunicode can precompose NFD
+  # argv, either of which could turn a raw lookup into a miss that then reads
+  # as ABSENT. MSYS_NO_PATHCONV/MSYS2_ARG_CONV_EXCL disable the Windows
+  # conversion for this invocation, and core.precomposeunicode=false keeps the
+  # argument out of the macOS normalization path. On Linux both settings are
+  # inert.
   is_canonical_repo_path "$path" || return 1
-  entry="$(git_at "$runner" ls-tree --full-tree "$rev" -- ":(literal)$path" 2>/dev/null)" || return 1
+  entry="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' \
+    git_at "$runner" -c core.precomposeunicode=false \
+    ls-tree --full-tree "$rev" -- ":(literal)$path" 2>/dev/null)" || return 1
   if [ -n "$entry" ]; then
     printf '%s' "$entry"
   else
@@ -308,6 +326,17 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
       # path, before the protected/out-of-lane classification, so a clean main
       # merge touching only project files is not dropped.
       if [ "$preflight_parents" -ge 2 ] && merge_path_is_exempt workspace "$preflight_commit" "$preflight_path"; then
+        continue
+      fi
+      # Issue #798 review B17: a non-canonical raw-tree path is an
+      # unconditional violation. Only a tree written with
+      # `git hash-object --literally` can carry one, its literal spelling can
+      # look test-lane (`tests/../.github/evil` matches `*/tests/*`), and
+      # `ls-tree`/classifier normalization would otherwise read it as clean.
+      # Identity is self-asserted and no legitimate tree carries one, so it is
+      # refused for every commit like the violation marker.
+      if ! is_canonical_repo_path "$preflight_path"; then
+        preflight_bad="${preflight_bad} ${preflight_commit:0:12}(malformed:${preflight_path})"
         continue
       fi
       # Issue #798 review B6/B7: a protected edit is a durable violation when a
@@ -567,6 +596,15 @@ judge_range() {
       # path, before the protected/out-of-lane classification, so a clean main
       # merge touching only project files is not dropped.
       if [ "$parent_count" -ge 2 ] && merge_path_is_exempt scratch "$commit" "$path"; then
+        continue
+      fi
+      # Issue #798 review B17: a non-canonical raw-tree path is an
+      # unconditional violation, not a tester-only one. Its literal spelling
+      # can look test-lane (`tests/../.github/evil` matches `*/tests/*`), so a
+      # classification that never consults the canonical check would report
+      # the commit clean. No legitimate tree carries such a name.
+      if ! is_canonical_repo_path "$path"; then
+        judged_protected="$(add_unique "$path" "$judged_protected")"
         continue
       fi
       # Issue #798 review F4: judge protected paths for every commit, not only
