@@ -36,6 +36,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -277,6 +280,9 @@ jobs:
           GIT_NAMESPACE: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_SSH_COMMAND: ssh
@@ -514,6 +520,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -633,6 +642,9 @@ jobs:
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_SSH_COMMAND: ssh
@@ -738,6 +750,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -852,6 +867,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"

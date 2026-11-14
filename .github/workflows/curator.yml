@@ -123,6 +123,9 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
           # expanded inside the run block below executes as SHELL with this
@@ -205,6 +208,9 @@ jobs:
       - name: Forward curator decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-decision.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           if [ ! -f /tmp/random-lab-decision.json ]; then
@@ -250,6 +256,9 @@ jobs:
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set +e

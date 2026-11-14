@@ -92,6 +92,9 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
@@ -147,6 +150,9 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.ideate.outcome == 'success'
         continue-on-error: true
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           board=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=brainstorm" --jq '.[0].number' 2>/dev/null || echo "")

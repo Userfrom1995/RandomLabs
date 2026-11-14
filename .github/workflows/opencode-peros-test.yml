@@ -41,6 +41,9 @@ jobs:
       - name: Get target ref
         id: pr-info
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
         run: |
@@ -69,6 +72,9 @@ jobs:
         id: peros_pr
         shell: bash
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           THREAD: ${{ github.event.issue.number }}
           EVENT_IS_PR: ${{ github.event.issue.pull_request.html_url }}
@@ -537,6 +543,9 @@ jobs:
           GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -643,6 +652,9 @@ jobs:
           GIT_ICASE_PATHSPECS: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -785,6 +797,9 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -871,6 +886,9 @@ jobs:
       - name: Forward Linux tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           # Issue #798 review N4: this step holds the owner PAT after the
@@ -1010,6 +1028,9 @@ jobs:
       - name: Get target ref
         id: pr-info
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
         run: |
@@ -1038,6 +1059,9 @@ jobs:
         id: peros_pr
         shell: bash
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           THREAD: ${{ github.event.issue.number }}
           EVENT_IS_PR: ${{ github.event.issue.pull_request.html_url }}
@@ -1509,6 +1533,9 @@ jobs:
           GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -1620,6 +1647,9 @@ jobs:
           GIT_ICASE_PATHSPECS: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -1767,6 +1797,9 @@ jobs:
         id: salvage
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -1890,6 +1923,9 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -1981,6 +2017,9 @@ jobs:
       - name: Forward macOS tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           # Issue #798 review N4: this step holds the owner PAT after the
@@ -2118,6 +2157,9 @@ jobs:
       - name: Get target ref
         id: pr-info
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
         run: |
@@ -2146,6 +2188,9 @@ jobs:
         id: peros_pr
         shell: bash
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           THREAD: ${{ github.event.issue.number }}
           EVENT_IS_PR: ${{ github.event.issue.pull_request.html_url }}
@@ -2616,6 +2661,9 @@ jobs:
           GIT_GRAFT_FILE: /dev/null
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -2722,6 +2770,9 @@ jobs:
           GIT_ICASE_PATHSPECS: "0"
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_SHALLOW_FILE: /dev/null
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GIT_PAGER: /bin/cat
           GIT_SEQUENCE_EDITOR: /bin/false
           GIT_TERMINAL_PROMPT: "0"
@@ -2864,6 +2915,9 @@ jobs:
         id: salvage
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -2975,6 +3029,9 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -3061,6 +3118,9 @@ jobs:
       - name: Forward Windows tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.strip_trailers.outcome == 'success' && steps.scope_guard.outcome == 'success' && steps.findings.outcome == 'success'
         env:
+          GH_PAGER: /bin/cat
+          PAGER: /bin/cat
+          GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           # Issue #798 review N4: this step holds the owner PAT after the
