@@ -7389,6 +7389,12 @@ def validate(doc, expected):
                 "GIT_EDITOR": "/bin/false",
                 "GIT_EXTERNAL_DIFF": "",
                 "GIT_GRAFT_FILE": "/dev/null",
+                # Issue #798 review B16: the pathspec environment overrides
+                # `:(literal)`, so the scope step pins all four variants.
+                "GIT_LITERAL_PATHSPECS": "0",
+                "GIT_GLOB_PATHSPECS": "0",
+                "GIT_NOGLOB_PATHSPECS": "0",
+                "GIT_ICASE_PATHSPECS": "0",
                 "GIT_NO_REPLACE_OBJECTS": "1",
                 "GIT_PAGER": "/bin/cat",
                 "GIT_SEQUENCE_EDITOR": "/bin/false",
@@ -30718,7 +30724,17 @@ rm -rf "$r34_dir"
 # proxy/TLS redirection (the unset-removal mutant does contact it and fails
 # closed while the real tip stays intact), and the owner-PAT steps' effective
 # env (hostile env plus the shipped map) records no Authorization leak on any
-# of the eight findings/forward/salvage steps.
+# of the eight findings/forward/salvage steps. Issue #798 review B16: the
+# guard unsets the four Git pathspec environment overrides before its first
+# git command, and the three scope step env maps pin them to "0", because an
+# agent-exported GIT_LITERAL_PATHSPECS=1 turns `:(literal)$path` into a literal
+# filename, every crafted lookup misses, and four ABSENT entries compare
+# equal. Issue #798 review B17: a non-canonical raw-tree path is an
+# unconditional violation in both the post-agent judge and the durable
+# preflight, before the protected or test-lane classification, because its
+# literal spelling can look test-lane (tests/../.github/evil matches
+# `*/tests/*`), only a `--literally` tree can carry one, and identity is
+# self-asserted.
 r34_dir=$(mktemp -d 2>/dev/null || true)
 r34_out=""
 if [ -z "$r34_dir" ]; then
@@ -31009,6 +31025,14 @@ def main(root):
     }
     if inherited_step_env.get("PEROS_PREFLIGHT") != "0":
         bad.append("r34-b9-inherited-env-no-pin")
+    # Issue #798 review B16: the scope step must also pin the four pathspec
+    # environment overrides, because a mode value inherited from $GITHUB_ENV
+    # would otherwise make `:(literal)` a literal filename.
+    for pathspec_key in ("GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS",
+                         "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"):
+        if inherited_step_env.get(pathspec_key) != "0":
+            bad.append("r34-b16-inherited-env-no-pin-%s"
+                       % pathspec_key.lower())
     mutant_step_env = dict(inherited_step_env)
     mutant_step_env.pop("PEROS_PREFLIGHT", None)
     try:
@@ -31441,6 +31465,24 @@ def main(root):
             proc = run([git, "--git-dir", origin, "log", "--format=%B",
                         "refs/heads/" + BRANCH])
             return proc.stdout
+
+        def assert_strip_and_tip(label, results, expect_scope_rc, fixture_tip):
+            # Issue #798 review follow-up: the post-agent helpers used to
+            # assert only the scope rc and a drop, so a strip failure or an
+            # unrelated refusal could satisfy an expected drop. Assert the
+            # strip succeeded and an accepted branch is exactly the fixture
+            # tip. Path-specific message assertions live with each fixture.
+            if results[0][1] != 0:
+                bad.append(
+                    "%s(strip-rc=%d,want=0;%s)"
+                    % (label, results[0][1],
+                       results[0][2].replace("\n", " ")[:300]))
+            if (
+                expect_scope_rc == 0
+                and fixture_tip is not None
+                and remote_tip() != fixture_tip
+            ):
+                bad.append("%s(accepted-tip-moved:%s)" % (label, remote_tip()))
 
         def write_case(name, text):
             path = os.path.join(sandbox, "case-%s.json" % name)
@@ -32552,6 +32594,8 @@ def main(root):
                 helper_sha, baseline, "evil-merge-%s" % tag, event_pr,
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
             )
+            assert_strip_and_tip("r34-evil-merge-%s" % tag, results,
+                                 expect_scope_rc, fixture_tip)
             if results[-1][1] != expect_scope_rc:
                 bad.append(
                     "r34-evil-merge-%s(scope-rc=%d,want=%d;%s)"
@@ -32652,6 +32696,8 @@ def main(root):
                 helper_sha, baseline, "merge-blob-%s" % tag, event_pr,
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
             )
+            assert_strip_and_tip("r34-merge-blob-%s" % tag, results,
+                                 expect_scope_rc, fixture_tip)
             if results[-1][1] != expect_scope_rc:
                 bad.append(
                     "r34-merge-blob-%s(scope-rc=%d,want=%d;%s)"
@@ -32791,6 +32837,8 @@ def main(root):
                 helper_sha, baseline, "merge-exempt-%s" % tag, event_pr,
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
             )
+            assert_strip_and_tip("r34-merge-exempt-%s" % tag, results,
+                                 expect_scope_rc, fixture_tip)
             if results[-1][1] != expect_scope_rc:
                 bad.append(
                     "r34-merge-exempt-%s(scope-rc=%d,want=%d;%s)"
@@ -32902,6 +32950,8 @@ def main(root):
                     helper_sha, baseline, "mode-%s-%s" % (kind, tag), event_pr,
                     pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
                 )
+                assert_strip_and_tip(label, results, expect_scope_rc,
+                                     fixture_tip)
                 if results[-1][1] != expect_scope_rc:
                     bad.append(
                         "%s(scope-rc=%d,want=%d;%s)"
@@ -32958,6 +33008,8 @@ def main(root):
                 helper_sha, baseline, "after-merge-%s" % tag, event_pr,
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
             )
+            assert_strip_and_tip("r34-after-merge-%s" % tag, results, 0,
+                                 fixture_tip)
             if results[-1][1] != 0:
                 bad.append(
                     "r34-after-merge-%s(scope-rc=%d;%s)"
@@ -32999,6 +33051,8 @@ def main(root):
                 helper_sha, baseline, "fake-side-%s" % tag, event_pr,
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
             )
+            assert_strip_and_tip("r34-fake-side-%s" % tag, results,
+                                 expect_scope_rc, fixture_tip)
             if results[-1][1] != expect_scope_rc:
                 bad.append(
                     "r34-fake-side-%s(scope-rc=%d,want=%d;%s)"
@@ -33043,7 +33097,8 @@ def main(root):
         # accepts ":(glob)evil.py".
         def run_crafted_path_merge(helper_sha, tag, crafted,
                                    mode_preflight=False, expect_scope_rc=0,
-                                   expect_drop=False):
+                                   expect_drop=False, extra_env=None,
+                                   step_env=None, expect_scope_msg=None):
             set_origin_main(helper_sha)
             checkout_base(helper_sha)
             main_branch = "r34-crafted-main-%s" % tag
@@ -33103,12 +33158,22 @@ def main(root):
                 results = sanitize(
                     helper_sha, baseline, "crafted-%s" % tag, event_pr,
                     pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
+                    extra_env=extra_env, step_env=step_env,
                 )
+                assert_strip_and_tip(label, results, expect_scope_rc,
+                                     fixture_tip)
                 if results[-1][1] != expect_scope_rc:
                     bad.append(
                         "%s(scope-rc=%d,want=%d;%s)"
                         % (label, results[-1][1], expect_scope_rc,
                            results[-1][2].replace("\n", " ")[:300]))
+                if (
+                    expect_scope_msg is not None
+                    and expect_scope_msg not in results[-1][2]
+                ):
+                    bad.append(
+                        "%s(wrong-scope-message;%s)"
+                        % (label, results[-1][2].replace("\n", " ")[:300]))
                 if expect_drop:
                     if remote_tip() != baseline:
                         bad.append("%s(no-drop:%s)" % (label, remote_tip()))
@@ -33127,6 +33192,22 @@ def main(root):
                                ":(glob)evil.py", mode_preflight=True,
                                expect_scope_rc=1)
 
+        # Issue #798 review B16: the pathspec environment overrides the
+        # explicit `:(literal)` magic. An agent-exported
+        # GIT_LITERAL_PATHSPECS=1 from $GITHUB_ENV turns `:(literal):evil.py`
+        # into a plain filename, so every lookup misses and four ABSENT
+        # entries exempt the crafted merge; the glob/icase variants can change
+        # which entry a lookup returns. The guard unsets all four and the scope
+        # step env pins them to "0", so the injection is refused either way.
+        for env_key in ("GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS",
+                        "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"):
+            run_crafted_path_merge(
+                workflow_sha, "env-%s-real" % env_key.lower(), ":evil.py",
+                expect_scope_rc=1, expect_drop=True,
+                extra_env={env_key: "1"},
+                expect_scope_msg="outside the project test lane",
+            )
+
         # Issue #798 review: `:(literal)` still lets ls-tree normalize a
         # non-canonical raw tree name (an empty, "." or ".." component, or a
         # leading/trailing slash) away, returning an empty successful lookup.
@@ -33134,7 +33215,7 @@ def main(root):
         # is judged and dropped; removing the refusal exempts it as four
         # ABSENT entries.
         def run_malformed_path_merge(helper_sha, tag, malformed,
-                                     mode_preflight=False,
+                                     mode_preflight=False, single_parent=False,
                                      expect_scope_rc=0, expect_drop=False):
             set_origin_main(helper_sha)
             checkout_base(helper_sha)
@@ -33156,7 +33237,12 @@ def main(root):
                 handle.write("evil\n")
             blob = run([git, "hash-object", "-w", blob_file], cwd=work,
                        check=True).stdout.strip()
-            main_tree = run([git, "rev-parse", "%s^{tree}" % main_tip],
+            # A single-parent tester commit must be judged on its own diff, so
+            # base its tree on the captured baseline rather than on main (a
+            # main-based tree would carry main's advance and prove nothing
+            # about the malformed entry).
+            tree_source = baseline if single_parent else main_tip
+            main_tree = run([git, "rev-parse", "%s^{tree}" % tree_source],
                             cwd=work, check=True).stdout.strip()
             raw_tree = subprocess.run(
                 [git, "cat-file", "tree", main_tree], cwd=work,
@@ -33189,9 +33275,14 @@ def main(root):
             merge_tree = run(
                 [git, "hash-object", "-t", "tree", "-w", "--literally",
                  raw_file], cwd=work, check=True).stdout.strip()
-            merge = run([git, "commit-tree", merge_tree,
-                         "-p", baseline, "-p", main_tip,
-                         "-m", "tester merge authors a malformed path"],
+            if single_parent:
+                parent_args = ["-p", baseline]
+                message = "tester commit authors a malformed path"
+            else:
+                parent_args = ["-p", baseline, "-p", main_tip]
+                message = "tester merge authors a malformed path"
+            merge = run([git, "commit-tree", merge_tree] + parent_args
+                        + ["-m", message],
                         cwd=work, env=tester_env(), check=True).stdout.strip()
             run([git, "update-ref", "HEAD", merge], cwd=work, check=True)
             run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
@@ -33213,16 +33304,22 @@ def main(root):
                     bad.append("%s(preflight-not-refused)" % label)
                 elif "already carries per-OS tester commits outside the project test lane" not in combined:
                     bad.append("%s(preflight-wrong-reason)" % label)
+                elif malformed not in combined:
+                    bad.append("%s(preflight-path-not-named)" % label)
             else:
                 results = sanitize(
                     helper_sha, baseline, "malformed-%s" % tag, event_pr,
                     pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
                 )
+                assert_strip_and_tip(label, results, expect_scope_rc,
+                                     fixture_tip)
                 if results[-1][1] != expect_scope_rc:
                     bad.append(
                         "%s(scope-rc=%d,want=%d;%s)"
                         % (label, results[-1][1], expect_scope_rc,
                            results[-1][2].replace("\n", " ")[:300]))
+                elif expect_scope_rc != 0 and malformed not in results[-1][2]:
+                    bad.append("%s(scope-path-not-named)" % label)
                 if expect_drop:
                     if remote_tip() != baseline:
                         bad.append("%s(no-drop:%s)" % (label, remote_tip()))
@@ -33238,6 +33335,49 @@ def main(root):
         run_malformed_path_merge(workflow_sha, "double-slash-pre-real",
                                  "a//b", mode_preflight=True,
                                  expect_scope_rc=1)
+        # Issue #798 review B17: the canonical check must be unconditional, not
+        # only reached from the merge exemption. A raw name whose literal
+        # spelling looks test-lane (it carries a `/tests/` component) was
+        # classified as tester test-lane work and accepted, even though no
+        # legitimate tree can carry it. Exercise merges and single-parent
+        # commits on the post-agent guard and the preflight.
+        run_malformed_path_merge(workflow_sha, "dotdot-protected-real",
+                                 "tests/../.github/evil",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "dotdot-lane-real",
+                                 "tests/../src/x",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "dotdot-protected-pre-real",
+                                 "tests/../.github/evil",
+                                 mode_preflight=True, expect_scope_rc=1)
+        run_malformed_path_merge(workflow_sha, "dotdot-lane-pre-real",
+                                 "tests/../src/x", mode_preflight=True,
+                                 expect_scope_rc=1)
+        run_malformed_path_merge(workflow_sha, "dotdot-protected-single-real",
+                                 "tests/../.github/evil", single_parent=True,
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "dotdot-lane-single-real",
+                                 "tests/../src/x", single_parent=True,
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha,
+                                 "dotdot-protected-single-pre-real",
+                                 "tests/../.github/evil", single_parent=True,
+                                 mode_preflight=True, expect_scope_rc=1)
+        run_malformed_path_merge(workflow_sha, "dotdot-lane-single-pre-real",
+                                 "tests/../src/x", single_parent=True,
+                                 mode_preflight=True, expect_scope_rc=1)
+        # The remaining non-canonical shapes: a parent-directory component, a
+        # leading slash, and a trailing slash.
+        run_malformed_path_merge(workflow_sha, "dotdot-real", "a/../b",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "leading-slash-real", "/a",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "trailing-slash-real", "a/",
+                                 expect_scope_rc=1, expect_drop=True)
+        run_malformed_path_merge(workflow_sha, "leading-slash-pre-real", "/a",
+                                 mode_preflight=True, expect_scope_rc=1)
+        run_malformed_path_merge(workflow_sha, "trailing-slash-pre-real", "a/",
+                                 mode_preflight=True, expect_scope_rc=1)
 
         # Mutant: dropping :(literal) makes ls-tree parse ":evil.py" as
         # pathspec magic and accept the merge.
@@ -33291,6 +33431,49 @@ def main(root):
                                    mode_preflight=True, expect_scope_rc=0)
             checkout_main_ref(workflow_sha)
 
+        # Mutant: restoring the old unset list (without the pathspec names)
+        # lets an agent-exported GIT_LITERAL_PATHSPECS=1 turn `:(literal)` into
+        # a literal filename and exempt the crafted merge again. The same
+        # mutant with the shipped scope step env stays refused, proving the
+        # new step-env pins are load-bearing on their own.
+        with open(crafted_guard_path) as handle:
+            env_guard = handle.read()
+        pathspec_unset_anchor = (
+            "  GIT_CONFIG_COUNT GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS \\\n"
+            "  GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS 2>/dev/null || true"
+        )
+        # Issue #798 review platform note: the lookup must disable the Windows
+        # argv conversion and the macOS argument precomposition before the
+        # literal pathspec is built, or a native arm could turn it into a miss
+        # that reads as ABSENT.
+        if "MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'" not in env_guard:
+            bad.append("r34-b17-platform-lookup-anchor-missing")
+        if "core.precomposeunicode=false" not in env_guard:
+            bad.append("r34-b17-precompose-anchor-missing")
+        if pathspec_unset_anchor not in env_guard:
+            bad.append("r34-b16-guard-unset-anchor-missing")
+        else:
+            with open(crafted_guard_path, "w") as handle:
+                handle.write(env_guard.replace(
+                    pathspec_unset_anchor,
+                    "  GIT_CONFIG_COUNT 2>/dev/null || true", 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without the pathspec unset"], cwd=work,
+                check=True)
+            env_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                 check=True).stdout.strip()
+            run_crafted_path_merge(
+                env_mutant_sha, "literal-injection-mutant", ":evil.py",
+                expect_scope_rc=0, expect_drop=False,
+                extra_env={"GIT_LITERAL_PATHSPECS": "1"})
+            run_crafted_path_merge(
+                env_mutant_sha, "literal-injection-pinned-mutant", ":evil.py",
+                expect_scope_rc=1, expect_drop=True,
+                extra_env={"GIT_LITERAL_PATHSPECS": "1"},
+                step_env=inherited_step_env,
+                expect_scope_msg="outside the project test lane")
+            checkout_main_ref(workflow_sha)
+
         # Mutant: without the canonical-path refusal the malformed raw entry
         # normalizes to an empty successful lookup and the merge is exempted.
         with open(crafted_guard_path) as handle:
@@ -33315,6 +33498,62 @@ def main(root):
                                      mode_preflight=True, expect_scope_rc=0)
             checkout_main_ref(workflow_sha)
 
+        # Mutant: without the unconditional canonical refusal in the
+        # classification loops, a raw name whose literal spelling looks
+        # test-lane is accepted. The merge exemption still consults the
+        # canonical check through entry_of, so both a tester merge and a
+        # single-parent tester commit reach the classification path and are
+        # reported clean; the preflight accepts them too.
+        with open(crafted_guard_path) as handle:
+            classifying_guard = handle.read()
+        preflight_canonical_anchor = (
+            '      if ! is_canonical_repo_path "$preflight_path"; then\n'
+            '        preflight_bad="${preflight_bad} '
+            '${preflight_commit:0:12}(malformed:${preflight_path})"\n'
+            '        continue\n'
+            '      fi\n'
+        )
+        judged_canonical_anchor = (
+            '      if ! is_canonical_repo_path "$path"; then\n'
+            '        judged_protected="$(add_unique "$path" '
+            '"$judged_protected")"\n'
+            '        continue\n'
+            '      fi\n'
+        )
+        if (
+            preflight_canonical_anchor not in classifying_guard
+            or judged_canonical_anchor not in classifying_guard
+        ):
+            bad.append("r34-b17-mutation-anchor-missing")
+        else:
+            with open(crafted_guard_path, "w") as handle:
+                handle.write(classifying_guard.replace(
+                    preflight_canonical_anchor, "", 1).replace(
+                    judged_canonical_anchor, "", 1))
+            run([git, "commit", "-qam",
+                 "mutant guard classifies malformed paths without the "
+                 "canonical refusal"], cwd=work, check=True)
+            classifying_mutant_sha = run(
+                [git, "rev-parse", "HEAD"], cwd=work,
+                check=True).stdout.strip()
+            run_malformed_path_merge(classifying_mutant_sha,
+                                     "dotdot-lane-mutant", "tests/../src/x",
+                                     expect_scope_rc=0, expect_drop=False)
+            run_malformed_path_merge(classifying_mutant_sha,
+                                     "dotdot-lane-pre-mutant",
+                                     "tests/../src/x", mode_preflight=True,
+                                     expect_scope_rc=0)
+            run_malformed_path_merge(
+                classifying_mutant_sha, "dotdot-protected-single-mutant",
+                "tests/../.github/evil", single_parent=True,
+                expect_scope_rc=0, expect_drop=False)
+            run_malformed_path_merge(
+                classifying_mutant_sha,
+                "dotdot-protected-single-pre-mutant",
+                "tests/../.github/evil", single_parent=True,
+                mode_preflight=True, expect_scope_rc=0)
+            checkout_main_ref(workflow_sha)
+
         # Blob-only mutant: the old rev-parse comparison accepts both
         # mode-only merges on the post-agent guard and the preflight.
         checkout_main_ref(workflow_sha)
@@ -33323,7 +33562,8 @@ def main(root):
         with open(mode_guard_path) as handle:
             mode_guard = handle.read()
         mode_entry_anchor = (
-            'git_at "$runner" ls-tree --full-tree "$rev" -- ":(literal)$path" '
+            'git_at "$runner" -c core.precomposeunicode=false \\\n'
+            '    ls-tree --full-tree "$rev" -- ":(literal)$path" '
             '2>/dev/null'
         )
         if mode_entry_anchor not in mode_guard:
@@ -33460,6 +33700,9 @@ def main(root):
                         email="github-actions[bot]@users.noreply.github.com")
             run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
                 check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-graft-%s(setup-empty)" % tag)
             main_branch = "r34-graft-main-%s" % tag
             run([git, "checkout", "-q", "-B", main_branch, helper_sha],
                 cwd=work, check=True)
@@ -33481,6 +33724,8 @@ def main(root):
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
                 extra_env={"GIT_GRAFT_FILE": graft},
             )
+            assert_strip_and_tip("r34-graft-%s" % tag, results,
+                                 expect_scope_rc, fixture_tip)
             if results[-1][1] != expect_scope_rc:
                 bad.append(
                     "r34-graft-%s(scope-rc=%d,want=%d;%s)"
@@ -33541,6 +33786,9 @@ def main(root):
                          check=True).stdout.strip()
             run([git, "push", "-q", "--force", "origin", BRANCH], cwd=work,
                 check=True)
+            fixture_tip = remote_tip()
+            if fixture_tip == baseline:
+                bad.append("r34-graft-merge-%s(setup-empty)" % tag)
             graft = os.path.join(sandbox, "graft-merge-%s" % tag)
             with open(graft, "w") as handle:
                 # The graft makes the revert's first parent main and its
@@ -33555,6 +33803,8 @@ def main(root):
                 pr_view_file, pr_list_file, ("798", BRANCH, "false", REPO),
                 extra_env={"GIT_GRAFT_FILE": graft},
             )
+            assert_strip_and_tip("r34-graft-merge-%s" % tag, results,
+                                 expect_scope_rc, fixture_tip)
             if results[-1][1] != expect_scope_rc:
                 bad.append(
                     "r34-graft-merge-%s(scope-rc=%d,want=%d;%s)"
@@ -33928,7 +34178,7 @@ R34PY
 fi
 case "$r34_out" in
   OK)
-    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, a mode-only protected or out-of-lane merge is dropped on the post-agent guard and the preflight (the blob-only mutant accepts both), a clean merge of main stays exempt after main advances the same path again, a fabricated second parent without main ancestry records the marker (the ancestry-removal mutant accepts it), and a merge authoring a crafted root-level ':evil.py' or ':(glob)evil.py' path is dropped by the literal, fail-closed tree-entry lookup (the literal-strip and lookup-folding mutants accept them), a merge authoring a non-canonical raw-tree path with an empty, '.' or '..' component is dropped by the canonical-path refusal (the canonical-refusal-removal mutant accepts it), an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, a mode-only protected or out-of-lane merge is dropped on the post-agent guard and the preflight (the blob-only mutant accepts both), a clean merge of main stays exempt after main advances the same path again, a fabricated second parent without main ancestry records the marker (the ancestry-removal mutant accepts it), and a merge authoring a crafted root-level ':evil.py' or ':(glob)evil.py' path is dropped by the literal, fail-closed tree-entry lookup (the literal-strip and lookup-folding mutants accept them), an agent-exported GIT_LITERAL_PATHSPECS, GIT_GLOB_PATHSPECS, GIT_NOGLOB_PATHSPECS or GIT_ICASE_PATHSPECS cannot reopen the crafted-merge exemption because the guard unsets all four and the scope step pins them to 0 (the unset-removal mutant accepts the injection while the shipped step-env pin alone still refuses it), the literal lookup pins MSYS_NO_PATHCONV/MSYS2_ARG_CONV_EXCL and core.precomposeunicode=false so native Windows argv conversion or macOS precomposition cannot turn it into an ABSENT miss, a merge or single-parent commit authoring a non-canonical raw-tree path with an empty, '.' or '..' component, a leading or trailing slash, or a test-lane-looking 'tests/../.github/evil' or 'tests/../src/x' spelling is dropped unconditionally by the canonical-path refusal on both the post-agent guard and the preflight (the canonical-refusal-removal mutant accepts the lookup-normalized shapes and the classification-removal mutant accepts the test-lane spellings and the single-parent commits), an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
     ;;
   *)
     check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
@@ -33944,7 +34194,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn `:(literal)` into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then

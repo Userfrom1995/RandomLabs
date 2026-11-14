@@ -260,9 +260,21 @@ Round 13 also
   change with the same blob is still an authored path. Tree entries are
   resolved as literal root-relative paths (pathspec magic is neutralized) and
   a failed lookup fails closed, so a crafted root-level name cannot be
-  exempted; a non-canonical path (an empty, `.` or `..` component, or a
-  leading or trailing slash) that only a raw tree can carry is refused before
-  the lookup, because `ls-tree` would normalize it to an empty success.
+  exempted; the guard also unsets the four Git pathspec environment overrides
+  (`GIT_LITERAL_PATHSPECS`, `GIT_GLOB_PATHSPECS`, `GIT_NOGLOB_PATHSPECS`,
+  `GIT_ICASE_PATHSPECS`) and the three scope step env maps pin them to `"0"`,
+  because `GIT_LITERAL_PATHSPECS=1` would otherwise turn the explicit
+  `:(literal)` magic into a literal filename and exempt the crafted merge. The
+  literal lookup runs with `MSYS_NO_PATHCONV=1`/`MSYS2_ARG_CONV_EXCL='*'` and
+  `-c core.precomposeunicode=false`, so native Windows argv conversion or
+  macOS precomposition cannot turn the raw name into an `ABSENT` miss. A
+  non-canonical path (an empty, `.` or `..` component, or a leading or
+  trailing slash) that only a raw tree can carry is an unconditional
+  violation in both the post-agent judge and the durable preflight, before the
+  protected/test-lane classification, because only a `--literally` tree can
+  carry one and its literal spelling can look test-lane
+  (`tests/../.github/evil` matches the test-lane pattern); it is also refused
+  before the lookup, because `ls-tree` would normalize it to an empty success.
   Every authored merge path and every non-merge commit is judged, so a
   revert-to-main or revert-to-baseline merge cannot hide a lab edit and a
   clean main merge touching only project files is not dropped as out of lane. Testers may edit only project test-lane paths. Protected lab
@@ -282,7 +294,11 @@ Round 13 also
   shadowable), unset `GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`,
   `GIT_REPLACE_REF_BASE`, and the four `GIT_CONFIG_*` seams (re-exporting
   `/dev/null` global/system config, `GIT_CONFIG_NOSYSTEM=1`, and
-  `GIT_CONFIG_COUNT=0`), and unset the fifteen proxy/TLS redirections (`HTTPS_PROXY`,
+  `GIT_CONFIG_COUNT=0`); the guard also unsets the four pathspec environment
+  overrides (`GIT_LITERAL_PATHSPECS`, `GIT_GLOB_PATHSPECS`,
+  `GIT_NOGLOB_PATHSPECS`, `GIT_ICASE_PATHSPECS`), with the three scope step
+  env maps pinning the pathspec names to `"0"` as defense in depth. The
+  helpers unset the fifteen proxy/TLS redirections (`HTTPS_PROXY`,
   `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, `all_proxy`,
   `NO_PROXY`, `no_proxy`, `GIT_SSL_NO_VERIFY`, `GIT_SSL_CAINFO`,
   `GIT_SSL_CAPATH`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`,
@@ -321,9 +337,18 @@ Round 13 also
   the marker; the ancestry-removal mutant accepts it), crafted-path-merge
   (`:evil.py` and `:(glob)evil.py` root-level paths authored by the merge
   are dropped by the literal, fail-closed tree-entry lookup; the
-  literal-strip and lookup-folding mutants accept them), malformed-path-merge
-  (a raw tree carrying an `a//b` path is refused by the canonical-path check
-  before the lookup; the canonical-refusal-removal mutant accepts it),
+  literal-strip and lookup-folding mutants accept them), pathspec-env-merge
+  (an agent-exported `GIT_LITERAL_PATHSPECS`, `GIT_GLOB_PATHSPECS`,
+  `GIT_NOGLOB_PATHSPECS`, or `GIT_ICASE_PATHSPECS` is neutralized by the
+  guard's unset and the scope step's `"0"` pins; the unset-removal mutant
+  accepts the injection while the shipped step env alone still refuses it),
+  malformed-path-merge (raw trees carrying `a//b`, `a/./b`, `a/../b`, `/a`,
+  `a/`, and the test-lane-looking `tests/../.github/evil` and
+  `tests/../src/x` paths are refused by the unconditional canonical-path
+  check on the post-agent guard and the preflight, for merges and
+  single-parent tester commits; the canonical-refusal-removal mutant accepts
+  the lookup-normalized shapes and the classification-removal mutant accepts
+  the test-lane spellings and single-parent commits),
   evil-merge (side parent predating the baseline),
   non-merge-revert (the pre-baseline infrastructure change is reverted to the
   trusted main blob by a single-parent tester commit), graft (a graft-hidden
