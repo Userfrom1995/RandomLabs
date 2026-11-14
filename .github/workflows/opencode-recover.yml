@@ -152,7 +152,7 @@ jobs:
             echo "A Maintainer run is already active (${active}: in progress at any age, or queued inside the 90-minute window); no heartbeat dispatch."
             exit 0
           fi
-          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
+          board=$(bash .github/scripts/health-board.sh || true)
           if [ -z "$board" ] || [ "$board" = "null" ]; then
             echo "::warning::no open lab-health board; skipping the heartbeat dispatch (the cooldown ledger needs the board, issue #836)."
             exit 0

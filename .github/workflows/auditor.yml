@@ -61,15 +61,16 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Silent-stall regression audit (R1-R34)
+      - name: Silent-stall regression audit (R1-R36)
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          HEALTH_BOARD_LIVE_CHECK: "1"
         run: |
-          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh
+          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh .github/scripts/health-board.sh
           health_issue=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+            health_issue=$(bash .github/scripts/health-board.sh || true)
           fi
           .github/scripts/silent-stall-audit.sh ".github/workflows/opencode.yml" "${health_issue}"
 
@@ -104,7 +105,7 @@ jobs:
             - You NEVER commit code, push, or modify the repository.
             - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`.
             - Before ending the run, you MUST write your structured machine handoff decision to `/tmp/random-lab-decision.json`: `[{"action": "maintainer", "issue": <new_issue_number>}]` for each opened bug issue, or `[{"action": "maintainer"}]` to notify on the health board. The hardcoded workflow step reads this file and posts `/oc maintainer` with owner PAT.
-            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue (create it with label `lab-health` if missing).
+            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue. Resolve it with `.github/scripts/health-board.sh` (title first, then the oldest open non-PR issue labeled `lab-health`) and create it with label `lab-health` only if missing. Never add `lab-health` to a transient `[Audit]` issue: only the universal board may carry the label.
 
       - name: Verify auditor decided, else self-heal on schedule/dispatch
         id: verify-decision
@@ -192,7 +193,7 @@ jobs:
                 echo "Forwarding to Maintainer on issue #$target (/oc maintainer)"
                 gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on issue #$target"
               else
-                health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+                health_issue=$(bash .github/scripts/health-board.sh || true)
                 if [ -n "$health_issue" ] && [ "$health_issue" != "null" ]; then
                   echo "Forwarding to Maintainer on health board #$health_issue (/oc maintainer)"
                   gh issue comment "$health_issue" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on health board #$health_issue"

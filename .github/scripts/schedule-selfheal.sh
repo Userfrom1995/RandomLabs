@@ -41,8 +41,7 @@ fi
 MAX_RETRIES=1
 
 health_issue() {
-  gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health" \
-    --jq '.[0].number' 2>/dev/null || true
+  bash "$(dirname "$0")/health-board.sh" || true
 }
 
 # Escalation path at the cap (and on an unreadable counter): tell the
