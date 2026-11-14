@@ -287,6 +287,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           set -o pipefail
           # Issue #807: the Tester only authors project test files. A protected
@@ -353,10 +354,22 @@ jobs:
             # case-variant spelling such as `Agents.md` or `.GitHub/...`
             # aliases the canonical protected entry and replaces its content
             # on those platforms. Fold ASCII case with LC_ALL=C (bash 3.2 has
-            # no ${var,,}) before the match; the protected names are ASCII.
+            # no ${var,,}) before the match.
+            # Issue #798 review B19: non-ASCII spellings such as `AGENTſ.md`
+            # (U+017F), `.gıthub/...` (U+0131), and `opencode.jſon` also alias
+            # the ASCII names on those checkouts while the ASCII fold leaves
+            # them unchanged. No protected name contains a non-ASCII byte, so
+            # any path outside printable ASCII fails closed as protected. The
+            # newline is rewritten to SOH first because grep is line-oriented
+            # and would otherwise treat an embedded LF as a line terminator
+            # instead of a non-printable byte.
+            if printf '%s' "$path" | LC_ALL=C tr '\n' '\001' | LC_ALL=C grep -q '[^ -~]'; then
+              protected=1
+              continue
+            fi
             folded=$(printf '%s' "$path" | LC_ALL=C tr 'A-Z' 'a-z')
             case "$folded" in
-              .github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh) protected=1 ;;
+              .github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh|opencode.json|peros_scope_violation) protected=1 ;;
             esac
           done < "$changed_list"
           if [ "$protected" -eq 0 ]; then
@@ -365,7 +378,7 @@ jobs:
           fi
           rm -f /tmp/random-lab-decision.json
           echo "::error::The Tester's changes touch protected lab paths; discarding the verdict and failing closed (issue #807)."
-          tr '\0' '\n' < "$changed_list" | grep -Ei '^(\.github(/|$)|agents\.md$|lab\.md$|setup\.sh$|shutdown\.sh$)' || true
+          tr '\0' '\n' < "$changed_list" | grep -Ei '^(\.github(/|$)|agents\.md$|lab\.md$|setup\.sh$|shutdown\.sh$|opencode\.json$|peros_scope_violation$)' || true
           runner_path=.github/actions/opencode-run
           git ls-files -z -- "$runner_path" 2>/dev/null | xargs -0 -r git update-index --no-skip-worktree -- 2>/dev/null || true
           rm -rf "$runner_path"
