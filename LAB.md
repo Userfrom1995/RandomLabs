@@ -280,7 +280,13 @@ Round 13 also
   clean main merge touching only project files is not dropped as out of lane. Testers may edit only project test-lane paths. Protected lab
   paths (`.github`, `.github/*`, `AGENTS.md`, `LAB.md`, `setup.sh`,
   `shutdown.sh`, `opencode.json`, `PEROS_SCOPE_VIOLATION`) are always
-  violations. A fully tester-owned violating range is dropped with a
+  violations. Both protected classifiers fold the path to ASCII lowercase
+  with `LC_ALL=C tr` before the match (issue #798 review B18), because APFS
+  and NTFS checkouts alias `Agents.md`, `.GitHub/scripts/...`, and `Setup.sh`
+  onto the canonical entries and could otherwise let the variant replace the
+  canonical content while a case-sensitive classifier reports the branch
+  clean; the marker hard stop and the Tester lane guard in
+  `opencode-test.yml` fold the same way. A fully tester-owned violating range is dropped with a
   `--force-with-lease` reset to the baseline; a foreign commit interleaved in
   the range makes the guard record the marker and leave the branch for the
   Maintainer. The marker is a hard stop: the next run's preflight refuses a
@@ -326,7 +332,11 @@ Round 13 also
   foreign-interleaved, foreign-only-trailer, generic-bot,
   tester-name-foreign-email, pre-baseline-trailer, pre-baseline-date-skew,
   none, trailer, mixed-case-trailer, incident, fork, wrong-namespace,
-  issue-triggered, issue-no-pr-anchor, per-OS-identity, clean-merge,
+  issue-triggered, issue-no-pr-anchor, per-OS-identity,
+  casefold-protected (`Agents.md` and `.GitHub/scripts/...` variants are
+  refused by the folded classifier on the post-agent guard and the preflight,
+  with a tester drop and an in-lane control; the fold-removed mutant accepts
+  the variants while the canonical `AGENTS.md` is still refused), clean-merge,
   protected-merge, clean-nonprotected-merge, main-tip-revert-merge,
   baseline-revert-merge, fake-merge, mode-only-protected-merge,
   mode-only-out-of-lane-merge (both on the post-agent guard and the
@@ -363,7 +373,8 @@ Round 13 also
   tip), and rejected-strip-push cases, with mutation controls for each
   independently reachable protected entry (the marker is covered by its
   creation/deletion hard stop), the skip-worktree restore guard, the preflight
-  identity gate, the strip and guard `GIT_EXEC_PATH` unset, the merge
+  identity gate, the folded protected-path classifier, the strip and guard
+  `GIT_EXEC_PATH` unset, the merge
   tree-entry carry/clean-import comparison, its first-parent term, the
   blob-only mode mutant, the second-parent ancestry term, the strip and guard
   graft/shallow/replace unsets, the `diff-tree -m`

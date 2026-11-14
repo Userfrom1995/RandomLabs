@@ -10660,7 +10660,11 @@ else
     # A replace ref (git replace "$base" HEAD) otherwise rewrites every
     # base-side view to the contaminated head and empties the inventory.
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GIT_NO_REPLACE_OBJECTS: "1"' || r22_bad="${r22_bad} test.yml(lane-guard-replace-refs-not-disabled)"
-    printf '%s\n' "$r22_guard_block" | grep -qF "grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)'" || r22_bad="${r22_bad} test.yml(lane-guard-no-protected-pattern)"
+    # Issue #798 review B18: the protected classifier must fold ASCII case
+    # before the match, so a case-variant of a protected path cannot alias it
+    # on case-insensitive checkouts. Pin both the fold and the folded matcher.
+    printf '%s\n' "$r22_guard_block" | grep -qF "LC_ALL=C tr 'A-Z' 'a-z'" || r22_bad="${r22_bad} test.yml(lane-guard-no-case-fold)"
+    printf '%s\n' "$r22_guard_block" | grep -qF "grep -Ei '^(\.github(/|$)|agents\.md$|lab\.md$|setup\.sh$|shutdown\.sh$)'" || r22_bad="${r22_bad} test.yml(lane-guard-no-protected-pattern)"
     # Issue #807 review round 1: the inventory is NUL-delimited and every
     # failure fails closed, so C-quoted names, staged-only changes, and a
     # corrupt index cannot read as a clean lane.
@@ -10669,7 +10673,7 @@ else
     printf '%s\n' "$r22_guard_block" | grep -qF 'git diff --name-only -z --no-renames' || r22_bad="${r22_bad} test.yml(lane-guard-no-worktree-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'git ls-files -z --others --exclude-standard' || r22_bad="${r22_bad} test.yml(lane-guard-no-untracked-inventory)"
     printf '%s\n' "$r22_guard_block" | grep -qF "while IFS= read -r -d '' path; do" || r22_bad="${r22_bad} test.yml(lane-guard-no-nul-matcher)"
-    printf '%s\n' "$r22_guard_block" | grep -qF '.github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;' || r22_bad="${r22_bad} test.yml(lane-guard-no-case-matcher)"
+    printf '%s\n' "$r22_guard_block" | grep -qF '.github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh) protected=1 ;;' || r22_bad="${r22_bad} test.yml(lane-guard-no-case-matcher)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the committed history; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-committed-fails-open)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the index; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-index-fails-open)"
     printf '%s\n' "$r22_guard_block" | grep -qF 'Cannot inventory the working tree; failing closed' || r22_bad="${r22_bad} test.yml(lane-guard-worktree-fails-open)"
@@ -11107,6 +11111,20 @@ else
           corrupt-index)
             printf 'not-a-git-index\n' > "$r22_807_repo/.git/corrupt-index"
             ;;
+          casefold)
+            # Issue #798 review B18: a case-variant spelling aliases the
+            # canonical protected entry on APFS/NTFS checkouts, so the guard
+            # must fold ASCII case before matching.
+            printf 'evil\n' > "$r22_807_repo/Agents.md"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: case-variant lab"
+            ;;
+          casefold-dir)
+            mkdir -p "$r22_807_repo/.GitHub/workflows"
+            printf 'evil\n' > "$r22_807_repo/.GitHub/workflows/evil.yml"
+            git -C "$r22_807_repo" add -A
+            git -C "$r22_807_repo" commit -qm "tester: case-variant lab"
+            ;;
         esac
         printf '{}\n' > "$r22_807_tmp/decision.json"
         r22_807_body="$r22_807_guard_body"
@@ -11119,6 +11137,13 @@ else
             ;;
           headmutant)
             r22_807_body=$(printf '%s\n' "$r22_807_body" | sed 's#^if ! git diff --name-only -z --no-renames "\$base" HEAD >> "\$changed_list"; then#if false; then#')
+            ;;
+          foldmutant)
+            # Restore the case-sensitive classifier: the variant then reads as
+            # an in-lane test path and the verdict is preserved.
+            r22_807_body=$(printf '%s\n' "$r22_807_body" \
+              | sed 's#^[[:space:]]*folded=.*#folded="$path"#' \
+              | sed 's#\.github|\.github/\*|agents\.md|lab\.md|setup\.sh|shutdown\.sh) protected=1 ;;#.github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;#')
             ;;
         esac
         printf '%s\n' "$r22_807_body" > "$r22_807_tmp/guard-$1-$3.sh"
@@ -11152,6 +11177,10 @@ else
       r22_807_guard_case head-only 1 keep
       r22_807_guard_case replace 1 keep
       r22_807_guard_case corrupt-index 1 keep
+      r22_807_guard_case casefold 1 keep
+      r22_807_guard_case casefold-dir 1 keep
+      r22_807_guard_case casefold 0 foldmutant
+      r22_807_guard_case casefold-dir 0 foldmutant
       r22_807_guard_case committed 0 weaken
       r22_807_guard_case head-only 0 headmutant
       r22_807_guard_case replace 0 keep noreplace
@@ -20394,7 +20423,7 @@ EXPECTED_ARM_LANE_GUARD_ENV = {
     "LD_PRELOAD": "",
     "PATH": "/usr/bin:/bin",
 }
-EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "e99db62654d00d4ce22f8a3444437f92e530beb8d3a4d9479e9de5603a3d6a78"
+EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "adb28a7b5d1dbb5c2dce49deee3ed88e467f6fca253d47d22288bb7d58ee54ac"
 EXPECTED_TEST_ACTOR_ENV = {
     "GH_TOKEN": "${{ github.token }}",
     "GATE_EVENT": "${{ github.event_name }}",
@@ -21453,10 +21482,15 @@ def validate_test(doc, sink):
             if normalized_sha(guard_run) != EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256:
                 sink.append("test.yml(lane-guard-run-block-not-exact)")
             if (
-                "grep -E '^(\\.github(/|$)|AGENTS\\.md$|LAB\\.md$|"
+                "grep -Ei '^(\\.github(/|$)|agents\\.md$|lab\\.md$|"
                 "setup\\.sh$|shutdown\\.sh$)'" not in guard_run
             ):
                 sink.append("test.yml(lane-guard-protected-pattern-missing)")
+            if (
+                "folded=$(printf '%s' \"$path\" | LC_ALL=C tr 'A-Z' 'a-z')"
+                not in guard_run
+            ):
+                sink.append("test.yml(lane-guard-case-fold-missing)")
             # Issue #807 review round 1: the inventory must stay NUL-delimited
             # (git C-quotes special names even with core.quotePath=false), the
             # matcher must be the case/glob form, committed, staged-only, and
@@ -21468,7 +21502,7 @@ def validate_test(doc, sink):
                 "git diff --name-only -z --no-renames",
                 "git ls-files -z --others --exclude-standard",
                 "while IFS= read -r -d '' path; do",
-                ".github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;",
+                ".github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh) protected=1 ;;",
             ):
                 if needle not in guard_run:
                     sink.append("test.yml(lane-guard-inventory-missing)")
@@ -30734,7 +30768,13 @@ rm -rf "$r34_dir"
 # preflight, before the protected or test-lane classification, because its
 # literal spelling can look test-lane (tests/../.github/evil matches
 # `*/tests/*`), only a `--literally` tree can carry one, and identity is
-# self-asserted.
+# self-asserted. Issue #798 review B18: both protected classifiers fold ASCII
+# case before the match, because APFS/NTFS checkouts alias `Agents.md`,
+# `.GitHub/...`, and `Setup.sh` onto the canonical entries and let a
+# case-variant spelling replace their content while a case-sensitive
+# classifier reports the branch clean; the fold-removed mutant accepts the
+# variants, the canonical control is still refused, and the Tester lane guard
+# in opencode-test.yml folds the same way.
 r34_dir=$(mktemp -d 2>/dev/null || true)
 r34_out=""
 if [ -z "$r34_dir" ]; then
@@ -31523,6 +31563,8 @@ def main(root):
                      pre_baseline_infra_revert_existing=False,
                      pre_baseline_protected_after_tester=False,
                      pre_baseline_protected_bypass=False,
+                     pre_baseline_casefold_after_tester=False,
+                     pre_baseline_casefold_accepted=False,
                      pre_baseline_marker_deletion_foreign=False,
                      pre_baseline_marker_deletion_accepted=False,
                      expect_preflight_refused=False,
@@ -31581,6 +31623,8 @@ def main(root):
                 or pre_baseline_protected
                 or pre_baseline_protected_after_tester
                 or pre_baseline_protected_bypass
+                or pre_baseline_casefold_after_tester
+                or pre_baseline_casefold_accepted
                 or pre_baseline_infra_protected
                 or pre_baseline_infra_protected_date_skew
                 or pre_baseline_infra_revert
@@ -31637,6 +31681,34 @@ def main(root):
                         % tag)
                 elif "already carries per-OS tester commits outside the project test lane" not in (proc.stdout + proc.stderr):
                     bad.append("r34-%s(prebaseline-protected-wrong-reason)" % tag)
+                return
+            if (
+                pre_baseline_casefold_after_tester
+                or pre_baseline_casefold_accepted
+            ):
+                # Issue #798 review B18: a case-variant protected path added
+                # after a tester commit must refuse the next baseline exactly
+                # like the canonical spelling; the fold-removed mutant adopts
+                # it as pre-baseline history, proving the fold load-bearing.
+                commit_file("proj/tests/pre_baseline_casefold_test.py", "test\n",
+                            "pre-baseline tester work", name=who,
+                            email=who_email)
+                commit_file("Agents.md", "tamper\n",
+                            "case-variant protected edit after the tester session",
+                            name="The Fixer")
+                proc, _ = baseline_raw(helper, "base-%s-pre-casefold" % tag)
+                combined = proc.stdout + proc.stderr
+                if pre_baseline_casefold_accepted:
+                    if proc.returncode != 0:
+                        bad.append(
+                            "r34-%s(prebaseline-casefold-unexpected-refusal)"
+                            % tag)
+                elif proc.returncode == 0:
+                    bad.append(
+                        "r34-%s(prebaseline-casefold-not-refused)" % tag)
+                elif "(protected:Agents.md)" not in combined:
+                    bad.append(
+                        "r34-%s(prebaseline-casefold-wrong-reason)" % tag)
                 return
             if pre_baseline_infra_protected:
                 # Issue #798 review B7: the PR's own pre-tester history may
@@ -32092,6 +32164,13 @@ def main(root):
         scenario("prebaseline-protected-after-tester",
                  [("proj/tests/after_baseline_after_tester_test.py", "test\n")],
                  0, False, pre_baseline_protected_after_tester=True)
+        # Issue #798 review B18: the durable preflight folds the protected
+        # classifier too, so a case-variant `Agents.md` after a tester commit
+        # is refused like the canonical spelling (the fold-removed mutant
+        # below adopts it as pre-baseline history).
+        scenario("prebaseline-casefold",
+                 [("proj/tests/after_baseline_casefold_test.py", "test\n")],
+                 0, False, pre_baseline_casefold_after_tester=True)
         # Issue #798 review B7: the PR's own pre-tester protected history is a
         # legitimate infrastructure branch, so the read-only per-OS session
         # must start and the pre-baseline edit must not be judged by the
@@ -33856,7 +33935,9 @@ def main(root):
         guard_path = os.path.join(work, ".github", "scripts", "peros-scope-guard.sh")
         with open(guard_path) as handle:
             original_guard = handle.read()
-        protected_pattern = ".github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh|opencode.json|PEROS_SCOPE_VIOLATION)"
+        # Issue #798 review B18: the protected alternatives are the folded
+        # spellings the classifier matches after lowercasing the path.
+        protected_pattern = ".github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh|opencode.json|peros_scope_violation)"
         if protected_pattern not in original_guard:
             bad.append("r34-control-guard-mutation-anchor-missing")
         else:
@@ -33893,8 +33974,8 @@ def main(root):
             # Issue #798 review B5/B6: the bare `.github` alternative is
             # load-bearing for a submodule gitlink at the directory path.
             ("github-bare", None, ".github|.github/*", ".github/*"),
-            ("agents", "AGENTS.md", "|AGENTS.md", ""),
-            ("lab", "LAB.md", "|LAB.md", ""),
+            ("agents", "AGENTS.md", "|agents.md", ""),
+            ("lab", "LAB.md", "|lab.md", ""),
             ("setup", "setup.sh", "|setup.sh", ""),
             ("shutdown", "shutdown.sh", "|shutdown.sh", ""),
             ("opencode-json", "opencode.json", "|opencode.json", ""),
@@ -33934,6 +34015,79 @@ def main(root):
                 handle.write(original_guard)
             run([git, "commit", "-qam", "restore guard %s" % label],
                 cwd=work, check=True)
+
+        # Issue #798 review B18: macOS (APFS default) and Windows (NTFS)
+        # checkouts fold case, so a case-variant spelling of a protected path
+        # aliases the canonical entry and replaces its content on those
+        # platforms while a case-sensitive classifier reports the branch
+        # clean. A foreign commit after the baseline that adds only
+        # `Agents.md` or `.GitHub/...` must record the marker, a tester commit
+        # adding the variant must be dropped, and a normal test-lane commit
+        # must stay accepted. The fold-removed mutant restores the old
+        # case-sensitive classifier and accepts the variants, while a
+        # canonical `AGENTS.md` is still refused, proving the fold
+        # load-bearing rather than a disabled classifier.
+        run([git, "checkout", "-q", "main"], cwd=work, check=True)
+        with open(guard_path, "w") as handle:
+            handle.write(original_guard)
+        scenario("casefold-agents", [], 1, False,
+                 foreign=("Agents.md", "tamper\n", "fixer: concurrent work"),
+                 base=workflow_sha, expect_marker=True,
+                 expect_scope_msg="touch protected lab paths")
+        scenario("casefold-github-dir", [], 1, False,
+                 foreign=(".GitHub/scripts/evil.py", "tamper\n",
+                          "fixer: concurrent work"),
+                 base=workflow_sha, expect_marker=True,
+                 expect_scope_msg="touch protected lab paths")
+        scenario("casefold-tester-drop", [("Agents.md", "tamper\n")],
+                 1, True, base=workflow_sha)
+        scenario("casefold-lane-control",
+                 [("proj/tests/casefold_lane_test.py", "test\n")],
+                 0, False, base=workflow_sha)
+        fold_anchor = (
+            '  path=$(printf \'%s\' "$1" | LC_ALL=C tr \'A-Z\' \'a-z\')\n'
+            '  case "$path" in\n'
+            '    .github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh|'
+            'opencode.json|peros_scope_violation)\n'
+        )
+        fold_replacement = (
+            '  case "$1" in\n'
+            '    .github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh|'
+            'opencode.json|PEROS_SCOPE_VIOLATION)\n'
+        )
+        if fold_anchor not in original_guard:
+            bad.append("r34-b18-fold-mutation-anchor-missing")
+        else:
+            with open(guard_path, "w") as handle:
+                handle.write(original_guard.replace(
+                    fold_anchor, fold_replacement, 1))
+            run([git, "commit", "-qam",
+                 "mutant guard without the protected-path case fold"],
+                cwd=work, check=True)
+            fold_mutant_sha = run([git, "rev-parse", "HEAD"], cwd=work,
+                                  check=True).stdout.strip()
+            scenario("casefold-agents-mutant", [], 0, False,
+                     foreign=("Agents.md", "tamper\n",
+                              "fixer: concurrent work"),
+                     base=fold_mutant_sha, helper_sha=fold_mutant_sha,
+                     push_base_to_main=True)
+            scenario("casefold-github-dir-mutant", [], 0, False,
+                     foreign=(".GitHub/scripts/evil.py", "tamper\n",
+                              "fixer: concurrent work"),
+                     base=fold_mutant_sha, helper_sha=fold_mutant_sha,
+                     push_base_to_main=True)
+            scenario("casefold-canonical-mutant", [], 1, False,
+                     foreign=("AGENTS.md", "tamper\n",
+                              "fixer: concurrent work"),
+                     base=fold_mutant_sha, helper_sha=fold_mutant_sha,
+                     push_base_to_main=True, expect_marker=True)
+            scenario("prebaseline-casefold-mutant", [], 0, False,
+                     base=fold_mutant_sha, helper_sha=fold_mutant_sha,
+                     push_base_to_main=True,
+                     pre_baseline_casefold_accepted=True)
+            run([git, "checkout", "-q", "-B", "main", workflow_sha], cwd=work,
+                check=True)
+            run([git, "clean", "-qfd"], cwd=work, check=True)
 
         # Issue #798 evaluation finding: identity is name AND email. Removing
         # the email half classifies a name-only tester commit as tester work,
@@ -34037,13 +34191,13 @@ def main(root):
         run([git, "checkout", "-q", "main"], cwd=work, check=True)
         with open(guard_path, "w") as handle:
             handle.write(original_guard)
-        marker_anchor = 'if [ "$preflight_path" = "PEROS_SCOPE_VIOLATION" ]; then'
+        marker_anchor = 'if is_violation_marker_path "$preflight_path"; then'
         if marker_anchor not in original_guard:
             bad.append("r34-preflight-marker-mutation-anchor-missing")
         else:
             mutated = original_guard.replace(
                 marker_anchor,
-                'if [ "$preflight_path" = "PEROS_SCOPE_VIOLATION" ] && git '
+                'if is_violation_marker_path "$preflight_path" && git '
                 'cat-file -e "$preflight_commit:PEROS_SCOPE_VIOLATION" '
                 '2>/dev/null; then',
                 1,
@@ -34178,7 +34332,7 @@ R34PY
 fi
 case "$r34_out" in
   OK)
-    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, a mode-only protected or out-of-lane merge is dropped on the post-agent guard and the preflight (the blob-only mutant accepts both), a clean merge of main stays exempt after main advances the same path again, a fabricated second parent without main ancestry records the marker (the ancestry-removal mutant accepts it), and a merge authoring a crafted root-level ':evil.py' or ':(glob)evil.py' path is dropped by the literal, fail-closed tree-entry lookup (the literal-strip and lookup-folding mutants accept them), an agent-exported GIT_LITERAL_PATHSPECS, GIT_GLOB_PATHSPECS, GIT_NOGLOB_PATHSPECS or GIT_ICASE_PATHSPECS cannot reopen the crafted-merge exemption because the guard unsets all four and the scope step pins them to 0 (the unset-removal mutant accepts the injection while the shipped step-env pin alone still refuses it), the literal lookup pins MSYS_NO_PATHCONV/MSYS2_ARG_CONV_EXCL and core.precomposeunicode=false so native Windows argv conversion or macOS precomposition cannot turn it into an ABSENT miss, a merge or single-parent commit authoring a non-canonical raw-tree path with an empty, '.' or '..' component, a leading or trailing slash, or a test-lane-looking 'tests/../.github/evil' or 'tests/../src/x' spelling is dropped unconditionally by the canonical-path refusal on both the post-agent guard and the preflight (the canonical-refusal-removal mutant accepts the lookup-normalized shapes and the classification-removal mutant accepts the test-lane spellings and the single-parent commits), an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
+    check "R34" "the three per-OS tester arms capture the pre-agent branch baseline, resolve the PR trust anchor before the agent, run the trusted trailer strip and commit-scope guard after the agent under the actor gate, and gate the decision forward on both; the sandbox executes the real extracted anchor, restore, baseline, strip, and scope bodies against a local bare origin and a mock gh to prove the anchor binds the PR, the restore marks tracked artifacts skip-worktree so the auto-commit stages nothing, a clean test-lane commit is untouched, out-of-lane project edits and protected lab paths (including case-variant spellings such as Agents.md and .GitHub/..., with the fold-removed mutant accepting them while the canonical AGENTS.md stays refused) are dropped back to the baseline, a foreign interleaved commit is never rewritten, a foreign protected edit records a PEROS_SCOPE_VIOLATION marker that the next baseline refuses, an owner co-author trailer is stripped (including mixed-case spellings) while a pre-baseline trailer is preserved on the anchored lane and stripped on the legacy lane, a foreign-only trailer is preserved and reported without a rewrite, a non-merge revert of pre-baseline infrastructure to the main-tip blob is dropped post-agent and refused by the durable preflight when it already sits in history, a clean non-protected merge of main stays green, a main-tip or baseline revert merge and a fake two-parent merge are dropped, and the carry/clean-import exemption and its first-parent term are mutation-tested, a mode-only protected or out-of-lane merge is dropped on the post-agent guard and the preflight (the blob-only mutant accepts both), a clean merge of main stays exempt after main advances the same path again, a fabricated second parent without main ancestry records the marker (the ancestry-removal mutant accepts it), and a merge authoring a crafted root-level ':evil.py' or ':(glob)evil.py' path is dropped by the literal, fail-closed tree-entry lookup (the literal-strip and lookup-folding mutants accept them), an agent-exported GIT_LITERAL_PATHSPECS, GIT_GLOB_PATHSPECS, GIT_NOGLOB_PATHSPECS or GIT_ICASE_PATHSPECS cannot reopen the crafted-merge exemption because the guard unsets all four and the scope step pins them to 0 (the unset-removal mutant accepts the injection while the shipped step-env pin alone still refuses it), the literal lookup pins MSYS_NO_PATHCONV/MSYS2_ARG_CONV_EXCL and core.precomposeunicode=false so native Windows argv conversion or macOS precomposition cannot turn it into an ABSENT miss, a merge or single-parent commit authoring a non-canonical raw-tree path with an empty, '.' or '..' component, a leading or trailing slash, or a test-lane-looking 'tests/../.github/evil' or 'tests/../src/x' spelling is dropped unconditionally by the canonical-path refusal on both the post-agent guard and the preflight (the canonical-refusal-removal mutant accepts the lookup-normalized shapes and the classification-removal mutant accepts the test-lane spellings and the single-parent commits), an issue event with no open PR fails closed at the anchor, the extracted post-agent shell's privileged-mode -p blocks BASH_ENV and exported-function hijacks (the -p-stripped mutant is hijacked), the three verify steps pin the privileged shell, BASH_ENV/ENV to /dev/null, the trusted PATH, and an in-body PATH reset (shell-removal and env-removal mutants are caught), a graft-hidden protected commit and a graft-fabricated first-parent revert are dropped (the graft-unset removal mutant accepts both), the incident shape is dropped, a merge importing a protected edit is caught through diff-tree -m, including an evil merge whose side parent predates the baseline (the -m-removal mutant is caught), fork and wrong-namespace heads are no-ops or loud anchor refusals, an issue-triggered lane resolves its linked PR, macOS and Windows tester identities are honored, a workspace url.*.insteadOf rewrite cannot redirect the trusted remote (the evil tip is distinct from the baseline), a stale lease, a rejected strip push, and a non-ancestor baseline fail closed with the ancestry message asserted, a tester name with a foreign email is foreign (the email-removal mutant is caught), pre-baseline protected or out-of-lane tester history refuses the baseline before the agent, a protected edit interleaved after a tester session or a marker deletion seeded on the parent is refused even under a foreign identity (the marker creation-only mutant is caught), the PR's own pre-tester protected infrastructure history is accepted so the read-only per-OS session starts even under committer-date skew (the restored old tester-only skip and the date-ordered rev-list mutant are each caught by their own control), a rejected lease push re-judges to a clean tip, and an exhausted re-judge loop fails loudly, the post-agent scope step pins PEROS_PREFLIGHT=0 so an agent-exported PEROS_PREFLIGHT=1 cannot flip the guard into its local-workspace preflight path (the workspace-reset inherited-env scenario still drops the remote range while the pin-removed mutant is accepted, and the pre-agent inline PEROS_PREFLIGHT=1 control still accepts a clean branch), the anchored strip refuses a missing REMOTE_URL, the strip and scope bodies read the reviewed helpers through the GitHub contents API (SHA-addressed to this run's workflow commit, --hostname github.com pinned, a fresh private GH_CONFIG_DIR prelude, GH_HOST: github.com in the step env, and the lowercase-proxy unset) so a post-agent git show can never trust the agent-writable object store, and a fake loose object named GITHUB_SHA planted through a hostile GIT_DIR or GIT_OBJECT_DIRECTORY is ignored by the shipped API read while a git-show revert mutant executes the fake no-op helper and fails the fixture; proxy/TLS redirections injected through \$GITHUB_ENV are unset by both helpers; every post-agent trust-boundary step pins the eleven uppercase proxy/TLS spellings empty in its env map and unsets the four lowercase spellings in its body (GitHub rejects an env map whose keys differ only by case, and the R17 staging validator's case-insensitive duplicate scan rejects a duplicate env map in the parsed per-OS tester workflow), the decoy-proxy control never contacts the proxy, the unset-removal mutant contacts it and fails closed with the real tip intact, and every owner-PAT step's effective env records no Authorization leak, with mutation controls for each independently reachable protected entry (the marker is covered by its creation/deletion hard stop), the .github gitlink retarget and protected entries, the skip-worktree restore guard, the strip and guard GIT_EXEC_PATH unsets, the diff-tree -m flag, the tester email term, and the strip proving the assertions are load-bearing (issue #798: run 41176553396 auto-commit 9f1f1ed0 edited .github/scripts/post-peros-findings.sh and carried a Co-authored-by trailer, invalidating approvals on 30b0dadb)" "ok"
     ;;
   *)
     check "R34" "per-OS tester commit-scope sanitization guard missing or bypassable: ${r34_out} (issue #798: the per-OS tester auto-commit can ship leaked owner co-author trailers and out-of-lane or protected-path edits; every arm must capture the pre-agent baseline, strip trailers, and enforce the test-lane scope before forwarding, and every post-agent trust-boundary step must pin the uppercase proxy/TLS spellings empty while unsetting the lowercase spellings (a case-insensitive duplicate env key makes GitHub reject the workflow file) so the trusted fetch and the owner PAT can never be routed through a decoy proxy, and the real extracted bodies must pass the sandbox matrix)" "bad"
@@ -34194,7 +34348,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn `:(literal)` into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
