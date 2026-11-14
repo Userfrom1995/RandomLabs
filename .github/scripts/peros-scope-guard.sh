@@ -125,11 +125,26 @@ is_named_peros_tester() {
 # its content on those platforms while a case-sensitive classifier reports the
 # commit clean. Fold to ASCII lowercase with LC_ALL=C so the match is
 # deterministic on every host, including macOS bash 3.2 where ${var,,} is
-# unavailable. ASCII folding is sufficient: the protected names are ASCII, and
-# a non-ASCII spelling cannot fold onto one. Git tree paths stay byte strings,
-# so the canonical spellings still match exactly as before.
+# unavailable. Git tree paths stay byte strings, so the canonical spellings
+# still match exactly as before.
+#
+# Issue #798 review B19: ASCII folding alone does not cover non-ASCII
+# spellings that APFS/NTFS alias onto an ASCII protected name. U+017F LONG S
+# uppercase-maps to S and case-folds to s, and U+0131 DOTLESS I uppercase-maps
+# to I, so `AGENTſ.md`, `.gıthub/scripts/...`, and `opencode.jſon` reach the
+# canonical entries on those checkouts while the ASCII fold leaves them
+# unchanged. No protected name contains a non-ASCII byte, so any path with a
+# byte outside printable ASCII fails closed as protected. The newline is
+# rewritten to SOH first because grep is line-oriented and would otherwise
+# treat an embedded LF as a line terminator instead of a non-printable byte.
+# This is deliberately stricter than a Unicode fold: it is deterministic on
+# every host and covers every Unicode alias, including spellings not known
+# when this list was written.
 is_protected_path() {
   local path
+  if printf '%s' "$1" | LC_ALL=C tr '\n' '\001' | LC_ALL=C grep -q '[^ -~]'; then
+    return 0
+  fi
   path=$(printf '%s' "$1" | LC_ALL=C tr 'A-Z' 'a-z')
   case "$path" in
     .github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh|opencode.json|peros_scope_violation)
@@ -140,7 +155,13 @@ is_protected_path() {
 }
 
 # A case-variant marker spelling aliases the canonical marker on a
-# case-insensitive checkout, so the hard stop folds the same way.
+# case-insensitive checkout, so the hard stop folds the same way. A non-ASCII
+# spelling cannot fold here, but is_protected_path refuses every non-ASCII
+# path, so a non-ASCII marker alias is still a protected-path violation for a
+# tester or a commit at/after the first tester commit. It is deliberately not
+# a pre-baseline marker hard stop: the marker check is unconditional, and
+# treating every non-ASCII path as a marker would refuse a legitimate
+# infrastructure PR's own Unicode project filenames before its tester session.
 is_violation_marker_path() {
   [ "$(printf '%s' "$1" | LC_ALL=C tr 'A-Z' 'a-z')" = "peros_scope_violation" ]
 }

@@ -285,8 +285,23 @@ Round 13 also
   and NTFS checkouts alias `Agents.md`, `.GitHub/scripts/...`, and `Setup.sh`
   onto the canonical entries and could otherwise let the variant replace the
   canonical content while a case-sensitive classifier reports the branch
-  clean; the marker hard stop and the Tester lane guard in
-  `opencode-test.yml` fold the same way. A fully tester-owned violating range is dropped with a
+  clean. ASCII folding alone misses non-ASCII spellings whose Unicode case
+  mapping lands on ASCII (`AGENTſ.md` with U+017F LONG S, `.gıthub/...` with
+  U+0131 DOTLESS I, `opencode.jſon`), so both classifiers also fail closed on
+  any path containing a byte outside printable ASCII before the fold (issue
+  #798 review B19; an embedded LF is rewritten to SOH first because `grep` is
+  line-oriented); no protected name contains a non-ASCII byte, so a
+  non-ASCII path can never be a legitimate protected target. The marker hard
+  stop folds ASCII case only, but a non-ASCII marker alias is still refused
+  as a protected path for a tester or for any commit at/after the first
+  tester commit; it is deliberately not an unconditional pre-baseline hard
+  stop, so a legitimate infrastructure PR's own Unicode project filenames do
+  not refuse its pre-tester history. The Tester lane guard in
+  `opencode-test.yml` applies the same fold and non-ASCII gate and runs under
+  a privileged `bash -p` shell so an exported `BASH_FUNC_*` cannot no-op it,
+  and its protected list includes `opencode.json` and
+  `peros_scope_violation`. A
+  fully tester-owned violating range is dropped with a
   `--force-with-lease` reset to the baseline; a foreign commit interleaved in
   the range makes the guard record the marker and leave the branch for the
   Maintainer. The marker is a hard stop: the next run's preflight refuses a
@@ -333,10 +348,14 @@ Round 13 also
   tester-name-foreign-email, pre-baseline-trailer, pre-baseline-date-skew,
   none, trailer, mixed-case-trailer, incident, fork, wrong-namespace,
   issue-triggered, issue-no-pr-anchor, per-OS-identity,
-  casefold-protected (`Agents.md` and `.GitHub/scripts/...` variants are
-  refused by the folded classifier on the post-agent guard and the preflight,
-  with a tester drop and an in-lane control; the fold-removed mutant accepts
-  the variants while the canonical `AGENTS.md` is still refused), clean-merge,
+  casefold-protected and nonascii-protected (`Agents.md` and
+  `.GitHub/scripts/...` variants and non-ASCII aliases such as `AGENTſ.md`,
+  `.gıthub/...`, and `opencode.jſon` are refused by the folded plus
+  non-ASCII-fail-closed classifier on the post-agent guard and the preflight,
+  with tester drops and in-lane controls; the fold-removed mutant accepts the
+  case variants while the canonical `AGENTS.md` is still refused, and the
+  non-ASCII-gate-removed mutant accepts the Unicode aliases while the
+  canonical `AGENTS.md` is still refused), clean-merge,
   protected-merge, clean-nonprotected-merge, main-tip-revert-merge,
   baseline-revert-merge, fake-merge, mode-only-protected-merge,
   mode-only-out-of-lane-merge (both on the post-agent guard and the
@@ -373,7 +392,8 @@ Round 13 also
   tip), and rejected-strip-push cases, with mutation controls for each
   independently reachable protected entry (the marker is covered by its
   creation/deletion hard stop), the skip-worktree restore guard, the preflight
-  identity gate, the folded protected-path classifier, the strip and guard
+  identity gate, the folded protected-path classifier with its non-ASCII
+  fail-closed gate, the strip and guard
   `GIT_EXEC_PATH` unset, the merge
   tree-entry carry/clean-import comparison, its first-parent term, the
   blob-only mode mutant, the second-parent ancestry term, the strip and guard
