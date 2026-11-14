@@ -113,7 +113,7 @@ When you find issues or missing work (i.e., the PR is NOT clean), you must choos
 - **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
 - **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and asking the Builder to finish the missing pieces.
 
-**Report lead rule (issue #713 rounds 17 and 19): NEVER start a report (first non-blank line) with `/oc`, `/opencode`, or `eval-verdict:` in any form (plain, backticked, or trailing spaces), in either publication lane.** A report is content, not a trigger or a merge-gate verdict: the workflow's hardcoded forward step posts the single `/oc` trigger for the decision, and only `publish-eval-marker.sh` may emit the Evaluator approval marker. An owner-authored report that led with a trigger or the merge marker would be consumed as a verdict; `publish-agent-report.sh` refuses such a report before posting.
+**Report trigger ban (issue #713 rounds 17 and 19; whole-body scan since issue #798 round 16): NEVER include `/oc`, `/opencode`, or `eval-verdict:` as a raw command token on any line of a report, in either publication lane, in any form (plain, backticked, or trailing spaces).** A report is content, not a trigger or a merge-gate verdict: the workflow's hardcoded forward step posts the single `/oc` trigger for the decision, and only `publish-eval-marker.sh` may emit the Evaluator approval marker. An owner-authored report that carried a trigger or the merge marker would be consumed as a verdict; `publish-agent-report.sh` strips backticks and refuses the whole body if any line carries a space-prefixed or line-start trigger or the marker before posting. It scans every line because the command workflows match triggers anywhere in the raw comment body, and a salvaged report's provenance banner moves the report's own first line below it.
 - **Behind/conflicted** → `/oc` comment asking the implementer to rebase and
   resolve conflicts in files: X, Y (you never rebase).
 - **Human PRs** → same review, but written as guidance: the human fixes it
@@ -173,8 +173,8 @@ fi
   the verdict, and the workflow verifies owner authorship before accepting it.
 - `agent-posts`: the running workflow has no owner-PAT publisher. Post exactly
   one signed decision comment to the PR with the same content as your report,
-  ending with `- the Reviewer`. It must not lead with `/oc`, `/opencode`, or
-  `eval-verdict:` (see the report lead rule above); the workflow's hardcoded
+  ending with `- the Reviewer`. It must not include `/oc`, `/opencode`, or
+  `eval-verdict:` on any line (see the report trigger ban above); the workflow's hardcoded
   forward step, not your comment, posts the trigger. This legacy lane keeps
   the gate alive while the owner-PAT publisher rollout is still in flight. If
   the post is rejected with 403 (for example a legacy workflow whose token is

@@ -410,6 +410,9 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           BASH_ENV: /dev/null
           ENV: /dev/null
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
@@ -451,6 +454,9 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
@@ -509,6 +515,7 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -530,6 +537,18 @@ jobs:
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
           GIT_WORK_TREE: ${{ github.workspace }}
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -538,6 +557,26 @@ jobs:
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH=/usr/bin:/bin; export PATH
+          # Issue #798 review round 16: this step holds the owner PAT after the
+          # untrusted agent. The runner applies the agent-written $GITHUB_ENV
+          # and $GITHUB_PATH before this step's env map, and gh honors a
+          # planted config.yml (for example an http_unix_socket) that would
+          # exfiltrate the PAT. Create a fresh private config directory in the
+          # body, pin GH_HOST in the env map, and remove the lowercase proxy
+          # spellings the uppercase pins cannot cover (GitHub rejects an env
+          # map whose keys differ only by case).
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           # Issue #713: the tester agent executes PR-controlled code, and its
           # job token holds issues: write only so the CLI session can start
           # (issue #743). The report is a file contract, and this hardcoded
@@ -555,10 +594,13 @@ jobs:
           fi
           # Issue #713 round 17: run the trusted workflow-commit script from
           # memory through a pipe; never stage it in an agent-writable path.
-          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then
-            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
-          fi
-          publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""
+          # Issue #798 review round 16: read it through the GitHub contents API
+          # with this step's owner PAT. A post-agent git cat-file/fetch/show
+          # executes agent-exported git config and trusts the agent-writable
+          # object store, where a fake loose object named GITHUB_SHA can carry a
+          # no-op publisher. The API read has no workspace git surface and is
+          # SHA-addressed.
+          publisher=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/publish-agent-report.sh?ref=${GITHUB_SHA}" 2>/dev/null) || publisher=""
           if [ -z "$publisher" ]; then
             echo "::error::Report publisher absent from workflow commit ${GITHUB_SHA}; refusing to forward an unpublished verdict (issue #713, fail closed)."
             exit 1
@@ -574,7 +616,44 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
+          GH_HOST: github.com
           GH_TOKEN: ${{ github.token }}
+          GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
           # Env indirection (audit R10): the trigger timestamp reaches the
           # publication checker as data, never expanded into the shell text.
@@ -582,6 +661,23 @@ jobs:
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH=/usr/bin:/bin; export PATH
+          # Issue #798 review round 16: this step holds a GitHub token after
+          # the untrusted agent. Pin a fresh private GH_CONFIG_DIR in-body so
+          # an agent-planted config.yml (for example an http_unix_socket)
+          # cannot intercept the token; GH_HOST is pinned in the env map and
+          # the lowercase proxy spellings are removed here.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the post-agent token step; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           # Issue #629/#713: a present decision file is only a real verdict
           # once the Tester's signed decision report is actually published on
           # the PR thread. The hardcoded owner-PAT step above posts it; this
@@ -609,10 +705,10 @@ jobs:
           # Issue #713 round 17: read the trusted workflow-commit checker into
           # memory and pipe it to bash; never stage it in an agent-writable
           # path that a background process could replace.
-          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then
-            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
-          fi
-          evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null) || evidence_script=""
+          # Issue #798 review round 16: read it through the GitHub contents API
+          # from this run's workflow commit, never a post-agent git show that
+          # trusts the agent-writable object store.
+          evidence_script=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/test-comment-published.sh?ref=${GITHUB_SHA}" 2>/dev/null) || evidence_script=""
           if [ -z "$evidence_script" ]; then
             rm -f /tmp/random-lab-decision.json
             echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #629, fail closed)."
@@ -643,6 +739,7 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -664,6 +761,18 @@ jobs:
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
           GIT_WORK_TREE: ${{ github.workspace }}
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -671,6 +780,23 @@ jobs:
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH=/usr/bin:/bin; export PATH
+          # Issue #798 review round 16: this step holds the owner PAT after the
+          # untrusted agent. Pin a fresh private GH_CONFIG_DIR in-body so an
+          # agent-planted config.yml (for example an http_unix_socket) cannot
+          # intercept the PAT; GH_HOST is pinned in the env map and the
+          # lowercase proxy spellings are removed here.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           # Issue #629/#713: the merge sweep's first-line anchor (R21) is
           # satisfied by a workflow-published canonical marker instead of
           # agent prose compliance. This step runs only after the evidence gate
@@ -707,10 +833,10 @@ jobs:
           # Issue #713 round 17: run the trusted workflow-commit publisher
           # from memory through a pipe; never stage it in an agent-writable
           # path that a background process could replace.
-          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then
-            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
-          fi
-          publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null) || publisher=""
+          # Issue #798 review round 16: read it through the GitHub contents API
+          # from this run's workflow commit, never a post-agent git show that
+          # trusts the agent-writable object store.
+          publisher=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/publish-tester-marker.sh?ref=${GITHUB_SHA}" 2>/dev/null) || publisher=""
           if [ -z "$publisher" ]; then
             echo "::error::Marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unpublished marker to the merge sweep (issue #629, fail closed)."
             exit 1
@@ -727,6 +853,7 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_HOST: github.com
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -748,6 +875,18 @@ jobs:
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
           GIT_WORK_TREE: ${{ github.workspace }}
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -756,6 +895,23 @@ jobs:
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
           PATH=/usr/bin:/bin; export PATH
+          # Issue #798 review round 16: this step holds the owner PAT after the
+          # untrusted agent. Pin a fresh private GH_CONFIG_DIR in-body so an
+          # agent-planted config.yml (for example an http_unix_socket) cannot
+          # intercept the PAT; GH_HOST is pinned in the env map and the
+          # lowercase proxy spellings are removed here.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #798, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."

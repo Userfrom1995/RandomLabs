@@ -86,21 +86,19 @@ else
   fi
 fi
 
-# Issue #713 round 16: the PAT merge sweep anchors the tester verdict to the
-# first line of an owner-authored comment, and this publisher posts arbitrary
-# agent-written report content under the owner PAT. A report whose first
-# non-blank line is a command trigger would therefore be consumable as a
-# forged owner-authored verdict. Refuse it before it reaches the API.
-# Issue #713 round 19: the sweep also accepts an owner-authored
-# `eval-verdict: approve-eval` marker, so the same guard must refuse the
-# merge-gate marker in plain, backticked, and trailing-space forms.
-first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); gsub(/`/, "", line); sub(/[[:space:]]+$/, "", line); print line; exit }' <<< "$expected_body")
-case "$first_line" in
-  '/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)
-    echo "::error::publish-agent-report.sh: report '$report' begins with the command trigger or merge-gate marker '$first_line'; refusing to publish a report that could be consumed as a verdict (issue #713)."
-    exit 1
-    ;;
-esac
+# Issue #798 review round 16: the command workflows match triggers anywhere
+# in the raw comment body (opencode.yml gates the Builder on
+# `contains(body, ' /oc build')`), so screening only the first non-blank line
+# let a trigger on any later line be consumed as an owner-authored command; a
+# salvaged report also prepends a provenance banner, which moves the report's
+# own first line down. Scan the whole body instead. Backticks are stripped
+# first so a backticked trigger still counts when the raw text carries the
+# whitespace the workflow predicates match; a trigger glued to punctuation
+# (for example `trigger:/oc`) never matches those predicates.
+if printf '%s\n' "$expected_body" | tr -d '`' | grep -Eq '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)|(^|[[:space:]])eval-verdict:'; then
+  echo "::error::publish-agent-report.sh: report '$report' contains the command trigger or merge-gate marker; refusing to publish a report that could be consumed as a verdict (issue #713)."
+  exit 1
+fi
 
 last_line=$(awk 'NF { line=$0 } END { print line }' <<< "$expected_body")
 if [ "$last_line" != "$signoff" ]; then
@@ -108,7 +106,7 @@ if [ "$last_line" != "$signoff" ]; then
   exit 1
 fi
 
-response=$(gh api "repos/${repo}/issues/${target}/comments" --raw-field body="$expected_body" 2>&1) || {
+response=$(gh api --hostname github.com "repos/${repo}/issues/${target}/comments" --raw-field body="$expected_body" 2>&1) || {
   echo "::error::publish-agent-report.sh: posting the signed report to #${target} failed: ${response}"
   exit 1
 }
@@ -119,7 +117,7 @@ if [ -z "$comment_id" ]; then
   exit 1
 fi
 
-fetched=$(gh api "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
+fetched=$(gh api --hostname github.com "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
   echo "::error::publish-agent-report.sh: could not re-fetch posted report comment ${comment_id}: ${fetched}"
   exit 1
 }

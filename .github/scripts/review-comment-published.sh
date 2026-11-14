@@ -31,7 +31,7 @@ if [ -z "$PR" ] || [ -z "$SINCE" ] || [ -z "$REPO" ]; then
   exit 2
 fi
 
-payload=$(gh api "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {
+payload=$(gh api --hostname github.com "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {
   echo "could not fetch comments for #${PR}" >&2
   exit 2
 }
