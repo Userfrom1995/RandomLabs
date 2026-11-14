@@ -232,6 +232,7 @@ fi
 WF="${1:-.github/workflows/opencode.yml}"
 HEALTH_ISSUE="${2:-}"
 REPO="${GITHUB_REPOSITORY:-}"
+HEALTH_BOARD_SCRIPT=".github/scripts/health-board.sh"
 
 pass=0
 fail=0
@@ -14337,6 +14338,10 @@ _SCRIPT_SHA256 = {
     # longer a repo-local pre-handler script; a future workspace execution
     # of it fails closed as handler-pre-script-unexpected.
     ".github/actions/opencode-run/resolve-model.sh": "dd9ddfa0a1329796ea32fd60c5295c4d6eb63020a7d3d43c0676af5d0795a136",
+    # Issue #848: the universal lab-health board helper is executed by the
+    # Maintainer's pinned pre-handler intake step, so it joins the F44
+    # exact-body inventory instead of tripping handler-pre-script-unexpected.
+    ".github/scripts/health-board.sh": "8ab1e5010ed525552c74af851b3b7af7a8a2125e9412bd05f8b6604102f6e3ad",
 }
 
 
@@ -14544,7 +14549,7 @@ if [ "$wall" -ne 1 ]; then
 fi
 echo "::warning::triggering run $RUN_ID died on the provider daily free-usage wall (issue #820); standing down instead of drawing another agent onto the same egress IP."
 mkdir -p .maintainer
-board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq '.[0].number' 2>/dev/null || true)
+board=$(bash .github/scripts/health-board.sh || true)
 if [ -n "$board" ] && [ "$board" != "null" ]; then
   note=$(printf 'Quota-wall intake (issue #820): the failed run %s (%s) ended on the provider daily free-usage allowance (issue #754). This Maintainer run stood down without summoning an agent, because every free rung shares the same per-egress allowance and the runner that just failed almost certainly carries the same blocked IP. A fresh run is the recovery lane. Quota-wall chains are recovered by the bounded fresh-run recovery step; this note is the audit trail.\n\nTriggering run: %s' "$RUN_URL" "$FAILED_WORKFLOW" "$RUN_URL")
   marker="<!-- quota-wall:${RUN_ID} -->"
@@ -15126,7 +15131,7 @@ if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then
 fi
 if [ "$attempt" -ge 1 ]; then
   echo "::error::provider daily free-usage wall persisted across the bounded fresh-run recovery (attempt ${attempt} of 1, issue #820/#836); the one fresh-run attempt is spent and no further self-dispatch occurs. The recover-arm heartbeat or the next schedule tick re-arms the lane. Escalate the provider plan or involve the Owner if it persists."
-  board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
+  board=$(bash .github/scripts/health-board.sh || true)
   if [ -n "$board" ] && [ "$board" != "null" ]; then
     note=$(printf 'Quota-wall recovery cap (issue #820/#836): run %s/%s ended on the provider daily free-usage wall with the one bounded fresh-run attempt spent. A fresh run is a lottery ticket on a pool-wide wall, not a retry: a second dispatch two minutes later lands on the same blocked pool, so the chain halts red instead of looping. The recover-arm heartbeat (issue #836) or the next schedule tick re-arms the lane; escalate the provider plan or involve the Owner if the wall persists.\n\n- Hephaestus, the Maintainer' "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")
     gh issue comment "$board" --body "$note" || echo "::warning::could not post the quota-wall cap escalation to lab-health issue #${board}."
@@ -15469,13 +15474,13 @@ R26PRE
       # Keep this list in sync with _SCRIPT_SHA256 in the extractor: a new
       # pinned script must be added here so its rejection is self-tested too.
       # Issue #713 review round 26: the actor gate now runs from the trusted
-      # staged $RUNNER_TEMP copy, so only the resolver remains a workspace
-      # pre-handler script.
-      for r26_selftest_rel in .github/actions/opencode-run/resolve-model.sh; do
+      # staged $RUNNER_TEMP copy, so only the resolver and (issue #848) the
+      # health-board helper remain workspace pre-handler scripts.
+      for r26_selftest_rel in .github/actions/opencode-run/resolve-model.sh .github/scripts/health-board.sh; do
         r26_case_dir="$r26_body_selftest_tmp/case-$(basename "$r26_selftest_rel")"
         mkdir -p "$r26_case_dir/.github/workflows" "$r26_case_dir/$(dirname "$r26_selftest_rel")"
         cp "$R26_WF" "$r26_case_dir/.github/workflows/maintainer.yml"
-        for r26_copy_rel in .github/actions/opencode-run/resolve-model.sh; do
+        for r26_copy_rel in .github/actions/opencode-run/resolve-model.sh .github/scripts/health-board.sh; do
           mkdir -p "$r26_case_dir/$(dirname "$r26_copy_rel")"
           cp "$R26_REPO_ROOT/$r26_copy_rel" "$r26_case_dir/$r26_copy_rel"
         done
@@ -29681,14 +29686,15 @@ esac
 # dispatch rolls the marker back so the failed attempt cannot consume the
 # cooldown. Issue #837 evaluator findings: a valid-JSON run page of the wrong
 # shape (a non-array or entries without string status/createdAt) fails closed
-# like an unreadable read, the board query asks GitHub for the oldest board
-# first (sort=created&direction=asc), the cooldown marker must END the bot
-# body (a quoted mention is not a note), and the effective 90-minute cutoff
-# and age/since minute arithmetic is pinned exact and unique (an inserted
-# override or changed divisor is caught statically and behaviorally). The
-# mock executes the body's own jq over raw GitHub-shaped JSON,
-# so the status set, age cutoff, PR exclusion, board sort order, marker sort,
-# and STATE field are load-bearing; mutation self-tests prove both the static
+# like an unreadable read, the board is resolved through the shared
+# title-first .github/scripts/health-board.sh helper (issue #848; R36 owns the
+# helper contract and its duplicate-label check), the cooldown marker must END
+# the bot body (a quoted mention is not a note), and the effective 90-minute
+# cutoff and age/since minute arithmetic is pinned exact and unique (an
+# inserted override or changed divisor is caught statically and behaviorally).
+# The mock executes the body's own jq over raw GitHub-shaped JSON,
+# so the status set, age cutoff, marker sort, and STATE field are
+# load-bearing; mutation self-tests prove both the static
 # guard and the behavioral fixtures load-bearing, and the intake and recovery
 # notes are asserted free of an inline /oc or /opencode token (issue #775;
 # the periodic-arm self-heal and curator cap bodies are pinned token-free by
@@ -29916,8 +29922,7 @@ if recovery_i is not None:
         "printf '[]\\n' > .maintainer/decision.json",
         "sleep $(( (RANDOM % 31) + 30 ))",
         'if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then',
-        "--jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number'",
-        "labels=lab-health&sort=created&direction=asc",
+        "board=$(bash .github/scripts/health-board.sh || true)",
     ):
         if needle not in text:
             fail("recovery-missing:%s" % needle)
@@ -29960,8 +29965,9 @@ if recovery_i is not None:
 # from maintainer/logs (written only by a real session; the Maintainer prompt
 # pins the exact `Last updated: <UTC>Z by run <id>` line), and dispatches
 # maintainer.yml once when the stamp is stale, no Maintainer run is active,
-# and no bot-authored cooldown marker is fresh on the oldest open non-PR
-# lab-health board. The run read is deliberately NOT a short newest-N window:
+# and no bot-authored cooldown marker is fresh on the board resolved by the
+# shared .github/scripts/health-board.sh helper (issue #848). The run read is
+# deliberately NOT a short newest-N window:
 # it reads the newest 1000 runs and age-bounds only the queued class, so a
 # burst of short per-target runs can never hide a live global run and a
 # months-old zombie queued run can never suppress every future heartbeat.
@@ -30026,8 +30032,7 @@ if isinstance(recover_doc, dict):
                     "jq -e 'type == \"array\" and all(.[]; type == \"object\" and (.status | type) == \"string\" and (.createdAt | type) == \"string\")'",
                     'jq --arg cutoff "$cutoff"',
                     '[.[] | select(.status == "in_progress" or ((.status == "queued" or .status == "requested" or .status == "waiting" or .status == "pending") and .createdAt >= $cutoff))] | length',
-                    "labels=lab-health&sort=created&direction=asc",
-                    "--jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number'",
+                    "board=$(bash .github/scripts/health-board.sh || true)",
                     'select(.user.login == "github-actions[bot]")',
                     "endswith($marker)",
                     "| sort | last // empty",
@@ -30306,7 +30311,13 @@ case "${1:-}" in
       *"/issues?"*)
         [ "${MOCK_BOARD_FAIL:-0}" = "1" ] && exit 1
         if [ -n "${MOCK_BOARD_JSON:-}" ] && [ -f "$MOCK_BOARD_JSON" ]; then
-          r34_api_jq "$@" < "$MOCK_BOARD_JSON"
+          # Issue #848: serve the ascending order the helper requests (the
+          # fixture itself stays newest-first, like the default API order) so
+          # the helper's sort=created&direction=asc request is load-bearing.
+          case " ${*:-} " in
+            *direction=asc*) jq 'sort_by(.number)' "$MOCK_BOARD_JSON" | r34_api_jq "$@" ;;
+            *) r34_api_jq "$@" < "$MOCK_BOARD_JSON" ;;
+          esac
         else
           printf '[]\n' | r34_api_jq "$@"
         fi
@@ -30348,12 +30359,14 @@ cat > "$r34_dir/bin/sleep" <<'R34SLEEP'
 exit 0
 R34SLEEP
 chmod +x "$r34_dir/bin/gh" "$r34_dir/bin/sleep"
-# Lab-health board fixture (issue #836 review findings F2/F5): newest-first
-# like the issues API, carrying a PR entry with the LOWEST number and two
-# issue boards. The reviewed query must exclude the PR and select the OLDEST
-# issue (#70, the durable board), not the newest transient audit issue (#836)
-# and not the PR (#10).
-printf '[{"number":836,"pull_request":null},{"number":70,"pull_request":null},{"number":10,"pull_request":{"url":"https://github.com/owner/repo/pull/10"}}]\n' > "$r34_dir/board.json"
+# Lab-health board fixture (issue #836 review findings F2/F5, issue #848):
+# newest-first like the default issues API, carrying a PR entry with the
+# LOWEST number and two issue boards. The shared health-board.sh helper must
+# exclude the PR and return the title-first universal board (#70), not the
+# newest transient audit issue (#836) and not the PR (#10). The mock re-sorts
+# an ascending request by number, so the helper's sort=created&direction=asc
+# request and the old newest-first inline selector stay distinguishable.
+printf '[{"number":836,"title":"[Audit] transient board","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":10,"title":"Lab Health & Audit Logs","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]}]\n' > "$r34_dir/board.json"
 printf 'unrelated failure\n' > "$r34_dir/log-none"
 printf 'opencode\tagent\t2026-11-05T00:00:00.0000000Z ##[error]provider daily free-usage limit reached (FreeUsageLimitError, issue #754) on model m\n' > "$r34_dir/log-wall"
 printf 'opencode\tagent\t2026-11-05T00:00:00.0000000Z ##[warning]provider daily free-usage limit reached on model m (FreeUsageLimitError, issue #754); aborting this attempt immediately instead of waiting out the stall watchdog.\n' > "$r34_dir/log-warning"
@@ -30388,7 +30401,8 @@ r34_case() {
   r34_case_marker_author="${13:-github-actions[bot]}"
   r34_case_work="$r34_dir/work-$r34_case_name"
   rm -rf "$r34_case_work"
-  mkdir -p "$r34_case_work"
+  mkdir -p "$r34_case_work/.github/scripts"
+  cp "$HEALTH_BOARD_SCRIPT" "$r34_case_work/.github/scripts/health-board.sh"
   if [ "$r34_case_marker_file" = "1" ]; then
     mkdir -p "$r34_case_work/.maintainer"
     printf '%s\n' "$r34_case_marker_body" > "$r34_case_work/.maintainer/quota-wall"
@@ -30446,7 +30460,8 @@ r34_hb_case() {
   r34_hb_board_fail="${12:-0}"
   r34_hb_work="$r34_dir/hb-work-$r34_hb_name"
   rm -rf "$r34_hb_work"
-  mkdir -p "$r34_hb_work"
+  mkdir -p "$r34_hb_work/.github/scripts"
+  cp "$HEALTH_BOARD_SCRIPT" "$r34_hb_work/.github/scripts/health-board.sh"
   case "$r34_hb_script" in
     /*) r34_hb_path="$r34_hb_script" ;;
     *) r34_hb_path="$r34_dir/out/$r34_hb_script" ;;
@@ -31156,7 +31171,7 @@ if [ -f "$r34_dir/mut-hb-marker-sort/heartbeat.sh" ]; then
 else
   r34_bad="${r34_bad} mutant-hb-marker-sort-not-extracted"
 fi
-r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-board-field.yml" 'select(.pull_request == null)] | sort_by(.number) | .[0].number' 'select(.pull_request == null)] | sort_by(.number) | .[-1].number'
+r34_mutate_other "$R34_RECOVER_WF" "$r34_dir/mutants/hb-board-field.yml" 'board=$(bash .github/scripts/health-board.sh || true)' 'board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq ".[0].number" 2>/dev/null || true)'
 mkdir -p "$r34_dir/mut-hb-board-field"
 if python3 -I "$r34_dir/static.py" "$MAIN_WF" "$r34_dir/mut-hb-board-field" "$r34_dir/mutants/hb-board-field.yml" > "$r34_dir/mut-hb-board-field/static" 2>&1; then
   r34_bad="${r34_bad} mutant-hb-board-field-not-caught"
@@ -35711,6 +35726,303 @@ case "$r36_out" in
     ;;
   *)
     check "R36" "owner-PAT isolation guard missing in the remaining utility workflows: ${r36_out} (issue #742: auditor, curator, ideate, lab, pr-trigger, and recover owner-PAT steps could inherit agent-exported BASH_FUNC_*, SHELLOPTS/PS4, GIT_CONFIG*, GH_CONFIG_DIR, PYTHONPATH, or LD_* values)" "bad"
+    ;;
+esac
+
+# [R36] Universal lab-health board selector (issue #848): issues #70 (the
+# universal `Lab Health & Audit Logs` board) and #836 (a transient [Audit]
+# escalation) both carried the lab-health label, and the newest-first board
+# lookups in maintainer.yml, schedule-selfheal.sh and auditor.yml selected the
+# newer transient issue. Thirty quota-wall intake notes and four self-heal
+# escalations were posted away from the universal board. Every board lookup
+# now calls the shared title-first .github/scripts/health-board.sh helper, and
+# the audit fails loudly when a second open non-PR issue carries the label.
+# The helper is executed against a mock gh across title-first resolution, the
+# oldest-labeled fallback, PR exclusion, an unlabeled title board, duplicate
+# label warning, empty state, and unreadable reads, with mutants proving the
+# title-first term, the PR exclusion, and the ascending sort load-bearing. A
+# duplicate label is a loud ::warning:: from the helper; the live check
+# (enabled in auditor.yml by HEALTH_BOARD_LIVE_CHECK=1) fails on zero or
+# multiple label holders, zero or multiple title holders, and a title/label
+# mismatch. The tree sweep rejects any direct lab-health selector outside the
+# shared helper.
+r36_dir=$(mktemp -d)
+r36_bad=""
+r36_helper_abs="$PWD/$HEALTH_BOARD_SCRIPT"
+
+if [ ! -f "$HEALTH_BOARD_SCRIPT" ]; then
+  r36_bad="${r36_bad} helper(missing)"
+else
+  bash -n "$HEALTH_BOARD_SCRIPT" 2>/dev/null || r36_bad="${r36_bad} helper(syntax)"
+  for r36_needle in \
+    'Lab Health & Audit Logs' \
+    'labels=lab-health' \
+    'sort=created&direction=asc' \
+    'select(.pull_request == null)' \
+    '::warning::' \
+    'carry the lab-health label' \
+    'title_hits=$(list_title)' \
+    'labeled_hits=$(list_labeled)'
+  do
+    grep -qF -- "$r36_needle" "$HEALTH_BOARD_SCRIPT" || r36_bad="${r36_bad} helper(missing:${r36_needle})"
+  done
+  r36_title_pos=$(grep -nF 'board=$(first_line "$title_hits")' "$HEALTH_BOARD_SCRIPT" | head -n 1 | cut -d: -f1)
+  r36_label_pos=$(grep -nF 'board=$(first_line "$labeled_hits")' "$HEALTH_BOARD_SCRIPT" | head -n 1 | cut -d: -f1)
+  if [ -z "$r36_title_pos" ] || [ -z "$r36_label_pos" ] || [ "$r36_title_pos" -ge "$r36_label_pos" ]; then
+    r36_bad="${r36_bad} helper(title-not-before-label)"
+  fi
+fi
+
+r36_sites_bad=""
+r36_need_helpers() {
+  local file="$1" want="$2" label="$3" got
+  got=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$file" 2>/dev/null || true)
+  [ "${got:-0}" -ge "$want" ] || r36_sites_bad="${r36_sites_bad} ${label}(helper-calls-${got:-0})"
+}
+r36_need_helpers .github/workflows/auditor.yml 2 auditor
+r36_need_helpers .github/workflows/maintainer.yml 2 maintainer
+r36_need_helpers .github/workflows/opencode-recover.yml 1 recover
+grep -qF 'bash "$(dirname "$0")/health-board.sh"' .github/scripts/schedule-selfheal.sh 2>/dev/null \
+  || r36_sites_bad="${r36_sites_bad} selfheal(no-shared-helper)"
+if [ -n "$r36_sites_bad" ]; then
+  r36_bad="${r36_bad} sites:${r36_sites_bad}"
+fi
+
+r36_direct_scan() {
+  local file hits
+  for file in "$@"; do
+    case "$file" in
+      *health-board.sh|*silent-stall-audit.sh) continue ;;
+    esac
+    hits=$(grep -nE 'labels=lab-health|labels\[\]=lab-health|--label[= ]lab-health' "$file" 2>/dev/null || true)
+    [ -z "$hits" ] || printf '%s:%s\n' "$file" "$(printf '%s' "$hits" | head -n 1)"
+  done
+}
+r36_direct=$(r36_direct_scan .github/workflows/*.yml .github/scripts/*.sh 2>/dev/null || true)
+if [ -n "$r36_direct" ]; then
+  r36_bad="${r36_bad} direct-selector:$(printf '%s' "$r36_direct" | tr '\n' ' ')"
+fi
+
+mkdir -p "$r36_dir/bin"
+cat > "$r36_dir/bin/gh" <<'R36GH'
+#!/usr/bin/env bash
+set -u
+[ -n "${MOCK_CALLS:-}" ] && printf '%s\n' "$*" >> "$MOCK_CALLS"
+r36_api_jq() {
+  expr=""
+  prev=""
+  for a in "$@"; do
+    if [ "$prev" = "--jq" ] || [ "$prev" = "-q" ]; then expr="$a"; fi
+    prev="$a"
+  done
+  if [ -n "$expr" ]; then jq -r "$expr"; else cat; fi
+}
+case "${1:-}" in
+  api)
+    arg="${2:-}"
+    case "$arg" in
+      *labels=lab-health*)
+        [ "${MOCK_LABELED_FAIL:-0}" = "1" ] && exit 1
+        if [ -n "${MOCK_LABELED:-}" ] && [ -f "$MOCK_LABELED" ]; then
+          case "$arg" in
+            *direction=asc*) jq 'sort_by(.number)' "$MOCK_LABELED" | r36_api_jq "$@" ;;
+            *) r36_api_jq "$@" < "$MOCK_LABELED" ;;
+          esac
+        else
+          printf '[]\n'
+        fi
+        exit 0 ;;
+      *"/issues?"*)
+        [ "${MOCK_ISSUES_FAIL:-0}" = "1" ] && exit 1
+        if [ -n "${MOCK_ISSUES:-}" ] && [ -f "$MOCK_ISSUES" ]; then
+          case "$arg" in
+            *direction=asc*) jq 'sort_by(.number)' "$MOCK_ISSUES" | r36_api_jq "$@" ;;
+            *) r36_api_jq "$@" < "$MOCK_ISSUES" ;;
+          esac
+        else
+          printf '[]\n'
+        fi
+        exit 0 ;;
+    esac
+    exit 0 ;;
+esac
+exit 0
+R36GH
+chmod +x "$r36_dir/bin/gh"
+
+r36_write() {
+  printf '%s\n' "$2" > "$r36_dir/$1"
+}
+r36_write issues-title-wins.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write labeled-title-wins.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write issues-fallback.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write labeled-fallback.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write issues-order.json '[{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":60,"title":"[Audit] issue 60","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write labeled-order.json '[{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":60,"title":"[Audit] issue 60","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write issues-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write labeled-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r36_write issues-title-unlabeled.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
+r36_write labeled-empty.json '[]'
+r36_write issues-empty.json '[]'
+
+r36_run() {
+  r36_run_name="$1"
+  r36_run_issues="$2"
+  r36_run_labeled="$3"
+  r36_run_issues_fail="${4:-0}"
+  r36_run_labeled_fail="${5:-0}"
+  r36_run_helper="${6:-$r36_helper_abs}"
+  r36_run_dir="$r36_dir/run-$r36_run_name"
+  rm -rf "$r36_run_dir"
+  mkdir -p "$r36_run_dir"
+  (
+    cd "$r36_run_dir" || exit 99
+    env PATH="$r36_dir/bin:/usr/bin:/bin" HOME="$r36_run_dir" \
+      GH_TOKEN=x GITHUB_REPOSITORY=owner/repo \
+      MOCK_ISSUES="$r36_run_issues" MOCK_LABELED="$r36_run_labeled" \
+      MOCK_ISSUES_FAIL="$r36_run_issues_fail" MOCK_LABELED_FAIL="$r36_run_labeled_fail" \
+      MOCK_CALLS="$r36_run_dir/calls" \
+      bash "$r36_run_helper"
+  ) > "$r36_run_dir/stdout" 2> "$r36_run_dir/stderr"
+  echo $? > "$r36_run_dir/rc"
+}
+r36_expect() {
+  r36_expect_name="$1"
+  r36_expect_rc="$2"
+  r36_expect_out="$3"
+  r36_expect_err="${4:-}"
+  r36_expect_dir="$r36_dir/run-$r36_expect_name"
+  [ "$(cat "$r36_expect_dir/rc" 2>/dev/null)" = "$r36_expect_rc" ] || r36_bad="${r36_bad} run-${r36_expect_name}-rc"
+  [ "$(cat "$r36_expect_dir/stdout" 2>/dev/null)" = "$r36_expect_out" ] || r36_bad="${r36_bad} run-${r36_expect_name}-out"
+  if [ -n "$r36_expect_err" ]; then
+    grep -qF -- "$r36_expect_err" "$r36_expect_dir/stderr" 2>/dev/null || r36_bad="${r36_bad} run-${r36_expect_name}-stderr"
+  fi
+}
+
+r36_run title-wins "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-title-wins.json"
+r36_expect title-wins 0 70 '3 open non-PR issues carry the lab-health label'
+r36_run fallback "$r36_dir/issues-fallback.json" "$r36_dir/labeled-fallback.json"
+r36_expect fallback 0 60 ''
+r36_run order "$r36_dir/issues-order.json" "$r36_dir/labeled-order.json"
+r36_expect order 0 60 ''
+r36_run pr-excluded "$r36_dir/issues-pr.json" "$r36_dir/labeled-pr.json"
+r36_expect pr-excluded 0 70 ''
+r36_run title-unlabeled "$r36_dir/issues-title-unlabeled.json" "$r36_dir/labeled-empty.json"
+r36_expect title-unlabeled 0 70 ''
+r36_run empty "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json"
+r36_expect empty 0 ''
+r36_run issues-fail "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json" 1 0
+r36_expect issues-fail 1 '' 'could not read open issues'
+r36_run labeled-fail "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-empty.json" 0 1
+r36_expect labeled-fail 1 '' 'could not read open lab-health issues'
+
+r36_mutate_helper() {
+  r36_mh_name="$1"
+  r36_mh_old="$2"
+  r36_mh_new="$3"
+  r36_mh_mode="${4:-one}"
+  python3 - "$HEALTH_BOARD_SCRIPT" "$r36_dir/$r36_mh_name.sh" "$r36_mh_old" "$r36_mh_new" "$r36_mh_mode" <<'R36MUT'
+import sys
+src, dst, old, new, mode = sys.argv[1:6]
+text = open(src, encoding='utf-8').read()
+if old not in text:
+    raise SystemExit('mutant anchor absent')
+count = -1 if mode == 'all' else 1
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, count))
+R36MUT
+}
+r36_title_block='board=$(first_line "$title_hits")
+if [ -z "$board" ]; then
+  board=$(first_line "$labeled_hits")
+fi'
+r36_label_block='board=$(first_line "$labeled_hits")
+if [ -z "$board" ]; then
+  board=$(first_line "$title_hits")
+fi'
+if r36_mutate_helper title-first "$r36_title_block" "$r36_label_block" one; then
+  r36_run mutant-title-first "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-title-wins.json" 0 0 "$r36_dir/title-first.sh"
+  r36_expect mutant-title-first 0 60 ''
+else
+  r36_bad="${r36_bad} mutant-title-first-anchor-missing"
+fi
+if r36_mutate_helper pr-guard "'.[] | select(.pull_request == null) | .number'" "'.[] | .number'" one; then
+  r36_run mutant-pr-guard "$r36_dir/issues-pr.json" "$r36_dir/labeled-pr.json" 0 0 "$r36_dir/pr-guard.sh"
+  r36_expect mutant-pr-guard 0 10 ''
+else
+  r36_bad="${r36_bad} mutant-pr-guard-anchor-missing"
+fi
+if r36_mutate_helper sort-desc 'sort=created&direction=asc' 'sort=created&direction=desc' all; then
+  r36_run mutant-sort-desc "$r36_dir/issues-order.json" "$r36_dir/labeled-order.json" 0 0 "$r36_dir/sort-desc.sh"
+  r36_expect mutant-sort-desc 0 70 ''
+else
+  r36_bad="${r36_bad} mutant-sort-desc-anchor-missing"
+fi
+
+python3 - .github/workflows/maintainer.yml "$r36_dir/maintainer-inline.yml" <<'R36SITEMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = 'board=$(bash .github/scripts/health-board.sh || true)'
+new = 'board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&per_page=100" --jq ".[0].number" 2>/dev/null || true)'
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R36SITEMUT
+if [ -f "$r36_dir/maintainer-inline.yml" ]; then
+  if ! r36_direct_scan "$r36_dir/maintainer-inline.yml" | grep -q 'labels=lab-health'; then
+    r36_bad="${r36_bad} mutant-direct-selector-not-caught"
+  fi
+else
+  r36_bad="${r36_bad} mutant-direct-selector-anchor-missing"
+fi
+python3 - .github/workflows/auditor.yml "$r36_dir/auditor-missing.yml" <<'R36SITEMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = 'health_issue=$(bash .github/scripts/health-board.sh || true)'
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, 'health_issue=""', 1))
+R36SITEMUT
+if [ -f "$r36_dir/auditor-missing.yml" ]; then
+  r36_missing_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r36_dir/auditor-missing.yml" 2>/dev/null || true)
+  [ "${r36_missing_count:-0}" -lt 2 ] || r36_bad="${r36_bad} mutant-helper-call-count-not-caught"
+else
+  r36_bad="${r36_bad} mutant-helper-call-count-anchor-missing"
+fi
+
+if [ "${HEALTH_BOARD_LIVE_CHECK:-}" = "1" ]; then
+  if [ -z "$REPO" ] || [ -z "${GITHUB_TOKEN:-}" ]; then
+    r36_bad="${r36_bad} live(missing-credentials)"
+  else
+    if ! r36_live_labels=$(gh api "repos/${REPO}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | .number' 2>/dev/null); then
+      r36_bad="${r36_bad} live(label-query-failed)"
+      r36_live_label_count=-1
+    else
+      r36_live_label_count=$(printf '%s\n' "$r36_live_labels" | grep -c '[0-9]' || true)
+      [ "$r36_live_label_count" -eq 1 ] || r36_bad="${r36_bad} live(lab-health-count-${r36_live_label_count}:$(printf '%s' "$r36_live_labels" | tr '\n' ' '))"
+    fi
+    if ! r36_live_titles=$(gh api "repos/${REPO}/issues?state=open&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | select(.title == "Lab Health & Audit Logs") | .number' 2>/dev/null); then
+      r36_bad="${r36_bad} live(title-query-failed)"
+      r36_live_title_count=-1
+    else
+      r36_live_title_count=$(printf '%s\n' "$r36_live_titles" | grep -c '[0-9]' || true)
+      [ "$r36_live_title_count" -eq 1 ] || r36_bad="${r36_bad} live(title-count-${r36_live_title_count})"
+    fi
+    if [ "${r36_live_label_count:--1}" -eq 1 ] && [ "${r36_live_title_count:--1}" -eq 1 ] \
+        && [ "$r36_live_labels" != "$r36_live_titles" ]; then
+      r36_bad="${r36_bad} live(title-label-mismatch)"
+    fi
+  fi
+fi
+
+rm -rf "$r36_dir"
+case "$r36_bad" in
+  "")
+    check "R36" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-label, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants, the six call sites (auditor.yml x2, maintainer.yml x2, opencode-recover.yml, schedule-selfheal.sh) are pinned to the shared helper, and any direct lab-health selector outside the helper is rejected (issue #848)" "ok"
+    ;;
+  *)
+    check "R36" "lab-health board selector split or bypassable:${r36_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"
     ;;
 esac
 
