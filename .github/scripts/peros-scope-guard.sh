@@ -119,13 +119,30 @@ is_named_peros_tester() {
   return 1
 }
 
+# Issue #798 review B18: macOS (APFS default) and Windows (NTFS) checkouts
+# fold case, so a case-variant spelling of a protected path (`Agents.md`,
+# `.GitHub/scripts/...`, `Setup.sh`) aliases the canonical entry and replaces
+# its content on those platforms while a case-sensitive classifier reports the
+# commit clean. Fold to ASCII lowercase with LC_ALL=C so the match is
+# deterministic on every host, including macOS bash 3.2 where ${var,,} is
+# unavailable. ASCII folding is sufficient: the protected names are ASCII, and
+# a non-ASCII spelling cannot fold onto one. Git tree paths stay byte strings,
+# so the canonical spellings still match exactly as before.
 is_protected_path() {
-  case "$1" in
-    .github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh|opencode.json|PEROS_SCOPE_VIOLATION)
+  local path
+  path=$(printf '%s' "$1" | LC_ALL=C tr 'A-Z' 'a-z')
+  case "$path" in
+    .github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh|opencode.json|peros_scope_violation)
       return 0
       ;;
   esac
   return 1
+}
+
+# A case-variant marker spelling aliases the canonical marker on a
+# case-insensitive checkout, so the hard stop folds the same way.
+is_violation_marker_path() {
+  [ "$(printf '%s' "$1" | LC_ALL=C tr 'A-Z' 'a-z')" = "peros_scope_violation" ]
 }
 
 is_test_lane_path() {
@@ -316,7 +333,7 @@ if [ "${PEROS_PREFLIGHT:-}" = "1" ]; then
       # in the range that creates or deletes it is refused, regardless of
       # identity or position, so a marker can never be erased and adopted as
       # pre-baseline history.
-      if [ "$preflight_path" = "PEROS_SCOPE_VIOLATION" ]; then
+      if is_violation_marker_path "$preflight_path"; then
         preflight_bad="${preflight_bad} ${preflight_commit:0:12}(protected:${preflight_path})"
         continue
       fi

@@ -349,8 +349,14 @@ jobs:
           fi
           protected=0
           while IFS= read -r -d '' path; do
-            case "$path" in
-              .github|.github/*|AGENTS.md|LAB.md|setup.sh|shutdown.sh) protected=1 ;;
+            # Issue #798 review B18: APFS and NTFS checkouts fold case, so a
+            # case-variant spelling such as `Agents.md` or `.GitHub/...`
+            # aliases the canonical protected entry and replaces its content
+            # on those platforms. Fold ASCII case with LC_ALL=C (bash 3.2 has
+            # no ${var,,}) before the match; the protected names are ASCII.
+            folded=$(printf '%s' "$path" | LC_ALL=C tr 'A-Z' 'a-z')
+            case "$folded" in
+              .github|.github/*|agents.md|lab.md|setup.sh|shutdown.sh) protected=1 ;;
             esac
           done < "$changed_list"
           if [ "$protected" -eq 0 ]; then
@@ -359,7 +365,7 @@ jobs:
           fi
           rm -f /tmp/random-lab-decision.json
           echo "::error::The Tester's changes touch protected lab paths; discarding the verdict and failing closed (issue #807)."
-          tr '\0' '\n' < "$changed_list" | grep -E '^(\.github(/|$)|AGENTS\.md$|LAB\.md$|setup\.sh$|shutdown\.sh$)' || true
+          tr '\0' '\n' < "$changed_list" | grep -Ei '^(\.github(/|$)|agents\.md$|lab\.md$|setup\.sh$|shutdown\.sh$)' || true
           runner_path=.github/actions/opencode-run
           git ls-files -z -- "$runner_path" 2>/dev/null | xargs -0 -r git update-index --no-skip-worktree -- 2>/dev/null || true
           rm -rf "$runner_path"
