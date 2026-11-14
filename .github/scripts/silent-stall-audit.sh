@@ -10667,6 +10667,11 @@ else
     # LONG S, U+0131 DOTLESS I), so any path outside printable ASCII must fail
     # closed as protected before the fold.
     printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF "shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'" || r22_bad="${r22_bad} test.yml(lane-guard-shell-not-privileged)"
+    # Issue #798 review B20: the runner prepends agent-writable GITHUB_PATH
+    # entries ahead of the step env, so the body itself must reset PATH before
+    # the first external lookup. The fakebin functional case below proves the
+    # reset is load-bearing.
+    printf '%s\n' "$r22_guard_block" | sed 's/^[[:space:]]*//' | grep -qxF 'PATH=/usr/bin:/bin; export PATH' || r22_bad="${r22_bad} test.yml(lane-guard-no-trusted-path-reset)"
     printf '%s\n' "$r22_guard_block" | grep -qF "LC_ALL=C tr '\n' '\001' | LC_ALL=C grep -q '[^ -~]'" || r22_bad="${r22_bad} test.yml(lane-guard-no-non-ascii-gate)"
     printf '%s\n' "$r22_guard_block" | grep -qF "LC_ALL=C tr 'A-Z' 'a-z'" || r22_bad="${r22_bad} test.yml(lane-guard-no-case-fold)"
     printf '%s\n' "$r22_guard_block" | grep -qF "grep -Ei '^(\.github(/|$)|agents\.md$|lab\.md$|setup\.sh$|shutdown\.sh$|opencode\.json$|peros_scope_violation$)'" || r22_bad="${r22_bad} test.yml(lane-guard-no-protected-pattern)"
@@ -10694,7 +10699,7 @@ else
     printf '%s\n' "$r22_pub_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-probe)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null) || evidence_script=""' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-extraction)"
     printf '%s\n' "$r22_pub_block" | grep -q 'bash \.github/scripts/test-comment-published\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-checker-invocation)"
-    printf '%s\n' "$r22_pub_block" | grep -qF "printf '%s' \"\$evidence_script\" | bash -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r22_bad="${r22_bad} test.yml(no-evidence-invocation)"
+    printf '%s\n' "$r22_pub_block" | grep -qF "printf '%s' \"\$evidence_script\" | /bin/bash -p -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r22_bad="${r22_bad} test.yml(no-evidence-invocation)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'if [ -z "$evidence_script" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-checker)"
     printf '%s\n' "$r22_pub_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(checker-tempfile-staging)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'Tester wrote a decision file but no signed decision comment was published' || r22_bad="${r22_bad} test.yml(no-unpublished-branch)"
@@ -10712,7 +10717,7 @@ else
     printf '%s\n' "$r22_marker_block" | grep -qF 'if [ -z "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
     printf '%s\n' "$r22_marker_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(marker-tempfile-staging)"
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
-    printf '%s\n' "$r22_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$pr\" \"\$scope\"; then" || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
+    printf '%s\n' "$r22_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | /bin/bash -p -s -- \"\$pr\" \"\$scope\"; then" || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(no-marker-ok-default)"
     [ "$(printf '%s\n' "$r22_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 4 ] || r22_bad="${r22_bad} test.yml(marker-ok-true-count-lt-4)"
     # Forward gate: the exact conjunction on the forward step itself, so no
@@ -11043,6 +11048,18 @@ else
       r22_807_check_restore "$r22_807_leak_mutant" leak-mutant leak pass
       r22_807_check_restore "$r22_807_untracked_mutant" untracked-mutant leak pass
       r22_807_guard_body=$(printf '%s\n' "$r22_807_guard" | sed "s#/tmp/random-lab-decision.json#$r22_807_tmp/decision.json#g")
+      # Issue #798 review B20: the runner prepends agent-writable GITHUB_PATH
+      # entries to PATH ahead of the step env map. This fakebin models the
+      # tools an agent could plant there; the shipped body's in-body reset must
+      # make the real system tools win, while a body with the reset removed
+      # bypasses the non-ASCII gate.
+      r22_807_fakebin="$r22_807_tmp/fakebin"
+      mkdir -p "$r22_807_fakebin"
+      printf '#!/bin/sh\ncat\n' > "$r22_807_fakebin/tr"
+      printf '#!/bin/sh\nexit 1\n' > "$r22_807_fakebin/grep"
+      printf '#!/bin/sh\nexit 9\n' > "$r22_807_fakebin/bash"
+      printf '#!/bin/sh\nexit 9\n' > "$r22_807_fakebin/gh"
+      chmod +x "$r22_807_fakebin/tr" "$r22_807_fakebin/grep" "$r22_807_fakebin/bash" "$r22_807_fakebin/gh"
       r22_807_guard_case() {
         r22_807_reset
         if ! r22_807_run_restore "$r22_807_restore" "guard-$1"; then
@@ -11182,17 +11199,30 @@ else
             r22_807_body=$(printf '%s\n' "$r22_807_body" \
               | sed "s#LC_ALL=C grep -q '\[^ -~\]'#LC_ALL=C grep -q 'a^'#")
             ;;
+          pathmutant)
+            # Issue #798 review B20: remove the in-body PATH reset. The fake
+            # tr/grep planted on the prepended PATH then run, and the
+            # non-ASCII gate reads clean.
+            r22_807_body=$(printf '%s\n' "$r22_807_body" | sed '\#^PATH=/usr/bin:/bin; export PATH$#d')
+            ;;
         esac
         printf '%s\n' "$r22_807_body" > "$r22_807_tmp/guard-$1-$3.sh"
         r22_807_rc=0
         # Mirror the shipped step env: replace refs are disabled. The
-        # `noreplace` control unsets it and must reproduce the bypass.
+        # `noreplace` control unsets it and must reproduce the bypass. The
+        # optional `fakepath` argument prepends the agent-writable fakebin,
+        # exactly as the runner prepends GITHUB_PATH entries; the harness
+        # itself always runs /bin/bash by absolute path.
         r22_807_replace_env="GIT_NO_REPLACE_OBJECTS=1"
         [ "${4:-}" = "noreplace" ] && r22_807_replace_env="-u GIT_NO_REPLACE_OBJECTS"
+        r22_807_case_path="${PATH}"
+        if [ "${4:-}" = "fakepath" ] || [ "${5:-}" = "fakepath" ]; then
+          r22_807_case_path="$r22_807_fakebin:/usr/bin:/bin"
+        fi
         if [ "$1" = "corrupt-index" ]; then
-          ( cd "$r22_807_repo" && env ${r22_807_replace_env} BASE_SHA="$r22_807_base" GIT_INDEX_FILE="$r22_807_repo/.git/corrupt-index" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+          ( cd "$r22_807_repo" && env ${r22_807_replace_env} PATH="$r22_807_case_path" BASE_SHA="$r22_807_base" GIT_INDEX_FILE="$r22_807_repo/.git/corrupt-index" /bin/bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
         else
-          ( cd "$r22_807_repo" && env ${r22_807_replace_env} BASE_SHA="$r22_807_base" bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
+          ( cd "$r22_807_repo" && env ${r22_807_replace_env} PATH="$r22_807_case_path" BASE_SHA="$r22_807_base" /bin/bash -e "$r22_807_tmp/guard-$1-$3.sh" ) >/dev/null 2>&1 || r22_807_rc=$?
         fi
         if [ "$r22_807_rc" -ne "$2" ]; then
           r22_bad="${r22_bad} lane-guard(functional-$1-$3-rc=${r22_807_rc},want=${2})"
@@ -11226,16 +11256,58 @@ else
       r22_807_guard_case nonalias-github-dir 0 nonasciimutant
       r22_807_guard_case nonalias-json 0 nonasciimutant
       r22_807_guard_case nonprintable-lf 0 nonasciimutant
+      r22_807_guard_case nonalias-agents 1 keep fakepath
+      r22_807_guard_case nonalias-github-dir 1 keep fakepath
+      r22_807_guard_case nonalias-json 1 keep fakepath
+      r22_807_guard_case nonprintable-lf 1 keep fakepath
+      r22_807_guard_case nonalias-agents 0 pathmutant fakepath
       r22_807_guard_case committed 0 weaken
       r22_807_guard_case head-only 0 headmutant
       r22_807_guard_case replace 0 keep noreplace
       r22_807_guard_case corrupt-index 0 failopen
+      # Issue #798 review B21: prove the post-agent forward step's in-body
+      # reset wins over the same agent-writable PATH prepend, and that the
+      # reset-removed mutant resolves the planted tool. The step body itself
+      # is executed by the absolute privileged shell in production; here we
+      # only execute its first line plus a lookup so no PR data is needed.
+      r22_807_fwd_reset=$(sed -n '/- name: Forward tester decision/,/^      - name: /p' "$R22_WF" 2>/dev/null | sed -n '/^        run: |$/{n;s/^          //;p;q;}')
+      if [ "$r22_807_fwd_reset" != 'PATH=/usr/bin:/bin; export PATH' ]; then
+        r22_bad="${r22_bad} test.yml(forward-no-trusted-path-reset)"
+      else
+        r22_807_grep_trusted=$(env -i PATH="$r22_807_fakebin:/usr/bin:/bin" HOME="$r22_807_tmp" /bin/bash --noprofile --norc -e -o pipefail -p -c "$r22_807_fwd_reset
+command -v grep" 2>/dev/null || true)
+        case "$r22_807_grep_trusted" in
+          "$r22_807_fakebin/grep") r22_bad="${r22_bad} test.yml(forward-path-reset-not-load-bearing)" ;;
+          */grep) : ;;
+          *) r22_bad="${r22_bad} test.yml(forward-path-reset-check-failed)" ;;
+        esac
+        r22_807_gh_trusted=$(env -i PATH="$r22_807_fakebin:/usr/bin:/bin" HOME="$r22_807_tmp" /bin/bash --noprofile --norc -e -o pipefail -p -c "$r22_807_fwd_reset
+command -v gh" 2>/dev/null || true)
+        case "$r22_807_gh_trusted" in
+          "$r22_807_fakebin/gh") r22_bad="${r22_bad} test.yml(forward-gh-path-reset-not-load-bearing)" ;;
+          ""|*/gh) : ;;
+          *) r22_bad="${r22_bad} test.yml(forward-gh-path-reset-check-failed)" ;;
+        esac
+        r22_807_bash_trusted=$(env -i PATH="$r22_807_fakebin:/usr/bin:/bin" HOME="$r22_807_tmp" /bin/bash --noprofile --norc -e -o pipefail -p -c "$r22_807_fwd_reset
+command -v bash" 2>/dev/null || true)
+        case "$r22_807_bash_trusted" in
+          "$r22_807_fakebin/bash") r22_bad="${r22_bad} test.yml(forward-bash-path-reset-not-load-bearing)" ;;
+          */bash) : ;;
+          *) r22_bad="${r22_bad} test.yml(forward-bash-path-reset-check-failed)" ;;
+        esac
+        r22_807_fwd_mutant=$(printf '%s\n' "$r22_807_fwd_reset" | sed '\#^PATH=/usr/bin:/bin; export PATH$#d')
+        r22_807_grep_mutant=$(env -i PATH="$r22_807_fakebin:/usr/bin:/bin" HOME="$r22_807_tmp" /bin/bash --noprofile --norc -e -o pipefail -p -c "$r22_807_fwd_mutant
+command -v grep" 2>/dev/null || true)
+        if [ "$r22_807_grep_mutant" != "$r22_807_fakebin/grep" ]; then
+          r22_bad="${r22_bad} test.yml(forward-path-reset-mutant-not-caught)"
+        fi
+      fi
     fi
   fi
   rm -rf "$r22_807_tmp"
 fi
 if [ -z "$r22_bad" ]; then
-  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree (tracked and untracked files alike) so the end-of-session auto-commit can never stage it onto a project PR even after a .gitignore negation, and a post-agent lane guard with a pinned environment discards any verdict whose run touched a protected lab path using a NUL-delimited, fail-closed inventory that catches C-quoted names, staged-only changes, an unreadable index, a replace-ref rewrite, case-variant spellings, and non-ASCII aliases (the non-ASCII check rewrites an embedded LF to SOH before the byte-class match, and the step pins a privileged bash -p shell so an exported BASH_FUNC_* cannot no-op it; GIT_NO_REPLACE_OBJECTS pinned and proven load-bearing by a control that reproduces the bypass), with both real bodies executed in a sandbox against the incident shape and mutated bodies proving the fixture load-bearing" "ok"
+  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629); the Tester restore marks the trusted runner skip-worktree (tracked and untracked files alike) so the end-of-session auto-commit can never stage it onto a project PR even after a .gitignore negation, and a post-agent lane guard with a pinned environment discards any verdict whose run touched a protected lab path using a NUL-delimited, fail-closed inventory that catches C-quoted names, staged-only changes, an unreadable index, a replace-ref rewrite, case-variant spellings, and non-ASCII aliases (the non-ASCII check rewrites an embedded LF to SOH before the byte-class match, and the step pins a privileged bash -p shell plus an in-body PATH reset so neither an exported BASH_FUNC_* nor an agent-planted tr/grep prepended through GITHUB_PATH can no-op it; the reset is proven load-bearing by a fakebin fixture where the shipped body still fails closed and the reset-removed mutant accepts the non-ASCII alias, and GIT_NO_REPLACE_OBJECTS is pinned and proven load-bearing by a control that reproduces the bypass), every post-agent Tester step pins the privileged shell, resets PATH in-body before its first lookup, and invokes nested helper bodies through absolute /bin/bash -p -s, with a fakebin functional control and reset-removal mutation self-test, with both real bodies executed in a sandbox against the incident shape and mutated bodies proving the fixture load-bearing" "ok"
 else
   check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
 fi
@@ -20468,7 +20540,14 @@ EXPECTED_ARM_LANE_GUARD_ENV = {
     "LD_PRELOAD": "",
     "PATH": "/usr/bin:/bin",
 }
-EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "9df1d3a03bb5b0239e1c62ef1dbd0c8d9bfd17fcb8110111ece1b6faf7bd5105"
+EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256 = "37113a21dbf87acc7e847a20e5caebf686714ef6e7bb451c7b4e295f0202a90b"
+# Issue #798 review B20/B21: the runner prepends the agent-writable
+# $GITHUB_PATH entries ahead of every later step's env PATH. Each post-agent
+# step must therefore run the pinned privileged shell and reset PATH in its
+# own body before the first external lookup; nested helper bodies must be
+# invoked through the same absolute privileged bash.
+POST_AGENT_TRUSTED_PATH_RESET = "PATH=/usr/bin:/bin; export PATH"
+POST_AGENT_SHELL = "/bin/bash --noprofile --norc -e -o pipefail -p {0}"
 EXPECTED_TEST_ACTOR_ENV = {
     "GH_TOKEN": "${{ github.token }}",
     "GATE_EVENT": "${{ github.event_name }}",
@@ -21448,6 +21527,37 @@ def check_arm_surface(doc, job_name, workflow_keys, job_keys, label, sink):
         sink.append("%s(self-test-job-env-not-caught)" % label)
 
 
+def check_post_agent_hardening(steps, agent_index, sink):
+    # Issue #798 review B20/B21: the runner prepends the agent-writable
+    # GITHUB_PATH entries to PATH ahead of the step env map. Escape the agent
+    # step only after every post-agent step pins the privileged shell, resets
+    # PATH in-body before its first lookup, and invokes nested helper bodies
+    # through the absolute privileged bash. Otherwise an agent-planted
+    # git/gh/tr/grep shim can run with the job token or the owner PAT.
+    for step in steps[agent_index + 1:]:
+        if not isinstance(step, dict):
+            continue
+        run = step.get("run")
+        if not isinstance(run, str) or not run.strip():
+            continue
+        name = step.get("name")
+        if step.get("shell") != POST_AGENT_SHELL:
+            sink.append("test.yml(post-agent-shell-not-privileged:%s)" % name)
+        body = [
+            line.strip()
+            for line in run.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if not body or body[0] != POST_AGENT_TRUSTED_PATH_RESET:
+            sink.append("test.yml(post-agent-trusted-path-reset-missing:%s)" % name)
+        if re.search(r"(?<![A-Za-z0-9_./-])bash\s+-s\b", run):
+            sink.append("test.yml(post-agent-relative-bash-invocation:%s)" % name)
+        if ('"$publisher"' in run or '"$evidence_script"' in run) and (
+            "/bin/bash -p -s" not in run
+        ):
+            sink.append("test.yml(post-agent-nested-bash-not-privileged:%s)" % name)
+
+
 def validate_test(doc, sink):
     if not isinstance(doc, dict):
         sink.append("test.yml(yaml-not-mapping)")
@@ -21531,6 +21641,10 @@ def validate_test(doc, sink):
         else:
             if normalized_sha(guard_run) != EXPECTED_ARM_LANE_GUARD_BLOCK_SHA256:
                 sink.append("test.yml(lane-guard-run-block-not-exact)")
+            if not re.search(
+                r"(?m)^PATH=/usr/bin:/bin; export PATH$", guard_run
+            ):
+                sink.append("test.yml(lane-guard-no-trusted-path-reset)")
             if (
                 "grep -Ei '^(\\.github(/|$)|agents\\.md$|lab\\.md$|"
                 "setup\\.sh$|shutdown\\.sh$|opencode\\.json$|"
@@ -21617,6 +21731,8 @@ def validate_test(doc, sink):
             != EXPECTED_TEST_AGENT_PROMPT_SHA256
         ):
             sink.append("test.yml(agent-prompt-not-exact)")
+    if len(agent) == 1:
+        check_post_agent_hardening(steps, agent[0], sink)
 
 
 def validate_review(doc, sink):
@@ -22713,6 +22829,46 @@ if test_doc is not None:
             for p in test_wf_env_local
         ):
             problems.append("test.yml(structural-self-test-workflow-env)")
+        # Issue #798 review B20/B21: removing the in-body PATH reset, dropping
+        # the absolute privileged shell, or reverting a nested helper call to
+        # a PATH-resolved `bash -s` must each fail the real validator.
+        test_post_reset_mutant = copy.deepcopy(test_doc)
+        for step in test_post_reset_mutant["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Forward tester decision":
+                step["run"] = re.sub(
+                    r"(?m)^PATH=/usr/bin:/bin; export PATH\n", "", step["run"]
+                )
+        test_post_reset_local = []
+        validate_test(test_post_reset_mutant, test_post_reset_local)
+        if not any(
+            "test.yml(post-agent-trusted-path-reset-missing" in p
+            for p in test_post_reset_local
+        ):
+            problems.append("test.yml(structural-self-test-post-agent-reset)")
+        test_post_shell_mutant = copy.deepcopy(test_doc)
+        for step in test_post_shell_mutant["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Forward tester decision":
+                step["shell"] = "bash"
+        test_post_shell_local = []
+        validate_test(test_post_shell_mutant, test_post_shell_local)
+        if not any(
+            "test.yml(post-agent-shell-not-privileged" in p
+            for p in test_post_shell_local
+        ):
+            problems.append("test.yml(structural-self-test-post-agent-shell)")
+        test_post_bash_mutant = copy.deepcopy(test_doc)
+        for step in test_post_bash_mutant["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Publish tester decision report (owner PAT)":
+                step["run"] = step["run"].replace(
+                    "/bin/bash -p -s", "bash -s"
+                )
+        test_post_bash_local = []
+        validate_test(test_post_bash_mutant, test_post_bash_local)
+        if not any(
+            "test.yml(post-agent-relative-bash-invocation" in p
+            for p in test_post_bash_local
+        ):
+            problems.append("test.yml(structural-self-test-post-agent-nested-bash)")
     except Exception:
         problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
 
@@ -24978,7 +25134,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), every post-agent Tester step additionally pins the privileged shell, an in-body /usr/bin:/bin reset before its first lookup, and absolute /bin/bash -p -s nested helpers, with a fakebin functional control and reset-removal mutation self-tests, and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
@@ -34126,10 +34282,14 @@ def main(root):
         # I). A foreign commit adding `AGENT<U+017F>.md`, `.g<U+0131>thub/...`,
         # `opencode.j<U+017F>son`, or `PERO<U+017F>_SCOPE_VIOLATION` must
         # record the marker, a tester commit adding any of them must be
-        # dropped, and a normal test-lane commit must stay accepted. The
-        # non-ASCII-gate-removed mutant accepts the aliases while a canonical
-        # `AGENTS.md` is still refused, proving the fail-closed gate
-        # load-bearing rather than a disabled classifier.
+        # dropped, and a normal test-lane commit must stay accepted. A tester
+        # commit adding an in-lane non-ASCII test path
+        # (`proj/tests/AGENT<U+017F>_test.py`) is also dropped, which is
+        # gate-specific because the path is otherwise inside the tester lane.
+        # The non-ASCII-gate-removed mutant accepts the aliases, including
+        # that in-lane test path, while a canonical `AGENTS.md` is still
+        # refused, proving the fail-closed gate load-bearing rather than a
+        # disabled classifier.
         run([git, "checkout", "-q", "main"], cwd=work, check=True)
         with open(guard_path, "w") as handle:
             handle.write(original_guard)
@@ -34173,6 +34333,9 @@ def main(root):
                  [(".g\u0131thub/scripts/evil.py", "tamper\n")],
                  1, True, base=workflow_sha)
         scenario("nonascii-tester-json", [("opencode.j\u017fson", "tamper\n")],
+                 1, True, base=workflow_sha)
+        scenario("nonascii-tester-inlane",
+                 [("proj/tests/AGENT\u017f_test.py", "test\n")],
                  1, True, base=workflow_sha)
         scenario("nonascii-lane-control",
                  [("proj/tests/nonascii_lane_test.py", "test\n")],
@@ -34224,10 +34387,11 @@ def main(root):
 
         # Issue #798 review B19: the fail-closed non-ASCII gate is what makes
         # U+017F/U+0131 aliases protected. Removing only that gate must accept
-        # the aliases (the ASCII fold cannot see them), while canonical
-        # `AGENTS.md` is still refused and a pre-baseline non-ASCII alias is
-        # adopted, proving the gate load-bearing rather than a disabled
-        # classifier.
+        # the aliases (the ASCII fold cannot see them), including an in-lane
+        # non-ASCII test path that is not otherwise out-of-lane, while
+        # canonical `AGENTS.md` is still refused and a pre-baseline non-ASCII
+        # alias is adopted, proving the gate load-bearing rather than a
+        # disabled classifier.
         run([git, "checkout", "-q", "main"], cwd=work, check=True)
         with open(guard_path, "w") as handle:
             handle.write(original_guard)
@@ -34263,6 +34427,12 @@ def main(root):
             scenario("nonascii-github-dir-mutant", [], 0, False,
                      foreign=(".g\u0131thub/scripts/evil.py", "tamper\n",
                               "fixer: concurrent work"),
+                     base=nonascii_mutant_sha,
+                     helper_sha=nonascii_mutant_sha,
+                     push_base_to_main=True)
+            scenario("nonascii-tester-inlane-mutant",
+                     [("proj/tests/AGENT\u017f_test.py", "test\n")],
+                     0, False,
                      base=nonascii_mutant_sha,
                      helper_sha=nonascii_mutant_sha,
                      push_base_to_main=True)
