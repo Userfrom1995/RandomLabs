@@ -9556,7 +9556,14 @@ else
     # `bash -e` fail-fast the F1 fix depends on.
     printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc review (auto-retry $n)"' || r19_bad="${r19_bad} review.yml(retry-post-not-exact)"
     printf '%s\n' "$r19_verify_block" | grep -qF 'repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp' || r19_bad="${r19_bad} review.yml(enumeration-not-thread-bound)"
-    printf '%s\n' "$r19_verify_block" | grep -qF 'select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry"))' || r19_bad="${r19_bad} review.yml(counter-predicate-weakened)"
+    # Issue #803: the counter must be head-scoped, never lifetime-scoped. The
+    # scope boundary is the current head's commit date; the jq filter takes it
+    # as `--arg since` and excludes comments at or before it. A failed head
+    # read leaves scope_since empty and the enumeration is skipped, so the
+    # existing empty-retries branch fails closed.
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq '\''.commit.committer.date'\'' 2>/dev/null || true)' || r19_bad="${r19_bad} review.yml(head-scope-not-bound)"
+    printf '%s\n' "$r19_verify_block" | grep -qF -- '--arg since "$scope_since"' || r19_bad="${r19_bad} review.yml(scope-arg-missing)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)' || r19_bad="${r19_bad} review.yml(counter-predicate-weakened)"
     printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'pr="${{ github.event.issue.number }}"' || r19_bad="${r19_bad} review.yml(pr-not-bound-to-event)"
     # F13 (review round 3): the fingerprint ban covers every ambient CI env
     # var the case environment does not set realistically. GITHUB_ACTIONS is
@@ -9886,6 +9893,7 @@ elif [ -f "$REVIEW_WF" ]; then
             -e 's/\${{ github\.repository_owner }}/mockowner/g' \
             -e 's/\${{ github\.repository }}/mockrepo/g' \
             -e 's/\${{ steps\.pr-info\.outputs\.pr_number }}/614/g' \
+            -e 's/\${{ steps\.pr-info\.outputs\.head_oid }}/614head/g' \
             -e 's/\${{ steps\.review\.outcome }}/\${R19P_OUTCOME}/g' \
             -e 's#/tmp/random-lab-decision\.json#${R19P_DECISION}#g' \
             -e "s#^PATH=/usr/bin:/bin; export PATH\$#PATH=$r19p_tmp/bin:/usr/bin:/bin; export PATH#" > "$r19p_block"
@@ -9955,6 +9963,13 @@ case "$*" in
       *) cat "$R19P_POISONED" ;;
     esac
     ;;
+  *"repos/mockrepo/commits/614head"*)
+    if [ "${R19P_HEAD_FAIL:-0}" = "1" ]; then
+      echo "mock gh: head read failure" >&2
+      exit 1
+    fi
+    printf '%s\n' "${R19P_HEAD_DATE:-2026-10-18T00:00:00Z}"
+    ;;
   *"repos/mockrepo/issues/614/comments"*"--paginate --slurp"*)
     if [ "${R19P_ENUM_FAIL:-0}" = "1" ]; then
       echo "mock gh: enumeration failure" >&2
@@ -9986,6 +10001,13 @@ R19P_GH
           printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"}]]\n' > "$r19p_tmp/p1.json"
           printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:01:00Z","body":"/oc review (auto-retry 2)"}]]\n' > "$r19p_tmp/p2.json"
           printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:02:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p3.json"
+          # Issue #803: three older-looking retries from BEFORE the current
+          # head's push. They belong to an earlier incident and must not eat
+          # the new head's budget; the stale retry must restart at 1.
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:02:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p-stale-head.json"
+          # Two from the earlier incident plus one posted after the current
+          # head's push: only the fresh one counts, so the next retry is 2.
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T00:30:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p-mixed-head.json"
           # F4 (review round 1): negative controls for the retry counter's
           # author filter and marker anchor. The foreign marker is canonical
           # but authored by a non-owner; the embedded marker is owner-authored
@@ -10001,7 +10023,7 @@ R19P_GH
             "$r19p_tmp/bin/gh" api "repos/mockrepo/issues/614/comments" -f body="/oc review (auto-retry 1)" > /dev/null 2>&1 || true
           grep -qF -- "/oc review (auto-retry 1)" "$r19p_tmp/posts" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(mock-probe-failed)"
           r19p_case() {
-            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}" post_fail="${12:-}" want_retry="${13:-0}" pr_state="${14:-OPEN}" want_skip="${15:-0}"
+            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}" post_fail="${12:-}" want_retry="${13:-0}" pr_state="${14:-OPEN}" want_skip="${15:-0}" head_fail="${16:-0}" head_date="${17:-2026-10-18T00:00:00Z}"
             : > "$r19p_tmp/posts"
             : > "$r19p_tmp/run/github_output"
             if [ "$dec_before" = "1" ]; then
@@ -10021,6 +10043,7 @@ R19P_GH
                 AGENT_GATE="$gate" R19P_OUTCOME="$outcome" R19P_DECISION="$r19p_tmp/decision.json" \
                 R19P_EVIDENCE_RC="$ev_rc" R19P_PAYLOAD="$payload" R19P_ENUM_FAIL="$enum_fail" R19P_POSTS="$r19p_tmp/posts" \
                 R19P_POST_FAIL="$post_fail" R19P_PR_STATE="$pr_state" \
+                R19P_HEAD_FAIL="$head_fail" R19P_HEAD_DATE="$head_date" \
                 R19P_SHA="$r19p_sha" R19P_STUB="$r19p_tmp/evidence-stub.sh" R19P_POISONED="$r19p_repo/.github/scripts/review-comment-published.sh" \
                 "$r19p_bash_bin" -e "$r19p_block"
             ) > "$r19p_tmp/out" 2>&1
@@ -10076,6 +10099,13 @@ R19P_GH
           r19p_case failure-unpublished-verdict 0 1 failure 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
           r19p_case success-unpublished-prior 0 1 success 1 0 "$r19p_tmp/p1.json" 0 "/oc review (auto-retry 2)" true "Posting auto-retry 2" "" 1
           r19p_case success-unpublished-prior2 0 1 success 1 0 "$r19p_tmp/p2.json" 0 "/oc review (auto-retry 3)" true "Posting auto-retry 3" "" 1
+          # Issue #803: the same three markers posted before the current
+          # head's push must not consume the new incident's budget (stale
+          # retries restart at 1), while one fresh marker joins the count
+          # (mixed head -> retry 2) and a failed head read fails closed.
+          r19p_case success-unpublished-stale-head 0 1 success 1 0 "$r19p_tmp/p-stale-head.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
+          r19p_case success-unpublished-mixed-head 0 1 success 1 0 "$r19p_tmp/p-mixed-head.json" 0 "/oc review (auto-retry 2)" true "Posting auto-retry 2" "" 1
+          r19p_case head-scope-failure 1 1 failure 0 0 "$r19p_tmp/p0.json" 0 "" true "Could not enumerate" "" 0 OPEN 0 1
           r19p_case success-unpublished-foreign-marker 0 1 success 1 0 "$r19p_tmp/p-foreign.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
           r19p_case success-unpublished-embedded-marker 0 1 success 1 0 "$r19p_tmp/p-embedded.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
           r19p_case crash-no-verdict 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "crashed mid-run" "" 1
@@ -10108,7 +10138,7 @@ else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report containing a command trigger or the eval merge marker in any line, including plain, backticked, trailing-space, and suffix-punctuation forms (issues #713 round 19, #798 round 17; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, incident-scoped counter predicate including the head-commit-date scope_since assignment and --arg since, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report containing a command trigger or the eval merge marker in any line, including plain, backticked, trailing-space, and suffix-punctuation forms (issues #713 round 19, #798 round 17; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3, plus head-bound fixtures proving pre-head retries restart at 1, mixed head counts only fresh retries, and a failed head read fails closed (issue #803) (issues #616, #637)" "ok"
 else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
@@ -10136,6 +10166,15 @@ fi
 #      the freshness read must select the newest page-3 timestamp. The mock
 #      refuses an unpaginated call, and interception is asserted first
 #      (delegation.md section 6 harness isolation).
+#   4. issue #803: every auto-retry/auto-heal counter must be incident-scoped,
+#      not lifetime-scoped. The extracted pipeline must filter on
+#      `.created_at > $since` with `scope_since` supplied as `--arg since`,
+#      and a second payload whose markers sit on the previous UTC day must
+#      read 0, proving the recency filter (and not just pagination) is
+#      load-bearing. The lane-level scope_since assignments (head commit date
+#      for PR lanes, current UTC day for issue lanes, fail-closed on a failed
+#      head read) are pinned by R19, R28, and R32 for the fully bound lanes
+#      and by the assignment checks below for the continue and curator lanes.
 r20_bad=""
 r20_files=".github/workflows/opencode.yml .github/workflows/opencode-review.yml .github/workflows/curator.yml .github/workflows/ideate.yml .github/workflows/opencode-eval.yml"
 r20_found=""
@@ -10175,6 +10214,17 @@ for r20_file in $r20_files; do
     printf '%s\n' "$r20_snip" | grep -q -- '--jq' && r20_bad="${r20_bad} ${r20_file}(${r20_marker}:jq-flag-cannot-combine-with-slurp)"
     printf '%s\n' "$r20_snip" | grep -qE '\|[[:space:]]*jq ' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-piped-jq)"
     printf '%s\n' "$r20_snip" | grep -qF '.[][]' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-page-iterator)"
+    # Issue #803: every bounded auto-retry/auto-heal counter must scope its
+    # count to the incident, never the thread's lifetime. The jq filter must
+    # take the lane-computed scope_since as `--arg since` and drop comments
+    # at or before it; the functional harness below proves a previous-day
+    # marker is then excluded.
+    case "$r20_marker" in
+      *"(auto-retry"*|*"(auto-heal"*)
+        printf '%s\n' "$r20_snip" | grep -qF -- '--arg since "$scope_since"' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-scope-since-arg)"
+        printf '%s\n' "$r20_snip" | grep -qF '.created_at > $since' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-incident-recency-filter)"
+        ;;
+    esac
   done < <(r20_snips_of "$r20_file")
 done
 # Expected-site registry: every retry/auto-heal/gate enumeration must be
@@ -10197,6 +10247,41 @@ done <<'R20_EXPECTED'
 .github/workflows/ideate.yml|### Candidate:
 .github/workflows/opencode-eval.yml|/oc approve-test
 R20_EXPECTED
+# Issue #803: incident-scope assignment pins. Every PR lane derives scope_since
+# from the current head's committer date; every issue lane derives it from the
+# current UTC day. A failed head read leaves scope_since empty, the enumeration
+# is skipped, and the existing empty-retries branch fails closed loudly. These
+# exact lines keep a future refactor from silently restoring lifetime counting.
+while IFS='|' read -r r20_sf r20_sline; do
+  [ -n "$r20_sf" ] || continue
+  if [ ! -f "$r20_sf" ]; then
+    r20_bad="${r20_bad} ${r20_sf}(missing-scope-file)"
+    continue
+  fi
+  sed 's/^[[:space:]]*//' "$r20_sf" | grep -qxF "$r20_sline" || r20_bad="${r20_bad} ${r20_sf}(missing-scope-assignment:${r20_sline%%=*})"
+done <<'R20_SCOPE'
+.github/workflows/opencode-review.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq '.commit.committer.date' 2>/dev/null || true)
+.github/workflows/opencode.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$head_after" --jq '.commit.committer.date' 2>/dev/null || true)
+.github/workflows/opencode.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$target_head" --jq '.commit.committer.date' 2>/dev/null || true)
+.github/workflows/opencode.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$heal_head" --jq '.commit.committer.date' 2>/dev/null || true)
+.github/workflows/curator.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$curate_head" --jq '.commit.committer.date' 2>/dev/null || true)
+R20_SCOPE
+# The head resolvers for the two lanes without a whole-body pin elsewhere
+# (continue and curator) are pinned too: deleting one leaves scope_since empty
+# and wedges the lane in its fail-closed handoff instead of silently reverting
+# to day-only counting.
+while IFS='|' read -r r20_sf r20_sline; do
+  [ -n "$r20_sf" ] || continue
+  sed 's/^[[:space:]]*//' "$r20_sf" | grep -qxF -- "$r20_sline" || r20_bad="${r20_bad} ${r20_sf}(missing-head-resolution:${r20_sline%%=*})"
+done <<'R20_HEADS'
+.github/workflows/opencode.yml|heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,headRefOid,createdAt \
+.github/workflows/opencode.yml|--jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null || true)
+.github/workflows/curator.yml|curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || true)
+R20_HEADS
+r20_day_assign=$(sed 's/^[[:space:]]*//' .github/workflows/opencode.yml 2>/dev/null | grep -cxF 'scope_since=$(date -u +%Y-%m-%dT00:00:00Z)' || true)
+[ "${r20_day_assign:-0}" -ge 8 ] || r20_bad="${r20_bad} opencode.yml(day-scope-assignment-count=${r20_day_assign:-0},want>=8)"
+r20_cur_day_assign=$(sed 's/^[[:space:]]*//' .github/workflows/curator.yml 2>/dev/null | grep -cxF 'scope_since=$(date -u +%Y-%m-%dT00:00:00Z)' || true)
+[ "${r20_cur_day_assign:-0}" -ge 1 ] || r20_bad="${r20_bad} curator.yml(day-scope-assignment-count=${r20_cur_day_assign:-0},want>=1)"
 # Repo-wide discovery backstop: any issue-comment read that neither paginates
 # nor targets a single comment trips, so a new workflow cannot silently
 # regress. Posting calls (`-f body`) and the single-comment PATCH endpoint
@@ -10249,6 +10334,17 @@ R20_MOCK
                 {user:{login:$login},created_at:"2026-10-17T19:01:00Z",body:($marker + " 2)")},
                 {user:{login:$login},created_at:"2026-10-17T19:02:00Z",body:($marker + " 3)")} ] ]
           ' > "$r20_payload_file" 2>/dev/null
+          # Issue #803: the same three markers placed on the previous UTC day.
+          # An incident-scoped counter must read 0 against this payload even
+          # though page 3 is reached, proving the recency filter is live.
+          r20_stale_file="$r20_tmp/stale-$r20_case.json"
+          jq -n --arg login "$r20_login" --arg marker "$r20_marker" '
+            [ [range(30) | {user:{login:"filler"},created_at:"2026-10-15T00:00:00Z",body:"filler"}],
+              [{user:{login:"filler"},created_at:"2026-10-15T00:00:01Z",body:"filler"}],
+              [ {user:{login:$login},created_at:"2026-10-16T19:00:00Z",body:($marker + " 1)")},
+                {user:{login:$login},created_at:"2026-10-16T19:01:00Z",body:($marker + " 2)")},
+                {user:{login:$login},created_at:"2026-10-16T19:02:00Z",body:($marker + " 3)")} ] ]
+          ' > "$r20_stale_file" 2>/dev/null
           {
             printf 'target=609 issue=609 pr=609 issue_num=609 board=609\n'
             printf '%s\n' "$r20_snip" \
@@ -10260,9 +10356,17 @@ R20_MOCK
           } > "$r20_tmp/case.sh"
           r20_out=$(cd "$r20_tmp" && env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID \
             -u GITHUB_REPOSITORY -u GITHUB_ACTIONS -u GH_TOKEN -u GH_API_TOKEN \
-            PATH="$r20_mockdir:$PATH" R20_PAYLOAD="$r20_payload_file" bash "$r20_tmp/case.sh" 2>/dev/null)
+            PATH="$r20_mockdir:$PATH" scope_since="2026-10-17T00:00:00Z" \
+            R20_PAYLOAD="$r20_payload_file" bash "$r20_tmp/case.sh" 2>/dev/null)
           if printf '%s\n' "$r20_snip" | grep -q '| length'; then
             [ "$r20_out" = "3" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:count=${r20_out:-empty},want=3)"
+            if printf '%s\n' "$r20_snip" | grep -qF '.created_at > $since'; then
+              r20_stale_out=$(cd "$r20_tmp" && env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID \
+                -u GITHUB_REPOSITORY -u GITHUB_ACTIONS -u GH_TOKEN -u GH_API_TOKEN \
+                PATH="$r20_mockdir:$PATH" scope_since="2026-10-17T00:00:00Z" \
+                R20_PAYLOAD="$r20_stale_file" bash "$r20_tmp/case.sh" 2>/dev/null)
+              [ "$r20_stale_out" = "0" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:stale-count=${r20_stale_out:-empty},want=0)"
+            fi
           else
             [ "$(printf '%s' "$r20_out" | tr -d '"')" = "2026-10-17T19:02:00Z" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:latest=${r20_out:-empty},want=2026-10-17T19:02:00Z)"
           fi
@@ -10273,7 +10377,7 @@ R20_MOCK
   fi
 fi
 if [ -z "$r20_bad" ]; then
-  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); no unpaginated issue-comment read remains (issue #621)" "ok"
+  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); every auto-retry/auto-heal counter is incident-scoped with --arg since \$scope_since and .created_at > \$since, the previous-day fixture reads 0, and every lane derives scope_since from the head commit date or the current UTC day (issue #803); no unpaginated issue-comment read remains (issue #621)" "ok"
 else
   check "R20" "paginated comment-read guard missing:${r20_bad} (issue #621: an unpaginated read sees only the oldest 30 comments, the cap reads 0, and a crash loop re-posts retry 1 forever)" "bad"
 fi
@@ -17713,8 +17817,8 @@ fi
 # events, an executable mock `gh` (interception proven), and a local bare
 # origin whose commit subjects model Builder and Tester pushes, including a
 # 1500-commit large-range fixture and a branch-without-helpers staging
-# fixture; 65 mutation
-# self-tests (58 workflow static-pin mutants plus 8 helper-fixture mutants)
+# fixture; 71 mutation
+# self-tests (63 workflow static-pin mutants plus 8 helper-fixture mutants)
 # prove both the exact pins and the fixture matrices are load-bearing (a
 # foreign-branch pushed="yes", a verify or forward `if: false`, a
 # retry-target rebind, a retry-counter reset, a fail-open attribution
@@ -18023,9 +18127,13 @@ issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
 target="$issue"
 if [ "$outcome" != "success" ]; then
   echo "::error::@@DISP@@ step finished with outcome '$outcome' and no decision file (@@DETAIL@@)."
+  scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
   count_retries() {
-    retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-      | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc @@CMD@@ (auto-retry")))] | length' 2>/dev/null || true)
+    retries=""
+    if [ -n "$scope_since" ]; then
+      retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+        | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc @@CMD@@ (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+    fi
     printf '%s' "$retries"
   }
   retries=$(count_retries "$issue")
@@ -18274,11 +18382,20 @@ else
   echo "pushed=false" >> "$GITHUB_OUTPUT"
 fi
 
-# Robust retry counter: never fall back to 0 on an API/rate-limit
-# failure, which would make the cap never trip and loop forever. Only
-# count retries the API actually returned; on failure, stop retrying.
-retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
-  | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || true)
+scope_since=""
+if [ -n "$target_branch" ]; then
+  target_head=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
+  if [ -n "$target_head" ]; then
+    scope_since=$(gh api "repos/${{ github.repository }}/commits/$target_head" --jq '.commit.committer.date' 2>/dev/null || true)
+  fi
+else
+  scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
+fi
+retries=""
+if [ -n "$scope_since" ]; then
+  retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
+    | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+fi
 if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
   echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
   exit 1
@@ -18897,6 +19014,15 @@ mutants = {
     "verify-retries-reset": after_first(
         '            retries=$((retries + parent_retries))\n', '            retries=0\n',
     ),
+    # Issue #803: dropping the incident-scope filter, or pinning the scope to
+    # a constant instead of the current UTC day, must fail the pin.
+    "verify-scope-dropped": sub_first(
+        ' and .created_at > $since', '',
+    ),
+    "verify-scope-fail-open": sub_first(
+        '            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)\n',
+        '            scope_since="1970-01-01T00:00:00Z"\n',
+    ),
     "verify-cap": sub_first(
         '            if [ "$retries" -lt 3 ]; then\n', '            if [ "$retries" -lt 30 ]; then\n',
     ),
@@ -19258,7 +19384,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-non-root-dir stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate owner-pat-path-dropped staged-approve-invocation opencode-bin-shim-plant"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-scope-dropped verify-scope-fail-open verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-non-root-dir stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate owner-pat-path-dropped staged-approve-invocation opencode-bin-shim-plant"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -19617,7 +19743,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into root-owned /opt/lab-scripts (installed with sudo install -o root -g root -m 0755, so the agent can never replace a helper a post-agent owner-PAT step executes) before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging (the write ban is scoped to the whole step body, so a cd-then-relative edit cannot evade it), the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 66 mutation self-tests (58 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into root-owned /opt/lab-scripts (installed with sudo install -o root -g root -m 0755, so the agent can never replace a helper a post-agent owner-PAT step executes) before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging (the write ban is scoped to the whole step body, so a cd-then-relative edit cannot evade it), the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 71 mutation self-tests (63 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690, issue #803)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
@@ -27355,8 +27481,12 @@ REVIEW_VERIFY_BODY = (
     'crash_signature="true"',
     'fi',
     'if [ "$crash_signature" = "true" ]; then',
+    'scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq \'.commit.committer.date\' 2>/dev/null || true)',
+    'retries=""',
+    'if [ -n "$scope_since" ]; then',
     'retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \\',
-    '| jq \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")))] | length\' 2>/dev/null || true)',
+    '| jq --arg since "$scope_since" \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)] | length\' 2>/dev/null || true)',
+    'fi',
     'if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then',
     'echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."',
     'exit 1',
@@ -27415,8 +27545,12 @@ FIX_VERIFY_BODY = (
     'exit 0',
     'fi',
     'echo "No push detected"',
+    'scope_since=$(gh api "repos/${{ github.repository }}/commits/$head_after" --jq \'.commit.committer.date\' 2>/dev/null || true)',
+    'retries=""',
+    'if [ -n "$scope_since" ]; then',
     'retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \\',
-    '| jq \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length\' 2>/dev/null || true)',
+    '| jq --arg since "$scope_since" \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")) and .created_at > $since)] | length\' 2>/dev/null || true)',
+    'fi',
     'if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then',
     'echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."',
     'exit 1',
@@ -27706,22 +27840,45 @@ fi
 if [ "${1:-}" = "api" ]; then
   url="${2:-}"
   case "$url" in
+    *"/commits/"*)
+      # Issue #803: the retry budget is head-scoped. The verify body reads the
+      # head commit's committer date; a failure fixture must leave scope_since
+      # empty so the enumeration is skipped and the body fails closed.
+      if [ "${MOCK_HEAD_FAIL:-}" = "1" ]; then
+        echo "mock gh: injected head-read failure" >&2
+        exit 1
+      fi
+      printf '%s\\n' "${MOCK_HEAD_DATE:-2026-10-18T00:00:00Z}"
+      exit 0
+      ;;
     *"/comments?per_page=100")
       # Issue #810: the fix verify enumerates prior auto-retries through the
       # paginated slurp form. A failure fixture returns nonzero so the body's
       # fail-closed enumeration branch runs; the success fixture returns one
-      # slurp page carrying MOCK_RETRY_COUNT retry markers.
+      # slurp page carrying MOCK_RETRY_COUNT fresh retry markers and
+      # MOCK_RETRY_STALE_COUNT markers from before the current head's push.
       if [ "${MOCK_API_FAIL:-}" = "1" ]; then
         echo "mock gh: injected comment-list failure" >&2
         exit 1
       fi
       count="${MOCK_RETRY_COUNT:-0}"
+      stale="${MOCK_RETRY_STALE_COUNT:-0}"
       printf '[['
+      emitted=0
+      i=0
+      while [ "$i" -lt "$stale" ]; do
+        [ "$emitted" -gt 0 ] && printf ','
+        printf '{"user":{"login":"%s"},"created_at":"2026-10-17T19:00:00Z","body":"/oc fix (auto-retry %d)"}' \\
+          "${MOCK_REPO_OWNER:-RandomLabs}" "$((i + 1))"
+        emitted=$((emitted + 1))
+        i=$((i + 1))
+      done
       i=0
       while [ "$i" -lt "$count" ]; do
-        [ "$i" -gt 0 ] && printf ','
-        printf '{"user":{"login":"%s"},"body":"/oc fix (auto-retry %d)"}' \\
+        [ "$emitted" -gt 0 ] && printf ','
+        printf '{"user":{"login":"%s"},"created_at":"2026-10-18T01:00:00Z","body":"/oc fix (auto-retry %d)"}' \\
           "${MOCK_REPO_OWNER:-RandomLabs}" "$((i + 1))"
+        emitted=$((emitted + 1))
         i=$((i + 1))
       done
       printf ']]\\n'
@@ -28054,20 +28211,31 @@ def behavioral_fix(doc, problems):
             problems.append("fix-forward(unexpanded-expression)")
             return
         verify_scenarios = (
-            # name, state, head, retries, api failure, want rc, want retry,
-            # want skip_forward, want forward
-            ("pushed", "OPEN", "fixture-new-head", 0, False, 0, None, None, True),
-            ("retry", "OPEN", "fixture-baseline", 0, False, 0, "true", None, False),
-            ("cap", "OPEN", "fixture-baseline", 3, False, 1, None, None, False),
-            ("enum-failure", "OPEN", "fixture-baseline", 0, True, 1, None, None, False),
-            ("closed-race", "MERGED", "fixture-baseline", 0, False, 0, None, "true", False),
+            # name, state, head, fresh retries, stale retries, api failure,
+            # head-read failure, want rc, want retry, want skip_forward,
+            # want forward
+            ("pushed", "OPEN", "fixture-new-head", 0, 0, False, False, 0, None, None, True),
+            ("retry", "OPEN", "fixture-baseline", 0, 0, False, False, 0, "true", None, False),
+            ("cap", "OPEN", "fixture-baseline", 3, 0, False, False, 1, None, None, False),
+            ("enum-failure", "OPEN", "fixture-baseline", 0, 0, True, False, 1, None, None, False),
+            ("closed-race", "MERGED", "fixture-baseline", 0, 0, False, False, 0, None, "true", False),
+            # Issue #803: retries posted before the current head's push belong
+            # to an earlier incident. A stale-only thread restarts at 1 (not
+            # the cap), mixed counts only the fresh marker (retry 2), and a
+            # failed head read leaves scope_since empty so the body fails
+            # closed without posting.
+            ("stale-head", "OPEN", "fixture-baseline", 0, 3, False, False, 0, "true", None, False),
+            ("mixed-head", "OPEN", "fixture-baseline", 1, 2, False, False, 0, "true", None, False),
+            ("head-failure", "OPEN", "fixture-baseline", 0, 0, False, True, 1, None, None, False),
         )
         for (
             name,
             state,
             head,
             retries,
+            stale_retries,
             api_fail,
+            head_fail,
             want_rc,
             want_retry,
             want_skip,
@@ -28080,6 +28248,7 @@ def behavioral_fix(doc, problems):
                 "MOCK_PR_STATE": state,
                 "MOCK_HEAD": head,
                 "MOCK_RETRY_COUNT": str(retries),
+                "MOCK_RETRY_STALE_COUNT": str(stale_retries),
                 "MOCK_BODY_LOG": log,
                 "MOCK_EXPECTED_PR": "781",
                 "AGENT_GATE": "true",
@@ -28087,6 +28256,8 @@ def behavioral_fix(doc, problems):
             }
             if api_fail:
                 extra["MOCK_API_FAIL"] = "1"
+            if head_fail:
+                extra["MOCK_HEAD_FAIL"] = "1"
             result = run_script(verify_body, sandbox_env(mock_dir, extra), root)
             if result.returncode != want_rc:
                 problems.append(
@@ -28106,9 +28277,11 @@ def behavioral_fix(doc, problems):
                 problems.append(
                     "fix-verify-%s(skip_forward=%r)" % (name, values.get("skip_forward"))
                 )
-            want_verify_posts = (
-                ["/oc fix (auto-retry 1)"] if name == "retry" else []
-            )
+            want_verify_posts = {
+                "retry": ["/oc fix (auto-retry 1)"],
+                "stale-head": ["/oc fix (auto-retry 1)"],
+                "mixed-head": ["/oc fix (auto-retry 2)"],
+            }.get(name, [])
             verify_posts = comment_bodies(log)
             if verify_posts != want_verify_posts:
                 problems.append(
@@ -29553,7 +29726,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), and removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone; and issue #803 extends the fix matrix to stale-head, mixed-head, and head-read-failure fixtures proving retries posted before the current head's push restart the budget at 1, mixed heads count only fresh retries, and an unreadable head fails closed without posting)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, the per-OS forwarders could post /oc fix on a closed PR, a prefixed second live_pr/linked_pr binding or a live_state override could restore a wrong-target or dead close check, and a linked-issue handoff could land on the issue thread; the pre-fix unguarded shapes are the regression)" "bad"
