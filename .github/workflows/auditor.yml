@@ -43,6 +43,25 @@ jobs:
           persist-credentials: true
           token: ${{ github.token }}
 
+      - name: Resolve trusted default-branch commit (issue #848)
+        id: trusted
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          # Issue #848 review round 4 R1: GITHUB_SHA is the dispatched ref's
+          # tip (workflow_dispatch accepts any branch or tag), so it is not a
+          # trust anchor. Resolve the repository default branch explicitly
+          # before the agent starts and publish its commit; every post-agent
+          # token-bearing step reads scripts and helpers from this commit.
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TRUSTED_REF}" --jq .sha 2>/dev/null) || sha=""
+          if [ -z "$sha" ]; then
+            echo "::error::Could not resolve the default-branch commit ${TRUSTED_REF}; refusing to run the trusted reads blind (issue #848, fail closed)."
+            exit 1
+          fi
+          echo "trusted_sha=${sha}" >> "$GITHUB_OUTPUT"
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -150,6 +169,8 @@ jobs:
           DYLD_INSERT_LIBRARIES: ""
           DYLD_LIBRARY_PATH: ""
           GH_HOST: github.com
+          GH_REPO: ""
+          TRUSTED_SHA: ${{ steps.trusted.outputs.trusted_sha }}
           ALL_PROXY: ""
           CURL_CA_BUNDLE: ""
           GIT_PROXY_COMMAND: ""
@@ -232,18 +253,23 @@ jobs:
           # Schedule/dispatch arms: bounded self-heal, never a silently burned
           # 24-hour cron cycle. Regression-guarded by audit rule R9.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
-            # Issue #848 review round 2 B2: the agent shares this workspace
-            # and can rewrite the self-heal script before this owner-PAT step
-            # runs. Read it from this run's workflow commit through the
-            # contents API, execute it from memory, and bind its board helper
-            # read to the same trusted commit.
-            selfheal=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
-              "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/schedule-selfheal.sh?ref=${GITHUB_SHA}" 2>/dev/null) || selfheal=""
-            if [ -z "$selfheal" ]; then
-              echo "::error::schedule-selfheal.sh is absent from workflow commit ${GITHUB_SHA}; failing closed instead of executing a mutable helper."
+            # Issue #848 review round 2 B2 and round 4 R1: the agent shares
+            # this workspace and can rewrite the self-heal script before this
+            # owner-PAT step runs, and GITHUB_SHA is the dispatched ref's tip.
+            # Read the script from the freshly resolved default-branch commit
+            # through the contents API, execute it from memory, and bind its
+            # board helper read to that same commit.
+            if [ -z "${TRUSTED_SHA:-}" ]; then
+              echo "::error::trusted default-branch commit is empty; refusing to execute the self-heal script (issue #848, fail closed)."
               exit 1
             fi
-            if printf '%s' "$selfheal" | HEALTH_BOARD_REF="${GITHUB_SHA}" /bin/bash -p -s -- auditor.yml "${SELFHEAL_RETRY}"; then
+            selfheal=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+              "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/schedule-selfheal.sh?ref=${TRUSTED_SHA}" 2>/dev/null) || selfheal=""
+            if [ -z "$selfheal" ]; then
+              echo "::error::schedule-selfheal.sh is absent from trusted commit ${TRUSTED_SHA}; failing closed instead of executing a mutable helper."
+              exit 1
+            fi
+            if printf '%s' "$selfheal" | HEALTH_BOARD_REF="${TRUSTED_SHA}" /bin/bash -p -s -- auditor.yml "${SELFHEAL_RETRY}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi
@@ -294,6 +320,8 @@ jobs:
           DYLD_INSERT_LIBRARIES: ""
           DYLD_LIBRARY_PATH: ""
           GH_HOST: github.com
+          GH_REPO: ""
+          TRUSTED_SHA: ${{ steps.trusted.outputs.trusted_sha }}
           ALL_PROXY: ""
           CURL_CA_BUNDLE: ""
           GIT_PROXY_COMMAND: ""
@@ -349,19 +377,26 @@ jobs:
                 echo "Forwarding to Maintainer on issue #$target (/oc maintainer)"
                 gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on issue #$target"
               else
-                # Issue #848 review F1: the agent shares this workspace and a
-                # PR-triggered run checks out the PR head mid-run, so a
-                # post-agent workspace helper would be PR-controlled code
-                # under the owner PAT. Read the helper from this run's
-                # workflow commit through the contents API and execute it
-                # from memory (the review publisher pattern, issue #798).
-                helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
-                  "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/health-board.sh?ref=${GITHUB_SHA}" 2>/dev/null) || helper=""
-                if [ -z "$helper" ]; then
-                  echo "::warning::health-board helper absent from workflow commit ${GITHUB_SHA}; cannot resolve the health board (fail closed)."
+                # Issue #848 review F1 and round 4 R1: the agent shares this
+                # workspace and a PR-triggered run checks out the PR head
+                # mid-run, so a post-agent workspace helper would be
+                # PR-controlled code under the owner PAT, and GITHUB_SHA is
+                # the dispatched ref's tip. Read the helper from the freshly
+                # resolved default-branch commit through the contents API and
+                # execute it from memory (the review publisher pattern, issue
+                # #798).
+                if [ -z "${TRUSTED_SHA:-}" ]; then
+                  echo "::warning::trusted default-branch commit is empty; cannot resolve the health board (fail closed)."
                   health_issue=""
                 else
-                  health_issue=$(printf '%s' "$helper" | /bin/bash -p -s || true)
+                  helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+                    "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/health-board.sh?ref=${TRUSTED_SHA}" 2>/dev/null) || helper=""
+                  if [ -z "$helper" ]; then
+                    echo "::warning::health-board helper absent from trusted commit ${TRUSTED_SHA}; cannot resolve the health board (fail closed)."
+                    health_issue=""
+                  else
+                    health_issue=$(printf '%s' "$helper" | /bin/bash -p -s || true)
+                  fi
                 fi
                 if [ -n "$health_issue" ] && [ "$health_issue" != "null" ]; then
                   echo "Forwarding to Maintainer on health board #$health_issue (/oc maintainer)"
