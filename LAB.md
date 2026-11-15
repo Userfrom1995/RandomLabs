@@ -1737,7 +1737,16 @@ escalation and exits 1 so the chain is visibly red. Both post-agent board
 reads (the Auditor forward and this cap escalation) fetch
 `health-board.sh` from the actor gate's trusted commit through the contents
 API and execute it from memory, never from the agent-writable workspace,
-and an empty trusted SHA fails closed (issue #848 review F1). Issue #836 caps the
+and an empty trusted SHA fails closed (issue #848 review F1). The
+post-agent self-heal callers (Auditor, Curator, Ideator, Lab) likewise fetch
+`schedule-selfheal.sh` from their own run commit (`GITHUB_SHA`), fail closed
+when it is absent, and execute it with `HEALTH_BOARD_REF` bound to that
+commit, so the board lookup inside the helper is also a trusted read (issue
+#848 review round 2 B2). The post-agent token-bearing steps pin a privileged
+`/bin/bash -p` shell, `BASH_ENV`/`ENV`, `GH_HOST`, the `LD_*` loader hooks,
+`TMPDIR`, a fresh `GH_CONFIG_DIR`, and the uppercase proxy/TLS spellings, and
+reset `PATH` in the body, so a `$GITHUB_ENV`/`$GITHUB_PATH` shim or planted
+gh config cannot intercept the read (issue #848 review round 2 B1). Issue #836 caps the
 chain at ONE fresh-run attempt: the 2026-11-08/09 starvation proved a second
 dispatch two minutes later is a lottery ticket on the same pool-wide wall,
 not a retry, so the recover-arm heartbeat (below) or the next schedule tick
@@ -2024,8 +2033,18 @@ decision file was written, the run re-dispatches its own workflow exactly once
 (bounded `selfheal_retry` input), then posts a Maintainer-triage escalation
 note on the lab-health board at the cap (no inline trigger token, issue
 #775; R9 pins the exact self-heal body and the curator cap body and bans
-both trigger spellings anywhere in them). The counter and the forwarded
-issue number reach
+both trigger spellings anywhere in them). Every post-agent caller fetches
+`schedule-selfheal.sh` from the run commit (`GITHUB_SHA`) through the contents
+API, fails closed when it is absent, and executes it from memory with
+`HEALTH_BOARD_REF` bound to that commit, so neither the self-heal script nor
+its board helper can be swapped by the agent; the workspace copy is never
+executed after the agent (issue #848 review round 2 B2). The post-agent
+token-bearing steps also pin a privileged shell (`/bin/bash -p`), `BASH_ENV`,
+`ENV`, `GH_HOST`, the `LD_*` loader hooks, `TMPDIR`, a fresh `GH_CONFIG_DIR`,
+and the uppercase proxy/TLS spellings, and reset `PATH` in the body before
+any trusted read, so an agent-written `$GITHUB_ENV`/`$GITHUB_PATH` shim or a
+planted gh config cannot intercept the step (issue #848 review round 2 B1).
+The counter and the forwarded issue number reach
 the shell only through `env:` mappings, never as an inline `${{ }}` expansion
 inside a `run:` block (audit R10). The older comment arms keep their
 auto-retry caps (`opencode.yml`, `opencode-review.yml`, and the curator's

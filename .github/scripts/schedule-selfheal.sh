@@ -22,6 +22,12 @@
 #
 # Required env: GH_TOKEN (needs actions: write), GITHUB_REPOSITORY,
 #               GITHUB_REF_NAME (falls back to main).
+# Optional env: HEALTH_BOARD_REF (issue #848 review round 2 B2). When set, the
+#               board helper is read from that trusted commit through the
+#               contents API and executed from memory, so a post-agent caller
+#               never executes the agent-writable workspace copy. Every
+#               workflow caller sets it to its trusted run commit; the
+#               workspace fallback remains only for direct manual runs.
 #
 # Exit codes: 0 = re-dispatched (the caller must exit 0 so the run that just
 # queued its own retry does not also fail), 1 = capped, escalated, or the
@@ -41,7 +47,14 @@ fi
 MAX_RETRIES=1
 
 health_issue() {
-  bash "$(dirname "$0")/health-board.sh" || true
+  if [ -n "${HEALTH_BOARD_REF:-}" ]; then
+    local helper
+    helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+      "repos/${GITHUB_REPOSITORY:-}/contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}" 2>/dev/null) || return 1
+    printf '%s' "$helper" | /bin/bash -p -s
+  else
+    bash "$(dirname "$0")/health-board.sh" || true
+  fi
 }
 
 # Escalation path at the cap (and on an unreadable counter): tell the

@@ -92,17 +92,59 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          # Issue #848 review round 2 B1: this step holds the owner PAT after
+          # the untrusted agent, so the shell environment is pinned too. The
+          # runner applies $GITHUB_ENV/$GITHUB_PATH after the job env, so an
+          # agent-written BASH_ENV, a prepended PATH shim, or a planted gh
+          # config can otherwise hijack the self-heal call.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_HOST: github.com
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
           # expansion is SHELL against this step's owner PAT env. The env
           # mapping is inert data even when the value carries shell metachars.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
+          # Issue #848 review round 2 B1: a fresh private GH_CONFIG_DIR keeps
+          # an agent-planted config.yml (for example an http_unix_socket) away
+          # from the owner PAT; GH_HOST is pinned in the env map and the
+          # lowercase proxy spellings are removed here.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           # Terminal third outcome for a gate skip (issue #428): the ideator
           # step never started, so a failed step with no board output is a
           # DENIAL, not a crash. No fail-closed red, no self-heal re-dispatch,
@@ -131,7 +173,17 @@ jobs:
           # Dispatch/schedule arms: bounded self-heal instead of a silently
           # lost dispatch. Regression-guarded by audit rule R9.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
-            if bash .github/scripts/schedule-selfheal.sh ideate.yml "${SELFHEAL_RETRY}"; then
+            # Issue #848 review round 2 B2: read the self-heal script from
+            # this run's workflow commit through the contents API and execute
+            # it from memory, and bind its board helper read to the same
+            # trusted commit; the workspace copy is agent-writable.
+            selfheal=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+              "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/schedule-selfheal.sh?ref=${GITHUB_SHA}" 2>/dev/null) || selfheal=""
+            if [ -z "$selfheal" ]; then
+              echo "::error::schedule-selfheal.sh is absent from workflow commit ${GITHUB_SHA}; failing closed instead of executing a mutable helper."
+              exit 1
+            fi
+            if printf '%s' "$selfheal" | HEALTH_BOARD_REF="${GITHUB_SHA}" /bin/bash -p -s -- ideate.yml "${SELFHEAL_RETRY}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi
