@@ -26,8 +26,9 @@
 #               board helper is read from that trusted commit through the
 #               contents API and executed from memory, so a post-agent caller
 #               never executes the agent-writable workspace copy. Every
-#               workflow caller sets it to its trusted run commit; the
-#               workspace fallback remains only for direct manual runs.
+#               workflow caller sets it to the freshly resolved default-branch
+#               commit; the workspace fallback remains only for direct manual
+#               runs.
 #
 # Exit codes: 0 = re-dispatched (the caller must exit 0 so the run that just
 # queued its own retry does not also fail), 1 = capped, escalated, or the
@@ -93,8 +94,8 @@ if [ "$RETRY" -lt "$MAX_RETRIES" ]; then
   for kv in "$@"; do
     extra+=(-f "$kv")
   done
-  if gh workflow run "$WF" --ref "$ref" -f "selfheal_retry=$n" \
-      ${extra[@]+"${extra[@]}"}; then
+  if gh workflow run "$WF" --repo "${GITHUB_REPOSITORY:?}" --ref "$ref" \
+      -f "selfheal_retry=$n" ${extra[@]+"${extra[@]}"}; then
     echo "Self-heal re-dispatch $n of $WF queued on $ref (selfheal_retry=$n)."
     exit 0
   fi
