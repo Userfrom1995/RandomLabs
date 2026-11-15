@@ -977,6 +977,7 @@ jobs:
           ENV: /dev/null
           GH_TOKEN: ${{ github.token }}
           GH_HOST: github.com
+          GH_REPO: ""
           ALL_PROXY: ""
           CURL_CA_BUNDLE: ""
           GIT_PROXY_COMMAND: ""
