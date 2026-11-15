@@ -259,9 +259,16 @@ jobs:
             echo "::error::Researcher step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
             # Robust retry counter: never fall back to 0 on an API/rate-limit
             # failure; on enumeration failure stop retrying (runaway guard).
+            # Issue #803: bound the retry budget to the current UTC day,
+            # so a long-lived issue cannot exhaust it on an earlier
+            # day's crashes. A failed clock read fails closed below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             count_retries() {
-              retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc research (auto-retry")))] | length' 2>/dev/null || true)
+              retries=""
+              if [ -n "$scope_since" ]; then
+                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc research (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              fi
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
@@ -549,9 +556,16 @@ jobs:
             echo "::error::Architect step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
             # Robust retry counter: never fall back to 0 on an API/rate-limit
             # failure; on enumeration failure stop retrying (runaway guard).
+            # Issue #803: bound the retry budget to the current UTC day,
+            # so a long-lived issue cannot exhaust it on an earlier
+            # day's crashes. A failed clock read fails closed below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             count_retries() {
-              retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc architect (auto-retry")))] | length' 2>/dev/null || true)
+              retries=""
+              if [ -n "$scope_since" ]; then
+                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc architect (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              fi
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
@@ -1148,11 +1162,27 @@ jobs:
             echo "pushed=false" >> "$GITHUB_OUTPUT"
           fi
 
+          # Issue #803: scope the retry budget to the current branch head, so
+          # a crash on a new head gets its own 3 retries. A plain-issue build
+          # with no PR branch falls back to the current UTC day. A head read
+          # failure leaves scope_since empty and fails closed below.
+          scope_since=""
+          if [ -n "$target_branch" ]; then
+            target_head=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
+            if [ -n "$target_head" ]; then
+              scope_since=$(gh api "repos/${{ github.repository }}/commits/$target_head" --jq '.commit.committer.date' 2>/dev/null || true)
+            fi
+          else
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
+          fi
           # Robust retry counter: never fall back to 0 on an API/rate-limit
           # failure, which would make the cap never trip and loop forever. Only
           # count retries the API actually returned; on failure, stop retrying.
-          retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
-            | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || true)
+          retries=""
+          if [ -n "$scope_since" ]; then
+            retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
+              | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+          fi
           if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
             echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
             exit 1
@@ -1255,8 +1285,21 @@ jobs:
             # no-op'ing, hand off to the Maintainer instead of silently stalling
             # (the old behavior required a manual /oc maintainer ping, which the
             # loop-breaking "circuit breaker" then wrongly refused to honor).
-            heals=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
-              | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue (auto-heal")))] | length' 2>/dev/null || true)
+            # Issue #803: scope the auto-heal budget to the issue's current
+            # build head; a plain issue with no open PR falls back to the
+            # current UTC day. A failed head read leaves scope_since empty and
+            # hands off to the Maintainer below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
+            heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,headRefOid,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null || true)
+            if [ -n "$heal_head" ] && [ "$heal_head" != "null" ]; then
+              scope_since=$(gh api "repos/${{ github.repository }}/commits/$heal_head" --jq '.commit.committer.date' 2>/dev/null || true)
+            fi
+            heals=""
+            if [ -n "$scope_since" ]; then
+              heals=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue (auto-heal")) and .created_at > $since)] | length' 2>/dev/null || true)
+            fi
             if [ -z "$heals" ] || ! [ "$heals" -eq "$heals" ] 2>/dev/null; then
               echo "Could not enumerate prior auto-heals (API/rate-limit). Handing off to Maintainer."
               gh issue comment "$issue" --repo "${{ github.repository }}" \
@@ -1623,12 +1666,21 @@ jobs:
           fi
 
           echo "No push detected"
+          # Issue #803: scope the retry budget to the current head's last
+          # push, so a crash on a new head gets its own 3 retries instead of
+          # inheriting retries spent on earlier heads. A failed head read
+          # leaves scope_since empty and fails closed below.
+          scope_since=$(gh api "repos/${{ github.repository }}/commits/$head_after" --jq '.commit.committer.date' 2>/dev/null || true)
           # Robust retry counter: never fall back to 0 on an API/rate-limit
-          # failure, because a phantom 0 would cap never trip and the loop would
-          # run forever. Only count retries the API actually returned; if the
-          # query itself failed, treat it as "at budget" and stop retrying.
-          retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
-            | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || true)
+          # failure, because a phantom 0 would make the cap never trip and the
+          # loop would run forever. Only count retries the API actually
+          # returned; if the query itself failed, treat it as "at budget" and
+          # stop retrying.
+          retries=""
+          if [ -n "$scope_since" ]; then
+            retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+              | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+          fi
           if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
             echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
             exit 1
@@ -1902,9 +1954,16 @@ jobs:
           target="$issue"
           if [ "$outcome" != "success" ]; then
             echo "::error::Design step finished with outcome '$outcome' and no decision file (crashed mid-run)."
+            # Issue #803: bound the retry budget to the current UTC day,
+            # so a long-lived issue cannot exhaust it on an earlier
+            # day's crashes. A failed clock read fails closed below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             count_retries() {
-              retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design (auto-retry")))] | length' 2>/dev/null || true)
+              retries=""
+              if [ -n "$scope_since" ]; then
+                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              fi
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
@@ -2217,9 +2276,16 @@ jobs:
           target="$issue"
           if [ "$outcome" != "success" ]; then
             echo "::error::Design-ux step finished with outcome '$outcome' and no decision file (crashed mid-run)."
+            # Issue #803: bound the retry budget to the current UTC day,
+            # so a long-lived issue cannot exhaust it on an earlier
+            # day's crashes. A failed clock read fails closed below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             count_retries() {
-              retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-ux (auto-retry")))] | length' 2>/dev/null || true)
+              retries=""
+              if [ -n "$scope_since" ]; then
+                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-ux (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              fi
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
@@ -2531,9 +2597,16 @@ jobs:
           target="$issue"
           if [ "$outcome" != "success" ]; then
             echo "::error::Design-visual step finished with outcome '$outcome' and no decision file (crashed mid-run)."
+            # Issue #803: bound the retry budget to the current UTC day,
+            # so a long-lived issue cannot exhaust it on an earlier
+            # day's crashes. A failed clock read fails closed below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             count_retries() {
-              retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-visual (auto-retry")))] | length' 2>/dev/null || true)
+              retries=""
+              if [ -n "$scope_since" ]; then
+                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-visual (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              fi
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
@@ -2845,9 +2918,16 @@ jobs:
           target="$issue"
           if [ "$outcome" != "success" ]; then
             echo "::error::Design-motion step finished with outcome '$outcome' and no decision file (crashed mid-run)."
+            # Issue #803: bound the retry budget to the current UTC day,
+            # so a long-lived issue cannot exhaust it on an earlier
+            # day's crashes. A failed clock read fails closed below.
+            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             count_retries() {
-              retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-motion (auto-retry")))] | length' 2>/dev/null || true)
+              retries=""
+              if [ -n "$scope_since" ]; then
+                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-motion (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              fi
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")

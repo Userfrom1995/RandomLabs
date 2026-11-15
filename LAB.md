@@ -2328,6 +2328,23 @@ remote tip).
   3-page payload whose markers sit on page 3 (34-comment thread shape), proving
   the count reads 3 and the cap trips. Enforced by R20 in
   `.github/scripts/silent-stall-audit.sh`.
+- Incident-scoped auto-retry budgets (issue #803): the bounded retry and
+  auto-heal counters counted every owner marker for the lifetime of the
+  thread, so retries spent on an earlier head exhausted the budget for every
+  later head; the review lane exhausted its budget on #788 and #804. Each
+  counter now computes `scope_since` and filters with
+  `jq --arg since "$scope_since" ... and .created_at > $since`: PR lanes use
+  the current head commit's committer date (review from the trigger-time
+  `pr-info` head, fix from `head_after`, build from the target branch tip,
+  continue from the issue's newest open PR head, curator from the PR head),
+  while issue lanes use the current UTC day. An unreadable head leaves
+  `scope_since` empty, skips enumeration, and the existing empty-counter
+  branch fails closed loudly instead of falling back to zero. R19 adds
+  stale-head, mixed-head, and head-read-failure fixtures; R20 pins every
+  scope argument, filter, and assignment and executes a previous-day payload
+  that must read 0; R28 pins the phase and build bodies plus dropped and
+  constant scope mutants; R32 executes the fix lane's stale, mixed, and
+  head-failure matrix.
 - The PAT merge sweep only merges a workflow-touching PR on a shape-anchored,
   head-bound tester verdict (issue #619): an unanchored substring match let a
   Maintainer decisions summary that merely quoted the tester marker while

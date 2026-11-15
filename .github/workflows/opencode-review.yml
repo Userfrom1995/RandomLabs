@@ -678,12 +678,21 @@ jobs:
           fi
 
           if [ "$crash_signature" = "true" ]; then
+            # Issue #803: scope the retry budget to the current head's last
+            # push. A long-lived PR used to spend its whole lifetime budget on
+            # earlier heads, so a crash on a new head could never auto-retry.
+            # The head commit's committer date is the push boundary; a failed
+            # read leaves scope_since empty and fails closed below.
+            scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq '.commit.committer.date' 2>/dev/null || true)
             # Robust retry counter: never fall back to 0 on an API/rate-limit
             # failure, which would make the cap never trip and loop forever.
             # Only count retries the API actually returned; on enumeration
             # failure, stop retrying - mirrors opencode.yml build/fix parity.
-            retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
-              | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")))] | length' 2>/dev/null || true)
+            retries=""
+            if [ -n "$scope_since" ]; then
+              retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+            fi
             if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
               echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
               exit 1
