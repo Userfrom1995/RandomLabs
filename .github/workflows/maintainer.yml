@@ -965,10 +965,34 @@ jobs:
 
       - name: "Recover from provider daily free-usage wall (issue #820)"
         id: quota_recovery
-        shell: bash
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          # Issue #848 review round 2 B1: this post-agent step holds a token
+          # and reads trusted code, so the shell environment is pinned too.
+          # The runner applies $GITHUB_ENV/$GITHUB_PATH after the job env, so
+          # an agent-written BASH_ENV, a prepended PATH shim, or a planted gh
+          # config can otherwise hijack the read.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ github.token }}
+          GH_HOST: github.com
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
           QUOTA_RECOVERY_ATTEMPT: ${{ inputs.quota_recovery }}
           RUN_ID: ${{ github.run_id }}
           # Env indirection: a forged or stale marker is only actionable when
@@ -979,8 +1003,25 @@ jobs:
           # the same trusted default-branch commit the actor gate published,
           # never from the agent-writable workspace helper.
           TRUSTED_SHA: ${{ steps.actor_gate.outputs.trusted_sha }}
-          PATH: /usr/bin:/bin
         run: |
+          PATH=/usr/bin:/bin; export PATH
+          # Issue #848 review round 2 B1: a fresh private GH_CONFIG_DIR keeps
+          # an agent-planted config.yml (for example an http_unix_socket) away
+          # from the token; GH_HOST is pinned in the env map and the lowercase
+          # proxy spellings are removed here. The prelude runs before the
+          # marker early-exit so every path uses the same trusted environment.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the post-agent step; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           # Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
           # when it fast-fails on the daily free-usage allowance. A run on that
           # egress IP cannot recover itself, so dispatch one fresh run (it

@@ -445,6 +445,15 @@ for r9_wf in curator.yml auditor.yml ideate.yml lab.yml; do
   fi
   grep -q 'schedule-selfheal\.sh' "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-selfheal-call)"
   grep -q 'selfheal_retry:' "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-selfheal_retry-input)"
+  # Issue #848 review round 2 B2: every post-agent caller reads the self-heal
+  # script from its trusted run commit and executes it from memory, and binds
+  # the script's board lookup to that same commit.
+  grep -qF 'contents/.github/scripts/schedule-selfheal.sh?ref=${GITHUB_SHA}' "$r9_path" \
+    || r9_bad="${r9_bad} ${r9_wf}(no-trusted-selfheal-read)"
+  grep -qF 'HEALTH_BOARD_REF="${GITHUB_SHA}"' "$r9_path" \
+    || r9_bad="${r9_bad} ${r9_wf}(no-health-board-ref)"
+  grep -qF '/bin/bash -p -s --' "$r9_path" \
+    || r9_bad="${r9_bad} ${r9_wf}(no-memory-selfheal-execution)"
 done
 if [ ! -f "$SELFHEAL_SCRIPT" ]; then
   r9_bad="${r9_bad} schedule-selfheal.sh(missing)"
@@ -459,6 +468,12 @@ else
   grep -qF 'Maintainer triage on the lab-health board' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-maintainer-escalation)"
   grep -qF 'gh issue comment' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-health-board-escalation-post)"
   grep -q 'refusing to fall back to 0' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-phantom-zero-guard)"
+  # Issue #848 review round 2 B2: the escalation board lookup must use the
+  # caller's trusted commit, never the agent-writable workspace helper.
+  grep -qF 'contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}' "$SELFHEAL_SCRIPT" \
+    || r9_bad="${r9_bad} script(no-trusted-board-read)"
+  grep -qF '/bin/bash -p -s' "$SELFHEAL_SCRIPT" \
+    || r9_bad="${r9_bad} script(no-memory-board-execution)"
 fi
 
 # Issue #775: machine escalation notes are posted with the owner PAT, and the
@@ -15075,7 +15090,25 @@ for model in $candidates; do
 done
 echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
 exit 1
-### 15 name=Recover from provider daily free-usage wall (issue #820) | id=quota_recovery | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}", "GH_TOKEN": "${{ github.token }}", "PATH": "/usr/bin:/bin", "QUOTA_RECOVERY_ATTEMPT": "${{ inputs.quota_recovery }}", "RUN_ID": "${{ github.run_id }}", "TRUSTED_SHA": "${{ steps.actor_gate.outputs.trusted_sha }}"}
+### 15 name=Recover from provider daily free-usage wall (issue #820) | id=quota_recovery | if=always() && steps.actor_gate.outputs.run == 'true' | shell=/bin/bash --noprofile --norc -e -o pipefail -p {0} | env={"AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}", "ALL_PROXY": "", "BASH_ENV": "/dev/null", "CURL_CA_BUNDLE": "", "ENV": "/dev/null", "GH_HOST": "github.com", "GH_TOKEN": "${{ github.token }}", "GIT_PROXY_COMMAND": "", "GIT_SSL_CAINFO": "", "GIT_SSL_CAPATH": "", "GIT_SSL_NO_VERIFY": "", "HTTPS_PROXY": "", "HTTP_PROXY": "", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "NO_PROXY": "", "PATH": "/usr/bin:/bin", "QUOTA_RECOVERY_ATTEMPT": "${{ inputs.quota_recovery }}", "RUN_ID": "${{ github.run_id }}", "SSL_CERT_DIR": "", "SSL_CERT_FILE": "", "TMPDIR": "/tmp", "TRUSTED_SHA": "${{ steps.actor_gate.outputs.trusted_sha }}"}
+PATH=/usr/bin:/bin; export PATH
+# Issue #848 review round 2 B1: a fresh private GH_CONFIG_DIR keeps
+# an agent-planted config.yml (for example an http_unix_socket) away
+# from the token; GH_HOST is pinned in the env map and the lowercase
+# proxy spellings are removed here. The prelude runs before the
+# marker early-exit so every path uses the same trusted environment.
+gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+  echo "::error::Could not create a fresh gh config directory for the post-agent step; refusing to run with agent-writable gh state (issue #848, fail closed)."
+  exit 1
+fi
+if ! chmod 700 "$gh_cfg"; then
+  echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #848, fail closed)."
+  exit 1
+fi
+export GH_CONFIG_DIR="$gh_cfg"
+trap 'rm -rf "$gh_cfg"' EXIT
+unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
 # Issue #820 proposal 1: the inline runner writes .maintainer/quota-wall
 # when it fast-fails on the daily free-usage allowance. A run on that
 # egress IP cannot recover itself, so dispatch one fresh run (it
@@ -29905,8 +29938,21 @@ if recovery_i is not None:
         fail("recovery-id")
     if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
         fail("recovery-if")
+    # Issue #848 review round 2 B1: the post-agent step executes a trusted
+    # read and posts with a token, so its shell and full environment are
+    # pinned against an agent-written BASH_ENV, GITHUB_PATH shim, or gh config.
+    if step.get("shell") != "/bin/bash --noprofile --norc -e -o pipefail -p {0}":
+        fail("recovery-shell")
     env = step.get("env")
-    if not isinstance(env, dict) or set(env) != {"GH_TOKEN", "QUOTA_RECOVERY_ATTEMPT", "RUN_ID", "AGENT_OUTCOME", "TRUSTED_SHA", "PATH"}:
+    expected_recovery_env = {
+        "GH_TOKEN", "QUOTA_RECOVERY_ATTEMPT", "RUN_ID", "AGENT_OUTCOME",
+        "TRUSTED_SHA", "PATH", "BASH_ENV", "ENV", "GH_HOST", "ALL_PROXY",
+        "CURL_CA_BUNDLE", "GIT_PROXY_COMMAND", "GIT_SSL_CAINFO",
+        "GIT_SSL_CAPATH", "GIT_SSL_NO_VERIFY", "HTTP_PROXY", "HTTPS_PROXY",
+        "NO_PROXY", "SSL_CERT_DIR", "SSL_CERT_FILE", "TMPDIR", "LD_AUDIT",
+        "LD_LIBRARY_PATH", "LD_PRELOAD",
+    }
+    if not isinstance(env, dict) or set(env) != expected_recovery_env:
         fail("recovery-env")
     else:
         if env.get("QUOTA_RECOVERY_ATTEMPT") != "${{ inputs.quota_recovery }}":
@@ -29919,6 +29965,22 @@ if recovery_i is not None:
             fail("recovery-trusted-sha-binding")
         if env.get("PATH") != "/usr/bin:/bin":
             fail("recovery-path-binding")
+        if env.get("BASH_ENV") != "/dev/null":
+            fail("recovery-bash-env-binding")
+        if env.get("ENV") != "/dev/null":
+            fail("recovery-env-env-binding")
+        if env.get("GH_HOST") != "github.com":
+            fail("recovery-gh-host-binding")
+        if env.get("TMPDIR") != "/tmp":
+            fail("recovery-tmpdir-binding")
+        for key in (
+            "LD_AUDIT", "LD_LIBRARY_PATH", "LD_PRELOAD", "ALL_PROXY",
+            "CURL_CA_BUNDLE", "GIT_PROXY_COMMAND", "GIT_SSL_CAINFO",
+            "GIT_SSL_CAPATH", "GIT_SSL_NO_VERIFY", "HTTP_PROXY", "HTTPS_PROXY",
+            "NO_PROXY", "SSL_CERT_DIR", "SSL_CERT_FILE",
+        ):
+            if env.get(key) != "":
+                fail("recovery-empty-binding:%s" % key)
     text = body(recovery_i)
     if text:
         with open(os.path.join(outdir, "recovery.sh"), "w", encoding="utf-8") as handle:
@@ -29947,9 +30009,22 @@ if recovery_i is not None:
         'printf \'%s\' "$helper" | /bin/bash -p -s',
         "::warning::trusted commit SHA is empty",
         "::warning::health-board helper absent from trusted commit",
+        'PATH=/usr/bin:/bin; export PATH',
+        'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""',
+        'export GH_CONFIG_DIR="$gh_cfg"',
+        "trap 'rm -rf \"$gh_cfg\"' EXIT",
+        'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true',
+        '--hostname github.com',
+        'Accept: application/vnd.github.raw',
     ):
         if needle not in text:
             fail("recovery-missing:%s" % needle)
+    # Issue #848 review round 2 B1: the hardened prelude must run before the
+    # marker early-exit, so no exit path skips the trusted environment.
+    prelude_pos = text.find('PATH=/usr/bin:/bin; export PATH')
+    marker_pos = text.find('if [ ! -f .maintainer/quota-wall ]; then')
+    if prelude_pos < 0 or marker_pos < 0 or prelude_pos > marker_pos:
+        fail("recovery-prelude-after-marker")
     # Issue #848 review F1: the post-agent cap step must never execute the
     # agent-writable workspace helper again.
     if "bash .github/scripts/health-board.sh" in text:
@@ -30455,6 +30530,16 @@ r34_case() {
     /*) r34_case_path="$r34_case_script" ;;
     *) r34_case_path="$r34_dir/out/$r34_case_script" ;;
   esac
+  # Issue #848 review round 2 B1: the shipped recovery body resets PATH to the
+  # system directories. Rewrite that one reviewed line in the sandbox copy so
+  # the mock gh/sleep stay reachable; the static pin above keeps the shipped
+  # reset load-bearing.
+  if [ -f "$r34_case_path" ]; then
+    r34_case_run="$r34_case_work/run.sh"
+    sed -e "s#^PATH=/usr/bin:/bin; export PATH\$#PATH=$r34_dir/bin:/usr/bin:/bin; export PATH#" \
+      "$r34_case_path" > "$r34_case_run"
+    r34_case_path="$r34_case_run"
+  fi
   (
     cd "$r34_case_work" || exit 99
     env PATH="$r34_dir/bin:/usr/bin:/bin" HOME="$r34_case_work" \
@@ -31108,6 +31193,15 @@ r34_mutate "$r34_dir/mutants/recovery-trigger-opencode.yml" 'Quota-wall recovery
 r34_mutant recovery-trigger-opencode "$r34_dir/mutants/recovery-trigger-opencode.yml"
 r34_mutate "$r34_dir/mutants/ref.yml" 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref main' 'maintainer.yml --repo "$GITHUB_REPOSITORY" --ref test'
 r34_mutant ref "$r34_dir/mutants/ref.yml"
+# Issue #848 review round 2 B1: the post-agent cap step's shell environment is
+# load-bearing, so a shell downgrade, an agent-writable BASH_ENV, or a dropped
+# in-body PATH reset must each fail the static checker.
+r34_mutate "$r34_dir/mutants/recovery-shell.yml" "shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'" "shell: bash"
+r34_mutant recovery-shell "$r34_dir/mutants/recovery-shell.yml"
+r34_mutate "$r34_dir/mutants/recovery-bash-env.yml" '          BASH_ENV: /dev/null' '          BASH_ENV: /tmp/agent-env'
+r34_mutant recovery-bash-env "$r34_dir/mutants/recovery-bash-env.yml"
+r34_mutate "$r34_dir/mutants/recovery-path-reset.yml" 'PATH=/usr/bin:/bin; export PATH' 'PATH=/usr/bin:/bin'
+r34_mutant recovery-path-reset "$r34_dir/mutants/recovery-path-reset.yml"
 
 # Tester finding 1 on #837: the pre-fix note printf had two %s specifiers and
 # three arguments, so bash reused the format and posted a mangled duplicate
@@ -35848,13 +35942,97 @@ r36_need_trusted() {
   grep -qF -- '/bin/bash -p -s' "$file" 2>/dev/null \
     || r36_sites_bad="${r36_sites_bad} ${label}(no-memory-execution)"
 }
+# Issue #848 review round 2 B1: the post-agent steps that read trusted code or
+# post with a token must pin their shell and environment, not only PATH.
+r36_step_block() {
+  awk -v needle="$2" '
+    /^      - name: / {
+      if (found) exit
+      if (index($0, needle) > 0) found = 1
+    }
+    found { print }
+  ' "$1"
+}
+r36_need_hardened() {
+  local file="$1" step="$2" label="$3" block needle
+  block=$(r36_step_block "$file" "$step")
+  if [ -z "$block" ]; then
+    r36_sites_bad="${r36_sites_bad} ${label}(step-missing)"
+    return
+  fi
+  for needle in \
+    'BASH_ENV: /dev/null' \
+    'ENV: /dev/null' \
+    'GH_HOST: github.com' \
+    'LD_AUDIT: ""' \
+    'LD_LIBRARY_PATH: ""' \
+    'LD_PRELOAD: ""' \
+    'TMPDIR: /tmp' \
+    'PATH: /usr/bin:/bin' \
+    "shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'" \
+    'PATH=/usr/bin:/bin; export PATH' \
+    'gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""' \
+    'export GH_CONFIG_DIR="$gh_cfg"' \
+    "trap 'rm -rf \"\$gh_cfg\"' EXIT" \
+    'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true'
+  do
+    printf '%s\n' "$block" | grep -qF -- "$needle" \
+      || r36_sites_bad="${r36_sites_bad} ${label}(missing:${needle})"
+  done
+}
+# Issue #848 review round 2 B2: every post-agent self-heal caller reads the
+# script from its trusted run commit and binds the board lookup to it.
+r36_need_selfheal_trusted() {
+  local file="$1" step="$2" label="$3" block needle
+  block=$(r36_step_block "$file" "$step")
+  for needle in \
+    'contents/.github/scripts/schedule-selfheal.sh?ref=${GITHUB_SHA}' \
+    'HEALTH_BOARD_REF="${GITHUB_SHA}"' \
+    '/bin/bash -p -s --'
+  do
+    printf '%s\n' "$block" | grep -qF -- "$needle" \
+      || r36_sites_bad="${r36_sites_bad} ${label}(missing:${needle})"
+  done
+}
+r36_hardened_ok() {
+  local before="$r36_sites_bad"
+  r36_need_hardened "$1" "$2" probe
+  if [ "$r36_sites_bad" = "$before" ]; then
+    return 0
+  fi
+  r36_sites_bad="$before"
+  return 1
+}
+r36_selfheal_trusted_ok() {
+  local before="$r36_sites_bad"
+  r36_need_selfheal_trusted "$1" "$2" probe
+  if [ "$r36_sites_bad" = "$before" ]; then
+    return 0
+  fi
+  r36_sites_bad="$before"
+  return 1
+}
 r36_need_helpers .github/workflows/auditor.yml 1 auditor
 r36_need_helpers .github/workflows/maintainer.yml 1 maintainer
 r36_need_helpers .github/workflows/opencode-recover.yml 1 recover
 r36_need_trusted .github/workflows/auditor.yml '${GITHUB_SHA}' auditor
 r36_need_trusted .github/workflows/maintainer.yml '${TRUSTED_SHA}' maintainer
+r36_need_hardened .github/workflows/auditor.yml 'Verify auditor decided' auditor-verify
+r36_need_hardened .github/workflows/auditor.yml 'Forward auditor decision' auditor-forward
+r36_need_hardened .github/workflows/maintainer.yml 'Recover from provider daily free-usage wall' maintainer-cap
+r36_need_hardened .github/workflows/curator.yml 'Verify curator decided' curator-verify
+r36_need_hardened .github/workflows/ideate.yml 'Verify ideator ran' ideate-verify
+r36_need_hardened .github/workflows/lab.yml 'Verify lab engineer decided' lab-verify
+r36_need_selfheal_trusted .github/workflows/auditor.yml 'Verify auditor decided' auditor
+r36_need_selfheal_trusted .github/workflows/curator.yml 'Verify curator decided' curator
+r36_need_selfheal_trusted .github/workflows/ideate.yml 'Verify ideator ran' ideate
+r36_need_selfheal_trusted .github/workflows/lab.yml 'Verify lab engineer decided' lab
 grep -qF 'bash "$(dirname "$0")/health-board.sh"' .github/scripts/schedule-selfheal.sh 2>/dev/null \
   || r36_sites_bad="${r36_sites_bad} selfheal(no-shared-helper)"
+grep -qF 'contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}' .github/scripts/schedule-selfheal.sh 2>/dev/null \
+  || r36_sites_bad="${r36_sites_bad} selfheal(no-trusted-board-read)"
+grep -qF '/bin/bash -p -s' .github/scripts/schedule-selfheal.sh 2>/dev/null \
+  || r36_sites_bad="${r36_sites_bad} selfheal(no-memory-board-execution)"
 # The direct workspace call is the pre-agent arm only; every post-agent board
 # read must go through the trusted contents-API invocation (issue #848
 # review F1).
@@ -35875,16 +36053,19 @@ if [ -n "$r36_sites_bad" ]; then
 fi
 
 r36_direct_scan() {
-  local file hits
+  local file hits selector_re
+  selector_re="labels=lab-health|labels\\[\\]=lab-health|--(add-)?label(=|[[:space:]])[[:space:]]*[\"']?lab-health|-l[[:space:]]+[\"']?lab-health|--search(=|[[:space:]])[[:space:]]*[\"']?lab-health"
   for file in "$@"; do
     case "$file" in
       *health-board.sh|*silent-stall-audit.sh) continue ;;
     esac
-    hits=$(grep -nE -- 'labels=lab-health|labels\[\]=lab-health|--(add-)?label(=|[[:space:]])[[:space:]]*"?lab-health' "$file" 2>/dev/null || true)
+    hits=$(grep -nE -- "$selector_re" "$file" 2>/dev/null || true)
     [ -z "$hits" ] || printf '%s:%s\n' "$file" "$(printf '%s' "$hits" | head -n 1)"
   done
 }
-r36_direct=$(r36_direct_scan .github/workflows/*.yml .github/scripts/*.sh .github/actions/*/*.yml .github/actions/*/*.yaml .github/actions/*/*.sh 2>/dev/null || true)
+r36_scan_files=$(find .github/workflows .github/scripts .github/actions -type f \
+  \( -name '*.yml' -o -name '*.yaml' -o -name '*.sh' \) 2>/dev/null || true)
+r36_direct=$(r36_direct_scan $r36_scan_files 2>/dev/null || true)
 if [ -n "$r36_direct" ]; then
   r36_bad="${r36_bad} direct-selector:$(printf '%s' "$r36_direct" | tr '\n' ' ')"
 fi
@@ -36110,6 +36291,74 @@ if [ -f "$r36_dir/auditor-post-direct.yml" ]; then
 else
   r36_bad="${r36_bad} mutant-trusted-read-anchor-missing"
 fi
+# Issue #848 review round 2 B1/B2: the hardened environment pins and the
+# trusted self-heal read are load-bearing, so removing them must be caught.
+python3 - .github/workflows/auditor.yml "$r36_dir/auditor-forward-env.yml" <<'R36SITEMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = '''          # Issue #848 review round 2 B1: pin the shell environment of this
+          # post-agent owner-PAT step, not only its PATH, so an agent-written
+          # BASH_ENV, GITHUB_PATH shim, or gh config cannot intercept the read.
+          BASH_ENV: /dev/null
+'''
+new = '''          # Issue #848 review round 2 B1: pin the shell environment of this
+          # post-agent owner-PAT step, not only its PATH, so an agent-written
+          # BASH_ENV, GITHUB_PATH shim, or gh config cannot intercept the read.
+'''
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R36SITEMUT
+if [ -f "$r36_dir/auditor-forward-env.yml" ]; then
+  if r36_hardened_ok "$r36_dir/auditor-forward-env.yml" 'Forward auditor decision'; then
+    r36_bad="${r36_bad} mutant-forward-env-removal-not-caught"
+  fi
+else
+  r36_bad="${r36_bad} mutant-forward-env-anchor-missing"
+fi
+python3 - .github/workflows/auditor.yml "$r36_dir/auditor-selfheal-direct.yml" <<'R36SITEMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = '''            selfheal=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \\
+              "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/schedule-selfheal.sh?ref=${GITHUB_SHA}" 2>/dev/null) || selfheal=""
+            if [ -z "$selfheal" ]; then
+              echo "::error::schedule-selfheal.sh is absent from workflow commit ${GITHUB_SHA}; failing closed instead of executing a mutable helper."
+              exit 1
+            fi
+            if printf '%s' "$selfheal" | HEALTH_BOARD_REF="${GITHUB_SHA}" /bin/bash -p -s -- auditor.yml "${SELFHEAL_RETRY}"; then'''
+new = '            if bash .github/scripts/schedule-selfheal.sh auditor.yml "${SELFHEAL_RETRY}"; then'
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R36SITEMUT
+if [ -f "$r36_dir/auditor-selfheal-direct.yml" ]; then
+  if r36_selfheal_trusted_ok "$r36_dir/auditor-selfheal-direct.yml" 'Verify auditor decided'; then
+    r36_bad="${r36_bad} mutant-selfheal-trusted-removal-not-caught"
+  fi
+else
+  r36_bad="${r36_bad} mutant-selfheal-trusted-anchor-missing"
+fi
+python3 - .github/scripts/schedule-selfheal.sh "$r36_dir/selfheal-board-direct.sh" <<'R36SITEMUT'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding='utf-8').read()
+old = '''    helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \\
+      "repos/${GITHUB_REPOSITORY:-}/contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}" 2>/dev/null) || return 1
+    printf '%s' "$helper" | /bin/bash -p -s'''
+new = '''    bash "$(dirname "$0")/health-board.sh" || true'''
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R36SITEMUT
+if [ -f "$r36_dir/selfheal-board-direct.sh" ]; then
+  if grep -qF 'contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}' "$r36_dir/selfheal-board-direct.sh" 2>/dev/null; then
+    r36_bad="${r36_bad} mutant-selfheal-board-direct-not-caught"
+  fi
+else
+  r36_bad="${r36_bad} mutant-selfheal-board-direct-anchor-missing"
+fi
 
 if [ "${HEALTH_BOARD_LIVE_CHECK:-}" = "1" ]; then
   if [ -z "$REPO" ] || [ -z "${GITHUB_TOKEN:-}" ]; then
@@ -36139,7 +36388,7 @@ fi
 rm -rf "$r36_dir"
 case "$r36_bad" in
   "")
-    check "R36" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned to the trusted contents-API invocation instead of the agent-writable workspace helper, and any direct lab-health selector outside the helper is rejected (issue #848, review F1)" "ok"
+    check "R36" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned to the trusted contents-API invocation instead of the agent-writable workspace helper, every post-agent self-heal caller (auditor/curator/ideate/lab) reads schedule-selfheal.sh from its trusted run commit and binds the board lookup to that commit, every post-agent token-bearing step pins its privileged shell, BASH_ENV/ENV, GH_HOST, LD_*, TMPDIR, a fresh GH_CONFIG_DIR, and the in-body PATH reset, and any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags, and --search (issue #848, review rounds 1-2)" "ok"
     ;;
   *)
     check "R36" "lab-health board selector split or bypassable:${r36_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"

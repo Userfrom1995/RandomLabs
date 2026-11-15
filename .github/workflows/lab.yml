@@ -129,13 +129,18 @@ jobs:
         if: always()
         shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         env:
+          # Issue #848 review round 2 B1: this step holds the owner PAT after
+          # the untrusted agent, so the shell environment is pinned too. The
+          # runner applies $GITHUB_ENV/$GITHUB_PATH after the job env, so an
+          # agent-written BASH_ENV, a prepended PATH shim, or a planted gh
+          # config can otherwise hijack the self-heal call.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GH_CONFIG_DIR: /proc
-          BASH_ENV: /dev/null
-          ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
@@ -161,6 +166,20 @@ jobs:
           DYLD_FRAMEWORK_PATH: ""
           DYLD_INSERT_LIBRARIES: ""
           DYLD_LIBRARY_PATH: ""
+          GH_HOST: github.com
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
+
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -168,6 +187,7 @@ jobs:
           PYTHONPATH: ""
           PS4: "+ "
           SHELLOPTS: ""
+
           # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
           # expanded inside the run block below executes as SHELL with this
           # step's owner PAT in env, so a value like 0"; touch /tmp/PWNED; echo "
@@ -178,6 +198,24 @@ jobs:
         run: |
           # Issue #742: clear functions imported from the agent-exported environment.
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
+          PATH=/usr/bin:/bin; export PATH
+          # Issue #848 review round 2 B1: a fresh private GH_CONFIG_DIR keeps
+          # an agent-planted config.yml (for example an http_unix_socket) away
+          # from the owner PAT; GH_HOST is pinned in the env map and the
+          # lowercase proxy spellings are removed here.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
+
           # Terminal third outcome for a gate skip (issue #428): the lab
           # engineer step never started, so "failed + no decision file" is a
           # DENIAL, not a crash. No fail-closed red, no self-heal re-dispatch,
@@ -212,7 +250,17 @@ jobs:
           # Dispatch arm: bounded self-heal, forwarding the target issue so the
           # retry run still knows what to work on. Regression-guarded by audit rule R9.
           if [ "$event_name" = "workflow_dispatch" ]; then
-            if bash .github/scripts/schedule-selfheal.sh lab.yml "${SELFHEAL_RETRY}" "issue_number=${INPUT_ISSUE}"; then
+            # Issue #848 review round 2 B2: read the self-heal script from
+            # this run's workflow commit through the contents API and execute
+            # it from memory, and bind its board helper read to the same
+            # trusted commit; the workspace copy is agent-writable.
+            selfheal=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+              "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/schedule-selfheal.sh?ref=${GITHUB_SHA}" 2>/dev/null) || selfheal=""
+            if [ -z "$selfheal" ]; then
+              echo "::error::schedule-selfheal.sh is absent from workflow commit ${GITHUB_SHA}; failing closed instead of executing a mutable helper."
+              exit 1
+            fi
+            if printf '%s' "$selfheal" | HEALTH_BOARD_REF="${GITHUB_SHA}" /bin/bash -p -s -- lab.yml "${SELFHEAL_RETRY}" "issue_number=${INPUT_ISSUE}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi
