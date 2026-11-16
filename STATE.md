@@ -1,54 +1,56 @@
 # STATE
 
-Last updated: 2026-11-16T05:12Z by run 43808447714
+Last updated: 2026-11-16T07:24Z by run 43822488620
 
-(This was the 05:10Z heartbeat: recover `43808374868` found the last real session 285m old and dispatched it. The 00:21Z schedule's three re-posts all 401ed at 00:25:43Z, the eighth consecutive rejected queue, so the owner-PAT secret is still the only blocker. This run re-posted the same three serialized triggers as the live credential test and posted one concise incident update on #70 (the first note since 23:52Z, a 5h+ interval with new evidence). Main is `e5cd250c`; production Pages is green; the board invariant holds; no emergency declaration exists or is warranted.)
+(This was the 07:15Z schedule wake. The 05:09Z heartbeat's three re-posts 401ed at 05:13:15Z, the ninth consecutive rejected batch, and the Auditor's daily run then opened #855 (the dedicated owner-PAT incident tracker) and #856 (the approve-held-runs fail-open). This run re-posted the same `lab` #854, `lab` #745 and `review` #850 queue as the live credential test and triaged both new issues. Main is `e5cd250c`; production Pages is green; the board invariant holds; the curator and auditor both ran clean today; no emergency declaration exists or is warranted.)
 
 ## TL;DR for the next Hephaestus
 
-- This was a **heartbeat** (`workflow_dispatch`, run `43808447714`, 05:09:59Z) from recover `43808374868` (schedule, 05:09:17-05:10:01Z, success): last real session 285m earlier (`43779843027`, ended 00:25:50Z), threshold 90m. The 05:10:04Z maintainer fan-out `43808457295` skipped.
-- **New evidence since the last entry:** the 00:21Z schedule's `Run /oc triggers as owner` step 401ed on all three posts at 00:25:43Z (lab #854, lab #745, review #850), the eighth consecutive rejected re-post. The same run's approve sweep printed "No held runs remain" at 00:25:45Z; the three 07:38Z held runs are still `action_required` (the known 401 fail-open no-op). No owner-PAT call has succeeded since 07:38:13Z.
-- This run **re-posted the same serialized queue** (`lab` #854 with the round-1 findings, `lab` #745 rebase retry, `review` #850 head `9c9bf1bd7`) and posted **one** #70 incident note (5h+ since the 23:52Z note, with the 00:25:43Z triple 401 as new evidence). Do not post another note next wake without a material change.
-- No new failure, no new issue, no new PR, no owner comment since 07:38:09Z. Held/queued sets unchanged. Main and production Pages are stable.
-- The **#854 round-1 review** (run `43690826495`) finished at 08:19:23Z with verdict **`lab`**; its owner-PAT report publication and lab forward were both skipped on the same incident. The findings are preserved in today's log and in the lab instruction.
+- This was a **schedule** run (`43822488620`, 07:15:14Z), 2h after the real 05:09 heartbeat; no event payload, no quota-wall intake skip.
+- **New evidence since the last entry:** the 05:09Z heartbeat's trigger step 401ed all three posts at 05:13:15Z (the ninth consecutive batch; the #70 note one second earlier said "eighth" because the batch had not yet been attempted). The three 07:38Z runs are still `action_required`. No owner-PAT call has succeeded since 2026-11-15T07:38:13Z.
+- **The Auditor ran** (`43809323905`, 05:18:03-05:42:36Z, green), posted the 05:41:52Z daily audit on #70, and opened **#855** (owner-PAT 401 incident tracker) and **#856** (approve-held-runs reports "No held runs remain" on a 401). The Curator also ran (`43809873153`, 05:23:05-05:36:06Z, green, decision `[]`).
+- This run **re-posted the same three-item queue** and **triaged #855/#856** with one bot ping each. #855 stays open as the incident record (owner-only rotation); #856 is accepted and queued one lab branch at a time after #854/#850. No #70 note: the Auditor's daily audit is the newest board entry and already records the ninth 401.
+- **No new failure, no new PR, no owner comment since 07:38:09Z on 11-15.** Held/queued sets unchanged. Main, `maintainer/logs` (`e8142f75`) and production Pages are stable.
 - **Start the next session by reading this run's `Run /oc triggers as owner` step.** If the three posts landed, do not re-post them and work the lanes. If they 401ed, the queue stays here; re-post after any Owner refresh signal.
+- **Do not re-post the #855/#856 pings** without a material change, and do not dispatch two branches on the shared `silent-stall-audit.sh` surface at once.
 
 ## Who I am
 
 Hephaestus, the Maintainer of this repository. I do not write project code; I keep the pipeline full and the gates honest, and I route every change through the Lab Engineer, reviewer, tester, auditors, curators, and eval. "I'll do it myself" should lose to "route it." I act only when the owner expressly asks or routine triage is due. I use subagents for parallel read-only investigation only when it materially saves time, and the capped 3-8-line delegation ledger is mandatory where required.
 
-## Right now (surveyed 05:10-05:13Z on 2026-11-16)
+## Right now (surveyed 07:15-07:24Z on 2026-11-16)
 
 ### GitHub state
 
-- **Main:** `e5cd250c126efa8c86a084b3d72ade3bcf9bdc5b` ("curate: sync Maze Chase release status and correct the Pac-Man retirement claim", Fixes #851; 2026-11-15T06:31:53Z), atop `620bb8d2e` (the #798 lab merge). **`maintainer/logs`:** `58f3daa35544fb00d729a26de5f9dcd3cb35df48` ("maintainer: memory update 2026-11-16T00:25Z", 00:25:40Z).
+- **Main:** `e5cd250c126efa8c86a084b3d72ade3bcf9bdc5b` ("curate: sync Maze Chase release status and correct the Pac-Man retirement claim", Fixes #851; 2026-11-15T06:31:53Z), atop `620bb8d2e` (the #798 lab merge). **`maintainer/logs`:** `e8142f75fd097195bf13646157ec2fbb4e99aeb3` ("maintainer: memory update 2026-11-16T05:13Z", 05:13:11Z).
 - **Open PRs (4):** #854 head `090452f27c575a31e617bc5c7083c6ee441b0653`, MERGEABLE/UNSTABLE, closing [803], 6 protected-path files (`.github/scripts/silent-stall-audit.sh`, `opencode.yml`, `opencode-review.yml`, `curator.yml`, `AGENTS.md`, `LAB.md`), branch `opencode/issue803-20261115060707`, last comment the 14:18:35Z bot findings ping; #850 head `9c9bf1bd72fb459388d2985656f6f61735147105`, MERGEABLE/CLEAN, closing [848] only, last comment the 08:01:35Z bot "queued, not live" note; #745 head `7a04fa4a96e1982ac307ca40973fed29379def0b`, CONFLICTING/DIRTY, last comment the 08:01:34Z bot lost-push note; #821 head `dce109e44`, CLEAN, parked since 2026-11-07.
-- **Open issues (23 non-PR):** #853, #849, #848, #836, #831, #815, #814, #812, #803, #792, #774, #773, #742, #683, #678, #677, #661, #659, #657, #655, #582, #70, #42. No new issue since #853 (2026-11-15T05:52:07Z) and no untriaged issue.
-- **Board invariant:** only #70 carries `lab-health`, and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Latest comment: the 05:09:57Z heartbeat marker (bot, no trigger token); this run's 05:10Z incident note follows it.
-- **Latest comments:** no owner comment since 2026-11-15T07:38:09Z. Newest non-heartbeat comment is the 23:52:02Z incident update.
-- **Branch tips:** `git ls-remote` confirmed main `e5cd250c`, `maintainer/logs` `58f3daa`, #854 `090452f27`, #850 `9c9bf1bd7`, #745 `7a04fa4a`, #821 `dce109e4`.
+- **Open issues (25 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #803, #812, #814, #815, #831, #836, #848, #849, #853, **#855**, **#856**. #855/#856 are the Auditor's 05:41Z creations and are triaged by this run (one bot ping each). The old Maze Chase issues #677/#678/#659 have no comments but are the intentional standing set, not untriaged work.
+- **Board invariant:** only #70 carries `lab-health`, and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Latest comment: the 05:41:52Z Auditor daily audit.
+- **Latest comments:** no owner comment since 2026-11-15T07:38:09Z. Newest non-audit comment is the 05:13:14Z Maintainer incident note.
+- **Branch tips:** `git ls-remote` confirmed main `e5cd250c`, `maintainer/logs` `e8142f75`, #854 `090452f27`, #850 `9c9bf1bd7`, #745 `7a04fa4a`, #821 `dce109e4`.
 
 ### Runs, CI and queues
 
-- **This run:** `43808447714`, heartbeat `workflow_dispatch`, 05:09:59Z, in progress at survey close.
-- **Heartbeat source:** recover `43808374868` (schedule, 05:09:17-05:10:01Z) success; it posted the 05:09:57Z marker and dispatched the 05:09:59Z run after "last real session 285m ago, threshold 90m". The 05:10:04Z maintainer fan-out `43808457295` skipped.
-- **Previous Maintainer:** `43779843027`, schedule, 00:21:04-00:25:50Z, success. Its trigger step 401ed all three queued posts at 00:25:43Z; its approve sweep at 00:25:45Z was the 401 fail-open no-op; its memory commit reached `maintainer/logs` (`58f3daa`) at 00:25:40Z.
-- **Curator:** `43770113996` (schedule, 22:35:11-22:43:01Z) success with decision `[]`; the missing 18:00Z tick was platform scheduling throttling, recovered at 22:35Z. The 00:00Z tick has not surfaced by 05:13Z (5h+); the next cron tick is 06:00Z. No dispatch.
-- **Auditor:** last daily `43680612939` (schedule) 05:19-05:53Z on 2026-11-15, success; its 05:52:54Z daily audit on #70 is the newest audit note. The 2026-11-16 midnight tick has not surfaced by 05:13Z (the previous one also surfaced around 05:19Z). No dispatch.
-- **Failures in the last 100 runs:** only `43686625196`, the 06:41:55Z manual #850 review killed at 07:03:29Z on the #754 free-usage wall. No new failure.
-- **Held (`action_required`) runs:** `43690826057` (opencode-pr-trigger), `43690826207` (Deploy static site), `43690826030` (maintainer), all created 2026-11-15T07:38:12Z on `opencode/issue803-20261115060707`. Still held; only an owner-PAT approve sweep can clear them, and that sweep currently fails open on the 401.
+- **This run:** `43822488620`, schedule, 07:15:14Z, in progress at survey close.
+- **Previous Maintainer:** `43808447714`, heartbeat `workflow_dispatch`, 05:09:59-05:13:21Z, success. Its trigger step 401ed all three posts at 05:13:15Z; its approve sweep at 05:13:16Z was the 401 fail-open no-op; its memory commit reached `maintainer/logs` (`e8142f75`) at 05:13:11Z.
+- **Recover:** `43808374868` (schedule, 05:09:17-05:10:01Z) success; heartbeat source for the 05:09 run.
+- **Curator:** `43809873153` (schedule, 05:23:05-05:36:06Z) success with decision `[]`. The midnight tick surfaced late but ran clean.
+- **Auditor:** `43809323905` (schedule, 05:18:03-05:42:36Z) success; its 05:41:52Z daily audit on #70 is the newest audit note; it opened #855/#856.
+- **Fan-outs:** `43811305540` (05:36:10Z) and `43811998833` (05:42:39Z) skipped (curator/auditor completion triggers; not real sessions).
+- **Failures in the 48h census:** 9 total, 8 quota-wall deaths and the one owner-PAT 401 on `43683953923`; no non-quota, non-401 code failure, no startup failure, no timeout.
+- **Held (`action_required`) runs:** `43690826057` (opencode-pr-trigger), `43690826207` (Deploy static site), `43690826030` (maintainer), all created 2026-11-15T07:38:12Z on `opencode/issue803-20261115060707`. Still held; only an owner-PAT approve sweep can clear them.
 - **Queued runs:** 7 inert historical entries (`42971888736` and siblings from 11-11, `37344324101`, `36101155868`, ...) on long-dead branches; no new queued trigger.
 - **Pages:** production `43686637154` green on `e5cd250c` (deployment `7799767158`, 06:42:07Z); #850 preview `43677055969` green on `9c9bf1bd7`; #854 preview is the held run above.
-- **Model registry:** 86 models, 11 free; pin and small model `opencode/deepseek-v4.1-flash-free`; ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free` all live and free; `maintainer.yml:384` `REQUESTED_MODEL` matches. No change.
-- **Allowlist:** `maintainer.yml` lists 19 workflows; the live repo has 20 workflow files, exactly those 19 plus the self-excluded `maintainer` (the three platform-managed workflows are not files). No drift.
+- **Model registry:** 86 models, 12 free (up one from the 05:10 survey; the Auditor's count); pin and small model `opencode/deepseek-v4.1-flash-free`; ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free` all live and free; `maintainer.yml:384` `REQUESTED_MODEL` matches. The Auditor listed six bench candidates (`minimax-m3.1-flash-free`, `longcat-2.5-free`, `inkling-2-small-free`, `nemotron-3.5-super-vl-free`, `beam-free`, `iceman-free`) and proposed no change; `big-pickle` is ineligible without the `-free` suffix. No dispatch.
+- **Allowlist:** `maintainer.yml` lists 19 workflows; the live repo has 20 workflow files, exactly those 19 plus the self-excluded `maintainer` (the three platform-managed workflows are not files). Exact `comm` comparison: zero missing, zero extra.
 
 ### The owner-token incident (blocking, open)
 
 - **Last confirmed good use:** 2026-11-15T07:38:09-07:38:13Z (the #803 push and the review trigger post).
-- **Rejections:** 07:49:33Z (`remote: Invalid username or token` on the #745 force-push, and `HTTP 401: Bad credentials` on the lab forward); 07:53:43Z (the 07:43 schedule's #850 review post); 08:19:19Z (the #854 review's owner-PAT PR-state read returned `unknown`, so publication and forward skipped); 14:05:10Z (the recover arm's approve sweep returned in 72ms with no API output); 14:18:36Z (the 14:05 heartbeat's three queued owner posts); 15:37:21Z (the 15:29 schedule's three re-posts); 19:56:51Z (the 19:50 heartbeat's three re-posts); 20:38:48Z (the 20:33 schedule's three re-posts); 23:52:02Z (the 23:48 heartbeat's three re-posts); **00:25:43Z (the 00:21 schedule's three re-posts: lab #854, lab #745, review #850)**.
-- A running job's secret context is fixed at job start, so this 05:09 job's re-posts will work only if the Owner refreshed the secret before 05:10:02Z. They fail harmlessly on the tolerant trigger step, and the queue survives here.
-- The proactive pings and memory commits use the bot token, so they prove only the bot path.
-- **Action for the next session:** test the PAT only through the designed trigger posts or an approve sweep; never print or copy the token. If the posts land, work through the queue; if not, re-record the failure date and the queue and stand by.
+- **Rejections:** 07:49:33Z (the #745 force-push and the lab forward), 07:53:43Z, 08:19:19Z, 14:05:10Z, 14:18:36Z, 15:37:21Z, 19:56:51Z, 20:38:48Z, 23:52:02Z, 00:25:43Z, and **05:13:15Z (the ninth consecutive Maintainer batch: lab #854, lab #745, review #850)**. The Auditor's #855 records the full chronology and the 25 failed posts.
+- A running job's secret context is fixed at job start, so this 07:15 job's re-posts will work only if the Owner refreshed the secret before 07:15:16Z. They fail harmlessly on the tolerant trigger step, and the queue survives here.
+- The proactive pings and memory commits use the bot token, so they prove only the bot path. **#855 is now the dedicated incident tracker; #70 keeps the rolling ledger.** The fail-loud code work is #856 (approve-held-runs fail-open + all-failed trigger batch reporting + owner-PAT preflight).
+- **Action for the next session:** test the PAT only through the designed trigger posts or an approve sweep; never print or copy the token. If the posts land, work through the queue; if not, re-record the failure date and the queue and stand by. Do not post another #70 incident note without a material change.
 
 ### The #854 round-1 review verdict (lab, report lost)
 
@@ -66,19 +68,27 @@ The reviewer's blocking findings, preserved from `43690826495` (the full signed 
 
 The lab instruction in this run's decision file carries this list, names `PR #854`, and keeps `Closes #803` conditional on all three slices.
 
+### New issues #855/#856 (triaged this run)
+
+- **#855:** the dedicated owner-PAT 401 incident tracker; last owner-PAT success 2026-11-15T07:38:13Z, nine Maintainer batches and 25 failed trigger posts, three frozen lanes, three held runs. Owner action is the only unblock: rotate the secret and verify with `gh api user`; the next wake re-tests it. Durable canary/delivery/App-token proposals are routed to #856 or a later lab round, not duplicated.
+- **#856:** `approve-held-runs.sh` turns a 401 into "No held runs remain" because `2>/dev/null` discards the `gh run list` failure and `[ -z "$held" ]` is true; phase 3 never runs. Accepted scope: capture the exit status before testing output, return non-zero so the bot-token notify path runs, never print the success line on a failed read, add the owner-PAT preflight, pin the lines and add 401/empty/approve-failure fixtures to `silent-stall-audit.sh`, and make an all-failed trigger batch loud. Serialized behind #854/#850 (shared audit surface), alongside #849.
+- **No dispatch now:** #855 is Owner-side; #856 would race the live audit branches and its trigger would 401 anyway. Both issues stay open as work orders; the pings record the plan.
+
 ### Workspace note
 
-- This wake is a heartbeat `workflow_dispatch`; the checkout is the trusted default-branch commit (main `e5cd250c`). No protected-path edits, no model edit (`opencode.json` still pins `opencode/deepseek-v4.1-flash-free` for model and small model). No emergency file. All work is routed through the decision file.
+- This wake is a `schedule` run; the checkout is the trusted default-branch commit (main `e5cd250c`). No protected-path edits, no model edit (`opencode.json` still pins `opencode/deepseek-v4.1-flash-free` for model and small model). No emergency file. All work is routed through the decision file.
 
 ## Live lanes and their next step
 
 - **#854** (protected-path auto-retry scoping, slice 3 + hardening): one `lab` re-queued with the round-1 review list. On push: the lab workflow forwards a fresh review; only after a clean verdict does the Tester/eval/PAT sequence apply. Do not merge or close #803 before the guard lands.
-- **#850** (owner-PAT pager hardening, `Closes #848`): one fresh head-bound `review` re-queued on `9c9bf1bd7`. When it lands: dispatch `lab` on #849 (owner-PAT pagers on the 30-row board + `Fixed the bug` without `Fixes` detection), then the #804 residuals, docs gaps, and #814. Fix its `Closes #848` trailer before any merge.
-- **#849** (owner-PAT pager false-positive): lands after #850; expanded scope: owner-PAT pagers on the 30-row board read (`gh api --paginate --slurp ... jq flatten`) and allowing `Fixed the bug` without `Fixes`.
+- **#850** (owner-PAT pager hardening, `Closes #848`): one fresh head-bound `review` re-queued on `9c9bf1bd7`. When it lands: dispatch `lab` on #849 (owner-PAT helper reads on the 30-row board + `Fixed the bug` without `Fixes` detection), then the #804 residuals, docs gaps, and #814. Fix its `Closes #848` trailer before any merge.
+- **#849** (owner-PAT helper-read hardening): lands after #850; expanded scope: owner-PAT pagers on the 30-row board read (`gh api --paginate --slurp ... jq flatten`) and allowing `Fixed the bug` without `Fixes`.
+- **#856** (approve-held-runs fail-open + all-failed trigger batch reporting + owner-PAT preflight): lands after #854/#850, one lab branch at a time alongside #849 because all touch `silent-stall-audit.sh` and the post-agent PAT surface.
+- **#855** (owner-PAT incident tracker): stays open until the Owner rotates the secret and the queue lands; update it after the first successful PAT batch, not before.
 - **#848** (premature fix-forward paging): the #850 guard supersedes the older #798-era fix guard; docs in #850 only.
 - **#745** (orphaned #798 audit/rebuild + the old #76 Pac-Man scanner): one `lab` rebase retry re-queued. The branch has not moved since the 07:49Z lost push. After push: verify with `git ls-remote`, dispatch one forward review, and keep #853 open until the verdict. This PR is a distinct co-consumer of the #803/#853 family, not a leftover; it wants a retitle and `Refs #853`.
 - **#821 / #823** (Point of Sale staging, live on Pages): parked by Priya. Do not dispatch. If the Close wants a name change, one `lab` will do it.
-- **Open infra/audit backlog (serialized behind the live lanes):** #803 closes with #854; #853 after the #745 audit verdict; #849 after #850; #848 via #850; then #814 (fix-lane false push), #812 (R11 bypass), #815 (non-hermetic audit), #774/#773 (docs accuracy), #831 (PR-head config), #742 (owner-PAT env), #836 (wall/heartbeat capacity). No new site project is open; do not invent one.
+- **Open infra/audit backlog (serialized behind the live lanes):** #803 closes with #854; #853 after the #745 audit verdict; #849 and #856 after #850; #848 via #850; then #814 (fix-lane false push), #812 (R11 bypass), #815 (non-hermetic audit), #774/#773 (docs accuracy), #831 (PR-head config), #742 (owner-PAT env), #836 (wall/heartbeat capacity). No new site project is open; do not invent one.
 - **Maze Chase standing set:** #582 parent and #655/#657/#659/#661/#677/#678/#683 are slow/frozen; no action unless the Owner asks.
 - **Board / health:** #70 is the only board. Every ping ends with the Maintainer sign-off; every escalation names one issue and one concrete next step; no inline trigger tokens anywhere (#775).
 - **Eval lane:** route new multi-agent architecture to `eval` only when the Owner asks; no paid runs.
@@ -86,26 +96,26 @@ The lab instruction in this run's decision file carries this list, names `PR #85
 ## Serialized queue (re-post these; do not re-decide)
 
 1. `{"action":"lab","pr":854,"instruction":"<the round-1 review findings in today's log>"}`.
-2. `{"action":"lab","pr":745,"instruction":"Retry the #745 rebase onto e5cd250c; add Refs #853; no Closes trailer; verify with git ls-remote after the PAT push>"}`.
+2. `{"action":"lab","pr":745,"instruction":"Retry the #745 rebase onto e5cd250c; add Refs #853; no Closes trailer; verify with git ls-remote after the PAT push"}`.
 3. `{"action":"review","pr":850,"head":"9c9bf1bd72fb459388d2985656f6f61735147105"}`.
-4. **Do not duplicate the 14:18Z, 19:56Z, 23:52Z, or 05:10Z incident pings** on #70: all land via the bot token. Do not post another incident note on the next wake unless there is a material change (PAT success, a different error class, or a long interval).
-5. After #854's branch push: the forwarded review; after #850's verdict: `lab` on #849; after #850's merge: #804 residuals, docs gaps, #814.
+4. **Do not duplicate the #855 or #856 triage pings** posted by this run unless a material change occurs (a dispatch, a lane landing, or a new failure class). Do not post another #70 incident note without a material change; the 05:41:52Z daily audit is the current board entry.
+5. After #854's branch push: the forwarded review; after #850's verdict: `lab` on #849 then `lab` on #856; after #850's merge: #804 residuals, docs gaps, #814.
 
 **Do not** re-post a trigger whose target already has a live or queued run from the last 30 minutes, and do not post two lab triggers to the same PR in one run (the workflow dedupes by `(action, target)`).
 
 ## Loose ends
 
-1. **The owner token is the top blocker** (see above). Only the Owner can refresh it. The queue and this file are the recovery path.
-2. **Held runs `43690826057`, `43690826207`, `43690826030`** on the #854 branch need an owner-PAT approve sweep. The NEXT PAT-healthy recover or maintainer run should clear them. The 00:25:45Z "No held runs remain" message is not evidence they cleared.
+1. **The owner token is the top blocker** (see above). Only the Owner can rotate it. #855 is the dedicated tracker; the queue and this file are the recovery path.
+2. **Held runs `43690826057`, `43690826207`, `43690826030`** on the #854 branch need an owner-PAT approve sweep. The NEXT PAT-healthy recover or maintainer run should clear them. The "No held runs remain" messages are the #856 fail-open, not evidence they cleared.
 3. **The 08:19 #854 report** is lost from the PR. The blocking findings are in today's log and the lab instruction; if the lab pass lands, no re-publication is needed, but the next review should verify each item explicitly.
 4. **#745 stale bot review:** after the fix-up, delete the older bot review on the exact commit id if it is still present; filter by `commit_id`, not just author.
 5. **#850's body** has `Closes #848` (not on a `Refs` trailer). Normalize at merge; do not add a second trailer.
 6. **#853's body chronology** says the work was lost and then reimplemented; prepend one sentence "Update: 2026-11-15T06:08Z, the work was reimplemented locally; the ONLY thing left is the push + retry (re-dispatched 07:38Z)" so a cold reader can tell current from history. Only worth a `lab` edit once #745 lands.
-7. **#849 scope mismatch:** its premise still quotes the old body text; the expanded scope lives in #850's body. When #850 lands, add the expansion to #849's body first.
+7. **#849 scope mismatch:** its premise still quotes the old body text; the expanded scope lives in #850's body. When #850 lands, add the expansion to #849's body first. #856's fail-open criteria are a separate sibling and should not be folded into #849 silently.
 8. **The `INFRA-STATUS` block on #70** is stale (10-21) but still factually fine for #70. If a real infra change happens, refresh it in the same post.
 9. **Dependabot PRs** remain no-ops: the "all Dependabot PRs" on-ramp only fires for open PRs and none are open.
 10. **No merge this run:** no PR carries the full head-fresh Tester plus Evaluator chain; the reviewer verdict alone is not merge authority.
-11. **Schedule throttling watch:** the 2026-11-16 midnight curator and auditor ticks have not surfaced by 05:13Z; the next curator cron is 06:00Z and the auditor usually surfaces near 05:19Z. Do not dispatch duplicates; a tick more than ~24h missing would be a real signal.
+11. **Schedule health:** the 2026-11-16 curator and auditor ticks both ran (05:23Z and 05:18Z) after the earlier throttling. No duplicate dispatch; a tick more than ~24h missing would be a real signal.
 
 ## Standing rules I operate under
 
@@ -121,7 +131,7 @@ The lab instruction in this run's decision file carries this list, names `PR #85
 
 - The workflow posts triggers from the decision file as the owner only in the "Run /oc triggers as owner" hardcoded step. My decision entries are inert data; I never author a trigger comment during the session.
 - Pings and the public comment are posted by the bot token, so they land even when the owner PAT is broken. All public text must be honest, specific, and signed with `- Hephaestus, the Maintainer`.
-- Escape hatch: "if the token is dead, the queue is the test; do not attempt credential workarounds." Do not restate the incident on every issue; keep the detailed incident on #70 and the log.
+- Escape hatch: "if the token is dead, the queue is the test; do not attempt credential workarounds." Do not restate the incident on every issue; keep the detailed incident on #855/#70 and the log.
 - Never include a trigger token in a ping body (#775). The memory branch and the log may quote decisions, but public pings must not carry `eval-verdict:` markers or `/oc` tokens.
 
 ### Review, test, and merge gates
@@ -133,8 +143,8 @@ The lab instruction in this run's decision file carries this list, names `PR #85
 
 ### Audit lane rules (current, from #798 and its reviews)
 
-- `silent-stall-audit.sh` is the mutation harness; R19/R20/R21/R23/R28/R32 are part of the shell parser/classifier guard story. A full run is ~10 minutes; do not accept a partial "fast" run when a real change needs the full harness.
-- Every incident-scope counter must capture the payload first, never `|| true` after the pipeline, and must treat an unreadable head/enumeration as fail-closed (the #854 review B2/B3 classes). The leak guard and the PAT redaction work is the #798 family; the new code must not regress it.
+- `silent-stall-audit.sh` is the mutation harness; R19/R20/R21/R23/R28/R30/R32/R36 are part of the shell parser/classifier guard story. A full run is ~10 minutes; do not accept a partial "fast" run when a real change needs the full harness.
+- Every incident-scope counter must capture the payload first, never `|| true` after the pipeline, and must treat an unreadable head/enumeration as fail-closed (the #854 review B2/B3 classes). The leak guard and the PAT redaction work is the #798 family; the new code must not regress it. #856 adds the same rule for the held-run query.
 - The delegation ledger is capped at 3-8 lines; it must list the subagents actually used, one line each, plus a skills line. Do not claim delegation that did not happen.
 - The reviewer rejects fixes that claim fail-closed while keeping a silent fallback; the docs must state the exact boundary.
 - No em dashes in repo files; no direct workflow edits outside a `lab` route.
@@ -142,32 +152,33 @@ The lab instruction in this run's decision file carries this list, names `PR #85
 ### Contract and memory
 
 - Output contract each run: `.maintainer/decision.json` (array), `.maintainer/comment.md` (empty unless a target exists), `.maintainer/log-entry.md` (FULL day file: existing bytes + today's entry), `.maintainer/state.md` (this file), `.maintainer/personality.md` only if identity evolved, `.maintainer/emergency.json` only under the failed-lab + halted-production contract.
-- The log is append-only; the materialized day file was 12,879 bytes before today's 05:10Z entry. The publish step isolates the delta against the materialized baseline and recomposes on a fresh tip with keep-both semantics. Never write a partial day file.
+- The log is append-only; the materialized day file was 25,372 bytes / 166 lines before today's 07:15Z entry. The publish step isolates the delta against the materialized baseline and recomposes on a fresh tip with keep-both semantics. Never write a partial day file.
 - The log entry must include the state snapshot, decisions + rationale, callbacks, the run link, and open questions. The state must stay honest about what is verified vs expected.
 - The memory branch is shared tooling; do not delete or rewrite prior entries.
 
 ### Persistent facts
 
 - Main is a single fast-forwardable history; the repo pushes are the owner PAT's job; the orphan guard must never rewrite main.
-- The board is #70; its exact title is the resolver anchor; the `lab-health` label is exclusive.
+- The board is #70; its exact title is the resolver anchor; the `lab-health` label is exclusive. #855 is the incident tracker, not a board.
 - The recover arm is the heartbeat source; the maintainer cron is throttled. A stale STATE stamp is the wake signal; a skipped fan-out is not a real session; every real session must carry the exact liveness stamp.
 - The free-usage wall is a real class (47m35s queue death on 07:03:41Z); one manual fresh review is the only re-dispatch when the auto-retry budget is spent.
 - The owner PAT is shared by the maintainer, review, curator, recover, and lab forward/push steps; one invalid secret explains a whole cluster of 401s. Do not confuse it with the bot token.
+- The trigger step's 401s are annotations only and the approve sweep fails open on the same 401; a green Maintainer run is not evidence that the queue landed. #856 is the fix work order.
 
 ## Next run
 
-1. Read this run's (`43808447714`) `Run /oc triggers as owner` step. If the three posts landed, do not re-post; if they 401ed, the queue stays above and is re-posted after any Owner refresh signal.
+1. Read this run's (`43822488620`) `Run /oc triggers as owner` step. If the three posts landed, do not re-post; if they 401ed, the queue stays above and is re-posted after any Owner refresh signal.
 2. If #854's lab pass pushed: watch the forwarded review; verify B1-B3/H1-H5 and the `Refs #853`/`Closes #803` rewrite. If it died, preserve its decision file and re-dispatch once.
-3. If #850's review is live/queued, do not post another; when it completes, route `lab` on #849. Verify the `Closes #848` trailer.
+3. If #850's review is live/queued, do not post another; when it completes, route `lab` on #849, then #856, one branch at a time. Verify the `Closes #848` trailer.
 4. If #745's retry pushed, verify with `git ls-remote`, dispatch the fresh review, keep #853 open.
-5. Verify the board invariant, allowlist count, model pin, and the curator/auditor schedule health (midnight ticks delayed; no dispatch); if clean, stand by. Do not invent work.
+5. Verify the board invariant, allowlist count, model pin, and curator/auditor schedule health; if clean, stand by. Do not invent work. Do not re-post the #855/#856 pings.
 6. If a new real failure appears, check for a wall/401 before routing; both are known classes.
 
 ## Open questions
 
-1. When will the Owner refresh the secret? (No owner-PAT success since 2026-11-15T07:38:13Z; the 00:25:43Z triple 401 says no as of then.)
+1. When will the Owner rotate the secret? (No owner-PAT success since 2026-11-15T07:38:13Z; the 05:13:15Z ninth batch says no as of then.)
 2. Did this run's re-posts land? (Unknown until the trigger step runs after the agent.)
 3. Will the #854 lab pass fit one round, or will the mutation harness plus the three fail-closed classes need a second?
 4. Does the #745 branch still merge cleanly onto `e5cd250c`, and is its scope still distinct from #804?
-5. Does #849 still absorb the remaining owner-PAT surfaces when #850 lands, and is its body expansion enough?
-6. Will the delayed midnight curator and auditor ticks re-arm on their own, and will the Owner take the capacity decision (#831) and the scratch canary?
+5. Should #849 and #856 be one lab branch or two sequential branches once #850 lands, given they share `silent-stall-audit.sh`?
+6. Will the Owner take the capacity decision (#831) and the scratch canary, and is the App-token proposal worth a lab design round after the queue clears?
