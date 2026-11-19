@@ -6,15 +6,16 @@ docs promise "16/64/256 KB". Every advertised size must actually leave the
 browser: runUpload must build the generated payload, POST it to a live echo
 endpoint, and report the real byte count for all three choices.
 
-This suite found that the 256 KB choice fails before any request is sent:
-probes.js fills the whole buffer with one crypto.getRandomValues() call, and
-the WebCrypto quota is 65536 bytes, so Chromium (and Node webcrypto) throw
-QuotaExceededError and the UI reports "could not build payload" with zero
-POSTs. The 16 KB and 64 KB choices pass.
+This suite first found that the 256 KB choice failed before any request was
+sent: probes.js filled the whole buffer with one crypto.getRandomValues()
+call, and the WebCrypto quota is 65536 bytes, so Chromium (and Node
+webcrypto) threw QuotaExceededError and the UI reported "could not build
+payload" with zero POSTs. The 16 KB and 64 KB choices passed. probes.js now
+fills the payload in quota-sized chunks, and every advertised size must
+build, POST, and report its real byte count.
 
 Stdlib only. Run: python3 netpulse/tests/test_upload_payload_budget.py
 """
-import functools
 import http.server
 import json
 import re
@@ -118,6 +119,9 @@ def advertised_sizes_in_page():
 
 
 def main():
+    if not shutil.which("node"):
+        print("SKIP: node not installed")
+        return 0
     documented = (ROOT / "netpulse" / "docs" / "index.md").read_text(encoding="utf-8")
     if "16/64/256 KB" not in documented:
         fail("docs no longer promise the 16/64/256 KB upload payloads")
