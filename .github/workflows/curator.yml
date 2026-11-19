@@ -122,11 +122,43 @@ jobs:
       - name: Verify curator decided, else auto-retry or fail-closed
         id: verify-decision
         if: always()
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         env:
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /usr/bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_PARAMETERS: ""
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /usr/bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+          PYTHONPATH: ""
+          PS4: "+ "
+          SHELLOPTS: ""
           # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
           # expanded inside the run block below executes as SHELL with this
           # step's owner PAT in env, so a value like 0"; touch /tmp/PWNED; echo "
@@ -134,6 +166,8 @@ jobs:
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Issue #742: clear functions imported from the agent-exported environment.
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the curator
           # step never started, so a missing decision file is a DENIAL, not a
           # crash. This is the laundering point the gate exists to close: the
@@ -207,12 +241,46 @@ jobs:
 
       - name: Forward curator decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-decision.outcome == 'success'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         env:
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /usr/bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_PARAMETERS: ""
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /usr/bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+          PYTHONPATH: ""
+          PS4: "+ "
+          SHELLOPTS: ""
         run: |
+          # Issue #742: clear functions imported from the agent-exported environment.
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found (/tmp/random-lab-decision.json)."
             exit 0
@@ -255,12 +323,46 @@ jobs:
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         env:
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /usr/bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_PARAMETERS: ""
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /usr/bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+          PYTHONPATH: ""
+          PS4: "+ "
+          SHELLOPTS: ""
         run: |
+          # Issue #742: clear functions imported from the agent-exported environment.
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           target_pr=""
           if [ -f /tmp/random-lab-decision.json ]; then

@@ -1795,6 +1795,21 @@ fail-closed/dispatch matrix including invalid run-page shapes against a mock
 mutation self-tests proving the heartbeat body (including a cutoff override
 and changed age/since divisors) load-bearing.
 
+The owner-PAT isolation contract was extended to the periodic and helper
+workflows (issue #742): the 15 owner-PAT steps in `auditor.yml` (2),
+`curator.yml` (3), `ideate.yml` (2), `lab.yml` (5),
+`opencode-pr-trigger.yml` (1), and `opencode-recover.yml` (2) now carry the
+full sanitized env map and run under a privileged
+`bash --noprofile --norc -e -o pipefail -p` launcher that ignores imported
+`BASH_FUNC_*` functions and pre-preamble `SHELLOPTS`/`PS4`; each also opens
+its run block with the builtins-only function-clearing preamble. R36 pins the
+per-workflow counts and the 15-step total, enforces a strict extra-key
+allowlist, and mutation-self-tests a removed key, a plain or missing
+launcher, a missing or buried preamble, an injected extra key, and a
+non-empty `DYLD` value, with a functional fixture proving the launcher is
+immune to `BASH_FUNC_git` plus a `SHELLOPTS`/`PS4` payload while the
+plain-shell control is hijacked.
+
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
 proven arm-wide (relocating any counter into the rung loop fails
@@ -2066,7 +2081,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R34), phase thread target resolution, build push attribution, per-OS findings poster and tester commit-scope guard, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R36), phase thread target resolution, build push attribution, per-OS findings poster and tester commit-scope guard, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
