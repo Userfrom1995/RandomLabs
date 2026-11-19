@@ -29608,11 +29608,11 @@ R33APPEND
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4 20001
   r33_expect_bad pad-composite "Run opencode"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R34)" 6 20001
-  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R34)"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R36)" 6 20001
+  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R36)"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R34)" 6 20001
-  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R34)"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R36)" 6 20001
+  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R36)"
   r33_prepare
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yaml" "Run opencode" 4 20001
   r33_expect_bad pad-yaml-action-extension "Run opencode"
@@ -35344,16 +35344,287 @@ case "$r35_out" in
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R35) on ${WF}: ${pass} passed, ${fail} failed."
+# [R36] Owner-PAT isolation for the remaining utility workflows (issue #742):
+# the sanitized owner-PAT environment stopped at the agent lanes, so the
+# periodic and helper workflows still let an agent-exported BASH_FUNC_*,
+# SHELLOPTS/PS4, GIT_CONFIG*, PYTHONPATH, or LD_* value reach a step that
+# holds the owner PAT. Every owner-PAT step in auditor, curator, ideate, lab,
+# opencode-pr-trigger, and opencode-recover now carries the full isolation map
+# and a privileged bash -p launcher, and opens its run block with the
+# builtins-only function-clearing preamble. The launcher is the load-bearing
+# guard: -p ignores imported functions and pre-preamble SHELLOPTS/PS4, so a
+# BASH_FUNC_read or BASH_FUNC_builtin entry cannot disable the preamble loop.
+r36_out=$(python3 -I - <<'R36PY'
+import copy
+import os
+import subprocess
+import sys
+import tempfile
+
+import yaml
+
+FILES = {
+    ".github/workflows/auditor.yml": 2,
+    ".github/workflows/curator.yml": 3,
+    ".github/workflows/ideate.yml": 2,
+    ".github/workflows/lab.yml": 5,
+    ".github/workflows/opencode-pr-trigger.yml": 1,
+    ".github/workflows/opencode-recover.yml": 2,
+}
+EXPECTED_TOTAL = 15
+SHELL = "/bin/bash --noprofile --norc -e -o pipefail -p {0}"
+PREAMBLE = (
+    "# Issue #742: clear functions imported from the agent-exported environment.",
+    'while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)',
+)
+BASE = {
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+    "GIT_ASKPASS": "/usr/bin/false",
+    "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_PARAMETERS": "",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_DIR": "${{ github.workspace }}/.git",
+    "GIT_EDITOR": "/usr/bin/false",
+    "GIT_EXEC_PATH": "/usr/lib/git-core",
+    "GIT_EXTERNAL_DIFF": "",
+    "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
+    "GIT_NAMESPACE": "",
+    "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
+    "GIT_PAGER": "/bin/cat",
+    "GIT_SEQUENCE_EDITOR": "/usr/bin/false",
+    "GIT_SSH_COMMAND": "ssh",
+    "GIT_TEMPLATE_DIR": "/dev/null",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_WORK_TREE": "${{ github.workspace }}",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
+    "PATH": "/usr/bin:/bin",
+    "PYTHONPATH": "",
+    "PS4": "+ ",
+    "SHELLOPTS": "",
+}
+PAGER = {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GH_PAGER": "/bin/cat", "PAGER": "/bin/cat", "GH_FORCE_TTY": ""}
+ALLOWED_EXTRA = {
+    "AGENT_GATE",
+    "SELFHEAL_RETRY",
+    "INPUT_ISSUE",
+    "ISSUE_NUMBER",
+    "GIT_AUTHOR_NAME",
+    "GIT_AUTHOR_EMAIL",
+    "GIT_COMMITTER_NAME",
+    "GIT_COMMITTER_EMAIL",
+}
+
+
+def is_pat(step):
+    env = step.get("env")
+    return isinstance(env, dict) and any(
+        isinstance(v, str) and "secrets.OPENCODE_PAT" in v for v in env.values()
+    )
+
+
+def steps(doc):
+    for job in ((doc or {}).get("jobs") or {}).values():
+        if isinstance(job, dict):
+            for step in job.get("steps") or []:
+                if isinstance(step, dict):
+                    yield step
+
+
+def preamble_ok(run):
+    if not isinstance(run, str):
+        return False
+    body = [line.strip() for line in run.splitlines() if line.strip()]
+    return len(body) >= 2 and body[0] == PREAMBLE[0] and body[1] == PREAMBLE[1]
+
+
+def check(docs):
+    bad = []
+    total = 0
+    for path, expected in FILES.items():
+        doc = docs.get(path)
+        if doc is None:
+            bad.append("%s:missing" % path)
+            continue
+        count = 0
+        for step in steps(doc):
+            if not is_pat(step):
+                continue
+            count += 1
+            total += 1
+            name = step.get("name")
+            env = step.get("env") or {}
+            if not isinstance(env, dict):
+                bad.append("%s:%s:env-not-a-map" % (path, name))
+                continue
+            for key, value in BASE.items():
+                if env.get(key) != value:
+                    bad.append("%s:%s:%s" % (path, name, key))
+            for key, value in PAGER.items():
+                if env.get(key) != value:
+                    bad.append("%s:%s:pager:%s" % (path, name, key))
+            for key in env:
+                if key in BASE or key in PAGER:
+                    continue
+                if key not in ALLOWED_EXTRA:
+                    bad.append("%s:%s:extra-env:%s" % (path, name, key))
+                if key.startswith(("LD_", "DYLD_")) and env[key] != "":
+                    bad.append("%s:%s:nonempty:%s" % (path, name, key))
+            if step.get("uses"):
+                bad.append("%s:%s:owner-pat-on-agent-step" % (path, name))
+            if step.get("shell") != SHELL:
+                bad.append("%s:%s:shell" % (path, name))
+            if not preamble_ok(step.get("run")):
+                bad.append("%s:%s:preamble" % (path, name))
+        if count != expected:
+            bad.append("%s:count=%d" % (path, count))
+    if total != EXPECTED_TOTAL:
+        bad.append("total=%d" % total)
+    return bad
+
+
+def mutate(docs, path, mutate_step, mutate=None):
+    changed = copy.deepcopy(docs[path])
+    for step in steps(changed):
+        if is_pat(step):
+            mutate_step(step)
+            if mutate:
+                mutate(step)
+            break
+    return {path: changed}
+
+
+def main():
+    docs = {}
+    for path in FILES:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                docs[path] = yaml.safe_load(handle)
+        except Exception as exc:
+            print("BAD:%s(parse:%s)" % (path, exc))
+            return
+    base = check(docs)
+    if base:
+        print("BAD:" + " ".join(base[:10]))
+        return
+    mutants = []
+
+    def no_shellopts(step):
+        (step.get("env") or {}).pop("SHELLOPTS", None)
+
+    mutants.append(("remove-SHELLOPTS", mutate(docs, ".github/workflows/auditor.yml", no_shellopts)))
+
+    def bad_ps4(step):
+        (step.get("env") or {})["PS4"] = "$(touch /tmp/r36-pwn)"
+
+    mutants.append(("PS4-payload", mutate(docs, ".github/workflows/curator.yml", bad_ps4)))
+
+    def no_git_config(step):
+        (step.get("env") or {}).pop("GIT_CONFIG_PARAMETERS", None)
+
+    mutants.append(("remove-GIT_CONFIG_PARAMETERS", mutate(docs, ".github/workflows/lab.yml", no_git_config)))
+
+    def bad_shell(step):
+        step["shell"] = "bash {0}"
+
+    mutants.append(("plain-shell", mutate(docs, ".github/workflows/ideate.yml", bad_shell)))
+
+    def no_shell(step):
+        step.pop("shell", None)
+
+    mutants.append(("missing-shell", mutate(docs, ".github/workflows/opencode-recover.yml", no_shell)))
+
+    def no_preamble(step):
+        run = step.get("run") or ""
+        step["run"] = "\n".join(line for line in run.splitlines() if "__lab_pat_fn" not in line and "Issue #742: clear functions" not in line)
+
+    mutants.append(("missing-preamble", mutate(docs, ".github/workflows/opencode-pr-trigger.yml", no_preamble)))
+
+    def buried_preamble(step):
+        run = step.get("run") or ""
+        step["run"] = "echo start\n" + run
+
+    mutants.append(("buried-preamble", mutate(docs, ".github/workflows/auditor.yml", buried_preamble)))
+
+    def extra_env(step):
+        (step.get("env") or {})["GIT_ASKPASS_HELPER"] = "/tmp/evil"
+
+    mutants.append(("extra-env", mutate(docs, ".github/workflows/curator.yml", extra_env)))
+
+    def nonempty_dyld(step):
+        (step.get("env") or {})["DYLD_INSERT_LIBRARIES"] = "/tmp/evil.dylib"
+
+    mutants.append(("nonempty-DYLD", mutate(docs, ".github/workflows/lab.yml", nonempty_dyld)))
+
+    for label, mutated in mutants:
+        if not check(mutated):
+            print("BAD:mutant-%s(not-caught)" % label)
+            return
+
+    # Functional fixture: the shipped launcher ignores an imported function and
+    # a SHELLOPTS/PS4 payload, while the same script under a plain shell is
+    # hijacked. This proves the launcher, not just the static pin, is the guard.
+    with tempfile.TemporaryDirectory() as tmp:
+        script = os.path.join(tmp, "step.sh")
+        with open(script, "w") as handle:
+            handle.write("%s\ngit --version\n" % PREAMBLE[1])
+        hostile = dict(os.environ)
+        hostile["BASH_FUNC_git%%"] = "() { echo HIJACK-git; }"
+        hostile["SHELLOPTS"] = "xtrace"
+        hostile["PS4"] = "$(echo PWN >&2)"
+        clean = subprocess.run(
+            ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-p", script],
+            env=hostile,
+            capture_output=True,
+            text=True,
+        )
+        if clean.returncode != 0 or "HIJACK" in clean.stdout or "PWN" in clean.stderr:
+            print("BAD:launcher-not-immune")
+            return
+        dirty = subprocess.run(
+            ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", script],
+            env=hostile,
+            capture_output=True,
+            text=True,
+        )
+        if "HIJACK" not in dirty.stdout and "PWN" not in dirty.stderr:
+            print("BAD:control-not-hijacked")
+            return
+    print("OK")
+
+
+try:
+    main()
+except Exception as exc:
+    print("BAD:python-runtime:%s" % exc)
+R36PY
+)
+case "$r36_out" in
+  OK)
+    check "R36" "every owner-PAT step in auditor.yml (2), curator.yml (3), ideate.yml (2), lab.yml (5), opencode-pr-trigger.yml (1), and opencode-recover.yml (2) carries the full sanitized isolation map (BASH_ENV/ENV and the git config files inert, GIT_CONFIG/GIT_CONFIG_PARAMETERS closed, SHELLOPTS/PS4 inert, PYTHONPATH cleared, empty LD_*/DYLD_*, the workspace-scoped GIT_* set with a pinned GIT_EXEC_PATH, the pinned pager pins, and a pinned PATH), a privileged bash -p launcher that ignores imported functions and pre-preamble SHELLOPTS/PS4, and the exact builtins-only function-clearing preamble as the first two non-empty run lines, with the six per-workflow counts and the 15-step total pinned, a strict extra-key allowlist, mutation self-tests for a removed or weakened key, a plain or missing launcher, a missing or buried preamble, an injected extra key, and a non-empty DYLD value, and a functional fixture proving the shipped launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload while the plain-shell control is hijacked (issue #742)" "ok"
+    ;;
+  *)
+    check "R36" "owner-PAT isolation guard missing in the remaining utility workflows: ${r36_out} (issue #742: auditor, curator, ideate, lab, pr-trigger, and recover owner-PAT steps could inherit agent-exported BASH_FUNC_*, SHELLOPTS/PS4, GIT_CONFIG*, PYTHONPATH, or LD_* values)" "bad"
+    ;;
+esac
+
+summary="Silent-stall regression audit (R1-R36) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R35)
+  body="## Silent-stall regression audit FAILED (R1-R36)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case plus fails closed on any non-ASCII path in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)), or R35 owner-PAT pager pin (every step that references the owner PAT, and every step that pins GIT_PAGER, also pins GH_PAGER/PAGER to /bin/cat and GH_FORCE_TTY empty, so an agent-exported pager from $GITHUB_ENV can never run with the owner PAT or forge the force-lab API file list, with owner-PAT, lane-guard, and per-OS strip mutation controls)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case plus fails closed on any non-ASCII path in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)), R35 owner-PAT pager pin (every step that references the owner PAT, and every step that pins GIT_PAGER, also pins GH_PAGER/PAGER to /bin/cat and GH_FORCE_TTY empty, so an agent-exported pager from $GITHUB_ENV can never run with the owner PAT or forge the force-lab API file list, with owner-PAT, lane-guard, and per-OS strip mutation controls), or R36 owner-PAT isolation in the remaining utility workflows (every owner-PAT step in auditor, curator, ideate, lab, opencode-pr-trigger, and opencode-recover carries the full sanitized env map, a privileged bash -p launcher, and the builtins-only function-clearing preamble, with mutation and functional fixtures proving the launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload, issue #742)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
