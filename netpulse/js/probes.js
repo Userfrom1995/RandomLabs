@@ -7,6 +7,7 @@
   var HISTORY_KEY = "probeHistory";
   var HISTORY_MAX = 50;
   var DEFAULT_TIMEOUT_MS = 15000;
+  var RANDOM_CHUNK_BYTES = 65536;
 
   function sortNums(values) {
     return values.slice().sort(function (a, b) { return a - b; });
@@ -127,9 +128,20 @@
       var payload = null;
       try {
         payload = new Uint8Array(payloadBytes);
+        var filled = false;
         if (win.crypto && typeof win.crypto.getRandomValues === "function") {
-          win.crypto.getRandomValues(payload);
-        } else {
+          try {
+            for (var off = 0; off < payload.length; off += RANDOM_CHUNK_BYTES) {
+              win.crypto.getRandomValues(
+                payload.subarray(off, Math.min(off + RANDOM_CHUNK_BYTES, payload.length))
+              );
+            }
+            filled = true;
+          } catch (eRandom) {
+            filled = false;
+          }
+        }
+        if (!filled) {
           for (var i = 0; i < payload.length; i++) payload[i] = (Math.random() * 256) | 0;
         }
       } catch (e) {
