@@ -171,7 +171,7 @@
 # Wired into auditor.yml as the R1-R36 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R34 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R36 audit the whole tree
 # (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -20635,7 +20635,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "506c322b4f44473becbe1f85ba04c3563d21744b52abe85674788e2e23c91619"
+EXPECTED_TEST_PROMPT_SHA256 = "66dee05d9787a131a56d7f5782cf64be636c18403c78fd4c4c3b782d8fb72c34"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -35534,15 +35534,13 @@ def check(docs):
     return bad
 
 
-def mutate(docs, path, mutate_step, mutate=None):
-    changed = copy.deepcopy(docs[path])
-    for step in steps(changed):
+def mutate(docs, path, mutate_step):
+    changed = copy.deepcopy(docs)
+    for step in steps(changed[path]):
         if is_pat(step):
             mutate_step(step)
-            if mutate:
-                mutate(step)
             break
-    return {path: changed}
+    return changed
 
 
 def main():
@@ -35623,8 +35621,15 @@ def main():
             print("BAD:mutant-%s(not-caught)" % label)
             return
 
-    # Functional fixture: the shipped launcher ignores an imported function and
-    # a SHELLOPTS/PS4 payload, while the same script under a plain shell is
+    def noop(step):
+        return None
+
+    if check(mutate(docs, ".github/workflows/auditor.yml", noop)):
+        print("BAD:noop-control-caught")
+        return
+
+    # Functional fixture: the shipped launcher ignores an imported function
+    # (git, read, builtin) and a SHELLOPTS/PS4 payload, while a plain shell is
     # hijacked. This proves the launcher, not just the static pin, is the guard.
     with tempfile.TemporaryDirectory() as tmp:
         script = os.path.join(tmp, "step.sh")
@@ -35632,6 +35637,8 @@ def main():
             handle.write("%s\ngit --version\n" % PREAMBLE[1])
         hostile = dict(os.environ)
         hostile["BASH_FUNC_git%%"] = "() { echo HIJACK-git; }"
+        hostile["BASH_FUNC_read%%"] = "() { echo HIJACK-read; }"
+        hostile["BASH_FUNC_builtin%%"] = "() { echo HIJACK-builtin; }"
         hostile["SHELLOPTS"] = "xtrace"
         hostile["PS4"] = "$(echo PWN >&2)"
         clean = subprocess.run(
@@ -35643,14 +35650,51 @@ def main():
         if clean.returncode != 0 or "HIJACK" in clean.stdout or "PWN" in clean.stderr:
             print("BAD:launcher-not-immune")
             return
+        probe = os.path.join(tmp, "probe.sh")
+        with open(probe, "w") as handle:
+            handle.write(
+                "builtin echo BUILTIN-OK\n"
+                'IFS= read -r __probe <<< "READ-OK"\n'
+                "printf '%s\\n' \"$__probe\"\n"
+            )
+        probe_clean = subprocess.run(
+            ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-p", probe],
+            env=hostile,
+            capture_output=True,
+            text=True,
+        )
+        if (
+            probe_clean.returncode != 0
+            or "HIJACK" in probe_clean.stdout
+            or "BUILTIN-OK" not in probe_clean.stdout
+            or "READ-OK" not in probe_clean.stdout
+        ):
+            print("BAD:probe-launcher-not-immune")
+            return
+        control = dict(os.environ)
+        control["BASH_FUNC_git%%"] = "() { echo HIJACK-git; }"
+        control["SHELLOPTS"] = "xtrace"
+        control["PS4"] = "$(echo PWN >&2)"
         dirty = subprocess.run(
             ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", script],
-            env=hostile,
+            env=control,
             capture_output=True,
             text=True,
         )
         if "HIJACK" not in dirty.stdout and "PWN" not in dirty.stderr:
             print("BAD:control-not-hijacked")
+            return
+        probe_dirty = subprocess.run(
+            ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", probe],
+            env=hostile,
+            capture_output=True,
+            text=True,
+        )
+        if (
+            "HIJACK-builtin" not in probe_dirty.stdout
+            and "HIJACK-read" not in probe_dirty.stdout
+        ):
+            print("BAD:probe-control-not-hijacked")
             return
     print("OK")
 
@@ -35663,7 +35707,7 @@ R36PY
 )
 case "$r36_out" in
   OK)
-    check "R36" "every owner-PAT step in auditor.yml (2), curator.yml (3), ideate.yml (2), lab.yml (5), opencode-pr-trigger.yml (1), and opencode-recover.yml (2) carries the full sanitized isolation map (BASH_ENV/ENV and the git config files inert, GIT_CONFIG/GIT_CONFIG_PARAMETERS closed, a read-only GH_CONFIG_DIR pin, SHELLOPTS/PS4 inert, PYTHONPATH cleared, empty LD_*/DYLD_*, the workspace-scoped GIT_* set with a pinned GIT_EXEC_PATH, the pinned pager pins, and a pinned PATH), a privileged bash -p launcher that ignores imported functions and pre-preamble SHELLOPTS/PS4, and the exact builtins-only function-clearing preamble as the first two non-empty run lines, with the six per-workflow counts and the 15-step total pinned, a strict duplicate-key-rejecting loader, a strict extra-key allowlist, mutation self-tests for a removed or weakened key, a removed GH_CONFIG_DIR pin, a plain or missing launcher, a missing or buried preamble, an injected extra key, and a non-empty DYLD value, and a functional fixture proving the shipped launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload while the plain-shell control is hijacked (issue #742)" "ok"
+    check "R36" "every owner-PAT step in auditor.yml (2), curator.yml (3), ideate.yml (2), lab.yml (5), opencode-pr-trigger.yml (1), and opencode-recover.yml (2) carries the full sanitized isolation map (BASH_ENV/ENV and the git config files inert, GIT_CONFIG/GIT_CONFIG_PARAMETERS closed, a read-only GH_CONFIG_DIR pin, SHELLOPTS/PS4 inert, PYTHONPATH cleared, empty LD_*/DYLD_*, the workspace-scoped GIT_* set with a pinned GIT_EXEC_PATH, the pinned pager pins, and a pinned PATH), a privileged bash -p launcher that ignores imported functions and pre-preamble SHELLOPTS/PS4, and the exact builtins-only function-clearing preamble as the first two non-empty run lines, with the six per-workflow counts and the 15-step total pinned, a strict duplicate-key-rejecting loader, a strict extra-key allowlist, mutation self-tests for a removed or weakened key, a removed GH_CONFIG_DIR pin, a plain or missing launcher, a missing or buried preamble, an injected extra key, and a non-empty DYLD value, a no-op control proving the mutation harness is load-bearing, and a functional fixture proving the shipped launcher is immune to BASH_FUNC_git, BASH_FUNC_read, BASH_FUNC_builtin, plus a SHELLOPTS/PS4 payload while the plain-shell controls are hijacked (issue #742)" "ok"
     ;;
   *)
     check "R36" "owner-PAT isolation guard missing in the remaining utility workflows: ${r36_out} (issue #742: auditor, curator, ideate, lab, pr-trigger, and recover owner-PAT steps could inherit agent-exported BASH_FUNC_*, SHELLOPTS/PS4, GIT_CONFIG*, GH_CONFIG_DIR, PYTHONPATH, or LD_* values)" "bad"
