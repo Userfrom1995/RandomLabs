@@ -75,7 +75,7 @@ Triggered when Hephaestus orders a model switch or upgrade (e.g. `/oc lab model-
 
 1. **Model Matrix Survey**:
    - Query available models via `curl -s https://opencode.ai/zen/v1/models`.
-   - Select the highest-tier, active free model (ending in `-free`; live examples at fix time: `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`, `nemotron-3.5-lightning-free`). Never trust a hardcoded example here: the registry response is the only truth.
+   - Select the highest-tier, active free model (ending in `-free`; live examples at fix time: `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `longcat-2.5-free`, `nemotron-3.5-lightning-free`). Never trust a hardcoded example here: the registry response is the only truth.
 2. **Three-Knob Model Updates (critical)**: Models are configured in THREE places and ALL must be updated together:
    - `model:` inputs in `.github/workflows/*.yml` (main agent models; the action passes them via the MODEL env var). This includes `maintainer.yml`'s inline `REQUESTED_MODEL` pin, which is NOT a `model:` input (the Maintainer runs opencode directly): update it by hand alongside the others, and keep it a live free-tier ref.
    - `model` and `small_model` in `opencode.json` (repo config). The action has NO `small_model` input, so the small/title runs (title generation for shared sessions, small subagent calls) read `small_model` from `opencode.json` only. If it is missing or points at a paid model, every run crashes with `CreditsError: No payment method` (workspace billing URL in the error) even when the main model is free - this is what bricked the Obsidian build (title model resolved to paid `gpt-5.4-nano`).
