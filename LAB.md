@@ -638,8 +638,10 @@ Round 13 also
   session - the walled auto-stub keeps the old file) is older than 90
   minutes and no Maintainer run is active, it dispatches `maintainer.yml`
   once, deduped by a bot-authored marker comment with a 90-minute cooldown
-  on the oldest open non-PR lab-health board (queried with
-  `sort=created&direction=asc` so pagination cannot hide it). Only a comment
+  on the universal board resolved by `.github/scripts/health-board.sh` (the
+  `Lab Health & Audit Logs` title first, then the oldest open non-PR issue
+  labeled `lab-health`; only that universal board may carry the label, so a
+  stray labeled issue can never steal the note). Only a comment
   body that ends with the marker counts as the ledger entry. The run gate
   reads the newest 1000 runs: in-progress runs count at any age while the
   queued/requested/waiting/pending class is age-bounded, so neither a burst
@@ -1376,7 +1378,7 @@ personality, CHANGELOG) is direct-commit.
 | `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the agent step runs 150 minutes under a 180-minute job so the post-agent chain always has headroom (issue #701); the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
-| `auditor.yml` | The Auditor: daily schedule, manual dispatch, or `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
+| `auditor.yml` | The Auditor: daily schedule, manual dispatch, or `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the universal `Lab Health & Audit Logs` board (only it carries `lab-health`), opens bug issues |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`; the workflow posts the signed verdict as an owner-PAT comment, publishes the canonical `eval-verdict: approve-eval` marker for the PAT merge sweep on approval (issue #713), and its hardcoded PAT step hands off with `/oc maintainer`; the Maintainer decides merge, fix, or lab |
 | `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); after the agent, each arm strips leaked owner trailers and enforces the project test-lane scope before the decision forward (issue #798); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
@@ -1731,7 +1733,22 @@ on a new runner, so it may get a fresh bucket), sleeps a 30-60 second
 inclusive jitter, passes the attempt number through the `quota_recovery`
 dispatch input, and hands the byte-pinned verify step an empty decision list
 so the dispatch concludes green; at the cap it posts one lab-health
-escalation and exits 1 so the chain is visibly red. Issue #836 caps the
+escalation and exits 1 so the chain is visibly red. Both post-agent board
+reads (the Auditor forward and this cap escalation) fetch
+`health-board.sh` from the pre-agent trusted commit through the contents API
+and execute it from memory, never from the agent-writable workspace, and an
+empty trusted SHA fails closed (issue #848 review F1). The
+post-agent self-heal callers (Auditor, Curator, Ideator, Lab) likewise resolve
+the repository default branch before the agent, publish that trusted commit,
+fetch `schedule-selfheal.sh` from it, fail closed when it is absent, and
+execute it with `HEALTH_BOARD_REF` bound to that commit, so the board lookup
+inside the helper is also a trusted read and a `workflow_dispatch` branch ref
+can never redirect it (issue #848 review rounds 2 B2 and 4 R1). The
+post-agent token-bearing steps pin a privileged `/bin/bash -p` shell,
+`BASH_ENV`/`ENV`, `GH_HOST`, `GH_REPO`, the `LD_*` loader hooks, `TMPDIR`, a
+fresh `GH_CONFIG_DIR`, and the uppercase proxy/TLS spellings, and reset `PATH`
+in the body, so a `$GITHUB_ENV`/`$GITHUB_PATH` shim or planted gh config
+cannot intercept the read (issue #848 review round 2 B1). Issue #836 caps the
 chain at ONE fresh-run attempt: the 2026-11-08/09 starvation proved a second
 dispatch two minutes later is a lottery ticket on the same pool-wide wall,
 not a retry, so the recover-arm heartbeat (below) or the next schedule tick
@@ -1776,9 +1793,10 @@ read; in-progress runs count at any age and the queued/requested/waiting/
 pending class is age-bounded so a months-old zombie cannot suppress the
 wake), it dispatches `maintainer.yml` once with a `reason` naming the
 heartbeat, after first recording one bot-authored
-`<!-- maintainer-heartbeat -->` marker comment on the oldest open non-PR
-lab-health board (the query asks GitHub for the oldest first with
-`sort=created&direction=asc`); the marker is the cooldown ledger (one
+`<!-- maintainer-heartbeat -->` marker comment on the universal board
+resolved by `.github/scripts/health-board.sh` (the `Lab Health & Audit Logs`
+title first, then the oldest open non-PR issue labeled `lab-health`); the
+marker is the cooldown ledger (one
 dispatch per 90 minutes) and the audit trail, and only a body that ends with
 the marker counts. A failed dispatch rolls the marker back so the
 failed attempt does not consume the cooldown. An unparseable heartbeat stamp
@@ -2017,8 +2035,20 @@ decision file was written, the run re-dispatches its own workflow exactly once
 (bounded `selfheal_retry` input), then posts a Maintainer-triage escalation
 note on the lab-health board at the cap (no inline trigger token, issue
 #775; R9 pins the exact self-heal body and the curator cap body and bans
-both trigger spellings anywhere in them). The counter and the forwarded
-issue number reach
+both trigger spellings anywhere in them). Every post-agent caller resolves
+the repository default branch before the agent, publishes that trusted commit,
+fetches `schedule-selfheal.sh` from it through the contents API, fails closed
+when it is absent, and executes it from memory with `HEALTH_BOARD_REF` bound
+to that commit, so neither the self-heal script nor its board helper can be
+swapped by the agent and a `workflow_dispatch` branch ref can never redirect
+the read; the workspace copy is never executed after the agent (issue #848
+review rounds 2 B2 and 4 R1). The post-agent token-bearing steps also pin a
+privileged shell (`/bin/bash -p`), `BASH_ENV`, `ENV`, `GH_HOST`, `GH_REPO`,
+the `LD_*` loader hooks, `TMPDIR`, a fresh `GH_CONFIG_DIR`, and the uppercase
+proxy/TLS spellings, and reset `PATH` in the body before any trusted read, so
+an agent-written `$GITHUB_ENV`/`$GITHUB_PATH` shim or a planted gh config
+cannot intercept the step (issue #848 review round 2 B1).
+The counter and the forwarded issue number reach
 the shell only through `env:` mappings, never as an inline `${{ }}` expansion
 inside a `run:` block (audit R10). The older comment arms keep their
 auto-retry caps (`opencode.yml`, `opencode-review.yml`, and the curator's
@@ -2066,7 +2096,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R34), phase thread target resolution, build push attribution, per-OS findings poster and tester commit-scope guard, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: universal lab-health board selector, schedule self-heal, silent-stall audit (R1-R36), phase thread target resolution, build push attribution, per-OS findings poster and tester commit-scope guard, review-comment and tester-verdict publication evidence, tester and eval marker publishers, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 

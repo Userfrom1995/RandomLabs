@@ -93,8 +93,10 @@ jobs:
       # in-progress runs count at any age, while queued/requested/waiting/
       # pending runs are age-bounded so a months-old zombie cannot suppress
       # every future heartbeat. Every dispatch is recorded FIRST as one
-      # bot-authored marker comment on the oldest open non-PR lab-health board
-      # (a stable ledger, not the newest transient audit issue), which both
+      # bot-authored marker comment on the universal board resolved by
+      # .github/scripts/health-board.sh (the pinned Lab Health & Audit Logs
+      # title first, then the oldest open non-PR labeled issue; never the
+      # newest transient audit issue), which both
       # audits the wake and enforces the cooldown; if the dispatch then fails
       # the marker is rolled back so the failed attempt does not consume the
       # ledger. An unreadable board, comment list, or run list fails closed
@@ -152,7 +154,7 @@ jobs:
             echo "A Maintainer run is already active (${active}: in progress at any age, or queued inside the 90-minute window); no heartbeat dispatch."
             exit 0
           fi
-          board=$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --jq '[.[] | select(.pull_request == null)] | sort_by(.number) | .[0].number' 2>/dev/null || true)
+          board=$(bash .github/scripts/health-board.sh || true)
           if [ -z "$board" ] || [ "$board" = "null" ]; then
             echo "::warning::no open lab-health board; skipping the heartbeat dispatch (the cooldown ledger needs the board, issue #836)."
             exit 0

@@ -43,6 +43,25 @@ jobs:
           persist-credentials: true
           token: ${{ github.token }}
 
+      - name: Resolve trusted default-branch commit (issue #848)
+        id: trusted
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          # Issue #848 review round 4 R1: GITHUB_SHA is the dispatched ref's
+          # tip (workflow_dispatch accepts any branch or tag), so it is not a
+          # trust anchor. Resolve the repository default branch explicitly
+          # before the agent starts and publish its commit; every post-agent
+          # token-bearing step reads scripts and helpers from this commit.
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TRUSTED_REF}" --jq .sha 2>/dev/null) || sha=""
+          if [ -z "$sha" ]; then
+            echo "::error::Could not resolve the default-branch commit ${TRUSTED_REF}; refusing to run the trusted reads blind (issue #848, fail closed)."
+            exit 1
+          fi
+          echo "trusted_sha=${sha}" >> "$GITHUB_OUTPUT"
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -61,15 +80,16 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Silent-stall regression audit (R1-R34)
+      - name: Silent-stall regression audit (R1-R36)
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          HEALTH_BOARD_LIVE_CHECK: "1"
         run: |
-          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh
+          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh .github/scripts/health-board.sh
           health_issue=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+            health_issue=$(bash .github/scripts/health-board.sh || true)
           fi
           .github/scripts/silent-stall-audit.sh ".github/workflows/opencode.yml" "${health_issue}"
 
@@ -104,23 +124,67 @@ jobs:
             - You NEVER commit code, push, or modify the repository.
             - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`.
             - Before ending the run, you MUST write your structured machine handoff decision to `/tmp/random-lab-decision.json`: `[{"action": "maintainer", "issue": <new_issue_number>}]` for each opened bug issue, or `[{"action": "maintainer"}]` to notify on the health board. The hardcoded workflow step reads this file and posts `/oc maintainer` with owner PAT.
-            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue (create it with label `lab-health` if missing).
+            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue. Resolve it with `.github/scripts/health-board.sh` (title first, then the oldest open non-PR issue labeled `lab-health`) and create it with label `lab-health` only if missing. Never add `lab-health` to a transient `[Audit]` issue: only the universal board may carry the label.
 
       - name: Verify auditor decided, else self-heal on schedule/dispatch
         id: verify-decision
         if: always()
         env:
+          # Issue #848 review round 2 B1: this step holds the owner PAT after
+          # the untrusted agent, so the shell environment is pinned too. The
+          # runner applies $GITHUB_ENV/$GITHUB_PATH after the job env, so an
+          # agent-written BASH_ENV, a prepended PATH shim, or a planted gh
+          # config can otherwise hijack the trusted read.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_HOST: github.com
+          GH_REPO: ""
+          TRUSTED_SHA: ${{ steps.trusted.outputs.trusted_sha }}
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
           # expansion is SHELL against this step's owner PAT env. The env
           # mapping is inert data even when the value carries shell metachars.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
+          # Issue #848 review round 2 B1: a fresh private GH_CONFIG_DIR keeps
+          # an agent-planted config.yml (for example an http_unix_socket) away
+          # from the owner PAT; GH_HOST is pinned in the env map and the
+          # lowercase proxy spellings are removed here.
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           # Terminal third outcome for a gate skip (issue #428): the auditor
           # step never started, so "failed + no decision file" is a DENIAL,
           # not a crash. No fail-closed red, no self-heal re-dispatch, no
@@ -155,7 +219,23 @@ jobs:
           # Schedule/dispatch arms: bounded self-heal, never a silently burned
           # 24-hour cron cycle. Regression-guarded by audit rule R9.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
-            if bash .github/scripts/schedule-selfheal.sh auditor.yml "${SELFHEAL_RETRY}"; then
+            # Issue #848 review round 2 B2 and round 4 R1: the agent shares
+            # this workspace and can rewrite the self-heal script before this
+            # owner-PAT step runs, and GITHUB_SHA is the dispatched ref's tip.
+            # Read the script from the freshly resolved default-branch commit
+            # through the contents API, execute it from memory, and bind its
+            # board helper read to that same commit.
+            if [ -z "${TRUSTED_SHA:-}" ]; then
+              echo "::error::trusted default-branch commit is empty; refusing to execute the self-heal script (issue #848, fail closed)."
+              exit 1
+            fi
+            selfheal=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+              "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/schedule-selfheal.sh?ref=${TRUSTED_SHA}" 2>/dev/null) || selfheal=""
+            if [ -z "$selfheal" ]; then
+              echo "::error::schedule-selfheal.sh is absent from trusted commit ${TRUSTED_SHA}; failing closed instead of executing a mutable helper."
+              exit 1
+            fi
+            if printf '%s' "$selfheal" | HEALTH_BOARD_REF="${TRUSTED_SHA}" /bin/bash -p -s -- auditor.yml "${SELFHEAL_RETRY}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi
@@ -169,11 +249,49 @@ jobs:
       - name: Forward auditor decision
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          # Issue #848 review round 2 B1: pin the shell environment of this
+          # post-agent owner-PAT step, not only its PATH, so an agent-written
+          # BASH_ENV, GITHUB_PATH shim, or gh config cannot intercept the read.
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_PAGER: /bin/cat
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_HOST: github.com
+          GH_REPO: ""
+          TRUSTED_SHA: ${{ steps.trusted.outputs.trusted_sha }}
+          ALL_PROXY: ""
+          CURL_CA_BUNDLE: ""
+          GIT_PROXY_COMMAND: ""
+          GIT_SSL_CAINFO: ""
+          GIT_SSL_CAPATH: ""
+          GIT_SSL_NO_VERIFY: ""
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: ""
+          SSL_CERT_DIR: ""
+          SSL_CERT_FILE: ""
+          TMPDIR: /tmp
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+        shell: '/bin/bash --noprofile --norc -e -o pipefail -p {0}'
         run: |
+          PATH=/usr/bin:/bin; export PATH
+          gh_cfg="$(mktemp -d 2>/dev/null)" || gh_cfg=""
+          if [ -z "$gh_cfg" ] || [ ! -d "$gh_cfg" ]; then
+            echo "::error::Could not create a fresh gh config directory for the owner-PAT step; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          if ! chmod 700 "$gh_cfg"; then
+            echo "::error::Could not secure the fresh gh config directory; refusing to run with agent-writable gh state (issue #848, fail closed)."
+            exit 1
+          fi
+          export GH_CONFIG_DIR="$gh_cfg"
+          trap 'rm -rf "$gh_cfg"' EXIT
+          unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found (/tmp/random-lab-decision.json)."
             exit 0
@@ -192,7 +310,27 @@ jobs:
                 echo "Forwarding to Maintainer on issue #$target (/oc maintainer)"
                 gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on issue #$target"
               else
-                health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+                # Issue #848 review F1 and round 4 R1: the agent shares this
+                # workspace and a PR-triggered run checks out the PR head
+                # mid-run, so a post-agent workspace helper would be
+                # PR-controlled code under the owner PAT, and GITHUB_SHA is
+                # the dispatched ref's tip. Read the helper from the freshly
+                # resolved default-branch commit through the contents API and
+                # execute it from memory (the review publisher pattern, issue
+                # #798).
+                if [ -z "${TRUSTED_SHA:-}" ]; then
+                  echo "::warning::trusted default-branch commit is empty; cannot resolve the health board (fail closed)."
+                  health_issue=""
+                else
+                  helper=$(gh api --hostname github.com -H "Accept: application/vnd.github.raw" \
+                    "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/health-board.sh?ref=${TRUSTED_SHA}" 2>/dev/null) || helper=""
+                  if [ -z "$helper" ]; then
+                    echo "::warning::health-board helper absent from trusted commit ${TRUSTED_SHA}; cannot resolve the health board (fail closed)."
+                    health_issue=""
+                  else
+                    health_issue=$(printf '%s' "$helper" | /bin/bash -p -s || true)
+                  fi
+                fi
                 if [ -n "$health_issue" ] && [ "$health_issue" != "null" ]; then
                   echo "Forwarding to Maintainer on health board #$health_issue (/oc maintainer)"
                   gh issue comment "$health_issue" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on health board #$health_issue"
