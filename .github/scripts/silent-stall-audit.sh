@@ -168,7 +168,7 @@
 # spellings empty, the control never contacts the proxy, the unset-removal
 # mutant contacts it and fails closed with the real tip intact, and every
 # owner-PAT step's effective env records no Authorization leak).
-# Wired into auditor.yml as the R1-R35 matrix.
+# Wired into auditor.yml as the R1-R36 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
 # R1-R6 are scoped to <path-to-opencode.yml>; R7-R34 audit the whole tree
@@ -194,6 +194,13 @@
 # posted as a comment to the lab-health board.
 
 set -u
+
+# Issue #742 review finding 1: the audit must be hermetic under the ambient
+# environment. Fixtures that need a run nonce set it explicitly per command;
+# an inherited LAB_RUN_NONCE would change the expected nonce inside the real
+# scripts and fail R17/R19 for reasons that have nothing to do with the code
+# under test.
+unset LAB_RUN_NONCE || true
 
 # R26 audit-start checkout snapshot (review findings F22/F24): the R26
 # static scan below reads the repo root AFTER earlier rules have run, so a
@@ -242,12 +249,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R35 PASS] $name: $desc"
+  [R1-R36 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R35 FAIL] $name: $desc"
+  [R1-R36 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -35347,13 +35354,16 @@ esac
 # [R36] Owner-PAT isolation for the remaining utility workflows (issue #742):
 # the sanitized owner-PAT environment stopped at the agent lanes, so the
 # periodic and helper workflows still let an agent-exported BASH_FUNC_*,
-# SHELLOPTS/PS4, GIT_CONFIG*, PYTHONPATH, or LD_* value reach a step that
-# holds the owner PAT. Every owner-PAT step in auditor, curator, ideate, lab,
-# opencode-pr-trigger, and opencode-recover now carries the full isolation map
-# and a privileged bash -p launcher, and opens its run block with the
-# builtins-only function-clearing preamble. The launcher is the load-bearing
-# guard: -p ignores imported functions and pre-preamble SHELLOPTS/PS4, so a
-# BASH_FUNC_read or BASH_FUNC_builtin entry cannot disable the preamble loop.
+# SHELLOPTS/PS4, GIT_CONFIG*, GH_CONFIG_DIR, PYTHONPATH, or LD_* value reach a
+# step that holds the owner PAT. Every owner-PAT step in auditor, curator,
+# ideate, lab, opencode-pr-trigger, and opencode-recover now carries the full
+# isolation map and a privileged bash -p launcher, and opens its run block with
+# the builtins-only function-clearing preamble. The launcher is the
+# load-bearing guard: -p ignores imported functions and pre-preamble
+# SHELLOPTS/PS4, so a BASH_FUNC_read or BASH_FUNC_builtin entry cannot disable
+# the preamble loop. GH_CONFIG_DIR is pinned to a read-only directory so an
+# agent-exported gh config cannot redirect the owner-PAT API traffic, and the
+# six workflows resolve through a duplicate-key-rejecting loader.
 r36_out=$(python3 -I - <<'R36PY'
 import copy
 import os
@@ -35380,6 +35390,10 @@ PREAMBLE = (
 BASE = {
     "BASH_ENV": "/dev/null",
     "ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
+    "GH_CONFIG_DIR": "/proc",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
     "GIT_ASKPASS": "/usr/bin/false",
     "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
@@ -35421,6 +35435,36 @@ ALLOWED_EXTRA = {
     "GIT_COMMITTER_NAME",
     "GIT_COMMITTER_EMAIL",
 }
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError:
+            duplicate = False
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping
+)
+
+
+def load(path):
+    with open(path, encoding="utf-8") as handle:
+        return yaml.load(handle, Loader=StrictLoader)
 
 
 def is_pat(step):
@@ -35502,11 +35546,17 @@ def mutate(docs, path, mutate_step, mutate=None):
 
 
 def main():
+    try:
+        yaml.load("run: one\nrun: two\n", Loader=StrictLoader)
+    except yaml.constructor.ConstructorError:
+        pass
+    else:
+        print("BAD:strict-loader-not-strict")
+        return
     docs = {}
     for path in FILES:
         try:
-            with open(path, encoding="utf-8") as handle:
-                docs[path] = yaml.safe_load(handle)
+            docs[path] = load(path)
         except Exception as exc:
             print("BAD:%s(parse:%s)" % (path, exc))
             return
@@ -35520,6 +35570,11 @@ def main():
         (step.get("env") or {}).pop("SHELLOPTS", None)
 
     mutants.append(("remove-SHELLOPTS", mutate(docs, ".github/workflows/auditor.yml", no_shellopts)))
+
+    def no_gh_config_dir(step):
+        (step.get("env") or {}).pop("GH_CONFIG_DIR", None)
+
+    mutants.append(("remove-GH_CONFIG_DIR", mutate(docs, ".github/workflows/curator.yml", no_gh_config_dir)))
 
     def bad_ps4(step):
         (step.get("env") or {})["PS4"] = "$(touch /tmp/r36-pwn)"
@@ -35608,10 +35663,10 @@ R36PY
 )
 case "$r36_out" in
   OK)
-    check "R36" "every owner-PAT step in auditor.yml (2), curator.yml (3), ideate.yml (2), lab.yml (5), opencode-pr-trigger.yml (1), and opencode-recover.yml (2) carries the full sanitized isolation map (BASH_ENV/ENV and the git config files inert, GIT_CONFIG/GIT_CONFIG_PARAMETERS closed, SHELLOPTS/PS4 inert, PYTHONPATH cleared, empty LD_*/DYLD_*, the workspace-scoped GIT_* set with a pinned GIT_EXEC_PATH, the pinned pager pins, and a pinned PATH), a privileged bash -p launcher that ignores imported functions and pre-preamble SHELLOPTS/PS4, and the exact builtins-only function-clearing preamble as the first two non-empty run lines, with the six per-workflow counts and the 15-step total pinned, a strict extra-key allowlist, mutation self-tests for a removed or weakened key, a plain or missing launcher, a missing or buried preamble, an injected extra key, and a non-empty DYLD value, and a functional fixture proving the shipped launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload while the plain-shell control is hijacked (issue #742)" "ok"
+    check "R36" "every owner-PAT step in auditor.yml (2), curator.yml (3), ideate.yml (2), lab.yml (5), opencode-pr-trigger.yml (1), and opencode-recover.yml (2) carries the full sanitized isolation map (BASH_ENV/ENV and the git config files inert, GIT_CONFIG/GIT_CONFIG_PARAMETERS closed, a read-only GH_CONFIG_DIR pin, SHELLOPTS/PS4 inert, PYTHONPATH cleared, empty LD_*/DYLD_*, the workspace-scoped GIT_* set with a pinned GIT_EXEC_PATH, the pinned pager pins, and a pinned PATH), a privileged bash -p launcher that ignores imported functions and pre-preamble SHELLOPTS/PS4, and the exact builtins-only function-clearing preamble as the first two non-empty run lines, with the six per-workflow counts and the 15-step total pinned, a strict duplicate-key-rejecting loader, a strict extra-key allowlist, mutation self-tests for a removed or weakened key, a removed GH_CONFIG_DIR pin, a plain or missing launcher, a missing or buried preamble, an injected extra key, and a non-empty DYLD value, and a functional fixture proving the shipped launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload while the plain-shell control is hijacked (issue #742)" "ok"
     ;;
   *)
-    check "R36" "owner-PAT isolation guard missing in the remaining utility workflows: ${r36_out} (issue #742: auditor, curator, ideate, lab, pr-trigger, and recover owner-PAT steps could inherit agent-exported BASH_FUNC_*, SHELLOPTS/PS4, GIT_CONFIG*, PYTHONPATH, or LD_* values)" "bad"
+    check "R36" "owner-PAT isolation guard missing in the remaining utility workflows: ${r36_out} (issue #742: auditor, curator, ideate, lab, pr-trigger, and recover owner-PAT steps could inherit agent-exported BASH_FUNC_*, SHELLOPTS/PS4, GIT_CONFIG*, GH_CONFIG_DIR, PYTHONPATH, or LD_* values)" "bad"
     ;;
 esac
 

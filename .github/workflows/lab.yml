@@ -133,6 +133,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -157,6 +158,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -244,6 +248,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -268,6 +273,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -306,6 +314,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -330,6 +339,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -359,9 +371,12 @@ jobs:
           # Remove actions/checkout credential injection so the PAT URL actually authenticates:
           # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
           # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
-          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
-          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
-            git config --local --unset-all "$cfg" 2>/dev/null || true
+          # The inherited-env pin GIT_CONFIG=/dev/null makes `git config --local` refuse to run
+          # ("only one config file at a time"), so the cleanup lifts that pin per command and
+          # leaves it in place for the fetch and push below (agent-written repo config is never read).
+          env -u GIT_CONFIG git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(env -u GIT_CONFIG git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            env -u GIT_CONFIG git config --local --unset-all "$cfg" 2>/dev/null || true
           done
 
           branch=$(git branch --show-current 2>/dev/null || echo "")
@@ -473,6 +488,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -497,6 +513,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -552,6 +571,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -576,6 +596,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
