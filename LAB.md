@@ -1808,9 +1808,10 @@ per-workflow counts and the 15-step total, resolves the six files through a
 duplicate-key-rejecting loader, enforces a strict extra-key allowlist, and
 mutation-self-tests a removed key (including the `GH_CONFIG_DIR` pin), a
 plain or missing launcher, a missing or buried preamble, an injected extra
-key, and a non-empty `DYLD` value, with a functional fixture proving the
-launcher is immune to `BASH_FUNC_git` plus a `SHELLOPTS`/`PS4` payload while
-the plain-shell control is hijacked.
+key, and a non-empty `DYLD` value, with a no-op control proving the mutation
+harness is load-bearing, and a functional fixture proving the launcher is
+immune to `BASH_FUNC_git`, `BASH_FUNC_read`, and `BASH_FUNC_builtin` plus a
+`SHELLOPTS`/`PS4` payload while the plain-shell control is hijacked.
 
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
