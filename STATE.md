@@ -1,111 +1,105 @@
 # STATE
 
-Last updated: 2026-11-19T14:44Z by run 44539150471
+Last updated: 2026-11-20T01:31Z by run 44653630284
 
-(Per-PR wake on #862: the head-fresh review approved `ac7cdf309` at 14:21Z and the Tester is live on it. #850's eval run died on the provider wall at 14:29Z after 30 minutes, so the eval gate re-arms later; #745's lab rebased and pushed `ff5cebd9` and its review is live; #854 and #836 stay wall-blocked; #849's lab is still in progress. No merge and no new agent dispatch this run.)
+(Heartbeat wake after the daily free-usage wall killed every agent lane from 14:29Z yesterday. This is the first real Maintainer session since 2026-11-19T14:44Z. The wall cleared with the new day: this run's decision list carries six re-arms - eval #862, eval #850, lab #745, lab #854, lab #849, lab #836 - and no merge is possible this run because no eval verdict exists yet.)
 
 ## TL;DR for the next Hephaestus
 
-- **#862 (this run's target): review APPROVED at `ac7cdf309`; Tester live.** Review 44539100195 returned a clean approve at 14:21:23Z, and the review workflow posted the test trigger at 14:21:33Z; Tester run 44542873513 is in progress at `ac7cdf309` (started 14:21:39Z). Do not re-post. On a Tester approval at that head, the Evaluator is the last gate; then merge and #861 closes.
-- **#850: eval DIED ON THE WALL at 14:29:28Z.** Eval run 44538894115 ran 30 minutes and hit the provider daily free-usage allowance (the #754/#820 wall) with no verdict and no decision file. The Tester approval at `9c9bf1bd7` (13:46:27Z) still stands, so the eval gate is open, not failed. The bounded fresh-run recovery owns the one automatic attempt; otherwise re-arm `eval` on a later wake after the wall clears. No same-IP retry.
-- **#745: lab pushed `ff5cebd9`; review live.** Lab 44537657223 succeeded at 14:06:14Z and the PAT step pushed the rebased branch (one commit on `f11f2caa`, 10 files, +807/-10). The two public push-rejection lines are the expected App-token wrapper noise on workflow files. Review 44540141336 is live at `ff5cebd9` since 14:06:15Z; duplicate pending review 44540154552 will resolve the same head. On approval: Tester, eval, PAT merge sweep; keep #853 open until it lands.
-- **#854: wall-dead (13:39:48Z), re-arm only after the wall clears.** ~10.7h retry-after from the death (~00:17Z); do not retry at 14:10Z (an earlier STATE note was wrong; the log confirms the ~11h retry-after). Keep #803 open.
-- **#849: lab 44534112058 still in progress since 13:30:28Z (>70 min), no push.** Verify its acceptance criteria and delegation ledger at push.
-- **#836: wall-blocked.** No same-IP retry; re-dispatch only after the wall clears and with a fresh registry read.
-- **Board:** the 14:06:32Z R1-R36 audit failure is an invocation artifact (the matrix was run from outside the repository root); explained on #70 at 14:27:57Z. Production audit is green (37/37 from the repo root on `9c9bf1bd7`; main is R1-R35). The #848/#850 lane owns the wrong-CWD posting footgun. Do not treat it as a merge blocker.
-- **Failures today (3):** #836 lab wall 13:03:49Z, #854 lab wall 13:39:48Z, #850 eval wall 14:29:28Z. Held runs 0. Timed out 0.
-- **No merge this run.**
-- **Model/ladder:** registry not re-read this run (last 92 models / 12 free at 13:35Z). Pin and rung 2 live; ladder 2/3 until #836 lands.
-- **Pages:** production deploy for `f11f2caa` green (44541473003 success at 14:14:30Z).
+- **Wall cleared; the recovery window is open.** The provider daily free-usage wall killed `#850` eval at 14:29Z, the `#849` lab at 15:11Z, the `#854` lab at 15:15Z, and the `#745` lab at 15:18Z yesterday, then killed every Maintainer wake at 15:03-22:03Z. This run is the first real session since 14:44Z and queues six re-arms. Watch for a fresh wall death; it is a re-arm, not a finding, and no same-IP retry is allowed inside it.
+- **#862: Tester approved `ac7cdf309` at 15:01:55Z.** Test 44542873513 completed success; the owner-published `/oc approve-test` is at 15:02:05Z. The eval trigger is in this run's decision list. On `approve-eval`, merge with a rebase (not protected-path) and close #861.
+- **#850: Tester approved `9c9bf1bd7` at 13:46:27Z.** The eval died on the wall at 14:29:28Z with no verdict; the gate is open, not failed. Eval is in this run's decision list. On `approve-eval`, PAT merge sweep (protected path), Pages check, and close #848.
+- **#745: review returned `lab` at 15:17:35Z.** The head is `ff5cebd9`, 0 behind main, 10 files +807/-10. The lab trigger was posted at 15:17:45Z but the lab run died on the wall at 15:18:43Z. The lab pass is in this run's decision list with the full finding list (nonce hermeticity, `GH_CONFIG_DIR` pin, dead `GIT_CONFIG` cleanup, R1-R36 banners, DYLD claim, strict loader, reviewer-model definition).
+- **#854: round-1 lab queued.** The 14:19Z retry (44542495457) died on the wall at 15:15:29Z before pushing; the branch is unchanged at `090452f27`. Keep #803 open until all three slices land.
+- **#849: lab queued.** 44534112058 died on the wall at 15:11:38Z with no push. It remains the first item of the serialized fail-loud backlog (#849, then #857, #856, #860; one branch at a time).
+- **#836: lab queued with a fresh registry read.** 91 models / 11 free at 01:27Z; `glm-5.3-flash-free` is absent, so the ladder is 2/3. The instruction carries the live free candidates and the stale prompt/allowlist bookkeeping.
+- **No merge this run.** No PR has an `approve-eval` at its current head. Held runs 0. Timed out 0.
+- **Curator self-heal note is a wall artifact.** The 20:09:53Z "self-heal exhausted for curator.yml" note came from the self-heal dispatch dying on the wall; the scheduled curator run itself completed green at 20:09:02Z. No curator defect.
+- **Pages:** production deploy 44541473003 success 14:14:30Z for `f11f2caa`; live root returns 200.
 
 ## Who I am
 
 Hephaestus, the Maintainer of this repository. I do not write project code; I keep the pipeline full and the gates honest, and I route every change through the Lab Engineer, reviewer, tester, auditors, curators, and eval. "I'll do it myself" should lose to "route it." I act only when the owner expressly asks or routine triage is due. I use subagents for parallel read-only investigation only when it materially saves time, and the capped 3-8-line delegation ledger is mandatory where required.
 
-## Right now (surveyed 14:15-14:44Z on 2026-11-19)
+## Right now (surveyed 01:26-01:31Z on 2026-11-20)
 
 ### GitHub state
 
-- **Main:** `f11f2caaf5e743b9eb8ffbd73815b1eabd253321` (from the #859 rebase merge at 13:51:48Z; #858 closed). **`maintainer/logs`:** `51b3f9323bdc8b880f7a5fcb0b1f4e3c0a0a5e4e` at survey time (this run's memory commit lands after publication).
-- **Open PRs (5):** #862 head `ac7cdf309c33e6da31c6a8dd6154d9bff63e4570`, `Fixes #861`, CLEAN/MERGEABLE, 0 behind main, 6 files +573/-4 (2 copy lines, `probes.js` +14/-2, 3 test files), review approved 14:21:23Z, Tester live; #850 head `9c9bf1bd72fb459388d2985656f6f61735147105`, `Closes #848`, CLEAN/MERGEABLE, Tester approved, eval wall-dead; #854 head `090452f27c575a31e617bc5c7083c6ee441b0653`, `Closes #803`, CLEAN/MERGEABLE, round-1 lab wall-dead; #821 head `dce109e4479b3cf2801a1b0127ea98778e58c398`, CLEAN, parked Point of Sale; #745 head `ff5cebd953aa3343ffe44ff37853f2ba78e6378e`, `Fixes #742`, `Fixes #853`, CLEAN/MERGEABLE, 0 behind main, review live.
-- **Open issues (27 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #803, #812, #814, #815, #831, #836, #848, #849, #853, #856, #857, #860, #861. #861 closes on the #862 merge; #848 closes on the #850 merge; #853 closes on the #745 merge.
-- **Board invariant holds:** only #70 carries `lab-health` and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Latest notes: the 14:06:32Z R1-R36 failure, its 14:27:57Z invocation-artifact explanation, and the 14:29:56Z #850 eval quota intake. #855 stays closed.
-- **Latest comments:** #862 review approve 14:21:23Z, report 14:21:30Z, `/oc test` 14:21:33Z; #745 failed-push noise 14:05:57Z, `/oc review` 14:06:09Z, `/oc maintainer` 14:06:14Z; #850 last `/oc eval` 13:59:01Z with no eval failure note on the PR thread (the quota intake is on #70).
-- **Branch tips:** main `f11f2caa`, `maintainer/logs` `51b3f932`, #862 `ac7cdf309`, #745 `ff5cebd9`, #850 `9c9bf1bd7`, #854 `090452f27`. The #859 branch is intact at `9b862e48` (never delete). No recovery due.
+- **Main:** `f11f2caaf5e743b9eb8ffbd73815b1eabd253321` (the #859 rebase merge from 2026-11-19T13:51:48Z; unchanged since). **`maintainer/logs`:** `54991d0a897d8828bef344697625cc7f102d5b3a` (the 22:03Z memory commit from the failed wall run; its STATE was still the 14:44Z stamp, which this run replaces).
+- **Open PRs (5):** #862 head `ac7cdf309c33e6da31c6a8dd6154d9bff63e4570`, `Fixes #861`, CLEAN/MERGEABLE, 0 behind main, 6 files +573/-4 (2 copy lines, `probes.js` +14/-2, 3 test files), Tester approved 15:01:55Z, eval queued in this run's decision list; #854 head `090452f27c575a31e617bc5c7083c6ee441b0653`, `Closes #803`, CLEAN/MERGEABLE, 2 behind main, round-1 lab queued in this run's decision list; #850 head `9c9bf1bd72fb459388d2985656f6f61735147105`, `Closes #848`, CLEAN/MERGEABLE, 2 behind main, Tester approved 13:46:27Z, eval queued in this run's decision list; #821 head `dce109e4479b3cf2801a1b0127ea98778e58c398`, CLEAN, parked Point of Sale; #745 head `ff5cebd953aa3343ffe44ff37853f2ba78e6378e`, `Part of #742`, `Refs #853`, CLEAN/MERGEABLE, 0 behind main, 10 files +807/-10, review returned lab at 15:17:35Z, lab queued in this run's decision list.
+- **Open issues (27 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #803, #812, #814, #815, #831, #836, #848, #849, #853, #856, #857, #860, #861. #861 closes on the #862 merge; #848 on the #850 merge; #853 can be closed after #745 lands (its body uses `Refs #853`, not a closing trailer); #742 stays open for the remaining slices; #803 stays open until all three slices land.
+- **Board invariant holds:** only #70 carries `lab-health` and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Latest notes: the 20:09:53Z curator self-heal exhaustion note (a wall artifact), the 01:26:23Z heartbeat marker, and this run's recovery ping. #855 stays closed.
+- **Latest comments:** #862 Tester approve 15:01:55Z, `/oc approve-test` 15:02:05Z, `/oc maintainer` 15:02:07Z; #745 review `lab` 15:17:42Z and `/oc lab` 15:17:45Z; #850 eval-wall ping 14:52:43Z; #854 `/oc lab` retry 14:19:28Z; #70 heartbeat 01:26:23Z.
+- **Branch tips:** main `f11f2caa`, `maintainer/logs` `54991d0a`, #862 `ac7cdf309`, #745 `ff5cebd9`, #850 `9c9bf1bd7`, #854 `090452f27`, #821 `dce109e4`. The #859 branch stays intact at `9b862e48` (never delete). No recovery due.
+- **Held runs:** 0. The queued API list contains only historical inert entries on long-dead branches.
 
 ### Runs, CI and queues
 
-- **This run:** `44539150471`, `issue_comment` on #862 created 14:00:35Z (the 14:00:32Z `/oc maintainer`); agent step started 14:13:55Z. Target #862; not a heartbeat.
-- **Live at 14:44Z:** review 44540141336 (#745 at `ff5cebd9`, since 14:06:15Z), review 44540154552 (#745 duplicate, pending), test 44542873513 (#862 at `ac7cdf309`, since 14:21:39Z), lab 44534112058 (#849, since 13:30:28Z).
-- **Completed:** #862 review 44539100195 success 14:21:34Z (approve at `ac7cdf309`); #745 lab 44537657223 success 14:06:14Z (pushed `ff5cebd9`, forwarded review); #850 eval 44538894115 failure 14:29:28Z (wall, no decision file); maintainer 44540182770 skipped 14:36:17Z.
-- **Merge:** none this run.
-- **Wall deaths:** #836 lab 13:03:49Z, #854 lab 13:39:48Z, #850 eval 14:29:28Z. Held (`action_required`) 0. Timed out 0.
-- **Concurrency:** this `maintainer-862` session is 44539150471. The maintainer `workflow_run` burst after 14:06 resolves as cancelled/skipped; the 14:06:27 run skipped at 14:36:17Z. No other maintainer wake owns a pending gate.
-- **Pages:** production deploy 44541473003 success 14:14:30Z for `f11f2caa`; previews for #862/#745/#850/#854 live.
-- **Schedules:** curator cron `0 */6 * * *`; last scheduled success 44477742504 at 07:11:50Z; the 12:00 tick had not appeared by 14:44Z (2h44m late, inside the observed 1-3h17m band). Auditor cron `0 0 * * *`; last 44471789577 at 06:23:18Z, next ~00:00Z.
-- **Model registry:** not re-read this run (last 92 models / 12 free at 13:35Z). `deepseek-v4.1-flash-free` (pin/small model) and `mimo-v2.6-flash-free` were live; `glm-5.3-flash-free` absent, so the ladder is 2/3. #836 is the fix lane.
+- **This run:** `44653630284`, `workflow_dispatch` heartbeat at 01:26:24Z, dispatched by recover tick `44653552844` (01:25:46Z, success). The reason names the #836 heartbeat. First real session since 14:44Z; the 90-minute heartbeat is expected, not a duplicate.
+- **Yesterday's wall collapse:** eval #850 `44538894115` failed 14:29:28Z; lab #849 `44534112058` failed 15:11:38Z; lab #854 `44542495457` failed 15:15:29Z; lab #745 `44553177564` failed 15:18:43Z; curator self-heal `44605657012` failed 20:09:57Z; Maintainer quota-recovery runs `44550527267`, `44550926599`, `44553512009`, `44597981366`, `44606122662`, `44624670092` all failed 15:03-22:03Z with no decision contract. Every one of these ended on `FreeUsageLimitError` (the #754/#820 wall).
+- **Completed before the wall:** #862 review `44539100195` success 14:21:34Z (approve at `ac7cdf309`); #745 lab `44537657223` success 14:06:14Z (pushed `ff5cebd9`); #862 test `44542873513` success 15:02:10Z (Tester approve); #745 review `44540141336` success 15:17:49Z (lab verdict); #859 review/test/eval and the #859 merge landed earlier in the day.
+- **Schedules:** curator cron last success `44605505591` at 20:09:02Z (the 20:08Z tick; the separate self-heal dispatch `44605657012` then died on the wall). Auditor last schedule success `44471789577` at 2026-11-19T06:23:18Z; no 11-20 tick yet (observed cadence is mid-morning UTC, next expected inside the usual band). Recover schedule `44653552844` at 01:25:46Z success.
+- **Pages:** production deploy `44541473003` success 14:14:30Z for `f11f2caa`; live root returns HTTP 200; previews for the open PRs exist from their last heads.
+- **Model registry:** fresh read at 01:27Z: **91 models / 11 free**. Free ids: `beam-free`, `deepseek-v4.1-flash-free`, `flint-40b-free`, `hy4-flash-free`, `iceman-free`, `jev-1.13-free`, `longcat-2.5-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free`, `nemotron-3.5-super-vl-free`, `tidepool-alpha-free`. `glm-5.3-flash-free` is absent, so the ladder is 2/3; the pin (`deepseek-v4.1-flash-free`) and rung 2 (`mimo-v2.6-flash-free`) are live. #836 is the fix lane.
 - **Allowlist:** `maintainer.yml` lists 19 workflows; with the self-excluded `maintainer` that covers all 20 live names. Zero missing, zero extra.
-- **Workspace:** the CLI bootstrap checked out the #862 head `ac7cdf309`; tree clean. No protected-path edits, no model edit, no branch commands, no `emergency.json`.
+- **Workspace:** the trusted default-branch checkout is `f11f2caa`; tree clean. No protected-path edits, no model edit, no branch commands, no `emergency.json`.
 
 ### Live lanes and their next step
 
-- **#862 / #861 (copy + probe fixes, Tester live):** head `ac7cdf309`, 0 behind `main`, CLEAN. Review approved 14:21:23Z and the workflow posted the test trigger; Tester 44542873513 is live. Next: the Tester verdict at `ac7cdf309`; on approval an eval in a later run, then merge; #861 closes on merge. Not a new project, so the shipping limit does not apply.
-- **#850 / #848 (protected-path lab lane, Tester approved, eval wall-dead):** head `9c9bf1bd7`; Tester approval at 13:46:27Z stands. Eval 44538894115 died on the wall at 14:29:28Z with no verdict. The bounded fresh-run recovery owns the one automatic attempt; otherwise re-arm `eval` on a later wake after the wall clears. On `approve-eval`: PAT merge sweep, Pages check, #848 closes.
-- **#745 / #742 + #853 (protected-path rebase, review live):** head `ff5cebd9`, one commit on `f11f2caa`, 10 files +807/-10 (workflows, `silent-stall-audit.sh` R1-R36, AGENTS.md, LAB.md), 0 behind. The two failed-push lines are the expected App-token wrapper noise; the PAT push landed. Review 44540141336 is live; duplicate pending review 44540154552 will resolve the same head. On approval: Tester, eval, PAT merge sweep; keep #853 open until it lands.
-- **#854 / #803 (protected-path slice 3, wall-dead):** head `090452f27`; round-1 lab died at 13:39:48Z with no push. Do not retry until the wall clears (~10.7h retry-after, ~00:17Z). Keep #803 open until all three slices land; `health-board.sh` is still absent on main.
-- **#849 (fail-loud hardening, lab live):** 44534112058 in progress since 13:30:28Z with the serialized scope (`Refs #798`, `Refs #804`); no push. Verify the acceptance criteria and delegation ledger at its push.
-- **#836 (model/wall capacity):** wall-blocked. Re-dispatch only after the wall clears and with a fresh registry read; verify three live `-free` rungs.
+- **#862 / #861 (curator copy + probe fixes, eval queued):** head `ac7cdf309`, Tester approved at 15:01:55Z. Next: the eval verdict; on `approve-eval`, rebase merge, verify Pages, close #861. Not a new project, so the shipping limit does not apply.
+- **#850 / #848 (protected-path lab lane, eval queued):** head `9c9bf1bd7`, Tester approval at 13:46:27Z stands; eval 44538894115 died on the wall at 14:29:28Z with no verdict. Next: the eval verdict; on `approve-eval`, PAT merge sweep, Pages check, close #848.
+- **#745 / #742 + #853 (protected-path rebase, lab queued):** head `ff5cebd9`, review returned `lab` at 15:17:35Z; the lab run died on the wall at 15:18:43Z. Next: the lab push, then a fresh head-bound review, Tester, eval, PAT merge sweep. Close #853 after the merge; keep #742 open for the remaining slices.
+- **#854 / #803 (protected-path slice 3, lab queued):** head `090452f27`, unchanged; the 14:19Z lab retry died on the wall at 15:15:29Z. Next: the lab push, review, Tester, eval, PAT merge sweep. Keep #803 open until all three slices land.
+- **#849 (fail-loud hardening, lab queued):** 44534112058 died on the wall at 15:11:38Z with no push. Next: the lab push, review, Tester, eval. Then #857, #856, #860 in that order.
+- **#836 (model/wall capacity, lab queued):** fresh registry read attached; the lab must pick a live free rung 3 and fix the stale prompt/allowlist bookkeeping.
 - **#821 / #823** (Point of Sale staging): parked. Do not dispatch.
-- **Open infra/audit backlog:** #803 closes with #854; #853 after #745; #849 in flight; #857, #856, #860 after #849; #848 via #850; then #814, #812, #815, #774/#773, #831, #742.
 - **Maze Chase standing set:** #582 parent and #655/#657/#659/#661/#677/#678/#683 are slow/frozen; no action unless the Owner asks.
 - **Board / health:** #70 is the only board. Every ping ends with the Maintainer sign-off; no inline trigger tokens (#775).
-- **Eval lane:** route new multi-agent architecture to `eval` only when the Owner asks; no paid runs.
 
 ## Concurrency and wall coordination
 
-- One Maintainer session is live: this run. No other maintainer wake owns a pending gate; the 14:06:27 wake skipped.
-- The wall is live again: three agent deaths today (13:03, 13:39, 14:29). Per #754/#820, no same-IP dispatch inside the wall; the bounded fresh-run recovery is the one attempt; later wakes re-arm the human-facing gates after it clears. Do not dispatch a new agent (review/test/eval/lab) while the wall is active unless that lane is already in flight.
-- The in-flight review (#745) and Tester (#862) may also die on the wall. A wall death is a re-arm, not a finding; do not cancel them and do not immediately re-post their triggers.
-- The 14:06:32Z R1-R36 audit failure is an invocation artifact (the matrix ran from outside the repo root); it is not a production failure and must not block #745 or #850. The #848/#850 lane owns the wrong-CWD posting footgun.
-- If a lane returns fix, route the Fixer; if it approves, follow the gate chain. Never merge without a head-fresh Tester marker and a head-bound `approve-eval`.
+- One Maintainer session is live: this run. No other maintainer wake owns a pending gate; the heartbeat itself was dispatched by the recover arm and must not be re-dispatched.
+- The wall has reset with the new day; the six dispatches are the first agent work since 14:44Z. If any lane dies on `FreeUsageLimitError`, it is a re-arm, not a finding; do not cancel it, do not immediately re-post its trigger, and do not chain same-IP retries.
+- The previous day's wall deaths prove the failure mode: a single run can die mid-stream after 30-90 minutes with no decision file. Read the run log, classify wall vs. genuine failure, and only route a finding when the log shows a real contract/code failure.
+- If a lane returns fix, route the Fixer (or lab when protected paths are involved); if it approves, follow the gate chain. Never merge without a head-fresh Tester marker and a head-bound `approve-eval`.
+- Do not mention any agent, workflow, model, harness, or tool by name in a PR comment (the code is the only exception). Board notes stay trigger-token-free.
 
 ## Serialized queue (re-post only if the lane did not land or died)
 
-1. `{"action":"test","pr":862}`: live as 44542873513 at `ac7cdf309`; do not re-post. The review workflow already posted the trigger.
-2. `{"action":"eval","pr":862}`: only after a head-fresh Tester approval at `ac7cdf309`.
-3. `{"action":"eval","pr":850}`: the 13:59 eval died wall-dead at 14:29:28Z; re-arm on a later wake after the wall clears; the bounded recovery owns the one automatic attempt.
-4. `{"action":"review","pr":745,"head":"ff5cebd9..."}`: live as 44540141336; duplicate 44540154552 pending; do not re-post.
-5. `{"action":"lab","pr":854}`: wall-blocked until ~00:17Z.
-6. `{"action":"lab","issue":849}`: live as 44534112058; do not re-post.
-7. `{"action":"lab","issue":836}`: wall-blocked until the allowance resets.
+1. `{"action":"eval","pr":862}`: queued in this run's decision list; do not re-post while it is live.
+2. `{"action":"eval","pr":850}`: queued in this run's decision list; do not re-post while it is live.
+3. `{"action":"lab","pr":745}`: queued in this run's decision list; on a push, run a fresh review at the new head.
+4. `{"action":"lab","pr":854}`: queued in this run's decision list; on a push, run a fresh review at the new head.
+5. `{"action":"lab","issue":849}`: queued in this run's decision list; on a push, run the review/test chain.
+6. `{"action":"lab","issue":836}`: queued in this run's decision list; verify three live rungs after the push.
+7. `{"action":"lab","issue":857}`: next in the serialized fail-loud backlog after #849.
+8. `{"action":"lab","issue":856}`: after #857.
+9. `{"action":"lab","issue":860}`: after #856; shares `opencode-review.yml` with the #854 lane, so do not start it before #854 lands.
 
 **Do not** re-post a trigger whose target already has a live or queued run from the last 30 minutes.
 
 ## Loose ends
 
-1. Read the live lanes first: review 44540141336 (#745), review 44540154552 (pending duplicate), test 44542873513 (#862), lab 44534112058 (#849).
-2. Wall watch: three deaths today, the eval death is the freshest. If the #862 Tester or #745 review dies on `FreeUsageLimitError`, stand down the window and re-arm on the next wake; do not chain dispatches.
-3. #850 eval: no verdict exists; the Tester approval at `9c9bf1bd7` is still valid but not sufficient to merge. Re-arm only after the wall.
-4. #745: explain the expected push-rejection noise in the ping; do not treat the 14:06:32 audit note as a finding.
-5. #745 duplicate review: leave it; cancelling triggers an auto-retry.
-6. #745 stale bot review: after the rebase, delete the older bot review on the exact commit id if present; filter by `commit_id`, not just author.
-7. #850's body has `Closes #848`; merge only through the PAT sweep.
-8. #853's body chronology needs one prepended "Update: ..." sentence once #745 lands.
-9. #849 scope mismatch: the sibling's trigger carries the expanded scope; the issue body still quotes the old premise. Verify against the trigger.
-10. The `INFRA-STATUS` block on #70 is stale (10-21) but factually fine; refresh it in the same post as the next real infra change.
-11. No merge this run.
-12. Curator tick: the 12:00Z tick had not appeared by 14:44Z; the observed delay band is up to ~3h17m. Do not dispatch a manual curator run unless it crashes or the gap passes ~16h.
-13. Auditor schedule: next daily tick ~00:00Z. No dispatch.
-14. Quota wall: three agent deaths today. One fresh-run attempt is the cap; no same-IP retry.
-15. Heartbeat: this is not a heartbeat run. Keep the exact `Last updated:` stamp.
-16. Model registry drift: not re-read this run; `glm-5.3-flash-free` was retired and rung 3 is dead. #836 is the fix lane.
-17. The ladder is 2/3 until #836 lands: no production impact while the pin and rung 2 are live.
-18. Stale prompt examples: `maintainer.md:333` and `labengineer.md:78` still list the retired glm id, and `maintainer.yml:581` omits design-ux/visual/motion; folded into the #836 instruction.
-19. Maintainer cron throttling: the 20-minute schedule has large gaps; the recover heartbeat and manual dispatches are the liveness paths (#836/#831).
-20. #862 gate stack: only a Tester approval at `ac7cdf309` counts; the earlier `61a8b4eef` approval is history. Do not post a manual test or eval in the same run as the review's own trigger.
-21. Pages: production is green on `f11f2caa`; the preview artifact redeploys on PR updates. No manual dispatch.
-22. Wake-gate nuance: the maintainer `if:` gate ignores `/oc` bodies except the maintainer trigger; per-PR wakes from review/test handoffs are by design.
-23. Workspace: this run's checkout is the #862 head; project config and instructions are disabled per #831, and the global home scan is unconditional. No protected-path edits.
+1. Read the six re-arms first: eval `#862`, eval `#850`, lab `#745`, lab `#854`, lab `#849`, lab `#836`.
+2. Wall watch: the wall reset today, but the allowance is shared across the egress pool. If a lane dies on it, stand down that lane for the window and re-arm on the next wake after it clears; never chain same-IP retries.
+3. #862: the Tester approval at `ac7cdf309` is head-fresh; the eval is the last gate. On merge, verify the Pages deploy and close #861.
+4. #850: the Tester approval at `9c9bf1bd7` is still valid; the eval is the last gate. On merge, use the PAT sweep (protected path), verify Pages, close #848.
+5. #745: the review's blocking findings are nonce hermeticity, `GH_CONFIG_DIR`, and the dead `GIT_CONFIG` cleanup; the non-blocking set is the R1-R36 banners, the DYLD claim, the strict loader, and the reviewer-model definition. Verify all of them at the push.
+6. #854: the round-1 findings include the #853 deferral guard, the incident-scope fail-open, the resolver fail-closed, the wall-death fixture, R20 pins, and the AGENTS/LAB claims. Keep `Closes #803` only if all three slices land; otherwise switch to `Refs #803`.
+7. #849 scope mismatch: the issue body still quotes the old premise; the trigger carries the expanded scope. Verify the push against the trigger.
+8. #853 can be closed after #745 lands; #742 stays open. #848 closes on #850; #861 on #862.
+9. The `INFRA-STATUS` block on #70 is stale (10-21) but factually fine; refresh it in the same post as the next real infra change.
+10. The 20:09:53Z curator self-heal note is a wall artifact; the scheduled curator run is green. Do not dispatch a curator run for it. The next curator tick is due ~02:08Z.
+11. Auditor: no 11-20 tick yet; observed cadence is mid-morning UTC. No dispatch unless it crashes or the gap passes the usual band.
+12. Heartbeat: this is the expected 90-minute recover heartbeat (issue #836), not a duplicate trigger. Keep the exact `Last updated:` stamp.
+13. Model registry drift: `glm-5.3-flash-free` is gone; the ladder is 2/3 until the #836 lab lands. The pin and rung 2 are live.
+14. Stale prompt examples: `maintainer.md:333` and `labengineer.md:78` still list the retired glm id, and `maintainer.yml:581` omits design-ux/visual/motion; folded into the #836 instruction.
+15. Maintainer cron throttling: the 20-minute schedule has large gaps; the recover heartbeat and manual dispatches are the liveness paths (#836/#831).
+16. Pages: production is green on `f11f2caa`; the preview artifact redeploys on PR updates. No manual dispatch.
+17. Wake-gate nuance: the maintainer `if:` gate ignores `/oc` bodies except the maintainer trigger; per-PR wakes from review/test handoffs are by design.
+18. Workspace: this run's checkout is the trusted default-branch `f11f2caa`; project config and instructions are disabled per #831, and the global home scan is unconditional. No protected-path edits.
+19. Memory: the 2026-11-19 log tail carries only run markers for the 15:00-22:03Z sessions; the tip STATE was still the 14:44Z stamp, so no later session persisted a newer checkpoint. This run starts the 2026-11-20 log fresh.
+20. No merge this run.
 
 ## Standing rules I operate under
 
@@ -130,7 +124,7 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 - Verify the CI workflow covers the pushed commit and required checks are green. Never merge with an in-flight required check or while the mergeable flag is `UNKNOWN`.
 - Required checks only: deploy, test (ubuntu-latest, windows-latest, macos-latest), e2e.
 - Merge preference is squash unless the PR's base branch explicitly requires another strategy; the repo's rebase-merge setting is the exception for the #859/#850 lane (honor the verified expectation).
-- Delete branches only on merge, and only with explicit `--delete-branch`; verify which strategies the base branch allows.
+- Delete branches only on merge, and only with explicit `--delete-branch`; verify which strategies the base branch allows. The standing rule is never `--delete-branch` for the bot PRs.
 - Ambiguous-rest notation: the eval/review agent comments carry a machine-readable decision block; read it before acting.
 - Eval may only pass ("approve-eval") when multi-agent besides the Evaluator improved the result and the result is genuinely better; otherwise "reject-eval".
 - Follow-up issues belong to the Owner, not the Maintainer.
@@ -138,19 +132,19 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ### Audit lane rules (current, from #798 and its reviews)
 
-- Drive the pipeline but cap the audit loops: each lane gets at most two rounds per target, and max eight workflow triggers per PR or issue per Maintainer run. Fan out only when a leg is wall- or timeout-bound, the PR is freshly pushed, a gate flipped, a review branch awaits merge, CI healed, the PR is reopened, or a human asks. A wall wall always wins; no same-IP retry.
+- Drive the pipeline but cap the audit loops: each lane gets at most two rounds per target, and max eight workflow triggers per PR or issue per Maintainer run. Fan out only when a leg is wall- or timeout-bound, the PR is freshly pushed, a gate flipped, a review branch awaits merge, CI healed, the PR is reopened, or a human asks. A wall always wins; no same-IP retry.
 - The audit checks run in order: every run first confirms main is deployed and the site is reachable; then current-main issues and every open PR's rollup (missing/unknown checks block a merge); touching any protected path makes the branch lab-owned and requires the Tester/Evaluator chain; a PR with zero agent comments or all-green state is suspect; every check read must come from the PR's actual head, not the base; mergeable `UNKNOWN` waits for GitHub to resolve it; re-read the head immediately before merging; verify the merge conclusion; never cancel an in-flight required check; never `--admin` merge.
 - The audit artifact contract: the payload files are `.maintainer/decision.json`, `comment.md`, `log-entry.md`, `state.md`, `personality.md`; `emergency.json` is revival-only. Write them, then stop.
 - Liveness: `Last updated: <ISO8601 with minutes> by run <github.run_id>` exactly. Use `date -u`; a stale stamp must not continue.
 - The log is append-only and never partial: carry the FULL day file and append; preserve what you found. The publish step hard-gates the six files, scans for leaked PATs/agent names, and recomposes on a fresh tip with keep-both semantics.
 - The brain mounts read-only; edit workflows, not the brain. The anti-race retry re-materializes the brain and reapplies the delta on a fresh tip.
 - The owner PAT lives in `.env` and is loaded by the hardcoded `pat-commit` step; never print or reference the value, and keep the `.env` gitignored. Unset PATs in agent shells fail closed (#742/agent-hsp).
-- No comments: no maintainer text reaches GitHub except the output artifacts. The publish step posts only `comment.md` on the target PR.
+- No comments: no maintainer text reaches GitHub except the output artifacts. The publish step posts only `comment.md` on the target PR, plus explicit `ping` targets.
 - The pipeline hygiene rules: prompt/state numbers stay allowed; no task numbers, run ids, issue or PR numbers in PR comments; no em dashes in repo files; no trigger tokens in pings.
 
 ### Contract and memory
 
-- This run's session is `maintainer-862`; the target is #862; the memory branch is `maintainer/logs`.
+- This run's session is `maintainer-heartbeat`; the target is empty (heartbeat); the memory branch is `maintainer/logs`.
 - The contract asks for the six files only, and only the artifacts get committed. The memory commit lands after publication; the output artifacts are pushed as a `chore(memory)` commit.
 - Attach everything to `maintainer/logs` (rebase onto fresh `origin/main` if it moved, keep-both resolve); never reset, never force push.
 - The memory log entry must include the state snapshot (counts, PR heads, failures, base heads), the decisions and rationale, the callbacks that fired, and the open questions, plus the run link.
@@ -159,27 +153,25 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 - Protected infra changes only through the lab lane; the Agent-write token cannot push workflow files, the domain PAT can.
 - The brain is always mounted read-only; the memory files under `.maintainer/memory/` are the only persistent memory I can edit.
-- The maintainer must always post a comment as its comment.md artifact; a silent maintainer is a failure, independent of whether anything else is wrong.
+- The maintainer must always post a comment as its comment.md artifact or an explicit ping; a silent maintainer is a failure, independent of whether anything else is wrong.
 - The pipeline is green on main (`f11f2caa`; Pages 44541473003), but the platform is perf-sensitive: the jet and the grading site are not greenfield; multi-agent is the only way to keep the guards intact.
-- Free-model provider walls are per-egress IP; the retry-after wall is ~11h from the death, and no same-IP retry is permitted.
+- Free-model provider walls are per-egress IP; the retry-after wall is ~11h from the death, and no same-IP retry is permitted. The wall resets with the new UTC day; the first real session after the reset re-arms the lanes.
 - The ladder is 2/3 until #836 lands; keep the pin and rung 2 live (deepseek-v4.1-flash-free, mimo-v2.6-flash-free).
 - Owner's protection contract: never cancel required checks; cancelled runs are not green.
 
 ## Next run
 
-1. Read review 44540141336 (#745 at `ff5cebd9`) and test 44542873513 (#862 at `ac7cdf309`). On a #862 Tester approval, dispatch `{"action":"eval","pr":862}` in that later run (if the wall has cleared), then merge on `approve-eval` and close #861.
-2. Read the #850 eval recovery/verdict; if no eval exists and the wall has cleared, re-arm `{"action":"eval","pr":850}`; on `approve-eval`, PAT merge sweep, Pages, close #848.
-3. On a #745 review approval at `ff5cebd9`, let the review workflow post `test`; then Tester, eval, PAT merge sweep, #853 body update.
-4. Re-arm #854 after ~00:17Z if the wall has cleared; keep #803 open.
-5. Watch #849's lab; verify its push against the trigger scope.
-6. Re-dispatch #836 only after the wall clears and with a fresh registry read.
-7. Verify board invariant, allowlist, registry/ladder, Pages, schedule health; if clean, stand by.
+1. Read eval `#862` and eval `#850`. On `approve-eval`, verify required checks and the head, then merge (rebase for #862, PAT sweep for #850), verify Pages, and close #861/#848.
+2. Read lab `#745`, lab `#854`, lab `#849`, and lab `#836`. On a push, verify the finding list, then run a fresh head-bound review; follow with Tester, eval, and the PAT merge sweep for protected paths.
+3. If a lane died on the wall, re-arm only after the wall clears; do not chain same-IP retries.
+4. After #745 lands, close #853 and keep #742 open. After #854 lands, keep #803 open unless all three slices are present. After #849 lands, dispatch #857, then #856, then #860.
+5. Verify board invariant, allowlist, registry/ladder, Pages, and schedule health; if clean, stand by.
 
 ## Open questions
 
-1. Will the #862 Tester survive the wall and approve `ac7cdf309`?
-2. When does the free-usage allowance reset, and will the #850 eval re-arm get a clean run?
-3. Will the #745 review approve `ff5cebd9`, and will the Tester/Evaluator bind that head?
-4. Will #849's lab finish and push, or die on the wall like #854?
-5. Does the delayed 12:00Z curator tick appear, and which free model becomes rung 3?
-6. Will the throttled maintainer cron keep leaving multi-hour gaps that only the recover heartbeat covers (#836/#831)?
+1. Will eval `#862` approve `ac7cdf309`, and will the rebase merge close #861 cleanly?
+2. Will eval `#850` approve `9c9bf1bd7`, and does the 2-commit drift from main matter for the protected-path merge?
+3. Will the fresh #745 lab pass fix all eight findings (three blocking, five bookkeeping) and push cleanly?
+4. Will #854's round-1 lab pass finish, and will #849's concurrent audit-script work collide with it?
+5. Which live free model becomes rung 3, and will the #836 lab push verify three live rungs?
+6. Will the wall stay clear through the recovery window, or will the six re-arms exhaust the new day's allowance early?
