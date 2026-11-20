@@ -63,6 +63,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -87,6 +88,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
@@ -348,6 +352,7 @@ jobs:
           PAGER: /bin/cat
           GH_FORCE_TTY: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_CONFIG_DIR: /proc
           BASH_ENV: /dev/null
           ENV: /dev/null
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
@@ -372,6 +377,9 @@ jobs:
           GIT_TEMPLATE_DIR: /dev/null
           GIT_TERMINAL_PROMPT: "0"
           GIT_WORK_TREE: ${{ github.workspace }}
+          DYLD_FRAMEWORK_PATH: ""
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""

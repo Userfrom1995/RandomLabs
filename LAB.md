@@ -1799,16 +1799,18 @@ The owner-PAT isolation contract was extended to the periodic and helper
 workflows (issue #742): the 15 owner-PAT steps in `auditor.yml` (2),
 `curator.yml` (3), `ideate.yml` (2), `lab.yml` (5),
 `opencode-pr-trigger.yml` (1), and `opencode-recover.yml` (2) now carry the
-full sanitized env map and run under a privileged
+full sanitized env map (including a read-only `GH_CONFIG_DIR` pin and empty
+`LD_*`/`DYLD_*` values) and run under a privileged
 `bash --noprofile --norc -e -o pipefail -p` launcher that ignores imported
 `BASH_FUNC_*` functions and pre-preamble `SHELLOPTS`/`PS4`; each also opens
 its run block with the builtins-only function-clearing preamble. R36 pins the
-per-workflow counts and the 15-step total, enforces a strict extra-key
-allowlist, and mutation-self-tests a removed key, a plain or missing
-launcher, a missing or buried preamble, an injected extra key, and a
-non-empty `DYLD` value, with a functional fixture proving the launcher is
-immune to `BASH_FUNC_git` plus a `SHELLOPTS`/`PS4` payload while the
-plain-shell control is hijacked.
+per-workflow counts and the 15-step total, resolves the six files through a
+duplicate-key-rejecting loader, enforces a strict extra-key allowlist, and
+mutation-self-tests a removed key (including the `GH_CONFIG_DIR` pin), a
+plain or missing launcher, a missing or buried preamble, an injected extra
+key, and a non-empty `DYLD` value, with a functional fixture proving the
+launcher is immune to `BASH_FUNC_git` plus a `SHELLOPTS`/`PS4` payload while
+the plain-shell control is hijacked.
 
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
