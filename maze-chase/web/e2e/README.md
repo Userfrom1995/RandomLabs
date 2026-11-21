@@ -88,9 +88,13 @@ web/e2e/run-browser-e2e.sh --chrome PATH|NAME  # explicit Chrome binary or comma
 web/e2e/run-browser-e2e.sh --plan              # per-suite URL/port/profile
 ```
 
-It needs node 22+ and python3 (for the static server and a free debug
-port); Chrome is found through `CHROME` (a path or command name) or the
-usual platform names. The runner prints the server URL and each suite's
+It needs node 22+ and python3 (for free-port allocation); Chrome is
+found through `CHROME` (a path or command name) or the usual platform
+names. The runner starts and owns `web/e2e/serve-site.js`, an HTTP/1.1
+keep-alive static server: the suites drain every response body, and
+`python3 -m http.server`'s HTTP/1.0 one-request-per-connection behavior
+made Node 22's undici client abort a long crawl with an internal
+`Parser.finish` assertion (issue #792). The runner prints the server URL and each suite's
 CDP port and profile;
 `--plan` prints `script<TAB>url<TAB>port<TAB>profile` for every suite
 without launching a browser or a server. The Node-only suites
@@ -102,7 +106,7 @@ fresh Chrome with its own profile for each suite and stop it before
 starting the next one:
 
 ```
-python3 -m http.server 8931   # Windows: python -m http.server 8931
+node web/e2e/serve-site.js --port 8931   # run inside maze-chase/; Ctrl-C to stop
 chromium --headless=new --disable-gpu --no-sandbox \
   --user-data-dir="$(mktemp -d)" \
   --remote-debugging-port=9331 --window-size=1280,900 \
