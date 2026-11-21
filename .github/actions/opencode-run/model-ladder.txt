@@ -15,4 +15,4 @@
 #     (the Auditor surveys the model ecosystem daily and proposes updates).
 opencode/deepseek-v4.1-flash-free
 opencode/mimo-v2.6-flash-free
-opencode/glm-5.3-flash-free
+opencode/nemotron-3.5-lightning-free
