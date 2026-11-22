@@ -168,10 +168,10 @@
 # spellings empty, the control never contacts the proxy, the unset-removal
 # mutant contacts it and fails closed with the real tip intact, and every
 # owner-PAT step's effective env records no Authorization leak).
-# Wired into auditor.yml as the R1-R36 matrix.
+# Wired into auditor.yml as the R1-R37 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R36 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R37 audit the whole tree
 # (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -250,12 +250,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R36 PASS] $name: $desc"
+  [R1-R37 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R36 FAIL] $name: $desc"
+  [R1-R37 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -20769,7 +20769,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "66dee05d9787a131a56d7f5782cf64be636c18403c78fd4c4c3b782d8fb72c34"
+EXPECTED_TEST_PROMPT_SHA256 = "65d83454318e68844eee6241bf7906d2d6fa00a8519b4f5bc801a9359ff5d7e3"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -29749,11 +29749,11 @@ R33APPEND
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yml" "Run opencode" 4 20001
   r33_expect_bad pad-composite "Run opencode"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R36)" 6 20001
-  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R36)"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yml" "Silent-stall regression audit (R1-R37)" 6 20001
+  r33_expect_bad pad-tree-wide-third "Silent-stall regression audit (R1-R37)"
   r33_prepare
-  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R36)" 6 20001
-  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R36)"
+  python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/workflows/auditor.yaml" "Silent-stall regression audit (R1-R37)" 6 20001
+  r33_expect_bad pad-yaml-extension "Silent-stall regression audit (R1-R37)"
   r33_prepare
   python3 -I "$r33_dir/pad.py" "$r33_fixture/.github/actions/opencode-run/action.yaml" "Run opencode" 4 20001
   r33_expect_bad pad-yaml-action-extension "Run opencode"
@@ -35687,6 +35687,21 @@ ALLOWED_EXTRA = {
     "GIT_AUTHOR_EMAIL",
     "GIT_COMMITTER_NAME",
     "GIT_COMMITTER_EMAIL",
+    "ALL_PROXY",
+    "CURL_CA_BUNDLE",
+    "GH_HOST",
+    "GH_REPO",
+    "GIT_PROXY_COMMAND",
+    "GIT_SSL_CAINFO",
+    "GIT_SSL_CAPATH",
+    "GIT_SSL_NO_VERIFY",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "TMPDIR",
+    "TRUSTED_SHA",
 }
 
 
@@ -35967,7 +35982,7 @@ case "$r36_out" in
     ;;
 esac
 
-# [R36] Universal lab-health board selector (issue #848): issues #70 (the
+# [R37] Universal lab-health board selector (issue #848): issues #70 (the
 # universal `Lab Health & Audit Logs` board) and #836 (a transient [Audit]
 # escalation) both carried the lab-health label, and the newest-first board
 # lookups in maintainer.yml, schedule-selfheal.sh and auditor.yml selected the
@@ -35984,15 +35999,15 @@ esac
 # multiple label holders, zero or multiple title holders, and a title/label
 # mismatch. The tree sweep rejects any direct lab-health selector outside the
 # shared helper.
-r36_dir=$(mktemp -d)
-r36_bad=""
-r36_helper_abs="$PWD/$HEALTH_BOARD_SCRIPT"
+r37_dir=$(mktemp -d)
+r37_bad=""
+r37_helper_abs="$PWD/$HEALTH_BOARD_SCRIPT"
 
 if [ ! -f "$HEALTH_BOARD_SCRIPT" ]; then
-  r36_bad="${r36_bad} helper(missing)"
+  r37_bad="${r37_bad} helper(missing)"
 else
-  bash -n "$HEALTH_BOARD_SCRIPT" 2>/dev/null || r36_bad="${r36_bad} helper(syntax)"
-  for r36_needle in \
+  bash -n "$HEALTH_BOARD_SCRIPT" 2>/dev/null || r37_bad="${r37_bad} helper(syntax)"
+  for r37_needle in \
     'Lab Health & Audit Logs' \
     'labels=lab-health' \
     'sort=created&direction=asc' \
@@ -36002,29 +36017,29 @@ else
     'title_hits=$(list_title)' \
     'labeled_hits=$(list_labeled)'
   do
-    grep -qF -- "$r36_needle" "$HEALTH_BOARD_SCRIPT" || r36_bad="${r36_bad} helper(missing:${r36_needle})"
+    grep -qF -- "$r37_needle" "$HEALTH_BOARD_SCRIPT" || r37_bad="${r37_bad} helper(missing:${r37_needle})"
   done
-  r36_title_pos=$(grep -nF 'board=$(first_line "$title_hits")' "$HEALTH_BOARD_SCRIPT" | head -n 1 | cut -d: -f1)
-  r36_label_pos=$(grep -nF 'board=$(first_line "$labeled_hits")' "$HEALTH_BOARD_SCRIPT" | head -n 1 | cut -d: -f1)
-  if [ -z "$r36_title_pos" ] || [ -z "$r36_label_pos" ] || [ "$r36_title_pos" -ge "$r36_label_pos" ]; then
-    r36_bad="${r36_bad} helper(title-not-before-label)"
+  r37_title_pos=$(grep -nF 'board=$(first_line "$title_hits")' "$HEALTH_BOARD_SCRIPT" | head -n 1 | cut -d: -f1)
+  r37_label_pos=$(grep -nF 'board=$(first_line "$labeled_hits")' "$HEALTH_BOARD_SCRIPT" | head -n 1 | cut -d: -f1)
+  if [ -z "$r37_title_pos" ] || [ -z "$r37_label_pos" ] || [ "$r37_title_pos" -ge "$r37_label_pos" ]; then
+    r37_bad="${r37_bad} helper(title-not-before-label)"
   fi
 fi
 
-r36_sites_bad=""
-r36_need_helpers() {
+r37_sites_bad=""
+r37_need_helpers() {
   local file="$1" want="$2" label="$3" got
   got=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$file" 2>/dev/null || true)
-  [ "${got:-0}" -eq "$want" ] || r36_sites_bad="${r36_sites_bad} ${label}(direct-helper-calls-${got:-0})"
+  [ "${got:-0}" -eq "$want" ] || r37_sites_bad="${r37_sites_bad} ${label}(direct-helper-calls-${got:-0})"
 }
 # Issue #848 review round 4 note 5: the trusted board reads are step-scoped,
 # so a second trusted read elsewhere in the same file cannot mask a pin
 # removed from the forward/cap step.
-r36_need_trusted() {
+r37_need_trusted() {
   local file="$1" step="$2" ref="$3" label="$4" block needle
-  block=$(r36_step_block "$file" "$step")
+  block=$(r37_step_block "$file" "$step")
   if [ -z "$block" ]; then
-    r36_sites_bad="${r36_sites_bad} ${label}(step-missing)"
+    r37_sites_bad="${r37_sites_bad} ${label}(step-missing)"
     return
   fi
   for needle in \
@@ -36034,16 +36049,16 @@ r36_need_trusted() {
     '/bin/bash -p -s'
   do
     printf '%s\n' "$block" | grep -qF -- "$needle" \
-      || r36_sites_bad="${r36_sites_bad} ${label}(missing:${needle})"
+      || r37_sites_bad="${r37_sites_bad} ${label}(missing:${needle})"
   done
 }
 # Issue #848 review round 4 R1: the trusted read anchor is the freshly
 # resolved default-branch commit, not the event-dependent GITHUB_SHA.
-r36_need_trusted_anchor() {
+r37_need_trusted_anchor() {
   local file="$1" label="$2" block needle
-  block=$(r36_step_block "$file" 'Resolve trusted default-branch commit')
+  block=$(r37_step_block "$file" 'Resolve trusted default-branch commit')
   if [ -z "$block" ]; then
-    r36_sites_bad="${r36_sites_bad} ${label}(no-trusted-default-branch-resolver)"
+    r37_sites_bad="${r37_sites_bad} ${label}(no-trusted-default-branch-resolver)"
     return
   fi
   for needle in \
@@ -36054,12 +36069,12 @@ r36_need_trusted_anchor() {
     'Could not resolve the default-branch commit'
   do
     printf '%s\n' "$block" | grep -qF -- "$needle" \
-      || r36_sites_bad="${r36_sites_bad} ${label}(resolver-missing:${needle})"
+      || r37_sites_bad="${r37_sites_bad} ${label}(resolver-missing:${needle})"
   done
 }
 # Issue #848 review round 2 B1: the post-agent steps that read trusted code or
 # post with a token must pin their shell and environment, not only PATH.
-r36_step_block() {
+r37_step_block() {
   awk -v needle="$2" '
     /^      - name: / {
       if (found) exit
@@ -36068,11 +36083,11 @@ r36_step_block() {
     found { print }
   ' "$1"
 }
-r36_need_hardened() {
+r37_need_hardened() {
   local file="$1" step="$2" label="$3" block needle
-  block=$(r36_step_block "$file" "$step")
+  block=$(r37_step_block "$file" "$step")
   if [ -z "$block" ]; then
-    r36_sites_bad="${r36_sites_bad} ${label}(step-missing)"
+    r37_sites_bad="${r37_sites_bad} ${label}(step-missing)"
     return
   fi
   for needle in \
@@ -36108,21 +36123,21 @@ r36_need_hardened() {
     'unset all_proxy http_proxy https_proxy no_proxy 2>/dev/null || true'
   do
     printf '%s\n' "$block" | grep -qF -- "$needle" \
-      || r36_sites_bad="${r36_sites_bad} ${label}(missing:${needle})"
+      || r37_sites_bad="${r37_sites_bad} ${label}(missing:${needle})"
   done
   # 'ENV: /dev/null' is a substring of 'BASH_ENV: /dev/null', so the generic
   # needle above cannot prove the standalone ENV pin is present.
   printf '%s\n' "$block" | grep -qE '^[[:space:]]+ENV: /dev/null$' \
-    || r36_sites_bad="${r36_sites_bad} ${label}(missing:standalone-ENV)"
+    || r37_sites_bad="${r37_sites_bad} ${label}(missing:standalone-ENV)"
 }
 # Issue #848 review round 2 B2 and round 4 R1: every post-agent self-heal
 # caller reads the script from the freshly resolved default-branch commit,
 # never the event-dependent GITHUB_SHA, and binds the board lookup to it.
-r36_need_selfheal_trusted() {
+r37_need_selfheal_trusted() {
   local file="$1" step="$2" label="$3" block needle
-  block=$(r36_step_block "$file" "$step")
+  block=$(r37_step_block "$file" "$step")
   if [ -z "$block" ]; then
-    r36_sites_bad="${r36_sites_bad} ${label}(step-missing)"
+    r37_sites_bad="${r37_sites_bad} ${label}(step-missing)"
     return
   fi
   for needle in \
@@ -36132,84 +36147,84 @@ r36_need_selfheal_trusted() {
     '/bin/bash -p -s --'
   do
     printf '%s\n' "$block" | grep -qF -- "$needle" \
-      || r36_sites_bad="${r36_sites_bad} ${label}(missing:${needle})"
+      || r37_sites_bad="${r37_sites_bad} ${label}(missing:${needle})"
   done
   if printf '%s\n' "$block" | grep -qF '${GITHUB_SHA}'; then
-    r36_sites_bad="${r36_sites_bad} ${label}(event-dependent-sha-anchor)"
+    r37_sites_bad="${r37_sites_bad} ${label}(event-dependent-sha-anchor)"
   fi
 }
-r36_hardened_ok() {
-  local before="$r36_sites_bad"
-  r36_need_hardened "$1" "$2" probe
-  if [ "$r36_sites_bad" = "$before" ]; then
+r37_hardened_ok() {
+  local before="$r37_sites_bad"
+  r37_need_hardened "$1" "$2" probe
+  if [ "$r37_sites_bad" = "$before" ]; then
     return 0
   fi
-  r36_sites_bad="$before"
+  r37_sites_bad="$before"
   return 1
 }
-r36_selfheal_trusted_ok() {
-  local before="$r36_sites_bad"
-  r36_need_selfheal_trusted "$1" "$2" probe
-  if [ "$r36_sites_bad" = "$before" ]; then
+r37_selfheal_trusted_ok() {
+  local before="$r37_sites_bad"
+  r37_need_selfheal_trusted "$1" "$2" probe
+  if [ "$r37_sites_bad" = "$before" ]; then
     return 0
   fi
-  r36_sites_bad="$before"
+  r37_sites_bad="$before"
   return 1
 }
-r36_trusted_ok() {
-  local before="$r36_sites_bad"
-  r36_need_trusted "$1" "$2" '${TRUSTED_SHA}' probe
-  if [ "$r36_sites_bad" = "$before" ]; then
+r37_trusted_ok() {
+  local before="$r37_sites_bad"
+  r37_need_trusted "$1" "$2" '${TRUSTED_SHA}' probe
+  if [ "$r37_sites_bad" = "$before" ]; then
     return 0
   fi
-  r36_sites_bad="$before"
+  r37_sites_bad="$before"
   return 1
 }
-r36_need_helpers .github/workflows/auditor.yml 1 auditor
-r36_need_helpers .github/workflows/maintainer.yml 1 maintainer
-r36_need_helpers .github/workflows/opencode-recover.yml 1 recover
-r36_need_trusted .github/workflows/auditor.yml 'Forward auditor decision' '${TRUSTED_SHA}' auditor
-r36_need_trusted .github/workflows/maintainer.yml 'Recover from provider daily free-usage wall' '${TRUSTED_SHA}' maintainer
-r36_need_trusted_anchor .github/workflows/auditor.yml auditor
-r36_need_trusted_anchor .github/workflows/curator.yml curator
-r36_need_trusted_anchor .github/workflows/ideate.yml ideate
-r36_need_trusted_anchor .github/workflows/lab.yml lab
-r36_need_hardened .github/workflows/auditor.yml 'Verify auditor decided' auditor-verify
-r36_need_hardened .github/workflows/auditor.yml 'Forward auditor decision' auditor-forward
-r36_need_hardened .github/workflows/maintainer.yml 'Recover from provider daily free-usage wall' maintainer-cap
-r36_need_hardened .github/workflows/curator.yml 'Verify curator decided' curator-verify
-r36_need_hardened .github/workflows/ideate.yml 'Verify ideator ran' ideate-verify
-r36_need_hardened .github/workflows/lab.yml 'Verify lab engineer decided' lab-verify
-r36_need_selfheal_trusted .github/workflows/auditor.yml 'Verify auditor decided' auditor
-r36_need_selfheal_trusted .github/workflows/curator.yml 'Verify curator decided' curator
-r36_need_selfheal_trusted .github/workflows/ideate.yml 'Verify ideator ran' ideate
-r36_need_selfheal_trusted .github/workflows/lab.yml 'Verify lab engineer decided' lab
+r37_need_helpers .github/workflows/auditor.yml 1 auditor
+r37_need_helpers .github/workflows/maintainer.yml 1 maintainer
+r37_need_helpers .github/workflows/opencode-recover.yml 1 recover
+r37_need_trusted .github/workflows/auditor.yml 'Forward auditor decision' '${TRUSTED_SHA}' auditor
+r37_need_trusted .github/workflows/maintainer.yml 'Recover from provider daily free-usage wall' '${TRUSTED_SHA}' maintainer
+r37_need_trusted_anchor .github/workflows/auditor.yml auditor
+r37_need_trusted_anchor .github/workflows/curator.yml curator
+r37_need_trusted_anchor .github/workflows/ideate.yml ideate
+r37_need_trusted_anchor .github/workflows/lab.yml lab
+r37_need_hardened .github/workflows/auditor.yml 'Verify auditor decided' auditor-verify
+r37_need_hardened .github/workflows/auditor.yml 'Forward auditor decision' auditor-forward
+r37_need_hardened .github/workflows/maintainer.yml 'Recover from provider daily free-usage wall' maintainer-cap
+r37_need_hardened .github/workflows/curator.yml 'Verify curator decided' curator-verify
+r37_need_hardened .github/workflows/ideate.yml 'Verify ideator ran' ideate-verify
+r37_need_hardened .github/workflows/lab.yml 'Verify lab engineer decided' lab-verify
+r37_need_selfheal_trusted .github/workflows/auditor.yml 'Verify auditor decided' auditor
+r37_need_selfheal_trusted .github/workflows/curator.yml 'Verify curator decided' curator
+r37_need_selfheal_trusted .github/workflows/ideate.yml 'Verify ideator ran' ideate
+r37_need_selfheal_trusted .github/workflows/lab.yml 'Verify lab engineer decided' lab
 grep -qF 'bash "$(dirname "$0")/health-board.sh"' .github/scripts/schedule-selfheal.sh 2>/dev/null \
-  || r36_sites_bad="${r36_sites_bad} selfheal(no-shared-helper)"
+  || r37_sites_bad="${r37_sites_bad} selfheal(no-shared-helper)"
 grep -qF 'contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}' .github/scripts/schedule-selfheal.sh 2>/dev/null \
-  || r36_sites_bad="${r36_sites_bad} selfheal(no-trusted-board-read)"
+  || r37_sites_bad="${r37_sites_bad} selfheal(no-trusted-board-read)"
 grep -qF '/bin/bash -p -s' .github/scripts/schedule-selfheal.sh 2>/dev/null \
-  || r36_sites_bad="${r36_sites_bad} selfheal(no-memory-board-execution)"
+  || r37_sites_bad="${r37_sites_bad} selfheal(no-memory-board-execution)"
 # The direct workspace call is the pre-agent arm only; every post-agent board
 # read must go through the trusted contents-API invocation (issue #848
 # review F1).
-r36_site_order() {
+r37_site_order() {
   local file="$1" agent="$2" direct trusted agent_line
   direct=$(grep -nF -- 'bash .github/scripts/health-board.sh' "$file" 2>/dev/null | head -n 1 | cut -d: -f1)
   trusted=$(grep -nF -- 'health-board.sh?ref=' "$file" 2>/dev/null | head -n 1 | cut -d: -f1)
   agent_line=$(grep -nF -- "$agent" "$file" 2>/dev/null | head -n 1 | cut -d: -f1)
   if [ -z "$direct" ] || [ -z "$trusted" ] || [ -z "$agent_line" ] \
       || [ "$direct" -ge "$agent_line" ] || [ "$trusted" -le "$agent_line" ]; then
-    r36_sites_bad="${r36_sites_bad} $(basename "$file")(trusted-boundary)"
+    r37_sites_bad="${r37_sites_bad} $(basename "$file")(trusted-boundary)"
   fi
 }
-r36_site_order .github/workflows/auditor.yml 'Run auditor agent'
-r36_site_order .github/workflows/maintainer.yml 'Run Maintainer agent'
-if [ -n "$r36_sites_bad" ]; then
-  r36_bad="${r36_bad} sites:${r36_sites_bad}"
+r37_site_order .github/workflows/auditor.yml 'Run auditor agent'
+r37_site_order .github/workflows/maintainer.yml 'Run Maintainer agent'
+if [ -n "$r37_sites_bad" ]; then
+  r37_bad="${r37_bad} sites:${r37_sites_bad}"
 fi
 
-r36_direct_scan() {
+r37_direct_scan() {
   local file hits selector_re
   selector_re="labels=lab-health|labels\\[\\]=lab-health|--(add-)?label(=|[[:space:]])[[:space:]]*[\"']?lab-health|-l(=|[[:space:]])[[:space:]]*[\"']?lab-health|--search(=|[[:space:]])[[:space:]]*[\"']?[^\"']*(label:)?lab-health|q=[^\"'[:space:]]*label:lab-health"
   for file in "$@"; do
@@ -36220,19 +36235,19 @@ r36_direct_scan() {
     [ -z "$hits" ] || printf '%s:%s\n' "$file" "$(printf '%s' "$hits" | head -n 1)"
   done
 }
-r36_scan_files=$(find .github/workflows .github/scripts .github/actions -type f \
+r37_scan_files=$(find .github/workflows .github/scripts .github/actions -type f \
   \( -name '*.yml' -o -name '*.yaml' -o -name '*.sh' \) 2>/dev/null || true)
-r36_direct=$(r36_direct_scan $r36_scan_files 2>/dev/null || true)
-if [ -n "$r36_direct" ]; then
-  r36_bad="${r36_bad} direct-selector:$(printf '%s' "$r36_direct" | tr '\n' ' ')"
+r37_direct=$(r37_direct_scan $r37_scan_files 2>/dev/null || true)
+if [ -n "$r37_direct" ]; then
+  r37_bad="${r37_bad} direct-selector:$(printf '%s' "$r37_direct" | tr '\n' ' ')"
 fi
 
-mkdir -p "$r36_dir/bin"
-cat > "$r36_dir/bin/gh" <<'R36GH'
+mkdir -p "$r37_dir/bin"
+cat > "$r37_dir/bin/gh" <<'R36GH'
 #!/usr/bin/env bash
 set -u
 [ -n "${MOCK_CALLS:-}" ] && printf '%s\n' "$*" >> "$MOCK_CALLS"
-r36_api_jq() {
+r37_api_jq() {
   expr=""
   prev=""
   for a in "$@"; do
@@ -36249,8 +36264,8 @@ case "${1:-}" in
         [ "${MOCK_LABELED_FAIL:-0}" = "1" ] && exit 1
         if [ -n "${MOCK_LABELED:-}" ] && [ -f "$MOCK_LABELED" ]; then
           case "$arg" in
-            *direction=asc*) jq 'sort_by(.number)' "$MOCK_LABELED" | r36_api_jq "$@" ;;
-            *) r36_api_jq "$@" < "$MOCK_LABELED" ;;
+            *direction=asc*) jq 'sort_by(.number)' "$MOCK_LABELED" | r37_api_jq "$@" ;;
+            *) r37_api_jq "$@" < "$MOCK_LABELED" ;;
           esac
         else
           printf '[]\n'
@@ -36260,8 +36275,8 @@ case "${1:-}" in
         [ "${MOCK_ISSUES_FAIL:-0}" = "1" ] && exit 1
         if [ -n "${MOCK_ISSUES:-}" ] && [ -f "$MOCK_ISSUES" ]; then
           case "$arg" in
-            *direction=asc*) jq 'sort_by(.number)' "$MOCK_ISSUES" | r36_api_jq "$@" ;;
-            *) r36_api_jq "$@" < "$MOCK_ISSUES" ;;
+            *direction=asc*) jq 'sort_by(.number)' "$MOCK_ISSUES" | r37_api_jq "$@" ;;
+            *) r37_api_jq "$@" < "$MOCK_ISSUES" ;;
           esac
         else
           printf '[]\n'
@@ -36272,88 +36287,88 @@ case "${1:-}" in
 esac
 exit 0
 R36GH
-chmod +x "$r36_dir/bin/gh"
+chmod +x "$r37_dir/bin/gh"
 
-r36_write() {
-  printf '%s\n' "$2" > "$r36_dir/$1"
+r37_write() {
+  printf '%s\n' "$2" > "$r37_dir/$1"
 }
-r36_write issues-title-wins.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write labeled-title-wins.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write issues-fallback.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write labeled-fallback.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write issues-order.json '[{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":60,"title":"[Audit] issue 60","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write labeled-order.json '[{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":60,"title":"[Audit] issue 60","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write issues-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write labeled-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write issues-title-unlabeled.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
-r36_write issues-title-dup.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":80,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]}]'
-r36_write issues-title-null.json '[{"number":null,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
-r36_write labeled-empty.json '[]'
-r36_write issues-empty.json '[]'
+r37_write issues-title-wins.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write labeled-title-wins.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write issues-fallback.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write labeled-fallback.json '[{"number":60,"title":"[Audit] older transient","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":836,"title":"[Audit] newer transient","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write issues-order.json '[{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":60,"title":"[Audit] issue 60","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write labeled-order.json '[{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":60,"title":"[Audit] issue 60","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write issues-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write labeled-pr.json '[{"number":10,"title":"[Audit] PR shadow","pull_request":{"url":"https://github.com/owner/repo/pull/10"},"labels":[{"name":"lab-health"}]},{"number":70,"title":"[Audit] issue 70","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write issues-title-unlabeled.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
+r37_write issues-title-dup.json '[{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]},{"number":80,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[{"name":"lab-health"}]}]'
+r37_write issues-title-null.json '[{"number":null,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]},{"number":70,"title":"Lab Health & Audit Logs","pull_request":null,"labels":[]}]'
+r37_write labeled-empty.json '[]'
+r37_write issues-empty.json '[]'
 
-r36_run() {
-  r36_run_name="$1"
-  r36_run_issues="$2"
-  r36_run_labeled="$3"
-  r36_run_issues_fail="${4:-0}"
-  r36_run_labeled_fail="${5:-0}"
-  r36_run_helper="${6:-$r36_helper_abs}"
-  r36_run_dir="$r36_dir/run-$r36_run_name"
-  rm -rf "$r36_run_dir"
-  mkdir -p "$r36_run_dir"
+r37_run() {
+  r37_run_name="$1"
+  r37_run_issues="$2"
+  r37_run_labeled="$3"
+  r37_run_issues_fail="${4:-0}"
+  r37_run_labeled_fail="${5:-0}"
+  r37_run_helper="${6:-$r37_helper_abs}"
+  r37_run_dir="$r37_dir/run-$r37_run_name"
+  rm -rf "$r37_run_dir"
+  mkdir -p "$r37_run_dir"
   (
-    cd "$r36_run_dir" || exit 99
-    env PATH="$r36_dir/bin:/usr/bin:/bin" HOME="$r36_run_dir" \
+    cd "$r37_run_dir" || exit 99
+    env PATH="$r37_dir/bin:/usr/bin:/bin" HOME="$r37_run_dir" \
       GH_TOKEN=x GITHUB_REPOSITORY=owner/repo \
-      MOCK_ISSUES="$r36_run_issues" MOCK_LABELED="$r36_run_labeled" \
-      MOCK_ISSUES_FAIL="$r36_run_issues_fail" MOCK_LABELED_FAIL="$r36_run_labeled_fail" \
-      MOCK_CALLS="$r36_run_dir/calls" \
-      bash "$r36_run_helper"
-  ) > "$r36_run_dir/stdout" 2> "$r36_run_dir/stderr"
-  echo $? > "$r36_run_dir/rc"
+      MOCK_ISSUES="$r37_run_issues" MOCK_LABELED="$r37_run_labeled" \
+      MOCK_ISSUES_FAIL="$r37_run_issues_fail" MOCK_LABELED_FAIL="$r37_run_labeled_fail" \
+      MOCK_CALLS="$r37_run_dir/calls" \
+      bash "$r37_run_helper"
+  ) > "$r37_run_dir/stdout" 2> "$r37_run_dir/stderr"
+  echo $? > "$r37_run_dir/rc"
 }
-r36_expect() {
-  r36_expect_name="$1"
-  r36_expect_rc="$2"
-  r36_expect_out="$3"
-  r36_expect_err="${4:-}"
-  r36_expect_dir="$r36_dir/run-$r36_expect_name"
-  [ "$(cat "$r36_expect_dir/rc" 2>/dev/null)" = "$r36_expect_rc" ] || r36_bad="${r36_bad} run-${r36_expect_name}-rc"
-  [ "$(cat "$r36_expect_dir/stdout" 2>/dev/null)" = "$r36_expect_out" ] || r36_bad="${r36_bad} run-${r36_expect_name}-out"
-  if [ -n "$r36_expect_err" ]; then
-    grep -qF -- "$r36_expect_err" "$r36_expect_dir/stderr" 2>/dev/null || r36_bad="${r36_bad} run-${r36_expect_name}-stderr"
+r37_expect() {
+  r37_expect_name="$1"
+  r37_expect_rc="$2"
+  r37_expect_out="$3"
+  r37_expect_err="${4:-}"
+  r37_expect_dir="$r37_dir/run-$r37_expect_name"
+  [ "$(cat "$r37_expect_dir/rc" 2>/dev/null)" = "$r37_expect_rc" ] || r37_bad="${r37_bad} run-${r37_expect_name}-rc"
+  [ "$(cat "$r37_expect_dir/stdout" 2>/dev/null)" = "$r37_expect_out" ] || r37_bad="${r37_bad} run-${r37_expect_name}-out"
+  if [ -n "$r37_expect_err" ]; then
+    grep -qF -- "$r37_expect_err" "$r37_expect_dir/stderr" 2>/dev/null || r37_bad="${r37_bad} run-${r37_expect_name}-stderr"
   fi
 }
 
-r36_run title-wins "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-title-wins.json"
-r36_expect title-wins 0 70 '3 open non-PR issues carry the lab-health label'
-r36_run fallback "$r36_dir/issues-fallback.json" "$r36_dir/labeled-fallback.json"
-r36_expect fallback 0 60 ''
-r36_run order "$r36_dir/issues-order.json" "$r36_dir/labeled-order.json"
-r36_expect order 0 60 ''
-r36_run pr-excluded "$r36_dir/issues-pr.json" "$r36_dir/labeled-pr.json"
-r36_expect pr-excluded 0 70 ''
-r36_run title-unlabeled "$r36_dir/issues-title-unlabeled.json" "$r36_dir/labeled-empty.json"
-r36_expect title-unlabeled 0 70 ''
-r36_run title-dup "$r36_dir/issues-title-dup.json" "$r36_dir/labeled-empty.json"
-r36_expect title-dup 0 70 '2 open non-PR issues are titled'
-r36_run title-null "$r36_dir/issues-title-null.json" "$r36_dir/labeled-empty.json"
-r36_expect title-null 0 70 ''
-r36_run empty "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json"
-r36_expect empty 0 ''
-r36_run issues-fail "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json" 1 0
-r36_expect issues-fail 1 '' 'could not read open issues'
-r36_run labeled-fail "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-empty.json" 0 1
-r36_expect labeled-fail 0 70 'could not verify the lab-health invariant'
-r36_run labeled-fail-no-title "$r36_dir/issues-empty.json" "$r36_dir/labeled-empty.json" 0 1
-r36_expect labeled-fail-no-title 1 '' 'could not read open lab-health issues'
+r37_run title-wins "$r37_dir/issues-title-wins.json" "$r37_dir/labeled-title-wins.json"
+r37_expect title-wins 0 70 '3 open non-PR issues carry the lab-health label'
+r37_run fallback "$r37_dir/issues-fallback.json" "$r37_dir/labeled-fallback.json"
+r37_expect fallback 0 60 ''
+r37_run order "$r37_dir/issues-order.json" "$r37_dir/labeled-order.json"
+r37_expect order 0 60 ''
+r37_run pr-excluded "$r37_dir/issues-pr.json" "$r37_dir/labeled-pr.json"
+r37_expect pr-excluded 0 70 ''
+r37_run title-unlabeled "$r37_dir/issues-title-unlabeled.json" "$r37_dir/labeled-empty.json"
+r37_expect title-unlabeled 0 70 ''
+r37_run title-dup "$r37_dir/issues-title-dup.json" "$r37_dir/labeled-empty.json"
+r37_expect title-dup 0 70 '2 open non-PR issues are titled'
+r37_run title-null "$r37_dir/issues-title-null.json" "$r37_dir/labeled-empty.json"
+r37_expect title-null 0 70 ''
+r37_run empty "$r37_dir/issues-empty.json" "$r37_dir/labeled-empty.json"
+r37_expect empty 0 ''
+r37_run issues-fail "$r37_dir/issues-empty.json" "$r37_dir/labeled-empty.json" 1 0
+r37_expect issues-fail 1 '' 'could not read open issues'
+r37_run labeled-fail "$r37_dir/issues-title-wins.json" "$r37_dir/labeled-empty.json" 0 1
+r37_expect labeled-fail 0 70 'could not verify the lab-health invariant'
+r37_run labeled-fail-no-title "$r37_dir/issues-empty.json" "$r37_dir/labeled-empty.json" 0 1
+r37_expect labeled-fail-no-title 1 '' 'could not read open lab-health issues'
 
-r36_mutate_helper() {
-  r36_mh_name="$1"
-  r36_mh_old="$2"
-  r36_mh_new="$3"
-  r36_mh_mode="${4:-one}"
-  python3 - "$HEALTH_BOARD_SCRIPT" "$r36_dir/$r36_mh_name.sh" "$r36_mh_old" "$r36_mh_new" "$r36_mh_mode" <<'R36MUT'
+r37_mutate_helper() {
+  r37_mh_name="$1"
+  r37_mh_old="$2"
+  r37_mh_new="$3"
+  r37_mh_mode="${4:-one}"
+  python3 - "$HEALTH_BOARD_SCRIPT" "$r37_dir/$r37_mh_name.sh" "$r37_mh_old" "$r37_mh_new" "$r37_mh_mode" <<'R36MUT'
 import sys
 src, dst, old, new, mode = sys.argv[1:6]
 text = open(src, encoding='utf-8').read()
@@ -36363,34 +36378,34 @@ count = -1 if mode == 'all' else 1
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, count))
 R36MUT
 }
-r36_title_block='board=$(first_line "$title_hits")
+r37_title_block='board=$(first_line "$title_hits")
 if [ -z "$board" ]; then
   board=$(first_line "$labeled_hits")
 fi'
-r36_label_block='board=$(first_line "$labeled_hits")
+r37_label_block='board=$(first_line "$labeled_hits")
 if [ -z "$board" ]; then
   board=$(first_line "$title_hits")
 fi'
-if r36_mutate_helper title-first "$r36_title_block" "$r36_label_block" one; then
-  r36_run mutant-title-first "$r36_dir/issues-title-wins.json" "$r36_dir/labeled-title-wins.json" 0 0 "$r36_dir/title-first.sh"
-  r36_expect mutant-title-first 0 60 ''
+if r37_mutate_helper title-first "$r37_title_block" "$r37_label_block" one; then
+  r37_run mutant-title-first "$r37_dir/issues-title-wins.json" "$r37_dir/labeled-title-wins.json" 0 0 "$r37_dir/title-first.sh"
+  r37_expect mutant-title-first 0 60 ''
 else
-  r36_bad="${r36_bad} mutant-title-first-anchor-missing"
+  r37_bad="${r37_bad} mutant-title-first-anchor-missing"
 fi
-if r36_mutate_helper pr-guard "'.[] | select(.pull_request == null) | .number'" "'.[] | .number'" one; then
-  r36_run mutant-pr-guard "$r36_dir/issues-pr.json" "$r36_dir/labeled-pr.json" 0 0 "$r36_dir/pr-guard.sh"
-  r36_expect mutant-pr-guard 0 10 ''
+if r37_mutate_helper pr-guard "'.[] | select(.pull_request == null) | .number'" "'.[] | .number'" one; then
+  r37_run mutant-pr-guard "$r37_dir/issues-pr.json" "$r37_dir/labeled-pr.json" 0 0 "$r37_dir/pr-guard.sh"
+  r37_expect mutant-pr-guard 0 10 ''
 else
-  r36_bad="${r36_bad} mutant-pr-guard-anchor-missing"
+  r37_bad="${r37_bad} mutant-pr-guard-anchor-missing"
 fi
-if r36_mutate_helper sort-desc 'sort=created&direction=asc' 'sort=created&direction=desc' all; then
-  r36_run mutant-sort-desc "$r36_dir/issues-order.json" "$r36_dir/labeled-order.json" 0 0 "$r36_dir/sort-desc.sh"
-  r36_expect mutant-sort-desc 0 70 ''
+if r37_mutate_helper sort-desc 'sort=created&direction=asc' 'sort=created&direction=desc' all; then
+  r37_run mutant-sort-desc "$r37_dir/issues-order.json" "$r37_dir/labeled-order.json" 0 0 "$r37_dir/sort-desc.sh"
+  r37_expect mutant-sort-desc 0 70 ''
 else
-  r36_bad="${r36_bad} mutant-sort-desc-anchor-missing"
+  r37_bad="${r37_bad} mutant-sort-desc-anchor-missing"
 fi
 
-python3 - .github/workflows/maintainer.yml "$r36_dir/maintainer-inline.yml" <<'R36SITEMUT'
+python3 - .github/workflows/maintainer.yml "$r37_dir/maintainer-inline.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36400,30 +36415,30 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
 R36SITEMUT
-if [ -f "$r36_dir/maintainer-inline.yml" ]; then
-  if ! r36_direct_scan "$r36_dir/maintainer-inline.yml" | grep -q 'labels=lab-health'; then
-    r36_bad="${r36_bad} mutant-direct-selector-not-caught"
+if [ -f "$r37_dir/maintainer-inline.yml" ]; then
+  if ! r37_direct_scan "$r37_dir/maintainer-inline.yml" | grep -q 'labels=lab-health'; then
+    r37_bad="${r37_bad} mutant-direct-selector-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-direct-selector-anchor-missing"
+  r37_bad="${r37_bad} mutant-direct-selector-anchor-missing"
 fi
 # Issue #848 review round 3 F2: the search qualifier spelling must be caught
 # too, including the label: form inside a quoted --search term.
-r36_write search-selector.yml "run: gh api --search 'label:lab-health' repos/owner/repo/issues"
-if ! r36_direct_scan "$r36_dir/search-selector.yml" | grep -q 'search-selector\.yml'; then
-  r36_bad="${r36_bad} mutant-search-selector-not-caught"
+r37_write search-selector.yml "run: gh api --search 'label:lab-health' repos/owner/repo/issues"
+if ! r37_direct_scan "$r37_dir/search-selector.yml" | grep -q 'search-selector\.yml'; then
+  r37_bad="${r37_bad} mutant-search-selector-not-caught"
 fi
 # Issue #848 review round 4 note 3: multi-term searches and the REST q=
 # filter must be caught too.
-r36_write search-multi-selector.yml "run: gh api --search 'is:issue label:lab-health' repos/owner/repo/issues"
-if ! r36_direct_scan "$r36_dir/search-multi-selector.yml" | grep -q 'search-multi-selector\.yml'; then
-  r36_bad="${r36_bad} mutant-search-multi-selector-not-caught"
+r37_write search-multi-selector.yml "run: gh api --search 'is:issue label:lab-health' repos/owner/repo/issues"
+if ! r37_direct_scan "$r37_dir/search-multi-selector.yml" | grep -q 'search-multi-selector\.yml'; then
+  r37_bad="${r37_bad} mutant-search-multi-selector-not-caught"
 fi
-r36_write query-selector.yml "run: gh api 'repos/owner/repo/issues?q=is:issue+label:lab-health'"
-if ! r36_direct_scan "$r36_dir/query-selector.yml" | grep -q 'query-selector\.yml'; then
-  r36_bad="${r36_bad} mutant-query-selector-not-caught"
+r37_write query-selector.yml "run: gh api 'repos/owner/repo/issues?q=is:issue+label:lab-health'"
+if ! r37_direct_scan "$r37_dir/query-selector.yml" | grep -q 'query-selector\.yml'; then
+  r37_bad="${r37_bad} mutant-query-selector-not-caught"
 fi
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-missing.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-missing.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36432,13 +36447,13 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, 'health_issue=""', 1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-missing.yml" ]; then
-  r36_missing_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r36_dir/auditor-missing.yml" 2>/dev/null || true)
-  [ "${r36_missing_count:-0}" -lt 1 ] || r36_bad="${r36_bad} mutant-helper-call-count-not-caught"
+if [ -f "$r37_dir/auditor-missing.yml" ]; then
+  r37_missing_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r37_dir/auditor-missing.yml" 2>/dev/null || true)
+  [ "${r37_missing_count:-0}" -lt 1 ] || r37_bad="${r37_bad} mutant-helper-call-count-not-caught"
 else
-  r36_bad="${r36_bad} mutant-helper-call-count-anchor-missing"
+  r37_bad="${r37_bad} mutant-helper-call-count-anchor-missing"
 fi
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-post-direct.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-post-direct.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36460,18 +36475,18 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-post-direct.yml" ]; then
-  if grep -qF -- 'contents/.github/scripts/health-board.sh?ref=${TRUSTED_SHA}' "$r36_dir/auditor-post-direct.yml" 2>/dev/null; then
-    r36_bad="${r36_bad} mutant-trusted-read-removal-not-caught"
+if [ -f "$r37_dir/auditor-post-direct.yml" ]; then
+  if grep -qF -- 'contents/.github/scripts/health-board.sh?ref=${TRUSTED_SHA}' "$r37_dir/auditor-post-direct.yml" 2>/dev/null; then
+    r37_bad="${r37_bad} mutant-trusted-read-removal-not-caught"
   fi
-  r36_post_direct_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r36_dir/auditor-post-direct.yml" 2>/dev/null || true)
-  [ "${r36_post_direct_count:-0}" -gt 1 ] || r36_bad="${r36_bad} mutant-post-direct-call-not-caught"
+  r37_post_direct_count=$(grep -cF -- 'bash .github/scripts/health-board.sh' "$r37_dir/auditor-post-direct.yml" 2>/dev/null || true)
+  [ "${r37_post_direct_count:-0}" -gt 1 ] || r37_bad="${r37_bad} mutant-post-direct-call-not-caught"
 else
-  r36_bad="${r36_bad} mutant-trusted-read-anchor-missing"
+  r37_bad="${r37_bad} mutant-trusted-read-anchor-missing"
 fi
 # Issue #848 review round 2 B1/B2: the hardened environment pins and the
 # trusted self-heal read are load-bearing, so removing them must be caught.
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-forward-env.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-forward-env.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36488,16 +36503,16 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-forward-env.yml" ]; then
-  if r36_hardened_ok "$r36_dir/auditor-forward-env.yml" 'Forward auditor decision'; then
-    r36_bad="${r36_bad} mutant-forward-env-removal-not-caught"
+if [ -f "$r37_dir/auditor-forward-env.yml" ]; then
+  if r37_hardened_ok "$r37_dir/auditor-forward-env.yml" 'Forward auditor decision'; then
+    r37_bad="${r37_bad} mutant-forward-env-removal-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-forward-env-anchor-missing"
+  r37_bad="${r37_bad} mutant-forward-env-anchor-missing"
 fi
 # Issue #848 review round 3 F1: the trusted-read flags and the uppercase
 # proxy/TLS pins are load-bearing, so removing either must fail the rule.
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-forward-host.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-forward-host.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36506,14 +36521,14 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, '', -1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-forward-host.yml" ]; then
-  if r36_hardened_ok "$r36_dir/auditor-forward-host.yml" 'Forward auditor decision'; then
-    r36_bad="${r36_bad} mutant-forward-host-pin-removal-not-caught"
+if [ -f "$r37_dir/auditor-forward-host.yml" ]; then
+  if r37_hardened_ok "$r37_dir/auditor-forward-host.yml" 'Forward auditor decision'; then
+    r37_bad="${r37_bad} mutant-forward-host-pin-removal-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-forward-host-anchor-missing"
+  r37_bad="${r37_bad} mutant-forward-host-anchor-missing"
 fi
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-forward-proxy.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-forward-proxy.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36522,14 +36537,14 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, '', -1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-forward-proxy.yml" ]; then
-  if r36_hardened_ok "$r36_dir/auditor-forward-proxy.yml" 'Forward auditor decision'; then
-    r36_bad="${r36_bad} mutant-forward-proxy-pin-removal-not-caught"
+if [ -f "$r37_dir/auditor-forward-proxy.yml" ]; then
+  if r37_hardened_ok "$r37_dir/auditor-forward-proxy.yml" 'Forward auditor decision'; then
+    r37_bad="${r37_bad} mutant-forward-proxy-pin-removal-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-forward-proxy-anchor-missing"
+  r37_bad="${r37_bad} mutant-forward-proxy-anchor-missing"
 fi
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-selfheal-direct.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-selfheal-direct.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36549,16 +36564,16 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-selfheal-direct.yml" ]; then
-  if r36_selfheal_trusted_ok "$r36_dir/auditor-selfheal-direct.yml" 'Verify auditor decided'; then
-    r36_bad="${r36_bad} mutant-selfheal-trusted-removal-not-caught"
+if [ -f "$r37_dir/auditor-selfheal-direct.yml" ]; then
+  if r37_selfheal_trusted_ok "$r37_dir/auditor-selfheal-direct.yml" 'Verify auditor decided'; then
+    r37_bad="${r37_bad} mutant-selfheal-trusted-removal-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-selfheal-trusted-anchor-missing"
+  r37_bad="${r37_bad} mutant-selfheal-trusted-anchor-missing"
 fi
 # Issue #848 review round 4 R1: rewriting a trusted board read back to the
 # event-dependent GITHUB_SHA must fail the step-scoped trusted-read pin.
-python3 - .github/workflows/auditor.yml "$r36_dir/auditor-branch-sha.yml" <<'R36SITEMUT'
+python3 - .github/workflows/auditor.yml "$r37_dir/auditor-branch-sha.yml" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36568,14 +36583,14 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
 R36SITEMUT
-if [ -f "$r36_dir/auditor-branch-sha.yml" ]; then
-  if r36_trusted_ok "$r36_dir/auditor-branch-sha.yml" 'Forward auditor decision'; then
-    r36_bad="${r36_bad} mutant-branch-sha-anchor-not-caught"
+if [ -f "$r37_dir/auditor-branch-sha.yml" ]; then
+  if r37_trusted_ok "$r37_dir/auditor-branch-sha.yml" 'Forward auditor decision'; then
+    r37_bad="${r37_bad} mutant-branch-sha-anchor-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-branch-sha-anchor-missing"
+  r37_bad="${r37_bad} mutant-branch-sha-anchor-missing"
 fi
-python3 - .github/scripts/schedule-selfheal.sh "$r36_dir/selfheal-board-direct.sh" <<'R36SITEMUT'
+python3 - .github/scripts/schedule-selfheal.sh "$r37_dir/selfheal-board-direct.sh" <<'R36SITEMUT'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src, encoding='utf-8').read()
@@ -36587,59 +36602,59 @@ if old not in text:
     raise SystemExit('anchor absent')
 open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
 R36SITEMUT
-if [ -f "$r36_dir/selfheal-board-direct.sh" ]; then
-  if grep -qF 'contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}' "$r36_dir/selfheal-board-direct.sh" 2>/dev/null; then
-    r36_bad="${r36_bad} mutant-selfheal-board-direct-not-caught"
+if [ -f "$r37_dir/selfheal-board-direct.sh" ]; then
+  if grep -qF 'contents/.github/scripts/health-board.sh?ref=${HEALTH_BOARD_REF}' "$r37_dir/selfheal-board-direct.sh" 2>/dev/null; then
+    r37_bad="${r37_bad} mutant-selfheal-board-direct-not-caught"
   fi
 else
-  r36_bad="${r36_bad} mutant-selfheal-board-direct-anchor-missing"
+  r37_bad="${r37_bad} mutant-selfheal-board-direct-anchor-missing"
 fi
 
 if [ "${HEALTH_BOARD_LIVE_CHECK:-}" = "1" ]; then
   if [ -z "$REPO" ] || [ -z "${GITHUB_TOKEN:-}" ]; then
-    r36_bad="${r36_bad} live(missing-credentials)"
+    r37_bad="${r37_bad} live(missing-credentials)"
   else
-    if ! r36_live_labels=$(gh api "repos/${REPO}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | .number' 2>/dev/null); then
-      r36_bad="${r36_bad} live(label-query-failed)"
-      r36_live_label_count=-1
+    if ! r37_live_labels=$(gh api "repos/${REPO}/issues?state=open&labels=lab-health&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | .number' 2>/dev/null); then
+      r37_bad="${r37_bad} live(label-query-failed)"
+      r37_live_label_count=-1
     else
-      r36_live_label_count=$(printf '%s\n' "$r36_live_labels" | grep -cE '^[0-9]+$' || true)
-      [ "$r36_live_label_count" -eq 1 ] || r36_bad="${r36_bad} live(lab-health-count-${r36_live_label_count}:$(printf '%s' "$r36_live_labels" | tr '\n' ' '))"
+      r37_live_label_count=$(printf '%s\n' "$r37_live_labels" | grep -cE '^[0-9]+$' || true)
+      [ "$r37_live_label_count" -eq 1 ] || r37_bad="${r37_bad} live(lab-health-count-${r37_live_label_count}:$(printf '%s' "$r37_live_labels" | tr '\n' ' '))"
     fi
-    if ! r36_live_titles=$(gh api "repos/${REPO}/issues?state=open&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | select(.title == "Lab Health & Audit Logs") | .number' 2>/dev/null); then
-      r36_bad="${r36_bad} live(title-query-failed)"
-      r36_live_title_count=-1
+    if ! r37_live_titles=$(gh api "repos/${REPO}/issues?state=open&sort=created&direction=asc&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | select(.title == "Lab Health & Audit Logs") | .number' 2>/dev/null); then
+      r37_bad="${r37_bad} live(title-query-failed)"
+      r37_live_title_count=-1
     else
-      r36_live_title_count=$(printf '%s\n' "$r36_live_titles" | grep -cE '^[0-9]+$' || true)
-      [ "$r36_live_title_count" -eq 1 ] || r36_bad="${r36_bad} live(title-count-${r36_live_title_count})"
+      r37_live_title_count=$(printf '%s\n' "$r37_live_titles" | grep -cE '^[0-9]+$' || true)
+      [ "$r37_live_title_count" -eq 1 ] || r37_bad="${r37_bad} live(title-count-${r37_live_title_count})"
     fi
-    if [ "${r36_live_label_count:--1}" -eq 1 ] && [ "${r36_live_title_count:--1}" -eq 1 ] \
-        && [ "$r36_live_labels" != "$r36_live_titles" ]; then
-      r36_bad="${r36_bad} live(title-label-mismatch)"
+    if [ "${r37_live_label_count:--1}" -eq 1 ] && [ "${r37_live_title_count:--1}" -eq 1 ] \
+        && [ "$r37_live_labels" != "$r37_live_titles" ]; then
+      r37_bad="${r37_bad} live(title-label-mismatch)"
     fi
   fi
 fi
 
-rm -rf "$r36_dir"
-case "$r36_bad" in
+rm -rf "$r37_dir"
+case "$r37_bad" in
   "")
-    check "R36" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, and any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4)" "ok"
+    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, and any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4)" "ok"
     ;;
   *)
-    check "R36" "lab-health board selector split or bypassable:${r36_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"
+    check "R37" "lab-health board selector split or bypassable:${r37_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R36) on ${WF}: ${pass} passed, ${fail} failed."
+summary="Silent-stall regression audit (R1-R37) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R36)
+  body="## Silent-stall regression audit FAILED (R1-R37)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case plus fails closed on any non-ASCII path in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)), R35 owner-PAT pager pin (every step that references the owner PAT, and every step that pins GIT_PAGER, also pins GH_PAGER/PAGER to /bin/cat and GH_FORCE_TTY empty, so an agent-exported pager from $GITHUB_ENV can never run with the owner PAT or forge the force-lab API file list, with owner-PAT, lane-guard, and per-OS strip mutation controls), or R36 owner-PAT isolation in the remaining utility workflows (every owner-PAT step in auditor, curator, ideate, lab, opencode-pr-trigger, and opencode-recover carries the full sanitized env map, a privileged bash -p launcher, and the builtins-only function-clearing preamble, with mutation and functional fixtures proving the launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload, issue #742)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix/review/curator agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included, and the vendored runner's pre-CLI .opencode/plugin(s) removal with skip-worktree marking so the plugin-loader channels the 1.19.5 opt-out does not gate (global home scan, loader drift, retry after the mid-run PR-head checkout) cannot reopen), R32 open-PR guarding on the fix and review arms (a non-OPEN trigger runs no agent step and posts no comment, with the per-OS forwarders routing dead targets to the Maintainer), or R33 run-scalar size budget (every run scalar at most 20,000 UTF-8 bytes and the two incident steps present exactly once, so a scalar that is one expression edit away from GitHub's 21,000-character rejection can never land again), or R34 quota-wall recovery and cross-arm heartbeat (the inline runner's wall marker, the wall-aware intake stand-down keyed to the triggering run's check-run annotations, the bounded one-attempt fresh-run dispatch, the fixed quota-recovery concurrency group, the empty-decision handoff that keeps the byte-pinned verify green, the cap escalation and red exit, the #775 token-free intake and recovery notes with the periodic-arm bodies pinned by R9, and the recover arm's 90-minute stale-session heartbeat with its bot-only cooldown ledger recorded before the dispatch and fail-closed reads, all pinned and executed against mock gh/sleep fixtures with mutation self-tests), or R34 per-OS tester commit-scope sanitization (every arm captures the pre-agent baseline, strips leaked owner co-author trailers, enforces the test-lane scope after the agent, pins the post-agent PEROS_PREFLIGHT=0 against an inherited value, pins the four Git pathspec environment overrides to 0 and unsets them in the guard body so an agent-exported value cannot turn :(literal) into a literal filename, pins the literal lookup against Windows argv conversion and macOS argument precomposition, refuses non-canonical raw-tree paths unconditionally and folds ASCII case plus fails closed on any non-ASCII path in the protected classifiers in both the post-agent judge and the durable preflight, and pins the uppercase proxy/TLS spellings empty on every post-agent trust-boundary step env map while unsetting the lowercase spellings in its body, so a tester auto-commit can never ship a protected-path or out-of-lane edit, a crafted merge cannot be exempted by the pathspec environment or a test-lane-looking malformed path, and an agent-exported proxy can never serve a decoy branch or leak the owner PAT; the real extracted bodies pass a sandbox matrix with mutation controls and a decoy-proxy fixture)), R35 owner-PAT pager pin (every step that references the owner PAT, and every step that pins GIT_PAGER, also pins GH_PAGER/PAGER to /bin/cat and GH_FORCE_TTY empty, so an agent-exported pager from $GITHUB_ENV can never run with the owner PAT or forge the force-lab API file list, with owner-PAT, lane-guard, and per-OS strip mutation controls), or R36 owner-PAT isolation in the remaining utility workflows (every owner-PAT step in auditor, curator, ideate, lab, opencode-pr-trigger, and opencode-recover carries the full sanitized env map, a privileged bash -p launcher, and the builtins-only function-clearing preamble, with mutation and functional fixtures proving the launcher is immune to BASH_FUNC_git plus a SHELLOPTS/PS4 payload, issue #742)), or R37 universal lab-health board selector (one title-first shared helper resolves the universal Lab Health & Audit Logs board ahead of the oldest labeled fallback at all six call sites, a second open non-PR issue carrying lab-health is a loud helper warning and a live audit failure, the post-agent board and self-heal reads are anchored to the freshly fetched default-branch commit through the contents API, and the helper, its call sites, its trusted reads, and its title-first/PR-guard/sort/branch-SHA mutants are pinned by mock-gh fixtures, issue #848)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
