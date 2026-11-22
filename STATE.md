@@ -1,17 +1,17 @@
 # STATE
 
-Last updated: 2026-11-22T17:50Z by run 45051159102
+Last updated: 2026-11-22T21:44Z by run 45073454420
 
-(17:44Z schedule tick: the fifth review wall death is answered by one fresh review draw on this fresh runner; the rest of the queue stays parked.)
+(21:40Z heartbeat wake: the sixth review wall death is answered by one fresh review draw on this fresh runner; the rest of the queue stays parked.)
 
 ## TL;DR for the next Hephaestus
 
-- **This was the 17:44Z schedule tick**, the first real session since the 15:59-16:04Z heartbeat wake. The 16:07Z review draw (the fifth today) died on the provider allowance wall at 16:12:09Z (the fifth review wall death today: 01:34:50Z, 02:34:13Z, 06:39:30Z, 10:23:04Z, 16:12:09Z). The 16:12Z quota intake stood down without dispatching; the throttled maintainer cron did not fire until this tick.
-- **This run arms one fresh review draw on #850 at `c0d34d65`.** The head is unchanged, CLEAN/MERGEABLE against the unchanged trunk, and the lane's checks are green. The last death is about 1.5 hours old, this scheduled tick is a fresh runner, and this session is serving on the unchanged free pin. One draw only; if it hits the wall, the intake stands it down and the next wake re-arms.
-- **Main is unchanged at `7fb030f2`; `maintainer/logs` tip is `a6c8c559` (16:13Z).** Production is green (Pages `44970574916` success 01:15:52Z; live root HTTP 200).
+- **This was the 21:40Z heartbeat wake** (issue #836), the first real session since the 17:44-17:51Z schedule tick. The 17:51Z review draw (the sixth today) ran about 18 minutes of real audit work and then died on the provider allowance wall at 18:09:33Z before a verdict. The 18:10Z quota intake stood down without dispatching; the throttled maintainer cron did not fire again, so the recover heartbeat dispatched this run at 21:40:57Z after 230 minutes without a real session.
+- **This run arms one fresh review draw on #850 at `c0d34d65`.** The head is unchanged, CLEAN/MERGEABLE against the unchanged trunk, and the lane's checks are green. The last death is about 3.6 hours old, this heartbeat wake is a fresh runner, and this session is serving on the unchanged free pin. One draw only; if it hits the wall, the intake stands it down and the next wake re-arms.
+- **Main is unchanged at `7fb030f2`; `maintainer/logs` tip is `4f59b218` (18:10Z).** Production is green (Pages `44970574916` success 01:15:52Z; live root HTTP 200).
 - **#850 is the only heavy lane in flight.** #854/#849/#857/#856/#860/#742 stay parked in the serialized queue; #860 also waits for #854.
 - **The board invariant holds:** #70 is the only open `lab-health` issue with the exact title; #42 is the only other labelled issue (`brainstorm`). No new issue since 2026-11-19T06:48Z.
-- **Models:** registry 104 models / 10 free at 17:46Z; pin and `small_model` both `deepseek-v4.1-flash-free`; the ladder is 3/3 live. No upgrade dispatch.
+- **Models:** registry 105 models / 10 free at 21:43Z; pin and `small_model` both `deepseek-v4.1-flash-free`; the ladder is 3/3 live. No upgrade dispatch.
 - **Held 0; queued the seven known stale runs; in progress this run.** The allowlist is 19 repo names plus the self-excluded `maintainer`, matching all 20 repo-managed workflow names.
 - **Queue after #850:** #854 lab, #849 lab, #857, #856, #860 (only after #854), then #742's remainder. #836 stays open for the Owner capacity decision; #821 and the Maze Chase set stay parked.
 
@@ -19,34 +19,36 @@ Last updated: 2026-11-22T17:50Z by run 45051159102
 
 Hephaestus, the Maintainer of this repository. I do not write project code; I keep the pipeline full and the gates honest, and I route every change through the Lab Engineer, reviewer, tester, auditors, curators, and eval. "I'll do it myself" should lose to "route it." I act only when the owner expressly asks or routine triage is due. I use subagents for parallel read-only investigation only when it materially saves time, and the capped 3-8-line delegation ledger is mandatory where required.
 
-## Right now (surveyed 17:45-17:49Z on 2026-11-22)
+## Right now (surveyed 21:41-21:44Z on 2026-11-22)
 
 ### GitHub state
 
-- **Main:** `7fb030f275a67956d3ce882f6c22a7102d49cf44` (the #863 rebase merge, 2026-11-21T17:52:03Z). The tree is unchanged since the 17:52-02:25Z checkpoints. **`maintainer/logs` pre-run tip:** `a6c8c559ee13f9cb2c52e3417c6d8ec2d08c515a` (the 16:13Z marker-only memory commit from the wall intake).
+- **Main:** `7fb030f275a67956d3ce882f6c22a7102d49cf44` (the #863 rebase merge, 2026-11-21T17:52:03Z). The tree is unchanged since the 17:52-02:25Z checkpoints. **`maintainer/logs` pre-run tip:** `4f59b218ddab12f0149091d3eb4dff2f0c7470c7` (the 18:10Z marker-only memory commit from the wall intake; the 17:51Z commit `89d7bafd3` carries the 17:44 session's state).
 - **Open PRs (3):**
-  - #850 `c0d34d65be3b9561f026847c28cd4051dbfa2f7c`, `Closes #848`, **CLEAN/MERGEABLE** (base `7fb030f2`, merge base = trunk tip), 6 commits, 15 files +1593/-100; checks: deploy SKIPPED, trigger SUCCESS, comment SUCCESS, GitGuardian SUCCESS. The 16:07:01Z review draw died on the wall at 16:12:09Z before a verdict; **this run arms one fresh review draw.**
+  - #850 `c0d34d65be3b9561f026847c28cd4051dbfa2f7c`, `Closes #848`, **CLEAN/MERGEABLE** (base `7fb030f2`, merge base = trunk tip), 6 commits, 15 files +1593/-100; checks: deploy SKIPPED, trigger SUCCESS, comment SUCCESS, GitGuardian SUCCESS. The 17:51:35Z review draw died on the wall at 18:09:33Z before a verdict; **this run arms one fresh review draw.**
   - #854 `090452f27c575a31e617bc5c7083c6ee441b0653`, `Closes #803`, CLEAN/MERGEABLE (base `e5cd250c`); last trigger 2026-11-20T03:34:02Z; branch unchanged; needs fresh gates after its lab round.
   - #821 `dce109e4479b3cf2801a1b0127ea98778e58c398`, CLEAN, parked Point of Sale (base `86570af1`).
 - **Open issues (25 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #803, #812, #814, #815, #831, #836, #848, #849, #856, #857, #860. #836 is open for the Owner capacity decision; no new issue since 2026-11-19T06:48Z. #677/#678/#659 are the long-frozen Maze Chase standing set under #582, not new triage; do not route them without the Owner. #742 stays open; #848 closes on #850; #803 stays open until all its slices land; #831 is resolved by merged #832 but remains open (that PR used `Refs`), bookkeeping only.
-- **Board invariant holds:** only #70 carries `lab-health` among open issues and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Newest notes: the 16:13:02Z quota intake and this run's decision ping.
-- **Latest comments:** #850 last 16:07:01Z (the wall-dead review trigger; no verdict after it); #854 last 2026-11-20T03:34:02Z; #849 last 2026-11-20T03:34:03Z; #836 last 2026-11-21T18:11:34Z. No new human directive and no new issue or PR.
-- **Branch tips:** main `7fb030f2`, `maintainer/logs` `a6c8c559`, #850 `c0d34d65`, #854 `090452f2`, #821 `dce109e4`. The #859 branch `opencode/issue858-curate-umbra-count-copy` stays intact at `9b862e48` (never delete). No recovery due.
+- **Board invariant holds:** only #70 carries `lab-health` among open issues and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Newest notes: the 18:10:33Z quota intake, the 21:40:55Z heartbeat marker, and this run's decision ping.
+- **Latest comments:** #850 last 17:51:35Z (the wall-dead review trigger; no verdict after it); #854 last 2026-11-20T03:34:02Z; #849 last 2026-11-20T03:34:03Z; #836 last 2026-11-21T18:11:34Z. No new human directive and no new issue or PR.
+- **Branch tips:** main `7fb030f2`, `maintainer/logs` `4f59b218`, #850 `c0d34d65`, #854 `090452f2`, #821 `dce109e4`. The #859 branch `opencode/issue858-curate-umbra-count-copy` stays intact at `9b862e48` (never delete). No recovery due.
 - **Held runs:** 0. **Queued:** the seven known stale runs (2026-09-25 x3, 2026-10-05 x1, 2026-11-11 x3); no live maintainer sibling. **In progress:** this run.
-- **This run:** `45051159102`, `schedule` at 17:44:48Z, global target; workspace at main `7fb030f2`; tree clean; no protected-path edits; no model edit; no branch commands; no `emergency.json`.
+- **This run:** `45073454420`, `workflow_dispatch` at 21:40:57Z, global target; workspace at main `7fb030f2`; tree clean; no protected-path edits; no model edit; no branch commands; no `emergency.json`.
 
 ### Runs, CI and queues
 
-- **Review run `45042013883`:** failure 16:07:04-16:12:36Z; the wall hit at 16:12:09Z (`AI_APICallError: Free usage limit reached`, `FreeUsageLimitError`, `retry-after: 29266`, diagnostic only) with no verdict, no report, no push. The head did not move. Its verify step counted the 3 prior auto-retry comments from 2026-11-15 and refused a fourth, so this run's fresh trigger is the manual intervention.
-- **Quota intake `45042535543`:** success 16:12:42-16:13:24Z; the agent step was skipped (the wall was detected from the failed run's check-run annotations), it posted the 16:13:02Z note on #70, and the bounded recovery step did not dispatch because `AGENT_OUTCOME: skipped`. The memory commit `a6c8c559` appended only a run marker to the log, no state rewrite.
-- **This run `45051159102`:** `schedule` at 17:44:48Z; arms one fresh review draw; no other dispatch.
+- **Review run `45051786085`:** failure 17:51:38-18:10:02Z; the wall hit at 18:09:33Z (`AI_APICallError: Free usage limit reached`, `FreeUsageLimitError`, `retry-after: 23562`, diagnostic only). Unlike the earlier deaths, the session did about 18 minutes of real audit work first (the silent-stall audit, manifest and YAML checks ran at 17:54-18:08Z), then died before a verdict, a report, or a push. The verify step found no reviewer-signed decision comment after 17:51:35Z and reported the gate dead after 4 attempts (1 initial + 3 prior auto-retries), so this run's fresh trigger is the manual intervention.
+- **Quota intake `45053514145`:** success 18:10:09-18:10:54Z; the agent step was skipped (the wall was detected from the failed run's check-run annotations), it posted the 18:10:33Z note on #70, and the bounded recovery step did not dispatch because `AGENT_OUTCOME: skipped`. The memory commit `4f59b218` appended only a run marker to the log, no state rewrite.
+- **18:10-21:40Z:** no workflow run at all; the public-surface pass's 20:00Z nominal tick did not fire. That is the known scheduler-throttling class (#831/#836), not a new defect.
+- **Recover `45073389206`:** success 21:40:16-21:41:00Z; the heartbeat step measured the last real session at 230 minutes (threshold 90), posted the 21:40:55Z marker on #70, and dispatched this run at 21:40:57Z. The duplicate `workflow_run` maintainer `45073464312` skipped at 21:41:03-21:41:11Z.
+- **This run `45073454420`:** `workflow_dispatch` at 21:40:57Z; arms one fresh review draw; no other dispatch.
 - **Pages:** `44970574916` success 01:15:15-01:15:52Z on `7fb030f2`; live root HTTP 200.
 - **Audit:** the rebased head carries R1-R37; the daily pass reports R1-R36 on main with 37/0 (R1-R36) consistent; my head-tree checks from the 01:15 session (syntax, YAML, conflict markers, whitespace, hash pins) are clean. The review will run the full audit. One low-severity prompt-contract drift noted by the daily pass (`maintainer.yml` OUTPUT CONTRACT action list omits `sweep`, `create_issue`, `create_pr` while the prompt documents them) - not a runtime roadblock; fold into the next lab round, no new issue.
 - **This run's fan-out:** none.
-- **Wall:** last death 16:12:09Z (review), with the 01:34:50Z, 02:34:13Z, 06:39:30Z, and 10:23:04Z review deaths earlier today. The curator completed a heavy pass at 14:15-14:34Z on a fresh runner, so an open bucket existed about 3.5 hours ago; this schedule tick is the next draw. The retry-after values are diagnostic only, never a park horizon.
-- **Model registry:** fresh read 17:46Z: 104 models / 10 free; pin `deepseek-v4.1-flash-free`, rung 2 `mimo-v2.6-flash-free`, and rung 3 `nemotron-3.5-lightning-free` are live. No upgrade dispatch.
+- **Wall:** six deaths today, all on the review lane: 01:34:50Z, 02:34:13Z, 06:39:30Z, 10:23:04Z, 16:12:09Z, and 18:09:33Z. The last draw got a partial bucket (18 minutes of work) before the wall, and the curator completed a heavy pass at 14:15-14:34Z; this heartbeat is the next fresh-run draw. The retry-after values are diagnostic only, never a park horizon.
+- **Model registry:** fresh read 21:43Z: 105 models / 10 free; pin `deepseek-v4.1-flash-free`, rung 2 `mimo-v2.6-flash-free`, and rung 3 `nemotron-3.5-lightning-free` are live. No upgrade dispatch.
 - **Allowlist:** `maintainer.yml` lists 19 repo workflow names; with the self-excluded `maintainer` that covers all 20 repo-managed names. Zero missing, zero extra (the three dynamic GitHub-managed workflows are outside the allowlist by design).
-- **Schedules:** public-surface last schedule 14:15:04Z (success; next nominal 20:00Z on the 6h cadence, scheduler throttling permitting); health pass last schedule 05:35:21Z (wall-dead, self-heal retry succeeded 06:23:43Z; next nominal 2026-11-23T00:00Z); recover last success 15:58:33Z (heartbeat dispatch); maintainer last schedule 09:58:46Z plus this dispatch.
+- **Schedules:** public-surface last schedule 14:15:04Z (success; the 20:00Z nominal tick did not fire, so the next draw is the scheduler's); health pass last schedule 05:35:21Z (wall-dead, self-heal retry succeeded 06:23:43Z; next nominal 2026-11-23T00:00Z); recover last success 21:40:16Z (heartbeat dispatch); maintainer last schedule 17:44:48Z plus this dispatch.
 
 ### Live lanes and their next step
 
@@ -84,18 +86,18 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 1. #850: the fresh review is armed on `c0d34d65`; read its outcome first. On approval, chain test/eval; on a wall death, stand down.
 2. The prior Tester approval (`9c9bf1bd`) and the wall-dead eval do not bind the rebased head; both gates must rerun on `c0d34d65`.
 3. The wrapper's 01:14:55Z non-fast-forward push rejection is expected noise; the PAT step landed the head at 01:13:16Z. No post-mortem.
-4. The review wall deaths at 01:34:50Z, 02:34:13Z, 06:39:30Z, 10:23:04Z, and 16:12:09Z are the #754/#820 class; the intake stood down each time and the fresh-run lottery is the recovery. This run's fresh draw is the next attempt.
-5. Public-surface pass: last schedule 14:15:04Z success with `[]`; next nominal 20:00Z. If it dies on the wall, do not same-pool retry; if it dies on the work, read the log.
+4. The six review wall deaths at 01:34:50Z, 02:34:13Z, 06:39:30Z, 10:23:04Z, 16:12:09Z, and 18:09:33Z are the #754/#820 class; the intake stood down each time and the fresh-run lottery is the recovery. This run's fresh draw is the next attempt; the 17:51 draw proved a runner can do real work before the wall.
+5. Public-surface pass: last schedule 14:15:04Z success with `[]`; the 20:00Z nominal tick did not fire, so the next draw is the scheduler's. If it dies on the wall, do not same-pool retry; if it dies on the work, read the log.
 6. Health pass: last daily success 06:23:43Z (self-heal retry); next nominal 2026-11-23T00:00Z. The local audit re-run is consistent; no dispatch.
-7. #836 stays open for the Owner capacity decision. The merged slice restores rung 3 and aligns the contract only; do not close the issue on the merge. Five review wall deaths today strengthen the case for the capacity decision.
+7. #836 stays open for the Owner capacity decision. The merged slice restores rung 3 and aligns the contract only; do not close the issue on the merge. Six review wall deaths today strengthen the case for the capacity decision.
 8. #745 is done: merged `eca3be8e`, Pages green, #853 closed. #742 stays open for the remaining owner-credential work; the review's residual notes (other lanes lack the privileged launcher/preamble; proxy/TLS keys unpinned) are tracked there.
 9. #848 closes on #850; #803 stays open until all its slices land.
 10. #831 is resolved by merged #832 but remains open because that PR used `Refs`; bookkeeping only, no dispatch.
-11. Model registry drift: the ladder is 3/3 on main and all three rungs are live; the free count is 10 since the 16:02Z read, with no rung retired. No lab dispatch.
-12. Maintainer cron throttling: the declared 20-minute cron fires only a few times a day; the recover heartbeat remains the independent liveness path (#836/#831). The 17:44Z schedule tick is the first real session since 15:59Z.
+11. Model registry drift: the ladder is 3/3 on main and all three rungs are live; the free count is 10 at 21:43Z, with no rung retired. No lab dispatch.
+12. Maintainer cron throttling: the declared 20-minute cron fires only a few times a day; the recover heartbeat remains the independent liveness path (#836/#831). The 21:40Z heartbeat was the first real session since 17:44Z.
 13. Pages: production is green on `7fb030f2`; the preview artifact redeploys on PR updates. No manual dispatch unless a merge sweep's deployment trigger fails.
-14. Workspace: this run's tree is main `7fb030f2` (the pre-agent trusted checkout on a schedule wake); the memory bundle came from the trusted commit, `.maintainer/` is gitignored, and the tree is clean.
-15. Memory: the 2026-11-22 file carries the 00:41-00:53Z heartbeat entry, the 01:15-01:20Z post-lab handoff entry, the 02:19-02:25Z schedule entry, the 02:35Z intake marker, the 06:23-06:30Z wake entry, the 06:40Z intake marker, the 10:00-10:03Z schedule entry, the 10:23Z intake marker, the 15:59-16:04Z heartbeat entry, the 16:13Z intake marker, and this 17:44-17:49Z schedule entry. The log publish is append-only with keep-both semantics.
+14. Workspace: this run's tree is main `7fb030f2` (the pre-agent trusted checkout on a dispatch wake); the memory bundle came from the trusted commit, `.maintainer/` is gitignored, and the tree is clean.
+15. Memory: the 2026-11-22 file carries the 00:41-00:53Z heartbeat entry, the 01:15-01:20Z post-lab handoff entry, the 02:19-02:25Z schedule entry, the 02:35Z intake marker, the 06:23-06:30Z wake entry, the 06:40Z intake marker, the 10:00-10:03Z schedule entry, the 10:23Z intake marker, the 15:59-16:04Z heartbeat entry, the 16:13Z intake marker, the 17:44-17:49Z schedule entry, the 18:10Z intake marker, and this 21:40-21:44Z heartbeat entry. The log publish is append-only with keep-both semantics.
 16. Prompt-contract drift (watch only, no new issue): the `maintainer.yml` OUTPUT CONTRACT action list omits `sweep`, `create_issue`, and `create_pr` while the staged prompt documents them; the workflow handles them. Fold into the next lab round, not a standalone issue.
 17. Auditor doc drift (watch only, no new issue): the silent-stall script and the shipped matrix are R1-R36 on main and R1-R37 on the #850 head; after the merge, re-check the main range and do not open a duplicate.
 18. The merged #863 tree keeps the R26 canonical manifest in lockstep with `maintainer.yml`; the #850 head regenerates it. The review will verify.
@@ -146,7 +148,7 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ### Contract and memory
 
-- This run's session is a `schedule` tick with no target; the memory branch is `maintainer/logs`.
+- This run's session is a `workflow_dispatch` heartbeat with no target; the memory branch is `maintainer/logs`.
 - The contract asks for the six files only, and only the artifacts get committed. The memory commit lands after publication; the output artifacts are pushed as a `chore(memory)` commit.
 - Attach everything to `maintainer/logs` (rebase onto fresh `origin/main` if it moved, keep-both resolve); never reset, never force push.
 - The memory log entry must include the state snapshot (counts, PR heads, failures, base heads), the decisions and rationale, the callbacks that fired, and the open questions, plus the run link.
@@ -155,9 +157,9 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 - Protected infra changes only through the lab lane; the Agent-write token cannot push workflow files, the domain PAT can.
 - The brain is always mounted read-only; the memory files under `.maintainer/memory/` are the only persistent memory I can edit.
-- The maintainer must always post a comment as its comment.md artifact or an explicit ping; a silent maintainer is a failure, independent of whether anything else is wrong. This run posts a ping on #70 because a schedule wake has no comment target.
+- The maintainer must always post a comment as its comment.md artifact or an explicit ping; a silent maintainer is a failure, independent of whether anything else is wrong. This run posts a ping on #70 because a heartbeat wake has no comment target.
 - The pipeline is green on main (`7fb030f2`; Pages success 2026-11-22 01:15:52Z), and the platform is perf-sensitive: the jet and the grading site are not greenfield; multi-agent is the only way to keep the guards intact.
-- Free-model provider walls are per-egress IP and sporadic across runners; the wall killed the #850 review at 01:34:50Z, 02:34:13Z, 06:39:30Z, 10:23:04Z, and 16:12:09Z on 2026-11-22, while fresh runners completed the public-surface pass 05:39-05:50Z, the health retry 05:59-06:23Z, and the curator pass 14:15-14:34Z. Elapsed time alone is not proof; the fresh-run lottery is the designed recovery, and a single draw is the window test, never a burst.
+- Free-model provider walls are per-egress IP and sporadic across runners; the wall killed the #850 review at 01:34:50Z, 02:34:13Z, 06:39:30Z, 10:23:04Z, 16:12:09Z, and 18:09:33Z on 2026-11-22, while fresh runners completed the public-surface pass 05:39-05:50Z, the health retry 05:59-06:23Z, and the curator pass 14:15-14:34Z. The 17:51 draw did 18 minutes of real audit work before the wall. Elapsed time alone is not proof; the fresh-run lottery is the designed recovery, and a single draw is the window test, never a burst.
 - The ladder on `main` is 3/3 (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free`), and the pin and `small_model` are unchanged.
 - Owner's protection contract: never cancel required checks; cancelled runs are not green.
 
@@ -166,14 +168,14 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 1. Read the #850 review outcome first. On approval, the fresh test gate; then eval; on `approve-eval`, PAT merge sweep, verify Pages, close #848. On a wall death, stand down and keep the queue parked for the next wake.
 2. Then #854 lab, #849 lab, #857, #856, #860 in order (#860 only after #854 lands), then #742's remainder.
 3. Keep #836 open for the Owner capacity decision; keep #742 open for the remaining owner-credential work; #831 is bookkeeping only; #848 closes on #850; #803 stays open until all its slices land.
-4. The public-surface pass next nominal is 20:00Z; the health pass next nominal is 2026-11-23T00:00Z. Read both outcomes when they land.
+4. The public-surface pass's 20:00Z nominal tick did not fire; read its next outcome when the scheduler runs it. The health pass next nominal is 2026-11-23T00:00Z.
 5. Verify the board invariant, allowlist, registry/ladder, Pages, held runs, and schedule health; if clean, stand by.
 
 ## Open questions
 
-1. Will the fresh review draw find an open allowance bucket on its runner, or die on the same pool-wide wall?
+1. Will the seventh review draw find an open allowance bucket on its runner, or die on the same pool-wide wall?
 2. Will the review approve the rebased head, or return another round of findings (every prior round found something)?
 3. Will the fresh test and eval chain complete on `c0d34d65`, or die on the provider wall?
-4. Five consecutive review draws have died on the wall (01:34Z, 02:34Z, 06:39Z, 10:23Z, 16:12Z), but the curator completed a heavy pass at 14:15-14:34Z; does the pool have an open bucket for this draw, or is the per-egress capacity decision now the only path?
-5. Do the throttled schedule ticks show the scheduler throttle is worsening, and does the heartbeat remain the only reliable liveness path?
+4. Six consecutive review draws have died on the wall (01:34Z, 02:34Z, 06:39Z, 10:23Z, 16:12Z, 18:09Z), but the last one did 18 minutes of real work and the curator completed a heavy pass at 14:15-14:34Z; does the pool have an open bucket for this draw, or is the per-egress capacity decision now the only path?
+5. Do the throttled schedule ticks (the 20:00Z public-surface tick did not fire) show the scheduler throttle is worsening, and does the heartbeat remain the only reliable liveness path?
 6. Does the reopened capacity tracker still need the Owner's per-egress-IP capacity decision now that the ladder is whole again?
