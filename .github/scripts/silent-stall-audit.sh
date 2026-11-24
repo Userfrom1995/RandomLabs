@@ -473,6 +473,7 @@ r9_resolver_ok() {
   block=$(r9_step_block "$path" 'Resolve trusted default-branch commit')
   [ -n "$block" ] || return 1
   printf '%s\n' "$block" | grep -qF 'repos/${GITHUB_REPOSITORY}/commits/${TRUSTED_REF}' || return 1
+  printf '%s\n' "$block" | grep -qF 'TRUSTED_REF: ${{ github.event.repository.default_branch }}' || return 1
   printf '%s\n' "$block" | grep -qF -- '--jq .sha' || return 1
   printf '%s\n' "$block" | grep -qF 'trusted_sha=${sha}' || return 1
   printf '%s\n' "$block" | grep -qF '"$GITHUB_OUTPUT"' || return 1
@@ -502,7 +503,7 @@ for r9_wf in curator.yml auditor.yml ideate.yml lab.yml; do
   grep -q 'schedule-selfheal\.sh' "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-selfheal-call)"
   grep -q 'selfheal_retry:' "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-selfheal_retry-input)"
   r9_resolver_ok "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-trusted-default-branch-resolver)"
-  r9_resolver_ln=$(grep -nxF -- '      - name: Resolve trusted default-branch commit (issue #848)' "$r9_path" | head -1 | cut -d: -f1)
+  r9_resolver_ln=$(grep -nxF -- '      - name: "Resolve trusted default-branch commit (issue #848)"' "$r9_path" | head -1 | cut -d: -f1)
   r9_agent_ln=$(grep -nxF -- "      - name: $(r9_agent_step "$r9_wf")" "$r9_path" | head -1 | cut -d: -f1)
   if [ -z "$r9_resolver_ln" ] || [ -z "$r9_agent_ln" ] || [ "$r9_resolver_ln" -ge "$r9_agent_ln" ]; then
     r9_bad="${r9_bad} ${r9_wf}(resolver-not-before-agent)"
@@ -14436,7 +14437,7 @@ _SCRIPT_SHA256 = {
     # Issue #848: the universal lab-health board helper is executed by the
     # Maintainer's pinned pre-handler intake step, so it joins the F44
     # exact-body inventory instead of tripping handler-pre-script-unexpected.
-    ".github/scripts/health-board.sh": "e8ad58b46ddd0a1d2837548101bfe9a0e6a2efa7d2dd3808c1daee2787c9645f",
+    ".github/scripts/health-board.sh": "e5bf8eff823c5150732bb0f5478635bfa52ad60571a0a073b1fb390effd18fb9",
 }
 
 
@@ -29816,7 +29817,7 @@ esac
 # cooldown. Issue #837 evaluator findings: a valid-JSON run page of the wrong
 # shape (a non-array or entries without string status/createdAt) fails closed
 # like an unreadable read, the board is resolved through the shared
-# title-first .github/scripts/health-board.sh helper (issue #848; R36 owns the
+# title-first .github/scripts/health-board.sh helper (issue #848; R37 owns the
 # helper contract and its duplicate-label check), the cooldown marker must END
 # the bot body (a quoted mention is not a note), and the effective 90-minute
 # cutoff and age/since minute arithmetic is pinned exact and unique (an
@@ -36063,6 +36064,7 @@ r37_need_trusted_anchor() {
   fi
   for needle in \
     'repos/${GITHUB_REPOSITORY}/commits/${TRUSTED_REF}' \
+    'TRUSTED_REF: ${{ github.event.repository.default_branch }}' \
     '--jq .sha' \
     'trusted_sha=${sha}' \
     '"$GITHUB_OUTPUT"' \

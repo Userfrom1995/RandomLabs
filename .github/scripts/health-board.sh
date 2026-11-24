@@ -26,7 +26,7 @@
 # Since issue #848 the lab-health label belongs to the universal board ONLY.
 # If more than one open non-PR issue carries it, this helper still resolves
 # deterministically (title first, then oldest) but prints a loud ::warning::
-# naming the extra board-bearing issues; silent-stall audit rule R36 fails on
+# naming the extra board-bearing issues; silent-stall audit rule R37 fails on
 # a second board-bearing issue so the split audit trail cannot persist.
 #
 # Exit codes: 0 = resolved or empty, 1 = the title/source issue list could

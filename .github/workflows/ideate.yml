@@ -39,7 +39,7 @@ jobs:
           persist-credentials: true
           token: ${{ github.token }}
 
-      - name: Resolve trusted default-branch commit (issue #848)
+      - name: "Resolve trusted default-branch commit (issue #848)"
         id: trusted
         shell: bash
         env:

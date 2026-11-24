@@ -61,7 +61,7 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 0
 
-      - name: Resolve trusted default-branch commit (issue #848)
+      - name: "Resolve trusted default-branch commit (issue #848)"
         id: trusted
         shell: bash
         env:
