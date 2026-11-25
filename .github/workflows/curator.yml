@@ -269,21 +269,34 @@ jobs:
           # On issue_comment trigger (e.g. /oc curate), mirror review/build auto-retry parity up to 3 times:
           if [ "$event_name" = "issue_comment" ] && [ -n "$issue_num" ] && [ "$issue_num" != "null" ]; then
             # Issue #803: a PR thread gets a fresh budget per head; an issue
-            # thread uses the current UTC day. A failed head read on a PR
-            # leaves scope_since empty and fails closed below.
+            # thread uses the current UTC day. A resolver or head read
+            # failure on a PR leaves scope_since empty and fails closed below.
+            read_scope_date() {
+              local payload since
+              payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+              since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+              case "$since" in
+                [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+                *) return 1 ;;
+              esac
+              [ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+              printf '%s' "$since"
+            }
             scope_since=""
             if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then
-              curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || true)
-              if [ -n "$curate_head" ]; then
-                scope_since=$(gh api "repos/${{ github.repository }}/commits/$curate_head" --jq '.commit.committer.date' 2>/dev/null || true)
+              if curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null); then
+                if [ -n "$curate_head" ] && [ "$curate_head" != "null" ]; then
+                  scope_since=$(read_scope_date "$curate_head") || scope_since=""
+                fi
               fi
             else
               scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
             fi
             retries=""
             if [ -n "$scope_since" ]; then
-              retries=$(gh api "repos/${{ github.repository }}/issues/$issue_num/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc curate (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              enum_payload=$(gh api "repos/${{ github.repository }}/issues/$issue_num/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+              retries=$(printf '%s' "$enum_payload" \
+                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc curate (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
             fi
             if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
               echo "::error::Could not enumerate prior auto-retries on #$issue_num. Refusing to retry to avoid a runaway loop."

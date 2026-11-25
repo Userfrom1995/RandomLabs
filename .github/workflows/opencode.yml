@@ -266,8 +266,9 @@ jobs:
             count_retries() {
               retries=""
               if [ -n "$scope_since" ]; then
-                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc research (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+                enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+                retries=$(printf '%s' "$enum_payload" \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc research (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
               fi
               printf '%s' "$retries"
             }
@@ -563,8 +564,9 @@ jobs:
             count_retries() {
               retries=""
               if [ -n "$scope_since" ]; then
-                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc architect (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+                enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+                retries=$(printf '%s' "$enum_payload" \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc architect (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
               fi
               printf '%s' "$retries"
             }
@@ -1044,11 +1046,21 @@ jobs:
           pushed="no"
           is_pr="${{ github.event.issue.pull_request != null }}"
           target_branch=""
+          resolver_ok="true"
           if [ "$is_pr" = "true" ]; then
-            target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+            if ! target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null); then
+              resolver_ok="false"
+              target_branch=""
+            fi
           else
-            target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            if ! target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null); then
+              resolver_ok="false"
+              target_branch=""
+            fi
+          fi
+          if [ "$target_branch" = "null" ]; then
+            target_branch=""
           fi
 
           if [ -n "$target_branch" ]; then
@@ -1164,15 +1176,26 @@ jobs:
 
           # Issue #803: scope the retry budget to the current branch head, so
           # a crash on a new head gets its own 3 retries. A plain-issue build
-          # with no PR branch falls back to the current UTC day. A head read
-          # failure leaves scope_since empty and fails closed below.
+          # with no PR branch falls back to the current UTC day. A resolver or
+          # head read failure leaves scope_since empty and fails closed below.
+          read_scope_date() {
+            local payload since
+            payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+            since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+            case "$since" in
+              [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+              *) return 1 ;;
+            esac
+            [ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+            printf '%s' "$since"
+          }
           scope_since=""
-          if [ -n "$target_branch" ]; then
+          if [ "$resolver_ok" = "true" ] && [ -n "$target_branch" ]; then
             target_head=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
             if [ -n "$target_head" ]; then
-              scope_since=$(gh api "repos/${{ github.repository }}/commits/$target_head" --jq '.commit.committer.date' 2>/dev/null || true)
+              scope_since=$(read_scope_date "$target_head") || scope_since=""
             fi
-          else
+          elif [ "$resolver_ok" = "true" ]; then
             scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
           fi
           # Robust retry counter: never fall back to 0 on an API/rate-limit
@@ -1180,8 +1203,9 @@ jobs:
           # count retries the API actually returned; on failure, stop retrying.
           retries=""
           if [ -n "$scope_since" ]; then
-            retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
-              | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+            enum_payload=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+            retries=$(printf '%s' "$enum_payload" \
+              | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
           fi
           if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
             echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
@@ -1287,18 +1311,33 @@ jobs:
             # loop-breaking "circuit breaker" then wrongly refused to honor).
             # Issue #803: scope the auto-heal budget to the issue's current
             # build head; a plain issue with no open PR falls back to the
-            # current UTC day. A failed head read leaves scope_since empty and
-            # hands off to the Maintainer below.
-            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
-            heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,headRefOid,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null || true)
-            if [ -n "$heal_head" ] && [ "$heal_head" != "null" ]; then
-              scope_since=$(gh api "repos/${{ github.repository }}/commits/$heal_head" --jq '.commit.committer.date' 2>/dev/null || true)
+            # current UTC day. A resolver or head read failure leaves
+            # scope_since empty and hands off to the Maintainer below.
+            read_scope_date() {
+              local payload since
+              payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+              since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+              case "$since" in
+                [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+                *) return 1 ;;
+              esac
+              [ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+              printf '%s' "$since"
+            }
+            scope_since=""
+            if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null); then
+              if [ -n "$heal_head" ] && [ "$heal_head" != "null" ]; then
+                scope_since=$(read_scope_date "$heal_head") || scope_since=""
+              else
+                scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
+              fi
             fi
             heals=""
             if [ -n "$scope_since" ]; then
-              heals=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue (auto-heal")) and .created_at > $since)] | length' 2>/dev/null || true)
+              enum_payload=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+              heals=$(printf '%s' "$enum_payload" \
+                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue (auto-heal")) and .created_at > $since)] | length' 2>/dev/null) || heals=""
             fi
             if [ -z "$heals" ] || ! [ "$heals" -eq "$heals" ] 2>/dev/null; then
               echo "Could not enumerate prior auto-heals (API/rate-limit). Handing off to Maintainer."
@@ -1670,7 +1709,18 @@ jobs:
           # push, so a crash on a new head gets its own 3 retries instead of
           # inheriting retries spent on earlier heads. A failed head read
           # leaves scope_since empty and fails closed below.
-          scope_since=$(gh api "repos/${{ github.repository }}/commits/$head_after" --jq '.commit.committer.date' 2>/dev/null || true)
+          read_scope_date() {
+            local payload since
+            payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+            since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+            case "$since" in
+              [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+              *) return 1 ;;
+            esac
+            [ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+            printf '%s' "$since"
+          }
+          scope_since=$(read_scope_date "$head_after") || scope_since=""
           # Robust retry counter: never fall back to 0 on an API/rate-limit
           # failure, because a phantom 0 would make the cap never trip and the
           # loop would run forever. Only count retries the API actually
@@ -1678,8 +1728,9 @@ jobs:
           # stop retrying.
           retries=""
           if [ -n "$scope_since" ]; then
-            retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
-              | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+            enum_payload=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+            retries=$(printf '%s' "$enum_payload" \
+              | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
           fi
           if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
             echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
@@ -1961,8 +2012,9 @@ jobs:
             count_retries() {
               retries=""
               if [ -n "$scope_since" ]; then
-                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+                enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+                retries=$(printf '%s' "$enum_payload" \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
               fi
               printf '%s' "$retries"
             }
@@ -2283,8 +2335,9 @@ jobs:
             count_retries() {
               retries=""
               if [ -n "$scope_since" ]; then
-                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-ux (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+                enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+                retries=$(printf '%s' "$enum_payload" \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-ux (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
               fi
               printf '%s' "$retries"
             }
@@ -2604,8 +2657,9 @@ jobs:
             count_retries() {
               retries=""
               if [ -n "$scope_since" ]; then
-                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-visual (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+                enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+                retries=$(printf '%s' "$enum_payload" \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-visual (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
               fi
               printf '%s' "$retries"
             }
@@ -2925,8 +2979,9 @@ jobs:
             count_retries() {
               retries=""
               if [ -n "$scope_since" ]; then
-                retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-motion (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+                enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+                retries=$(printf '%s' "$enum_payload" \
+                  | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc design-motion (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
               fi
               printf '%s' "$retries"
             }
