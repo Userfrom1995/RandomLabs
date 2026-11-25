@@ -2387,20 +2387,24 @@ remote tip).
   continue from the issue's newest open PR head, curator from the PR head),
   while issue lanes use the current UTC day. An unreadable head leaves
   `scope_since` empty, skips enumeration, and the existing empty-counter
-  branch fails closed loudly instead of falling back to zero. The
+  branch escalates to the Maintainer, exiting nonzero if that handoff post
+  fails, instead of falling back to zero. The
   enumeration payload is captured first (`enum_payload=$(...) ||
   enum_payload=""`) so an HTTP error body can never become a zero, the
   `read_scope_date` helper parses with `jq -e` instead of swallowing a
   failed read (`--jq ... || true`), and the continue lane keeps its
   successful-empty plain-issue day fallback while a failed head read does
   not. R19 adds stale-head, mixed-head, wall-death-after-fresh-head, and
-  head-read-failure fixtures; R20 pins every scope argument, filter,
-  assignment, fail-closed helper, and whole continue/curator wrapper
-  including its fail-closed initializer with mutation self-tests, and
-  executes a previous-day payload that must read 0 plus an HTTP-error-body
-  fixture that must read empty; R28 pins the phase and build bodies plus
-  dropped and constant scope mutants; R32 executes the fix lane's stale,
-  mixed, wall-after-fresh-head, and head-failure matrix.
+  head-read-failure fixtures; R20 pins every scope argument, filter, and
+  assignment, each of the five `read_scope_date` helpers whole (payload
+  capture, `jq -e`, ISO date-shape check, and future-date rejection) with
+  a mutation self-test that strips both checks from every copy, and the
+  whole continue/curator wrappers including their fail-closed initializers
+  with mutation self-tests, and executes a previous-day payload that must
+  read 0 plus an HTTP-error-body fixture that must read empty; R28 pins
+  the phase and build bodies plus dropped and constant scope mutants; R32
+  executes the fix lane's stale, mixed, wall-after-fresh-head, and
+  head-failure matrix.
 - Silent deferrals are re-armed (issue #853): a comment that promised a
   follow-up "in the next window" had no owner, date, or guard, so issue
   #745 sat orphaned for 23 days after exactly such a promise. The
@@ -2409,17 +2413,23 @@ remote tip).
   universal board through the shared title-first helper, scans open PRs
   for owner/bot deferral comments, treats a promise as stale only when it
   is older than the 6-hour window and younger than the 90-day cap, with no
-  later trigger comment and no later workflow run on the current head,
-  dedupes on a per-PR/head/comment marker, and posts one signed
+  later owner/bot comment that starts with a known workflow trigger and no
+  later workflow run on the current head, dedupes only on a signed note
+  carrying a per-PR/head/comment marker, and posts one signed
   `- the Auditor` note per stale promise carrying no trigger token. Every
-  board, PR, run, and comment read fails closed on an API, parse, or
-  malformed-page error, and the step is schedule/dispatch-only. R37 pins
-  the step and executes the real body against a mock `gh` with a fixed
-  clock across stale, bot-authored, dispatched, run-covered, duplicate,
-  recent, expired, foreign-authored, malformed, bad-date, and unreadable
-  fixtures (each read has a failure fixture, and array-shaped malformed
-  pages fail closed), with no-dispatch, no-run, no-dedupe, no-window,
-  no-author, and no-board-guard mutants proving each filter load-bearing.
+  board, PR, run, and comment read fails closed on an API, parse,
+  malformed-page, or unparseable-date error, and the step is
+  schedule/dispatch-only. R37 pins the step and executes the real body
+  against a mock `gh` with a fixed clock across stale, bot-authored,
+  dispatched, foreign-trigger, quoted-trigger, bare-trigger, run-covered,
+  duplicate, foreign-marker, unsigned-marker, recent, expired,
+  foreign-authored, malformed, bad-date, malformed-later-date,
+  post-failure, and unreadable fixtures (each read has a failure fixture,
+  array-shaped malformed pages fail closed, and a failed board post exits
+  1 with no success line), with no-dispatch, no-run, no-dedupe, no-window,
+  no-author, no-trigger-author, no-trigger-prefix, no-marker-identity,
+  no-run-date-check, and no-board-guard mutants proving each filter
+  load-bearing.
 - The PAT merge sweep only merges a workflow-touching PR on a shape-anchored,
   head-bound tester verdict (issue #619): an unanchored substring match let a
   Maintainer decisions summary that merely quoted the tester marker while
