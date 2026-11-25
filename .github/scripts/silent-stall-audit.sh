@@ -10294,25 +10294,109 @@ done <<'R20_HEADS'
 .github/workflows/curator.yml|if curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null); then
 .github/workflows/curator.yml|if [ -n "$curate_head" ] && [ "$curate_head" != "null" ]; then
 R20_HEADS
-# Issue #803 round 1: every read_scope_date helper must capture the API
-# payload first and parse it with jq -e, so an HTTP error body can never
-# masquerade as a timestamp; the date-shape and future-date checks keep a
-# garbage payload from producing a non-date scope. The old
-# `--jq ... || true` form is banned outright.
+# Issue #803 round 1 / #854 round 3: every read_scope_date helper is pinned
+# whole, including the ISO date-shape case and the future-date rejection, so
+# removing either check fails the audit. The old `--jq ... || true` form is
+# banned outright. Mutation self-tests below strip both checks from each of
+# the five copies and require the whole-helper pin to turn red.
 r20_helper_files=".github/workflows/opencode.yml .github/workflows/opencode-review.yml .github/workflows/curator.yml"
 r20_helper_defs=$(grep -h 'read_scope_date() {' $r20_helper_files 2>/dev/null | wc -l | tr -d '[:space:]')
 [ "${r20_helper_defs:-0}" -eq 5 ] || r20_bad="${r20_bad} scope-helper-count=${r20_helper_defs:-0},want=5"
-while IFS='|' read -r r20_hf r20_hline; do
+r20_helper_want=$(cat <<'R20_HELPER_BODY'
+read_scope_date() {
+local payload since
+payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+case "$since" in
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+*) return 1 ;;
+esac
+[ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+printf '%s' "$since"
+}
+R20_HELPER_BODY
+)
+r20_helper_block() {
+  local file="$1" nth="${2:-1}"
+  awk -v nth="$nth" '
+    !grab && index($0, "read_scope_date() {") { n++; if (n == nth) grab=1 }
+    grab { print; if ($0 ~ /^[[:space:]]*\}[[:space:]]*$/) exit }
+  ' "$file" 2>/dev/null | sed 's/^[[:space:]]*//'
+}
+while IFS='|' read -r r20_hf r20_hn; do
   [ -n "$r20_hf" ] || continue
-  sed 's/^[[:space:]]*//' "$r20_hf" | grep -qxF -- "$r20_hline" || r20_bad="${r20_bad} ${r20_hf}(scope-helper-not-fail-closed:${r20_hline%%=*})"
+  r20_hgot=$(r20_helper_block "$r20_hf" "$r20_hn")
+  [ "$r20_hgot" = "$r20_helper_want" ] || r20_bad="${r20_bad} ${r20_hf}(scope-helper-${r20_hn}-not-fail-closed)"
 done <<'R20_HELPER'
-.github/workflows/opencode.yml|payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
-.github/workflows/opencode.yml|since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
-.github/workflows/opencode-review.yml|payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
-.github/workflows/opencode-review.yml|since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
-.github/workflows/curator.yml|payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
-.github/workflows/curator.yml|since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+.github/workflows/opencode.yml|1
+.github/workflows/opencode.yml|2
+.github/workflows/opencode.yml|3
+.github/workflows/opencode-review.yml|1
+.github/workflows/curator.yml|1
 R20_HELPER
+r20_hmut_dir=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r20_hmut_dir" ] || [ ! -d "$r20_hmut_dir" ]; then
+  r20_bad="${r20_bad} scope-helper-mutant(sandbox-unavailable)"
+else
+  while IFS='|' read -r r20_hf r20_hn; do
+    [ -n "$r20_hf" ] || continue
+    r20_hmut="$r20_hmut_dir/$(basename "$r20_hf" .yml)-${r20_hn}.yml"
+    python3 - "$r20_hf" "$r20_hmut" "$r20_hn" <<'R20_HMUT'
+import sys
+src, dst, nth = sys.argv[1], sys.argv[2], int(sys.argv[3])
+lines = open(src, encoding='utf-8').read().split('\n')
+occ = -1
+start = -1
+for i, ln in enumerate(lines):
+    if 'read_scope_date() {' in ln:
+        occ += 1
+        if occ == nth - 1:
+            start = i
+            break
+if start < 0:
+    raise SystemExit('helper absent')
+end = start + 1
+while end < len(lines) and lines[end].strip() != '}':
+    end += 1
+if end >= len(lines):
+    raise SystemExit('helper end absent')
+out = []
+in_case = False
+removed = 0
+for ln in lines[start + 1:end]:
+    s = ln.strip()
+    if s.startswith('case "$since" in'):
+        in_case = True
+        removed += 1
+        continue
+    if in_case:
+        if s == 'esac':
+            in_case = False
+        continue
+    if 'date -u +%Y-%m-%dT%H:%M:%SZ' in ln:
+        removed += 1
+        continue
+    out.append(ln)
+if removed < 2:
+    raise SystemExit('mutation anchors absent')
+lines[start + 1:end] = out
+open(dst, 'w', encoding='utf-8').write('\n'.join(lines))
+R20_HMUT
+    if [ ! -f "$r20_hmut" ]; then
+      r20_bad="${r20_bad} ${r20_hf}(scope-helper-${r20_hn}-mutant-anchor)"
+      continue
+    fi
+    r20_hmut_got=$(r20_helper_block "$r20_hmut" "$r20_hn")
+    [ "$r20_hmut_got" != "$r20_helper_want" ] || r20_bad="${r20_bad} ${r20_hf}(scope-helper-${r20_hn}-mutation-not-caught)"
+  done <<'R20_HMUTSITES'
+.github/workflows/opencode.yml|1
+.github/workflows/opencode.yml|2
+.github/workflows/opencode.yml|3
+.github/workflows/opencode-review.yml|1
+.github/workflows/curator.yml|1
+R20_HMUTSITES
+  rm -rf "$r20_hmut_dir"
+fi
 if grep -qE -- "--jq '\''\.commit\.committer\.date'\'' 2>/dev/null \|\| true" .github/workflows/opencode.yml .github/workflows/opencode-review.yml .github/workflows/curator.yml 2>/dev/null; then
   r20_bad="${r20_bad} scope-read-still-swallows-failure"
 fi
@@ -36744,11 +36828,15 @@ fi
 
 # Issue #853 functional matrix: the real guard runs against an
 # endpoint-bound mock gh with a fixed clock. A stale owner/bot deferral
-# without a later dispatch comment or head-bound run posts exactly one
-# deduped note to the board; recent, expired, foreign-authored, dispatched,
-# run-covered, and already-re-armed deferrals post nothing; and every read
-# failure fails closed. Mutants prove the dispatch, run, dedupe, window, and
-# author filters plus the board fail-closed path load-bearing.
+# without a later owner/bot trigger comment or head-bound run posts exactly
+# one deduped note to the board; recent, expired, foreign-authored,
+# dispatched, run-covered, and already-re-armed deferrals post nothing; a
+# later foreign, quoted, or bare trigger does not count as a dispatch, and
+# a foreign or unsigned board marker does not dedupe. Every read failure and
+# every malformed date fails closed, including a failed board post. Mutants
+# prove the dispatch, run, dedupe, window, trigger-author, trigger-prefix,
+# marker-identity, run-date, and author filters plus the board fail-closed
+# path load-bearing.
 r37_defer_dir="$r37_dir/deferral"
 mkdir -p "$r37_defer_dir/bin"
 cat > "$r37_defer_dir/bin/gh" <<'R37DEFGH'
@@ -36774,6 +36862,7 @@ if [ "${1:-}" = "api" ]; then
   exit 0
 fi
 if [ "${1:-}" = "issue" ] && [ "${2:-}" = "comment" ]; then
+  [ "${MOCK_POST_FAIL:-0}" = "1" ] && exit 1
   board="${3:-}"; body=""
   shift 3
   while [ "$#" -gt 0 ]; do
@@ -36803,17 +36892,25 @@ r37_defer_write runs-empty.json '[{"workflow_runs":[]}]'
 r37_defer_write runs-covered.json '[{"workflow_runs":[{"id":55,"head_sha":"abc123def4567890","created_at":"2026-11-02T00:00:00Z"}]}]'
 r37_defer_write runs-malformed.json '[{"workflow_runs":[{"id":55}]}]'
 r37_defer_write board-empty.json '[[]]'
-r37_defer_write board-dup.json '[[{"body":"prior note <!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->"}]]'
+r37_defer_write board-dup.json '[[{"body":"prior note <!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->\n\n- the Auditor","user":{"login":"github-actions[bot]"}}]]'
+r37_defer_write board-foreign-marker.json '[[{"body":"prior note <!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->\n\n- the Auditor","user":{"login":"randomuser"}}]]'
+r37_defer_write board-unsigned-marker.json '[[{"body":"prior note <!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->","user":{"login":"github-actions[bot]"}}]]'
 r37_defer_write board-malformed.json '[[{"body":null}]]'
 r37_defer_write comments-stale.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-bot.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"github-actions[bot]"},"body":"This follows later when the build lands."}]]'
 r37_defer_write comments-dispatched.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-11-02T00:00:00Z","user":{"login":"Userfrom1995"},"body":"/oc review"}]]'
+r37_defer_write comments-dispatched-foreign.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-11-02T00:00:00Z","user":{"login":"randomuser"},"body":"/oc review please"}]]'
+r37_defer_write comments-dispatched-quoted.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-11-02T00:00:00Z","user":{"login":"Userfrom1995"},"body":"We will not /oc review this until the branch moves."}]]'
+r37_defer_write comments-dispatched-bare.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-11-02T00:00:00Z","user":{"login":"Userfrom1995"},"body":"/oc"}]]'
 r37_defer_write comments-recent.json '[[{"id":9001,"created_at":"2026-11-24T23:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-old.json '[[{"id":9001,"created_at":"2026-08-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-foreign.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"randomuser"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-malformed.json '{"id":9001}'
 r37_defer_write comments-array-malformed.json '[["not-an-object"]]'
 r37_defer_write comments-bad-date.json '[[{"id":9001,"created_at":"not-a-date","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
+r37_defer_write comments-later-bad-date.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-13-40T99:99:99Z","user":{"login":"Userfrom1995"},"body":"/oc review"}]]'
+r37_defer_write runs-bad-date.json '[{"workflow_runs":[{"id":55,"head_sha":"abc123def4567890","created_at":"not-a-date"}]}]'
+r37_defer_write runs-later-bad-date.json '[{"workflow_runs":[{"id":55,"head_sha":"abc123def4567890","created_at":"2026-13-40T99:99:99Z"}]}]'
 r37_defer_run() {
   r37_dr_name="$1"
   r37_dr_posts_expected="$2"
@@ -36828,6 +36925,7 @@ r37_defer_run() {
   r37_dr_comments_fail="${11:-0}"
   r37_dr_runs_fail="${12:-0}"
   r37_dr_board_fail="${13:-0}"
+  r37_dr_post_fail="${14:-0}"
   r37_dr_run_dir="$r37_defer_dir/run-$r37_dr_name"
   rm -rf "$r37_dr_run_dir"; mkdir -p "$r37_dr_run_dir"
   (
@@ -36838,7 +36936,8 @@ r37_defer_run() {
       MOCK_PRS="$r37_dr_prs" MOCK_RUNS="$r37_dr_runs" MOCK_BOARD="$r37_dr_board" \
       MOCK_COMMENTS="$r37_dr_comments" MOCK_PRS_FAIL="$r37_dr_prs_fail" \
       MOCK_COMMENTS_FAIL="$r37_dr_comments_fail" MOCK_RUNS_FAIL="$r37_dr_runs_fail" \
-      MOCK_BOARD_FAIL="$r37_dr_board_fail" MOCK_POSTS="$r37_dr_run_dir/posts" \
+      MOCK_BOARD_FAIL="$r37_dr_board_fail" MOCK_POST_FAIL="$r37_dr_post_fail" \
+      MOCK_POSTS="$r37_dr_run_dir/posts" \
       MOCK_LAST_BODY="$r37_dr_run_dir/last-body" \
       MOCK_CALLS="$r37_dr_run_dir/calls" \
       bash "$r37_dr_script"
@@ -36869,6 +36968,18 @@ r37_defer_run comments-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-e
 r37_defer_run comments-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-malformed.json"
 r37_defer_run comments-array-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-array-malformed.json"
 r37_defer_run comments-bad-date 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-bad-date.json"
+r37_defer_run dispatched-foreign 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched-foreign.json"
+r37_defer_run dispatched-quoted 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched-quoted.json"
+r37_defer_run dispatched-bare 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched-bare.json"
+r37_defer_run foreign-marker 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-foreign-marker.json" "$r37_defer_dir/comments-stale.json"
+r37_defer_run unsigned-marker 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-unsigned-marker.json" "$r37_defer_dir/comments-stale.json"
+r37_defer_run runs-bad-date 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-bad-date.json"
+r37_defer_run runs-later-bad-date 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-later-bad-date.json"
+r37_defer_run comments-later-bad-date 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-later-bad-date.json"
+r37_defer_run post-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 0 0 0 0 1
+if [ -f "$r37_defer_dir/run-post-fail/stdout" ] && grep -q 'posted re-arm note' "$r37_defer_dir/run-post-fail/stdout" 2>/dev/null; then
+  r37_bad="${r37_bad} deferral-post-fail(false-success)"
+fi
 if [ -f "$r37_defer_dir/run-stale/posts" ]; then
   r37_defer_note=$(cat "$r37_defer_dir/run-stale/last-body" 2>/dev/null || true)
   printf '%s\n' "$r37_defer_note" | grep -qF '<!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->' \
@@ -36922,6 +37033,30 @@ if r37_defer_mutant no-author '    select(((.user.login? // "") == $owner) or ((
   r37_defer_run mut-no-author 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-foreign.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-author.sh"
 else
   r37_bad="${r37_bad} deferral-mutant(no-author-anchor)"
+fi
+if r37_defer_mutant no-trigger-author '      select((.user.login? // "") as $u | ($u == $owner) or ($u | endswith("[bot]"))) |' '      select(true) |'; then
+  r37_defer_run mut-no-trigger-author 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched-foreign.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-trigger-author.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-trigger-author-anchor)"
+fi
+if r37_defer_mutant no-trigger-prefix '      select(.body | test($trigger; "i")) |' '      select(.body | test("(^|[[:space:]])/(oc|opencode)([[:space:]]|$)"; "i")) |'; then
+  r37_defer_run mut-no-trigger-prefix 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched-quoted.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-trigger-prefix.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-trigger-prefix-anchor)"
+fi
+if r37_defer_mutant no-marker-identity '[.[][] |
+       select((.user.login? // "") as $u | ($u == $owner) or ($u | endswith("[bot]"))) |
+       select((.body? // "") | (contains($marker) and contains("- the Auditor")))] | length' '[.[][] |
+       select((.body? // "") | (contains($marker) and contains("- the Auditor")))] | length'; then
+  r37_defer_run mut-no-marker-identity 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-foreign-marker.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-marker-identity.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-marker-identity-anchor)"
+fi
+if r37_defer_mutant no-run-date-check '        echo "::error::deferral-guard: workflow run ${later_rid} on PR #${pr} head ${head:0:12} has an unparseable created_at (${later_run_created})."
+        exit 1' '        continue'; then
+  r37_defer_run mut-no-run-date-check 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-later-bad-date.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-run-date-check.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-run-date-check-anchor)"
 fi
 if r37_defer_mutant no-board-guard 'if ! board=$(bash "$helper"); then
   echo "::error::deferral-guard: health-board helper failed; refusing to post blind."
@@ -37242,7 +37377,7 @@ fi
 rm -rf "$r37_dir"
 case "$r37_bad" in
   "")
-    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4); the #853 silent-deferral re-arm guard is pinned as a scheduled/dispatch-only pre-agent step between the audit and the agent, and its real body is executed against a mock gh with a fixed clock across stale, bot-authored, dispatched, run-covered, duplicate, recent, expired, foreign-authored, malformed, bad-date, and unreadable fixtures (the PR-list, runs, board, and comment reads each have a failure fixture, and array-shaped malformed pages fail closed), with the note carrying a dedupe marker and no trigger token, and no-dispatch/no-run/no-dedupe/no-window/no-author/no-board-guard mutants proving each filter load-bearing (issue #853)" "ok"
+    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4); the #853 silent-deferral re-arm guard is pinned as a scheduled/dispatch-only pre-agent step between the audit and the agent, and its real body is executed against a mock gh with a fixed clock across stale, bot-authored, dispatched, foreign-trigger, quoted-trigger, bare-trigger, run-covered, duplicate, foreign-marker, unsigned-marker, recent, expired, foreign-authored, malformed, bad-date, malformed later-date, post-failure, and unreadable fixtures (the PR-list, runs, board, and comment reads each have a failure fixture, array-shaped malformed pages fail closed, and a failed board post exits 1 with no success line), with the note carrying a dedupe marker and no trigger token, and no-dispatch/no-run/no-dedupe/no-window/no-author/no-trigger-author/no-trigger-prefix/no-marker-identity/no-run-date-check/no-board-guard mutants proving each filter load-bearing (issue #853)" "ok"
     ;;
   *)
     check "R37" "lab-health board selector or the #853 silent-deferral guard split or bypassable:${r37_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail; issue #853: the scheduled deferral guard must fail closed on every board, PR, run, and comment read and post one deduped token-free note per stale promise)" "bad"
