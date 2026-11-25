@@ -1378,7 +1378,7 @@ personality, CHANGELOG) is direct-commit.
 | `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the agent step runs 150 minutes under a 180-minute job so the post-agent chain always has headroom (issue #701); the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
-| `auditor.yml` | The Auditor: daily schedule, manual dispatch, or `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the universal `Lab Health & Audit Logs` board (only it carries `lab-health`), opens bug issues |
+| `auditor.yml` | The Auditor: daily schedule, manual dispatch, or `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the universal `Lab Health & Audit Logs` board (only it carries `lab-health`), opens bug issues; before the agent it runs the #853 silent-deferral re-arm guard over open PRs and posts one deduped signed note when a promise went stale |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`; the workflow posts the signed verdict as an owner-PAT comment, publishes the canonical `eval-verdict: approve-eval` marker for the PAT merge sweep on approval (issue #713), and its hardcoded PAT step hands off with `/oc maintainer`; the Maintainer decides merge, fix, or lab |
 | `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); after the agent, each arm strips leaked owner trailers and enforces the project test-lane scope before the decision forward (issue #798); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
@@ -2387,12 +2387,36 @@ remote tip).
   continue from the issue's newest open PR head, curator from the PR head),
   while issue lanes use the current UTC day. An unreadable head leaves
   `scope_since` empty, skips enumeration, and the existing empty-counter
-  branch fails closed loudly instead of falling back to zero. R19 adds
-  stale-head, mixed-head, and head-read-failure fixtures; R20 pins every
-  scope argument, filter, and assignment and executes a previous-day payload
-  that must read 0; R28 pins the phase and build bodies plus dropped and
-  constant scope mutants; R32 executes the fix lane's stale, mixed, and
-  head-failure matrix.
+  branch fails closed loudly instead of falling back to zero. The
+  enumeration payload is captured first (`enum_payload=$(...) ||
+  enum_payload=""`) so an HTTP error body can never become a zero, the
+  `read_scope_date` helper parses with `jq -e` instead of swallowing a
+  failed read (`--jq ... || true`), and the continue lane keeps its
+  successful-empty plain-issue day fallback while a failed head read does
+  not. R19 adds stale-head, mixed-head, wall-death-after-fresh-head, and
+  head-read-failure fixtures; R20 pins every scope argument, filter,
+  assignment, fail-closed helper, and whole continue/curator wrapper, and
+  executes a previous-day payload that must read 0 plus an HTTP-error-body
+  fixture that must read empty; R28 pins the phase and build bodies plus
+  dropped and constant scope mutants; R32 executes the fix lane's stale,
+  mixed, wall-after-fresh-head, and head-failure matrix.
+- Silent deferrals are re-armed (issue #853): a comment that promised a
+  follow-up "in the next window" had no owner, date, or guard, so issue
+  #745 sat orphaned for 23 days after exactly such a promise. The
+  Auditor's scheduled/dispatch arm now runs
+  `.github/scripts/deferral-guard.sh` before the agent. It resolves the
+  universal board through the shared title-first helper, scans open PRs
+  for owner/bot deferral comments, treats a promise as stale only when it
+  is older than the 6-hour window and no later trigger comment and no
+  later workflow run covers that PR, dedupes on a per-PR/head/comment
+  marker, and posts one signed `- the Auditor` note per stale promise
+  carrying no trigger token. Every board, PR, run, and comment read fails
+  closed, and the step is schedule/dispatch-only. R37 pins the step and
+  executes the real body against a mock `gh` with a fixed clock across
+  stale, bot-authored, dispatched, run-covered, duplicate, recent,
+  expired, foreign-authored, malformed, and unreadable fixtures, with
+  no-dispatch, no-run, no-dedupe, no-window, no-author, and no-board-guard
+  mutants proving each filter load-bearing.
 - The PAT merge sweep only merges a workflow-touching PR on a shape-anchored,
   head-bound tester verdict (issue #619): an unanchored substring match let a
   Maintainer decisions summary that merely quoted the tester marker while
