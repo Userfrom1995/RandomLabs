@@ -683,15 +683,27 @@ jobs:
             # earlier heads, so a crash on a new head could never auto-retry.
             # The head commit's committer date is the push boundary; a failed
             # read leaves scope_since empty and fails closed below.
-            scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq '.commit.committer.date' 2>/dev/null || true)
+            read_scope_date() {
+              local payload since
+              payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+              since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+              case "$since" in
+                [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+                *) return 1 ;;
+              esac
+              [ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+              printf '%s' "$since"
+            }
+            scope_since=$(read_scope_date "${{ steps.pr-info.outputs.head_oid }}") || scope_since=""
             # Robust retry counter: never fall back to 0 on an API/rate-limit
             # failure, which would make the cap never trip and loop forever.
             # Only count retries the API actually returned; on enumeration
             # failure, stop retrying - mirrors opencode.yml build/fix parity.
             retries=""
             if [ -n "$scope_since" ]; then
-              retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
-                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+              enum_payload=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+              retries=$(printf '%s' "$enum_payload" \
+                | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
             fi
             if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
               echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
