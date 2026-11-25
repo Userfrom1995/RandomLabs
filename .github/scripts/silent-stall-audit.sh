@@ -36752,10 +36752,13 @@ r37_defer_write board-fail.sh 'printf "%s\n" 70
 exit 1'
 r37_defer_write prs.json '[[{"number":745,"state":"open","head":{"sha":"abc123def4567890"}}]]'
 r37_defer_write prs-malformed.json '{"number":745}'
+r37_defer_write prs-array-malformed.json '[[{"state":"open"}]]'
 r37_defer_write runs-empty.json '[{"workflow_runs":[]}]'
 r37_defer_write runs-covered.json '[{"workflow_runs":[{"id":55,"head_sha":"abc123def4567890","created_at":"2026-11-02T00:00:00Z"}]}]'
+r37_defer_write runs-malformed.json '[{"workflow_runs":[{"id":55}]}]'
 r37_defer_write board-empty.json '[[]]'
 r37_defer_write board-dup.json '[[{"body":"prior note <!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->"}]]'
+r37_defer_write board-malformed.json '[[{"body":null}]]'
 r37_defer_write comments-stale.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-bot.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"github-actions[bot]"},"body":"This follows later when the build lands."}]]'
 r37_defer_write comments-dispatched.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-11-02T00:00:00Z","user":{"login":"Userfrom1995"},"body":"/oc review"}]]'
@@ -36763,6 +36766,8 @@ r37_defer_write comments-recent.json '[[{"id":9001,"created_at":"2026-11-24T23:0
 r37_defer_write comments-old.json '[[{"id":9001,"created_at":"2026-08-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-foreign.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"randomuser"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_write comments-malformed.json '{"id":9001}'
+r37_defer_write comments-array-malformed.json '[["not-an-object"]]'
+r37_defer_write comments-bad-date.json '[[{"id":9001,"created_at":"not-a-date","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
 r37_defer_run() {
   r37_dr_name="$1"
   r37_dr_posts_expected="$2"
@@ -36775,6 +36780,8 @@ r37_defer_run() {
   r37_dr_script="${9:-$r37_defer_script}"
   r37_dr_prs_fail="${10:-0}"
   r37_dr_comments_fail="${11:-0}"
+  r37_dr_runs_fail="${12:-0}"
+  r37_dr_board_fail="${13:-0}"
   r37_dr_run_dir="$r37_defer_dir/run-$r37_dr_name"
   rm -rf "$r37_dr_run_dir"; mkdir -p "$r37_dr_run_dir"
   (
@@ -36784,7 +36791,8 @@ r37_defer_run() {
       DEFERRAL_NOW_EPOCH="$r37_defer_now" DEFERRAL_BOARD_HELPER="$r37_dr_helper" \
       MOCK_PRS="$r37_dr_prs" MOCK_RUNS="$r37_dr_runs" MOCK_BOARD="$r37_dr_board" \
       MOCK_COMMENTS="$r37_dr_comments" MOCK_PRS_FAIL="$r37_dr_prs_fail" \
-      MOCK_COMMENTS_FAIL="$r37_dr_comments_fail" MOCK_POSTS="$r37_dr_run_dir/posts" \
+      MOCK_COMMENTS_FAIL="$r37_dr_comments_fail" MOCK_RUNS_FAIL="$r37_dr_runs_fail" \
+      MOCK_BOARD_FAIL="$r37_dr_board_fail" MOCK_POSTS="$r37_dr_run_dir/posts" \
       MOCK_LAST_BODY="$r37_dr_run_dir/last-body" \
       MOCK_CALLS="$r37_dr_run_dir/calls" \
       bash "$r37_dr_script"
@@ -36805,9 +36813,16 @@ r37_defer_run expired 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.j
 r37_defer_run foreign-author 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-foreign.json"
 r37_defer_run board-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-fail.sh"
 r37_defer_run prs-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 1 0
+r37_defer_run runs-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 0 0 1 0
+r37_defer_run board-comments-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 0 0 0 1
 r37_defer_run prs-malformed 0 1 "$r37_defer_dir/prs-malformed.json"
+r37_defer_run prs-array-malformed 0 1 "$r37_defer_dir/prs-array-malformed.json"
+r37_defer_run runs-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-malformed.json"
+r37_defer_run board-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-malformed.json"
 r37_defer_run comments-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 0 1
 r37_defer_run comments-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-malformed.json"
+r37_defer_run comments-array-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-array-malformed.json"
+r37_defer_run comments-bad-date 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-bad-date.json"
 if [ -f "$r37_defer_dir/run-stale/posts" ]; then
   r37_defer_note=$(cat "$r37_defer_dir/run-stale/last-body" 2>/dev/null || true)
   printf '%s\n' "$r37_defer_note" | grep -qF '<!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->' \
@@ -36844,8 +36859,7 @@ if r37_defer_mutant no-run '    if [ -n "$later_run" ]; then
 else
   r37_bad="${r37_bad} deferral-mutant(no-run-anchor)"
 fi
-if r37_defer_mutant no-dedupe '    if printf '"'"'%s'"'"' "$board_payload" | jq -e --arg marker "$marker" \
-      '"'"'[.[][] | select(.body | contains($marker))] | length > 0'"'"' >/dev/null 2>&1; then
+if r37_defer_mutant no-dedupe '    if [ "${dedupe_hits:-0}" -gt 0 ] 2>/dev/null; then
       echo "deferral-guard: PR #${pr} deferral ${cid} already re-armed."
       continue
     fi' '    :'; then
@@ -36858,7 +36872,7 @@ if r37_defer_mutant no-window '    if [ "$age" -lt "$window_seconds" ] || [ "$ag
 else
   r37_bad="${r37_bad} deferral-mutant(no-window-anchor)"
 fi
-if r37_defer_mutant no-author '    select((.user.login == $owner) or (.user.login | endswith("[bot]"))) |' '    select(true) |'; then
+if r37_defer_mutant no-author '    select(((.user.login? // "") == $owner) or ((.user.login? // "") | endswith("[bot]"))) |' '    select(true) |'; then
   r37_defer_run mut-no-author 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-foreign.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-author.sh"
 else
   r37_bad="${r37_bad} deferral-mutant(no-author-anchor)"
@@ -37182,10 +37196,10 @@ fi
 rm -rf "$r37_dir"
 case "$r37_bad" in
   "")
-    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4); the #853 silent-deferral re-arm guard is pinned as a scheduled/dispatch-only pre-agent step between the audit and the agent, and its real body is executed against a mock gh with a fixed clock across stale, bot-authored, dispatched, run-covered, duplicate, recent, expired, foreign-authored, malformed, and unreadable fixtures, with the note carrying a dedupe marker and no trigger token, and no-dispatch/no-run/no-dedupe/no-window/no-author/no-board-guard mutants proving each filter load-bearing (issue #853)" "ok"
+    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4); the #853 silent-deferral re-arm guard is pinned as a scheduled/dispatch-only pre-agent step between the audit and the agent, and its real body is executed against a mock gh with a fixed clock across stale, bot-authored, dispatched, run-covered, duplicate, recent, expired, foreign-authored, malformed, bad-date, and unreadable fixtures (the PR-list, runs, board, and comment reads each have a failure fixture, and array-shaped malformed pages fail closed), with the note carrying a dedupe marker and no trigger token, and no-dispatch/no-run/no-dedupe/no-window/no-author/no-board-guard mutants proving each filter load-bearing (issue #853)" "ok"
     ;;
   *)
-    check "R37" "lab-health board selector split or bypassable:${r37_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"
+    check "R37" "lab-health board selector or the #853 silent-deferral guard split or bypassable:${r37_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail; issue #853: the scheduled deferral guard must fail closed on every board, PR, run, and comment read and post one deduped token-free note per stale promise)" "bad"
     ;;
 esac
 

@@ -72,15 +72,33 @@ prs_payload=$(gh api "repos/${repo}/pulls?state=open&per_page=${max_prs}" --pagi
   echo "::error::deferral-guard: could not list open PRs for ${repo}."
   exit 1
 }
-printf '%s' "$prs_payload" | jq -e 'type == "array"' >/dev/null 2>&1 || {
-  echo "::error::deferral-guard: open PR payload was not a JSON array."
+printf '%s' "$prs_payload" | jq -e '
+  type == "array" and
+  all(.[]; type == "array" and
+    all(.[]; type == "object" and
+      (.state | type) == "string" and
+      (if .state == "open" then
+         ((.number | type) == "number") and
+         ((.head | type) == "object") and
+         ((.head.sha | type) == "string") and
+         ((.head.sha | length) > 0)
+       else true end)))
+' >/dev/null 2>&1 || {
+  echo "::error::deferral-guard: open PR payload was not a valid page array with open-PR head SHAs."
   exit 1
 }
 runs_payload=$(gh api "repos/${repo}/actions/runs?per_page=100" --paginate --slurp 2>/dev/null) || {
   echo "::error::deferral-guard: could not list workflow runs for ${repo}."
   exit 1
 }
-printf '%s' "$runs_payload" | jq -e 'type == "array" and all(.[]; type == "object" and has("workflow_runs"))' >/dev/null 2>&1 || {
+printf '%s' "$runs_payload" | jq -e '
+  type == "array" and
+  all(.[]; type == "object" and
+    (.workflow_runs | type) == "array" and
+    all(.workflow_runs[]; type == "object" and
+      (.head_sha | type) == "string" and
+      (.created_at | type) == "string"))
+' >/dev/null 2>&1 || {
   echo "::error::deferral-guard: workflow-run payload was not a valid page array."
   exit 1
 }
@@ -88,13 +106,20 @@ board_payload=$(gh api "repos/${repo}/issues/${board}/comments?per_page=100" --p
   echo "::error::deferral-guard: could not read board #${board} comments."
   exit 1
 }
-printf '%s' "$board_payload" | jq -e 'type == "array"' >/dev/null 2>&1 || {
-  echo "::error::deferral-guard: board comment payload was not a JSON array."
+printf '%s' "$board_payload" | jq -e '
+  type == "array" and
+  all(.[]; type == "array" and
+    all(.[]; type == "object" and (.body | type) == "string"))
+' >/dev/null 2>&1 || {
+  echo "::error::deferral-guard: board comment payload was not a valid page array."
   exit 1
 }
 
 posted=0
-pr_rows=$(printf '%s' "$prs_payload" | jq -r '.[][] | select(.state == "open") | [.number, .head.sha] | @tsv' 2>/dev/null) || pr_rows=""
+pr_rows=$(printf '%s' "$prs_payload" | jq -r '.[][] | select(.state == "open") | [.number, .head.sha] | @tsv') || {
+  echo "::error::deferral-guard: open PR payload could not be parsed."
+  exit 1
+}
 
 while IFS=$'\t' read -r pr head; do
   [ -n "$pr" ] || continue
@@ -103,40 +128,67 @@ while IFS=$'\t' read -r pr head; do
     echo "::error::deferral-guard: could not read comments on PR #${pr}; refusing to guess."
     exit 1
   }
-  printf '%s' "$comments" | jq -e 'type == "array"' >/dev/null 2>&1 || {
-    echo "::error::deferral-guard: comment payload for PR #${pr} was not a JSON array."
+  printf '%s' "$comments" | jq -e '
+    type == "array" and
+    all(.[]; type == "array" and
+      all(.[]; type == "object" and
+        (.id | type) == "number" and
+        (.body | type) == "string" and
+        (.created_at | type) == "string" and
+        ((.user == null) or
+          ((.user | type) == "object" and (.user.login | type) == "string"))))
+  ' >/dev/null 2>&1 || {
+    echo "::error::deferral-guard: comment payload for PR #${pr} was not a valid page array."
     exit 1
   }
   deferrals=$(printf '%s' "$comments" | jq -r --arg owner "$owner" --arg re "$deferral_re" '
     .[][] |
-    select((.user.login == $owner) or (.user.login | endswith("[bot]"))) |
+    select(((.user.login? // "") == $owner) or ((.user.login? // "") | endswith("[bot]"))) |
     select(.body | test($re; "i")) |
     [.id, .created_at, .user.login] | @tsv
-  ' 2>/dev/null) || deferrals=""
+  ') || {
+    echo "::error::deferral-guard: comments on PR #${pr} could not be parsed."
+    exit 1
+  }
   [ -n "$deferrals" ] || continue
   while IFS=$'\t' read -r cid created login; do
     [ -n "$cid" ] || continue
-    deferral_epoch=$(date -u -d "$created" +%s 2>/dev/null) || continue
+    if ! deferral_epoch=$(date -u -d "$created" +%s 2>/dev/null); then
+      echo "::error::deferral-guard: deferral comment ${cid} on PR #${pr} has an unparseable created_at (${created})."
+      exit 1
+    fi
     age=$((now_epoch - deferral_epoch))
     if [ "$age" -lt "$window_seconds" ] || [ "$age" -gt "$max_age_seconds" ]; then
       continue
     fi
-    later_comment=$(printf '%s' "$comments" | jq -r --arg since "$created" '
+    later_comment_ids=$(printf '%s' "$comments" | jq -r --arg since "$created" '
       .[][] | select(.created_at > $since) |
       select(.body | test("(^|[[:space:]])/(oc|opencode)([[:space:]]|$)"; "i")) | .id
-    ' 2>/dev/null | head -n 1)
+    ') || {
+      echo "::error::deferral-guard: could not compare later comments on PR #${pr}."
+      exit 1
+    }
+    later_comment=$(printf '%s\n' "$later_comment_ids" | head -n 1)
     if [ -n "$later_comment" ]; then
       continue
     fi
-    later_run=$(printf '%s' "$runs_payload" | jq -r --arg head "$head" --arg since "$created" '
-      .[] | .workflow_runs[]? | select(.head_sha == $head) | select(.created_at > $since) | .id
-    ' 2>/dev/null | head -n 1)
+    later_run_ids=$(printf '%s' "$runs_payload" | jq -r --arg head "$head" --arg since "$created" '
+      .[] | .workflow_runs[] | select(.head_sha == $head) | select(.created_at > $since) | .id
+    ') || {
+      echo "::error::deferral-guard: could not compare later runs for PR #${pr}."
+      exit 1
+    }
+    later_run=$(printf '%s\n' "$later_run_ids" | head -n 1)
     if [ -n "$later_run" ]; then
       continue
     fi
     marker="<!-- deferral-rearm:pr-${pr}-head-${head}-comment-${cid} -->"
-    if printf '%s' "$board_payload" | jq -e --arg marker "$marker" \
-      '[.[][] | select(.body | contains($marker))] | length > 0' >/dev/null 2>&1; then
+    dedupe_hits=$(printf '%s' "$board_payload" | jq -r --arg marker "$marker" \
+      '[.[][] | select((.body? // "") | contains($marker))] | length') || {
+      echo "::error::deferral-guard: could not read the board ledger."
+      exit 1
+    }
+    if [ "${dedupe_hits:-0}" -gt 0 ] 2>/dev/null; then
       echo "deferral-guard: PR #${pr} deferral ${cid} already re-armed."
       continue
     fi
@@ -152,7 +204,10 @@ ${marker}
       exit 1
     fi
     posted=$((posted + 1))
-    board_payload=$(printf '%s' "$board_payload" | jq --arg body "$note" '. + [[{body: $body}]]' 2>/dev/null) || board_payload=""
+    board_payload=$(printf '%s' "$board_payload" | jq --arg body "$note" '. + [[{body: $body}]]') || {
+      echo "::error::deferral-guard: could not update the board ledger after posting."
+      exit 1
+    }
     echo "deferral-guard: posted re-arm note for PR #${pr} (comment ${cid}) to board #${board}."
   done <<< "$deferrals"
 done <<< "$pr_rows"
