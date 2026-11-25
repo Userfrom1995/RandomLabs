@@ -1341,19 +1341,28 @@ jobs:
             fi
             if [ -z "$heals" ] || ! [ "$heals" -eq "$heals" ] 2>/dev/null; then
               echo "Could not enumerate prior auto-heals (API/rate-limit). Handing off to Maintainer."
-              gh issue comment "$issue" --repo "${{ github.repository }}" \
-                --body "/oc maintainer" 2>/dev/null || true
+              if ! gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc maintainer"; then
+                echo "::error::Could not post the Maintainer handoff for issue #$issue; failing closed."
+                exit 1
+              fi
               exit 0
             fi
             if [ "$heals" -lt 2 ]; then
               n=$((heals + 1))
               echo "Self-healing: re-dispatching /oc continue (auto-heal $n)"
-              gh issue comment "$issue" --repo "${{ github.repository }}" \
-                --body "/oc continue (auto-heal $n)" 2>/dev/null || true
+              if ! gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc continue (auto-heal $n)"; then
+                echo "::error::Could not post the continue auto-heal handoff for issue #$issue; failing closed."
+                exit 1
+              fi
             else
               echo "Build no-op'd $heals times; handing off to Maintainer (/oc maintainer)."
-              gh issue comment "$issue" --repo "${{ github.repository }}" \
-                --body "/oc maintainer" 2>/dev/null || true
+              if ! gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc maintainer"; then
+                echo "::error::Could not post the Maintainer handoff for issue #$issue; failing closed."
+                exit 1
+              fi
             fi
           fi
           exit 0
