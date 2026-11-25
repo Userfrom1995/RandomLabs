@@ -10317,18 +10317,25 @@ if grep -qE -- "--jq '\''\.commit\.committer\.date'\'' 2>/dev/null \|\| true" .g
   r20_bad="${r20_bad} scope-read-still-swallows-failure"
 fi
 # Issue #803 round 1: the continue and curator scope wrappers are pinned
-# whole. A failed resolver or head read leaves scope_since empty and fails
-# closed; only a successful plain-issue (or successful-empty continue)
-# result may fall back to the current UTC day.
+# whole, including the fail-closed `scope_since=""` initializer. A failed
+# resolver or head read leaves scope_since empty and fails closed; only a
+# successful plain-issue (or successful-empty continue) result may fall
+# back to the current UTC day. Mutation self-tests below rewrite each
+# initializer to the day assignment and require the pin to turn red.
 r20_block_of() {
-  local file="$1" start="$2" end_pat="$3" a b
+  local file="$1" start="$2" end_pat="$3" include_prev="${4:-}" a b
   a=$(sed 's/^[[:space:]]*//' "$file" 2>/dev/null | grep -nxF -- "$start" | head -1 | cut -d: -f1)
   [ -n "$a" ] || return 1
+  if [ "$include_prev" = "prev" ]; then
+    [ "$a" -gt 1 ] || return 1
+    a=$((a - 1))
+  fi
   b=$(awk -v s="$a" -v e="$end_pat" 'NR > s && $0 ~ e { print NR; exit }' "$file")
   [ -n "$b" ] || return 1
   sed -n "${a},${b}p" "$file" | sed 's/^[[:space:]]*//'
 }
 r20_cont_want=$(cat <<'R20_CONT'
+scope_since=""
 if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \
 --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null); then
 if [ -n "$heal_head" ] && [ "$heal_head" != "null" ]; then
@@ -10339,9 +10346,10 @@ fi
 fi
 R20_CONT
 )
-r20_cont_got=$(r20_block_of .github/workflows/opencode.yml 'if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \' '^            fi$') || r20_cont_got=""
+r20_cont_got=$(r20_block_of .github/workflows/opencode.yml 'if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \' '^            fi$' prev) || r20_cont_got=""
 [ "$r20_cont_got" = "$r20_cont_want" ] || r20_bad="${r20_bad} opencode.yml(continue-scope-wrapper-changed)"
 r20_cur_want=$(cat <<'R20_CUR'
+scope_since=""
 if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then
 if curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null); then
 if [ -n "$curate_head" ] && [ "$curate_head" != "null" ]; then
@@ -10353,8 +10361,46 @@ scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
 fi
 R20_CUR
 )
-r20_cur_got=$(r20_block_of .github/workflows/curator.yml 'if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then' '^            fi$') || r20_cur_got=""
+r20_cur_got=$(r20_block_of .github/workflows/curator.yml 'if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then' '^            fi$' prev) || r20_cur_got=""
 [ "$r20_cur_got" = "$r20_cur_want" ] || r20_bad="${r20_bad} curator.yml(scope-wrapper-changed)"
+r20_mut_dir=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r20_mut_dir" ] || [ ! -d "$r20_mut_dir" ]; then
+  r20_bad="${r20_bad} wrapper-mutant(sandbox-unavailable)"
+else
+  python3 - .github/workflows/opencode.yml "$r20_mut_dir/opencode.yml" <<'R20_MUT_CONT'
+import sys
+src, dst = sys.argv[1:3]
+text = open(src, encoding='utf-8').read()
+old = '            scope_since=""\n            if heal_head=$(gh pr list'
+new = '            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)\n            if heal_head=$(gh pr list'
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R20_MUT_CONT
+  if [ -f "$r20_mut_dir/opencode.yml" ]; then
+    r20_cont_mut=$(r20_block_of "$r20_mut_dir/opencode.yml" 'if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \' '^            fi$' prev) || r20_cont_mut=""
+    [ "$r20_cont_mut" != "$r20_cont_want" ] || r20_bad="${r20_bad} opencode.yml(continue-initializer-mutation-not-caught)"
+  else
+    r20_bad="${r20_bad} opencode.yml(continue-initializer-mutant-anchor)"
+  fi
+  python3 - .github/workflows/curator.yml "$r20_mut_dir/curator.yml" <<'R20_MUT_CUR'
+import sys
+src, dst = sys.argv[1:3]
+text = open(src, encoding='utf-8').read()
+old = '            scope_since=""\n            if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then'
+new = '            scope_since=$(date -u +%Y-%m-%dT00:00:00Z)\n            if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then'
+if old not in text:
+    raise SystemExit('anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R20_MUT_CUR
+  if [ -f "$r20_mut_dir/curator.yml" ]; then
+    r20_cur_mut=$(r20_block_of "$r20_mut_dir/curator.yml" 'if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then' '^            fi$' prev) || r20_cur_mut=""
+    [ "$r20_cur_mut" != "$r20_cur_want" ] || r20_bad="${r20_bad} curator.yml(initializer-mutation-not-caught)"
+  else
+    r20_bad="${r20_bad} curator.yml(initializer-mutant-anchor)"
+  fi
+  rm -rf "$r20_mut_dir"
+fi
 r20_day_assign=$(sed 's/^[[:space:]]*//' .github/workflows/opencode.yml 2>/dev/null | grep -cxF 'scope_since=$(date -u +%Y-%m-%dT00:00:00Z)' || true)
 [ "${r20_day_assign:-0}" -ge 8 ] || r20_bad="${r20_bad} opencode.yml(day-scope-assignment-count=${r20_day_assign:-0},want>=8)"
 r20_cur_day_assign=$(sed 's/^[[:space:]]*//' .github/workflows/curator.yml 2>/dev/null | grep -cxF 'scope_since=$(date -u +%Y-%m-%dT00:00:00Z)' || true)
@@ -10474,7 +10520,7 @@ R20_MOCK
   fi
 fi
 if [ -z "$r20_bad" ]; then
-  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); every auto-retry/auto-heal counter is incident-scoped with --arg since \$scope_since and .created_at > \$since, the previous-day fixture reads 0, an HTTP error body yields an empty (fail-closed) count from every incident-scoped counter, every read_scope_date helper captures the payload before parsing with jq -e, the continue and curator scope wrappers are pinned whole, and every lane derives scope_since from the head commit date or the current UTC day (issue #803); no unpaginated issue-comment read remains (issue #621)" "ok"
+  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); every auto-retry/auto-heal counter is incident-scoped with --arg since \$scope_since and .created_at > \$since, the previous-day fixture reads 0, an HTTP error body yields an empty (fail-closed) count from every incident-scoped counter, every read_scope_date helper captures the payload before parsing with jq -e, the continue and curator scope wrappers are pinned whole including their fail-closed scope_since initializers, with mutation self-tests proving each initializer is load-bearing, and every lane derives scope_since from the head commit date or the current UTC day (issue #803); no unpaginated issue-comment read remains (issue #621)" "ok"
 else
   check "R20" "paginated comment-read guard missing:${r20_bad} (issue #621: an unpaginated read sees only the oldest 30 comments, the cap reads 0, and a crash loop re-posts retry 1 forever)" "bad"
 fi
@@ -29877,7 +29923,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone; and issue #803 extends the fix matrix to stale-head, mixed-head, wall-after-fresh-head, and head-read-failure fixtures proving retries posted before the current head's push restart the budget at 1, mixed heads count only fresh retries, a fresh head that already burned its own three retries still trips the cap, and an unreadable head fails closed without posting)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone; and issue #803 extends the fix matrix with stale-head, mixed-head, and head-read-failure fixtures (the pre-existing cap scenario covers wall-death-after-fresh-head) proving retries posted before the current head's push restart the budget at 1, mixed heads count only fresh retries, a fresh head that already burned its own three retries still trips the cap, and an unreadable head fails closed without posting)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, the per-OS forwarders could post /oc fix on a closed PR, a prefixed second live_pr/linked_pr binding or a live_state override could restore a wrong-target or dead close check, and a linked-issue handoff could land on the issue thread; the pre-fix unguarded shapes are the regression)" "bad"
