@@ -9492,7 +9492,7 @@ else
     r19_crset_line=$(r19_line 'crash_signature="true"')
     r19_unpubl_line=$(r19_line 'if [ "$unpublished_verdict" = "true" ]; then')
     r19_crash_line=$(r19_line 'if [ "$crash_signature" = "true" ]; then')
-    r19_retries_line=$(r19_line 'retries=$(gh api')
+    r19_retries_line=$(r19_line 'enum_payload=$(gh api')
     # Issue #713 round 17 (B4/B5): the owner-PAT report publisher must stay
     # actor-gated (a denied comment must never reach an owner-PAT post) and
     # must execute the workflow-commit script from memory through a pipe. A
@@ -9561,7 +9561,11 @@ else
     # as `--arg since` and excludes comments at or before it. A failed head
     # read leaves scope_since empty and the enumeration is skipped, so the
     # existing empty-retries branch fails closed.
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq '\''.commit.committer.date'\'' 2>/dev/null || true)' || r19_bad="${r19_bad} review.yml(head-scope-not-bound)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1' || r19_bad="${r19_bad} review.yml(head-scope-read-not-fail-closed)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'since=$(printf '\''%s'\'' "$payload" | jq -er '\''.commit.committer.date'\'' 2>/dev/null) || return 1' || r19_bad="${r19_bad} review.yml(head-scope-jq-not-fail-closed)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'scope_since=$(read_scope_date "${{ steps.pr-info.outputs.head_oid }}") || scope_since=""' || r19_bad="${r19_bad} review.yml(head-scope-not-bound)"
+    printf '%s\n' "$r19_verify_block" | grep -qE 'commit\.committer\.date.*\|\| true' && r19_bad="${r19_bad} review.yml(scope-read-swallows-failure)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'enum_payload=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""' || r19_bad="${r19_bad} review.yml(enumeration-not-captured-first)"
     printf '%s\n' "$r19_verify_block" | grep -qF -- '--arg since "$scope_since"' || r19_bad="${r19_bad} review.yml(scope-arg-missing)"
     printf '%s\n' "$r19_verify_block" | grep -qF 'select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)' || r19_bad="${r19_bad} review.yml(counter-predicate-weakened)"
     printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'pr="${{ github.event.issue.number }}"' || r19_bad="${r19_bad} review.yml(pr-not-bound-to-event)"
@@ -9968,7 +9972,7 @@ case "$*" in
       echo "mock gh: head read failure" >&2
       exit 1
     fi
-    printf '%s\n' "${R19P_HEAD_DATE:-2026-10-18T00:00:00Z}"
+    printf '{"commit":{"committer":{"date":"%s"}}}\n' "${R19P_HEAD_DATE:-2026-10-18T00:00:00Z}"
     ;;
   *"repos/mockrepo/issues/614/comments"*"--paginate --slurp"*)
     if [ "${R19P_ENUM_FAIL:-0}" = "1" ]; then
@@ -10008,6 +10012,11 @@ R19P_GH
           # Two from the earlier incident plus one posted after the current
           # head's push: only the fresh one counts, so the next retry is 2.
           printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T00:30:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p-mixed-head.json"
+          # A head that has already burned all three of its own retries on top
+          # of three from an earlier incident: scoping must not reset the wall
+          # on the fresh head (fresh count is 3, so the cap trips), and the
+          # stale retries must not inflate the fresh count either.
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-17T19:02:00Z","body":"/oc review (auto-retry 3)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T00:10:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T00:20:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T00:30:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p-wall-after-fresh.json"
           # F4 (review round 1): negative controls for the retry counter's
           # author filter and marker anchor. The foreign marker is canonical
           # but authored by a non-owner; the embedded marker is owner-authored
@@ -10105,6 +10114,7 @@ R19P_GH
           # (mixed head -> retry 2) and a failed head read fails closed.
           r19p_case success-unpublished-stale-head 0 1 success 1 0 "$r19p_tmp/p-stale-head.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
           r19p_case success-unpublished-mixed-head 0 1 success 1 0 "$r19p_tmp/p-mixed-head.json" 0 "/oc review (auto-retry 2)" true "Posting auto-retry 2" "" 1
+          r19p_case wall-death-after-fresh-head 1 1 failure 0 0 "$r19p_tmp/p-wall-after-fresh.json" 0 "" true "still dead after 4 attempts"
           r19p_case head-scope-failure 1 1 failure 0 0 "$r19p_tmp/p0.json" 0 "" true "Could not enumerate" "" 0 OPEN 0 1
           r19p_case success-unpublished-foreign-marker 0 1 success 1 0 "$r19p_tmp/p-foreign.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
           r19p_case success-unpublished-embedded-marker 0 1 success 1 0 "$r19p_tmp/p-embedded.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
@@ -10138,7 +10148,7 @@ else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, incident-scoped counter predicate including the head-commit-date scope_since assignment and --arg since, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report containing a command trigger or the eval merge marker in any line, including plain, backticked, trailing-space, and suffix-punctuation forms (issues #713 round 19, #798 round 17; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3, plus head-bound fixtures proving pre-head retries restart at 1, mixed head counts only fresh retries, and a failed head read fails closed (issue #803) (issues #616, #637)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, incident-scoped counter predicate including the head-commit-date scope_since assignment and --arg since, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report containing a command trigger or the eval merge marker in any line, including plain, backticked, trailing-space, and suffix-punctuation forms (issues #713 round 19, #798 round 17; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3, plus head-bound fixtures proving pre-head retries restart at 1, mixed head counts only fresh retries, a fresh head that already burned its own three retries still trips the wall, and a failed head read or a swallowed error body fails closed through the payload-first jq -e helper (issue #803 round 1) (issues #616, #637)" "ok"
 else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
@@ -10189,8 +10199,12 @@ r20_snips_of() {
       if ($0 ~ /\|\|[ \t]*(true|echo)/) { printf "%s%c", buf, 0; buf=""; next }
       collecting = 1; next
     }
+    /^[ \t]*enum_payload=[$][(]gh api/ {
+      buf = $0 "\n"; collecting = 1; next
+    }
     collecting {
       buf = buf $0 "\n"
+      if ($0 ~ /[)] \|\| (retries|heals|recent|approval_comments)=""/) { printf "%s%c", buf, 0; collecting = 0; buf=""; next }
       if ($0 ~ /\|\|[ \t]*(true|echo)/) { printf "%s%c", buf, 0; collecting = 0; buf="" }
     }
   ' "$1" 2>/dev/null || true
@@ -10260,11 +10274,11 @@ while IFS='|' read -r r20_sf r20_sline; do
   fi
   sed 's/^[[:space:]]*//' "$r20_sf" | grep -qxF "$r20_sline" || r20_bad="${r20_bad} ${r20_sf}(missing-scope-assignment:${r20_sline%%=*})"
 done <<'R20_SCOPE'
-.github/workflows/opencode-review.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq '.commit.committer.date' 2>/dev/null || true)
-.github/workflows/opencode.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$head_after" --jq '.commit.committer.date' 2>/dev/null || true)
-.github/workflows/opencode.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$target_head" --jq '.commit.committer.date' 2>/dev/null || true)
-.github/workflows/opencode.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$heal_head" --jq '.commit.committer.date' 2>/dev/null || true)
-.github/workflows/curator.yml|scope_since=$(gh api "repos/${{ github.repository }}/commits/$curate_head" --jq '.commit.committer.date' 2>/dev/null || true)
+.github/workflows/opencode-review.yml|scope_since=$(read_scope_date "${{ steps.pr-info.outputs.head_oid }}") || scope_since=""
+.github/workflows/opencode.yml|scope_since=$(read_scope_date "$head_after") || scope_since=""
+.github/workflows/opencode.yml|scope_since=$(read_scope_date "$target_head") || scope_since=""
+.github/workflows/opencode.yml|scope_since=$(read_scope_date "$heal_head") || scope_since=""
+.github/workflows/curator.yml|scope_since=$(read_scope_date "$curate_head") || scope_since=""
 R20_SCOPE
 # The head resolvers for the two lanes without a whole-body pin elsewhere
 # (continue and curator) are pinned too: deleting one leaves scope_since empty
@@ -10274,10 +10288,73 @@ while IFS='|' read -r r20_sf r20_sline; do
   [ -n "$r20_sf" ] || continue
   sed 's/^[[:space:]]*//' "$r20_sf" | grep -qxF -- "$r20_sline" || r20_bad="${r20_bad} ${r20_sf}(missing-head-resolution:${r20_sline%%=*})"
 done <<'R20_HEADS'
-.github/workflows/opencode.yml|heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,headRefOid,createdAt \
-.github/workflows/opencode.yml|--jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null || true)
-.github/workflows/curator.yml|curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || true)
+.github/workflows/opencode.yml|if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \
+.github/workflows/opencode.yml|--jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null); then
+.github/workflows/opencode.yml|if [ -n "$heal_head" ] && [ "$heal_head" != "null" ]; then
+.github/workflows/curator.yml|if curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null); then
+.github/workflows/curator.yml|if [ -n "$curate_head" ] && [ "$curate_head" != "null" ]; then
 R20_HEADS
+# Issue #803 round 1: every read_scope_date helper must capture the API
+# payload first and parse it with jq -e, so an HTTP error body can never
+# masquerade as a timestamp; the date-shape and future-date checks keep a
+# garbage payload from producing a non-date scope. The old
+# `--jq ... || true` form is banned outright.
+r20_helper_files=".github/workflows/opencode.yml .github/workflows/opencode-review.yml .github/workflows/curator.yml"
+r20_helper_defs=$(grep -h 'read_scope_date() {' $r20_helper_files 2>/dev/null | wc -l | tr -d '[:space:]')
+[ "${r20_helper_defs:-0}" -eq 5 ] || r20_bad="${r20_bad} scope-helper-count=${r20_helper_defs:-0},want=5"
+while IFS='|' read -r r20_hf r20_hline; do
+  [ -n "$r20_hf" ] || continue
+  sed 's/^[[:space:]]*//' "$r20_hf" | grep -qxF -- "$r20_hline" || r20_bad="${r20_bad} ${r20_hf}(scope-helper-not-fail-closed:${r20_hline%%=*})"
+done <<'R20_HELPER'
+.github/workflows/opencode.yml|payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+.github/workflows/opencode.yml|since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+.github/workflows/opencode-review.yml|payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+.github/workflows/opencode-review.yml|since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+.github/workflows/curator.yml|payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+.github/workflows/curator.yml|since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+R20_HELPER
+if grep -qE -- "--jq '\''\.commit\.committer\.date'\'' 2>/dev/null \|\| true" .github/workflows/opencode.yml .github/workflows/opencode-review.yml .github/workflows/curator.yml 2>/dev/null; then
+  r20_bad="${r20_bad} scope-read-still-swallows-failure"
+fi
+# Issue #803 round 1: the continue and curator scope wrappers are pinned
+# whole. A failed resolver or head read leaves scope_since empty and fails
+# closed; only a successful plain-issue (or successful-empty continue)
+# result may fall back to the current UTC day.
+r20_block_of() {
+  local file="$1" start="$2" end_pat="$3" a b
+  a=$(sed 's/^[[:space:]]*//' "$file" 2>/dev/null | grep -nxF -- "$start" | head -1 | cut -d: -f1)
+  [ -n "$a" ] || return 1
+  b=$(awk -v s="$a" -v e="$end_pat" 'NR > s && $0 ~ e { print NR; exit }' "$file")
+  [ -n "$b" ] || return 1
+  sed -n "${a},${b}p" "$file" | sed 's/^[[:space:]]*//'
+}
+r20_cont_want=$(cat <<'R20_CONT'
+if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \
+--jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefOid' 2>/dev/null); then
+if [ -n "$heal_head" ] && [ "$heal_head" != "null" ]; then
+scope_since=$(read_scope_date "$heal_head") || scope_since=""
+else
+scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
+fi
+fi
+R20_CONT
+)
+r20_cont_got=$(r20_block_of .github/workflows/opencode.yml 'if heal_head=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,headRefOid,createdAt \' '^            fi$') || r20_cont_got=""
+[ "$r20_cont_got" = "$r20_cont_want" ] || r20_bad="${r20_bad} opencode.yml(continue-scope-wrapper-changed)"
+r20_cur_want=$(cat <<'R20_CUR'
+if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then
+if curate_head=$(gh pr view "$issue_num" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null); then
+if [ -n "$curate_head" ] && [ "$curate_head" != "null" ]; then
+scope_since=$(read_scope_date "$curate_head") || scope_since=""
+fi
+fi
+else
+scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
+fi
+R20_CUR
+)
+r20_cur_got=$(r20_block_of .github/workflows/curator.yml 'if [ "${{ github.event.issue.pull_request != null }}" = "true" ]; then' '^            fi$') || r20_cur_got=""
+[ "$r20_cur_got" = "$r20_cur_want" ] || r20_bad="${r20_bad} curator.yml(scope-wrapper-changed)"
 r20_day_assign=$(sed 's/^[[:space:]]*//' .github/workflows/opencode.yml 2>/dev/null | grep -cxF 'scope_since=$(date -u +%Y-%m-%dT00:00:00Z)' || true)
 [ "${r20_day_assign:-0}" -ge 8 ] || r20_bad="${r20_bad} opencode.yml(day-scope-assignment-count=${r20_day_assign:-0},want>=8)"
 r20_cur_day_assign=$(sed 's/^[[:space:]]*//' .github/workflows/curator.yml 2>/dev/null | grep -cxF 'scope_since=$(date -u +%Y-%m-%dT00:00:00Z)' || true)
@@ -10307,7 +10384,12 @@ else
     cat > "$r20_mockdir/gh" <<'R20_MOCK'
 #!/usr/bin/env bash
 case "$*" in
-  *--slurp*) cat "$R20_PAYLOAD" ;;
+  *--slurp*)
+    if [ "${R20_ENUM_FAIL:-0}" = "1" ]; then
+      printf '%s\n' "${R20_ERROR_BODY:-}"
+      exit 1
+    fi
+    cat "$R20_PAYLOAD" ;;
   *) echo "mock gh: unpaginated comment read refused: $*" >&2; exit 1 ;;
 esac
 R20_MOCK
@@ -10352,6 +10434,9 @@ R20_MOCK
                     -e 's/\${{ github\.repository }}/mockrepo/g' \
                     -e 's/\${{ [^}]* }}/1/g'
             r20_var=$(printf '%s\n' "$r20_snip" | sed -n '1s/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p')
+            if [ "$r20_var" = "enum_payload" ]; then
+              r20_var=$(printf '%s\n' "$r20_snip" | sed -n '2s/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p')
+            fi
             printf 'printf "%%s" "$%s"\n' "$r20_var"
           } > "$r20_tmp/case.sh"
           r20_out=$(cd "$r20_tmp" && env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID \
@@ -10367,6 +10452,18 @@ R20_MOCK
                 R20_PAYLOAD="$r20_stale_file" bash "$r20_tmp/case.sh" 2>/dev/null)
               [ "$r20_stale_out" = "0" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:stale-count=${r20_stale_out:-empty},want=0)"
             fi
+            # Issue #803 round 1: an incident-scoped counter's API failure
+            # that prints an HTTP error body must yield an empty count (fail
+            # closed), never a zero. Non-incident gate counts keep their own
+            # established fallbacks.
+            if printf '%s\n' "$r20_snip" | grep -qF '.created_at > $since'; then
+              r20_err_out=$(cd "$r20_tmp" && env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID \
+                -u GITHUB_REPOSITORY -u GITHUB_ACTIONS -u GH_TOKEN -u GH_API_TOKEN \
+                PATH="$r20_mockdir:$PATH" scope_since="2026-10-17T00:00:00Z" R20_ENUM_FAIL=1 \
+                R20_ERROR_BODY='{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com/rest"}' \
+                bash "$r20_tmp/case.sh" 2>/dev/null)
+              [ -z "$r20_err_out" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:http-error-body-counted=${r20_err_out})"
+            fi
           else
             [ "$(printf '%s' "$r20_out" | tr -d '"')" = "2026-10-17T19:02:00Z" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:latest=${r20_out:-empty},want=2026-10-17T19:02:00Z)"
           fi
@@ -10377,7 +10474,7 @@ R20_MOCK
   fi
 fi
 if [ -z "$r20_bad" ]; then
-  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); every auto-retry/auto-heal counter is incident-scoped with --arg since \$scope_since and .created_at > \$since, the previous-day fixture reads 0, and every lane derives scope_since from the head commit date or the current UTC day (issue #803); no unpaginated issue-comment read remains (issue #621)" "ok"
+  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); every auto-retry/auto-heal counter is incident-scoped with --arg since \$scope_since and .created_at > \$since, the previous-day fixture reads 0, an HTTP error body yields an empty (fail-closed) count from every incident-scoped counter, every read_scope_date helper captures the payload before parsing with jq -e, the continue and curator scope wrappers are pinned whole, and every lane derives scope_since from the head commit date or the current UTC day (issue #803); no unpaginated issue-comment read remains (issue #621)" "ok"
 else
   check "R20" "paginated comment-read guard missing:${r20_bad} (issue #621: an unpaginated read sees only the oldest 30 comments, the cap reads 0, and a crash loop re-posts retry 1 forever)" "bad"
 fi
@@ -18131,8 +18228,9 @@ if [ "$outcome" != "success" ]; then
   count_retries() {
     retries=""
     if [ -n "$scope_since" ]; then
-      retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
-        | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc @@CMD@@ (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+      enum_payload=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+      retries=$(printf '%s' "$enum_payload" \
+        | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc @@CMD@@ (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
     fi
     printf '%s' "$retries"
   }
@@ -18264,11 +18362,21 @@ classifier=$(git show "${{ github.workflow_sha }}:.github/scripts/classify-build
 pushed="no"
 is_pr="${{ github.event.issue.pull_request != null }}"
 target_branch=""
+resolver_ok="true"
 if [ "$is_pr" = "true" ]; then
-  target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+  if ! target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null); then
+    resolver_ok="false"
+    target_branch=""
+  fi
 else
-  target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-    --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+  if ! target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName \
+    --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null); then
+    resolver_ok="false"
+    target_branch=""
+  fi
+fi
+if [ "$target_branch" = "null" ]; then
+  target_branch=""
 fi
 
 if [ -n "$target_branch" ]; then
@@ -18382,19 +18490,38 @@ else
   echo "pushed=false" >> "$GITHUB_OUTPUT"
 fi
 
+# Issue #803: scope the retry budget to the current branch head, so
+# a crash on a new head gets its own 3 retries. A plain-issue build
+# with no PR branch falls back to the current UTC day. A resolver or
+# head read failure leaves scope_since empty and fails closed below.
+read_scope_date() {
+  local payload since
+  payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1
+  since=$(printf '%s' "$payload" | jq -er '.commit.committer.date' 2>/dev/null) || return 1
+  case "$since" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+    *) return 1 ;;
+  esac
+  [ "$since" \> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1
+  printf '%s' "$since"
+}
 scope_since=""
-if [ -n "$target_branch" ]; then
+if [ "$resolver_ok" = "true" ] && [ -n "$target_branch" ]; then
   target_head=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
   if [ -n "$target_head" ]; then
-    scope_since=$(gh api "repos/${{ github.repository }}/commits/$target_head" --jq '.commit.committer.date' 2>/dev/null || true)
+    scope_since=$(read_scope_date "$target_head") || scope_since=""
   fi
-else
+elif [ "$resolver_ok" = "true" ]; then
   scope_since=$(date -u +%Y-%m-%dT00:00:00Z)
 fi
+# Robust retry counter: never fall back to 0 on an API/rate-limit
+# failure, which would make the cap never trip and loop forever. Only
+# count retries the API actually returned; on failure, stop retrying.
 retries=""
 if [ -n "$scope_since" ]; then
-  retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
-    | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")) and .created_at > $since)] | length' 2>/dev/null || true)
+  enum_payload=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""
+  retries=$(printf '%s' "$enum_payload" \
+    | jq --arg since "$scope_since" '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")) and .created_at > $since)] | length' 2>/dev/null) || retries=""
 fi
 if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
   echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
@@ -27481,11 +27608,23 @@ REVIEW_VERIFY_BODY = (
     'crash_signature="true"',
     'fi',
     'if [ "$crash_signature" = "true" ]; then',
-    'scope_since=$(gh api "repos/${{ github.repository }}/commits/${{ steps.pr-info.outputs.head_oid }}" --jq \'.commit.committer.date\' 2>/dev/null || true)',
+    'read_scope_date() {',
+    'local payload since',
+    'payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1',
+    'since=$(printf \'%s\' "$payload" | jq -er \'.commit.committer.date\' 2>/dev/null) || return 1',
+    'case "$since" in',
+    '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;',
+    '*) return 1 ;;',
+    'esac',
+    '[ "$since" \\> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1',
+    'printf \'%s\' "$since"',
+    '}',
+    'scope_since=$(read_scope_date "${{ steps.pr-info.outputs.head_oid }}") || scope_since=""',
     'retries=""',
     'if [ -n "$scope_since" ]; then',
-    'retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \\',
-    '| jq --arg since "$scope_since" \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)] | length\' 2>/dev/null || true)',
+    'enum_payload=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""',
+    'retries=$(printf \'%s\' "$enum_payload" \\',
+    '| jq --arg since "$scope_since" \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")) and .created_at > $since)] | length\' 2>/dev/null) || retries=""',
     'fi',
     'if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then',
     'echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."',
@@ -27545,11 +27684,23 @@ FIX_VERIFY_BODY = (
     'exit 0',
     'fi',
     'echo "No push detected"',
-    'scope_since=$(gh api "repos/${{ github.repository }}/commits/$head_after" --jq \'.commit.committer.date\' 2>/dev/null || true)',
+    'read_scope_date() {',
+    'local payload since',
+    'payload=$(gh api "repos/${{ github.repository }}/commits/$1" 2>/dev/null) || return 1',
+    'since=$(printf \'%s\' "$payload" | jq -er \'.commit.committer.date\' 2>/dev/null) || return 1',
+    'case "$since" in',
+    '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;',
+    '*) return 1 ;;',
+    'esac',
+    '[ "$since" \\> "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ] && return 1',
+    'printf \'%s\' "$since"',
+    '}',
+    'scope_since=$(read_scope_date "$head_after") || scope_since=""',
     'retries=""',
     'if [ -n "$scope_since" ]; then',
-    'retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \\',
-    '| jq --arg since "$scope_since" \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")) and .created_at > $since)] | length\' 2>/dev/null || true)',
+    'enum_payload=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null) || enum_payload=""',
+    'retries=$(printf \'%s\' "$enum_payload" \\',
+    '| jq --arg since "$scope_since" \'[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")) and .created_at > $since)] | length\' 2>/dev/null) || retries=""',
     'fi',
     'if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then',
     'echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."',
@@ -27848,7 +27999,7 @@ if [ "${1:-}" = "api" ]; then
         echo "mock gh: injected head-read failure" >&2
         exit 1
       fi
-      printf '%s\\n' "${MOCK_HEAD_DATE:-2026-10-18T00:00:00Z}"
+      printf '{"commit":{"committer":{"date":"%s"}}}\\n' "${MOCK_HEAD_DATE:-2026-10-18T00:00:00Z}"
       exit 0
       ;;
     *"/comments?per_page=100")
@@ -29726,7 +29877,7 @@ PY
 )
 case "$r32_out" in
   OK)
-    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone; and issue #803 extends the fix matrix to stale-head, mixed-head, and head-read-failure fixtures proving retries posted before the current head's push restart the budget at 1, mixed heads count only fresh retries, and an unreadable head fails closed without posting)" "ok"
+    check "R32" "the fix and review arms refuse a non-OPEN trigger end to end: the fix guard publishes open=false and exits cleanly, the baseline capture, fix agent, verify retry lane, reviewer handoff, trailer strip, and held-CI approval side effects are all gated on open=true, the verify hard stop publishes skip_forward=true so a PR that closes between guard and verify cannot forward, strip, or approve; the review guard runs immediately after Get PR info and queries the RESOLVED PR number (a linked issue can never be queried as a PR, and the linked-PR producer is pinned to the open-PR issue-branch query, and the force-lab changed-file read goes through the pulls-files API for the resolved PR with no workspace git command), gating checkout, prompt staging, the actor gate, the Record/Configure/Clear bookkeeping, the agent, report publisher, and verify step, while the publisher and verify each re-read live state with exactly one resolved-PR binding and their own hard-stop exit 0 inside the close block, and a mid-run close sets skip_forward=true gating both handoffs; Get PR info, the publisher, and the verify body are pinned as whole normalized line sequences so no inserted, re-spelled, or reordered non-comment line can pass, a live_pr or live_state write in any assignment spelling (export/declare/readonly/local/typeset/printf -v/read included) other than the one canonical line fails, and the close region is pinned as its exact ordered sequence before every side effect; the decision handoff targets the resolved PR while the report stays on the trigger thread; every per-OS forwarder re-queries the live PR state instead of trusting the job-start snapshot (the dead snapshot output is gone) and gates EVERY decision action, routing a non-OPEN or unknown target to the Maintainer instead of posting /oc fix or /oc lab; the guard bodies are executed against a target-enforcing mock gh for OPEN, CLOSED, MERGED, and unknown states, the fix verify hard stop is executed under a close race here and the review verify hard stop under R19's decision-absent mid-run-close fixture (this rule pins its exact close region statically), every per-OS forwarder is executed across OPEN, closed, unknown, stale-snapshot, non-PR, and lab/default action targets asserting the exact posted trigger, and the step gates are simulated to prove zero agent runs and zero comments on a non-OPEN target with the OPEN path still running and forwarding, all mutation-self-tested gate by gate, close-block exit, linked-PR producer, force-lab API read, force-lab workspace git read, live binding, inserted line, prefixed second binding, live_state override, handoff target, guard order, and target binding (issue #781); issue #810 extends it to the fix verify/forward pair: the real verify body is executed over the pushed, retry, cap, retry-enumeration-failure, and closed-race matrix, the real forward gate is evaluated from the actual verify result and outputs, the real forward body is executed only when that gate allows it (exactly one /oc review on the pushed head, none on the failed cap, the enumeration failure, or the retry and closed-PR handoffs), removing the fail-closed steps.verify.outcome == 'success' clause fails this rule alone; and issue #803 extends the fix matrix to stale-head, mixed-head, wall-after-fresh-head, and head-read-failure fixtures proving retries posted before the current head's push restart the budget at 1, mixed heads count only fresh retries, a fresh head that already burned its own three retries still trips the cap, and an unreadable head fails closed without posting)" "ok"
     ;;
   *)
     check "R32" "open-PR guard missing or bypassable on the fix/review/per-OS arms: ${r32_out} (issue #781: a /oc fix on a merged or closed PR used to run the whole fix lane and forward the reviewer, /oc review ran on dead branches, the per-OS forwarders could post /oc fix on a closed PR, a prefixed second live_pr/linked_pr binding or a live_state override could restore a wrong-target or dead close check, and a linked-issue handoff could land on the issue thread; the pre-fix unguarded shapes are the regression)" "bad"
@@ -36515,6 +36666,224 @@ r37_expect() {
   fi
 }
 
+# Issue #853: the silent-deferral re-arm guard is a scheduled/dispatch-only
+# pre-agent step in auditor.yml. It must run the shared script with the job
+# token and the six-hour window, after the audit and before the agent.
+r37_defer_block=$(r37_step_block .github/workflows/auditor.yml 'Re-arm stale PR deferrals (issue #853)')
+if [ -z "$r37_defer_block" ]; then
+  r37_sites_bad="${r37_sites_bad} deferral(step-missing)"
+else
+  for r37_dneedle in \
+    "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'" \
+    'GH_TOKEN: ${{ github.token }}' \
+    'DEFERRAL_WINDOW_HOURS: "6"' \
+    'run: bash .github/scripts/deferral-guard.sh'
+  do
+    printf '%s\n' "$r37_defer_block" | grep -qF -- "$r37_dneedle" \
+      || r37_sites_bad="${r37_sites_bad} deferral(missing:${r37_dneedle})"
+  done
+fi
+r37_defer_line=$(grep -nF -- '- name: Re-arm stale PR deferrals (issue #853)' .github/workflows/auditor.yml 2>/dev/null | head -n 1 | cut -d: -f1)
+r37_audit_line=$(grep -nF -- '- name: Silent-stall regression audit (R1-R37)' .github/workflows/auditor.yml 2>/dev/null | head -n 1 | cut -d: -f1)
+r37_agent_line=$(grep -nF -- '- name: Run auditor agent' .github/workflows/auditor.yml 2>/dev/null | head -n 1 | cut -d: -f1)
+if [ -z "$r37_defer_line" ] || [ -z "$r37_audit_line" ] || [ -z "$r37_agent_line" ] \
+    || [ "$r37_defer_line" -le "$r37_audit_line" ] || [ "$r37_defer_line" -ge "$r37_agent_line" ]; then
+  r37_sites_bad="${r37_sites_bad} deferral(step-order)"
+fi
+grep -qF 'chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh .github/scripts/health-board.sh .github/scripts/deferral-guard.sh' .github/workflows/auditor.yml 2>/dev/null \
+  || r37_sites_bad="${r37_sites_bad} deferral(not-executable)"
+if [ -n "$r37_sites_bad" ]; then
+  r37_bad="${r37_bad} sites:${r37_sites_bad}"
+fi
+
+# Issue #853 functional matrix: the real guard runs against an
+# endpoint-bound mock gh with a fixed clock. A stale owner/bot deferral
+# without a later dispatch comment or head-bound run posts exactly one
+# deduped note to the board; recent, expired, foreign-authored, dispatched,
+# run-covered, and already-re-armed deferrals post nothing; and every read
+# failure fails closed. Mutants prove the dispatch, run, dedupe, window, and
+# author filters plus the board fail-closed path load-bearing.
+r37_defer_dir="$r37_dir/deferral"
+mkdir -p "$r37_defer_dir/bin"
+cat > "$r37_defer_dir/bin/gh" <<'R37DEFGH'
+#!/usr/bin/env bash
+set -u
+[ -n "${MOCK_CALLS:-}" ] && printf '%s\n' "$*" >> "$MOCK_CALLS"
+if [ "${1:-}" = "api" ]; then
+  url="${2:-}"
+  case "$url" in
+    *"/pulls?state=open"*)
+      [ "${MOCK_PRS_FAIL:-0}" = "1" ] && exit 1
+      cat "$MOCK_PRS" ;;
+    *"/actions/runs?"*)
+      [ "${MOCK_RUNS_FAIL:-0}" = "1" ] && exit 1
+      cat "$MOCK_RUNS" ;;
+    *"/issues/70/comments?"*)
+      [ "${MOCK_BOARD_FAIL:-0}" = "1" ] && exit 1
+      cat "$MOCK_BOARD" ;;
+    *"/issues/"*"/comments?"*)
+      [ "${MOCK_COMMENTS_FAIL:-0}" = "1" ] && exit 1
+      cat "$MOCK_COMMENTS" ;;
+  esac
+  exit 0
+fi
+if [ "${1:-}" = "issue" ] && [ "${2:-}" = "comment" ]; then
+  board="${3:-}"; body=""
+  shift 3
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --repo) shift 2 ;;
+      --body) body="${2:-}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  printf '%s\n' "$board" >> "${MOCK_POSTS:?}"
+  printf '%s\n' "$body" > "${MOCK_LAST_BODY:?}"
+  exit 0
+fi
+exit 1
+R37DEFGH
+chmod +x "$r37_defer_dir/bin/gh"
+r37_defer_script="$PWD/.github/scripts/deferral-guard.sh"
+r37_defer_now=$(date -u -d '2026-11-25T00:00:00Z' +%s 2>/dev/null || echo 1795564800)
+r37_defer_write() { printf '%s\n' "$2" > "$r37_defer_dir/$1"; }
+r37_defer_write board-ok.sh 'printf "%s\n" 70'
+r37_defer_write board-fail.sh 'printf "%s\n" 70
+exit 1'
+r37_defer_write prs.json '[[{"number":745,"state":"open","head":{"sha":"abc123def4567890"}}]]'
+r37_defer_write prs-malformed.json '{"number":745}'
+r37_defer_write runs-empty.json '[{"workflow_runs":[]}]'
+r37_defer_write runs-covered.json '[{"workflow_runs":[{"id":55,"head_sha":"abc123def4567890","created_at":"2026-11-02T00:00:00Z"}]}]'
+r37_defer_write board-empty.json '[[]]'
+r37_defer_write board-dup.json '[[{"body":"prior note <!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->"}]]'
+r37_defer_write comments-stale.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
+r37_defer_write comments-bot.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"github-actions[bot]"},"body":"This follows later when the build lands."}]]'
+r37_defer_write comments-dispatched.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."},{"id":9002,"created_at":"2026-11-02T00:00:00Z","user":{"login":"Userfrom1995"},"body":"/oc review"}]]'
+r37_defer_write comments-recent.json '[[{"id":9001,"created_at":"2026-11-24T23:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
+r37_defer_write comments-old.json '[[{"id":9001,"created_at":"2026-08-01T00:00:00Z","user":{"login":"Userfrom1995"},"body":"The next head-bound review follows in the next window."}]]'
+r37_defer_write comments-foreign.json '[[{"id":9001,"created_at":"2026-11-01T00:00:00Z","user":{"login":"randomuser"},"body":"The next head-bound review follows in the next window."}]]'
+r37_defer_write comments-malformed.json '{"id":9001}'
+r37_defer_run() {
+  r37_dr_name="$1"
+  r37_dr_posts_expected="$2"
+  r37_dr_rc_expected="$3"
+  r37_dr_prs="${4:-$r37_defer_dir/prs.json}"
+  r37_dr_runs="${5:-$r37_defer_dir/runs-empty.json}"
+  r37_dr_board="${6:-$r37_defer_dir/board-empty.json}"
+  r37_dr_comments="${7:-$r37_defer_dir/comments-stale.json}"
+  r37_dr_helper="${8:-$r37_defer_dir/board-ok.sh}"
+  r37_dr_script="${9:-$r37_defer_script}"
+  r37_dr_prs_fail="${10:-0}"
+  r37_dr_comments_fail="${11:-0}"
+  r37_dr_run_dir="$r37_defer_dir/run-$r37_dr_name"
+  rm -rf "$r37_dr_run_dir"; mkdir -p "$r37_dr_run_dir"
+  (
+    cd "$r37_dr_run_dir" || exit 99
+    env PATH="$r37_defer_dir/bin:/usr/bin:/bin" HOME="$r37_dr_run_dir" \
+      GH_TOKEN=x GITHUB_REPOSITORY=owner/repo GITHUB_REPOSITORY_OWNER=Userfrom1995 \
+      DEFERRAL_NOW_EPOCH="$r37_defer_now" DEFERRAL_BOARD_HELPER="$r37_dr_helper" \
+      MOCK_PRS="$r37_dr_prs" MOCK_RUNS="$r37_dr_runs" MOCK_BOARD="$r37_dr_board" \
+      MOCK_COMMENTS="$r37_dr_comments" MOCK_PRS_FAIL="$r37_dr_prs_fail" \
+      MOCK_COMMENTS_FAIL="$r37_dr_comments_fail" MOCK_POSTS="$r37_dr_run_dir/posts" \
+      MOCK_LAST_BODY="$r37_dr_run_dir/last-body" \
+      MOCK_CALLS="$r37_dr_run_dir/calls" \
+      bash "$r37_dr_script"
+  ) > "$r37_dr_run_dir/stdout" 2> "$r37_dr_run_dir/stderr"
+  echo $? > "$r37_dr_run_dir/rc"
+  r37_dr_got_rc=$(cat "$r37_dr_run_dir/rc" 2>/dev/null || echo 99)
+  r37_dr_got_posts=$(grep -c . "$r37_dr_run_dir/posts" 2>/dev/null || true)
+  [ "$r37_dr_got_rc" = "$r37_dr_rc_expected" ] || r37_bad="${r37_bad} deferral-${r37_dr_name}(rc=${r37_dr_got_rc},want=${r37_dr_rc_expected})"
+  [ "${r37_dr_got_posts:-0}" = "$r37_dr_posts_expected" ] || r37_bad="${r37_bad} deferral-${r37_dr_name}(posts=${r37_dr_got_posts:-0},want=${r37_dr_posts_expected})"
+}
+r37_defer_run stale 1 0
+r37_defer_run bot-author 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-bot.json"
+r37_defer_run dispatched 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched.json"
+r37_defer_run run-covered 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-covered.json"
+r37_defer_run duplicate 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-dup.json"
+r37_defer_run recent 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-recent.json"
+r37_defer_run expired 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-old.json"
+r37_defer_run foreign-author 0 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-foreign.json"
+r37_defer_run board-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-fail.sh"
+r37_defer_run prs-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 1 0
+r37_defer_run prs-malformed 0 1 "$r37_defer_dir/prs-malformed.json"
+r37_defer_run comments-fail 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_script" 0 1
+r37_defer_run comments-malformed 0 1 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-malformed.json"
+if [ -f "$r37_defer_dir/run-stale/posts" ]; then
+  r37_defer_note=$(cat "$r37_defer_dir/run-stale/last-body" 2>/dev/null || true)
+  printf '%s\n' "$r37_defer_note" | grep -qF '<!-- deferral-rearm:pr-745-head-abc123def4567890-comment-9001 -->' \
+    || r37_bad="${r37_bad} deferral-note(missing-marker)"
+  printf '%s\n' "$r37_defer_note" | grep -qE '(^|[[:space:]])/(oc|opencode)([[:space:]]|$)' \
+    && r37_bad="${r37_bad} deferral-note(carries-trigger)"
+  printf '%s\n' "$r37_defer_note" | grep -qF -- '- the Auditor' \
+    || r37_bad="${r37_bad} deferral-note(missing-signoff)"
+else
+  r37_bad="${r37_bad} deferral-note(missing-post)"
+fi
+r37_defer_mutant() {
+  r37_dm_name="$1" r37_dm_old="$2" r37_dm_new="$3"
+  python3 - "$r37_defer_script" "$r37_defer_dir/mut-$r37_dm_name.sh" "$r37_dm_old" "$r37_dm_new" <<'R37DEFMUT'
+import sys
+src, dst, old, new = sys.argv[1:5]
+text = open(src, encoding='utf-8').read()
+if old not in text:
+    raise SystemExit('mutant anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, new, 1))
+R37DEFMUT
+}
+if r37_defer_mutant no-dispatch '    if [ -n "$later_comment" ]; then
+      continue
+    fi' '    :'; then
+  r37_defer_run mut-no-dispatch 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-dispatched.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-dispatch.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-dispatch-anchor)"
+fi
+if r37_defer_mutant no-run '    if [ -n "$later_run" ]; then
+      continue
+    fi' '    :'; then
+  r37_defer_run mut-no-run 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-covered.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-run.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-run-anchor)"
+fi
+if r37_defer_mutant no-dedupe '    if printf '"'"'%s'"'"' "$board_payload" | jq -e --arg marker "$marker" \
+      '"'"'[.[][] | select(.body | contains($marker))] | length > 0'"'"' >/dev/null 2>&1; then
+      echo "deferral-guard: PR #${pr} deferral ${cid} already re-armed."
+      continue
+    fi' '    :'; then
+  r37_defer_run mut-no-dedupe 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-dup.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-dedupe.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-dedupe-anchor)"
+fi
+if r37_defer_mutant no-window '    if [ "$age" -lt "$window_seconds" ] || [ "$age" -gt "$max_age_seconds" ]; then' '    if false; then'; then
+  r37_defer_run mut-no-window 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-recent.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-window.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-window-anchor)"
+fi
+if r37_defer_mutant no-author '    select((.user.login == $owner) or (.user.login | endswith("[bot]"))) |' '    select(true) |'; then
+  r37_defer_run mut-no-author 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-foreign.json" "$r37_defer_dir/board-ok.sh" "$r37_defer_dir/mut-no-author.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-author-anchor)"
+fi
+if r37_defer_mutant no-board-guard 'if ! board=$(bash "$helper"); then
+  echo "::error::deferral-guard: health-board helper failed; refusing to post blind."
+  exit 1
+fi' 'board=$(bash "$helper") || true'; then
+  python3 - "$r37_defer_dir/mut-no-board-guard.sh" "$r37_defer_dir/mut-no-board-guard2.sh" <<'R37DEFMUT2'
+import sys
+src, dst = sys.argv[1:3]
+text = open(src, encoding='utf-8').read()
+old = """if [ -z "$board" ] || [ "$board" = "null" ]; then
+  echo "::error::deferral-guard: no universal lab-health board resolved; refusing to post re-arm notes."
+  exit 1
+fi"""
+if old not in text:
+    raise SystemExit('mutant anchor absent')
+open(dst, 'w', encoding='utf-8').write(text.replace(old, ':', 1))
+R37DEFMUT2
+  r37_defer_run mut-no-board-guard 1 0 "$r37_defer_dir/prs.json" "$r37_defer_dir/runs-empty.json" "$r37_defer_dir/board-empty.json" "$r37_defer_dir/comments-stale.json" "$r37_defer_dir/board-fail.sh" "$r37_defer_dir/mut-no-board-guard2.sh"
+else
+  r37_bad="${r37_bad} deferral-mutant(no-board-guard-anchor)"
+fi
+
 r37_run title-wins "$r37_dir/issues-title-wins.json" "$r37_dir/labeled-title-wins.json"
 r37_expect title-wins 0 70 '3 open non-PR issues carry the lab-health label'
 r37_run fallback "$r37_dir/issues-fallback.json" "$r37_dir/labeled-fallback.json"
@@ -36813,7 +37182,7 @@ fi
 rm -rf "$r37_dir"
 case "$r37_bad" in
   "")
-    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, and any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4)" "ok"
+    check "R37" "the universal Lab Health & Audit Logs board is resolved by one shared title-first helper at every call site: the pinned title wins over the lab-health label, the oldest open non-PR labeled issue is the fallback, and a second board-bearing issue is a loud contract violation (helper warning, live audit failure); the helper is executed against a mock gh across title-first, oldest-fallback, PR-exclusion, unlabeled-title, duplicate-title, duplicate-label, non-numeric, empty, and unreadable fixtures with title-first, PR-guard, and sort-desc mutants; the direct helper call sites (auditor.yml pre-agent, maintainer.yml intake, opencode-recover.yml heartbeat, schedule-selfheal.sh) are pinned to the shared helper, the two post-agent board reads (auditor.yml forward, maintainer.yml cap) are pinned step-by-step to the trusted contents-API invocation instead of the agent-writable workspace helper, auditor/curator/ideate/lab resolve the freshly fetched default-branch commit before the agent and read schedule-selfheal.sh and its board helper from that commit (never the event-dependent GITHUB_SHA), the six named post-agent token-bearing steps pin their privileged shell, BASH_ENV/ENV, GH_HOST, GH_REPO, the full uppercase proxy/TLS map, LD_*, TMPDIR, the in-body PATH reset, the fresh GH_CONFIG_DIR and its chmod/fail-closed guards, and the --hostname/raw-Accept trusted-read flags, any direct lab-health selector outside the helper is rejected across recursive workflows/actions/scripts, quoted spellings, short flags including -l=, --add-label, --search including multi-term and label: qualifiers, and q= API filters, with host/proxy/search/branch-SHA mutants proving the pins load-bearing (issue #848, review rounds 1-4); the #853 silent-deferral re-arm guard is pinned as a scheduled/dispatch-only pre-agent step between the audit and the agent, and its real body is executed against a mock gh with a fixed clock across stale, bot-authored, dispatched, run-covered, duplicate, recent, expired, foreign-authored, malformed, and unreadable fixtures, with the note carrying a dedupe marker and no trigger token, and no-dispatch/no-run/no-dedupe/no-window/no-author/no-board-guard mutants proving each filter load-bearing (issue #853)" "ok"
     ;;
   *)
     check "R37" "lab-health board selector split or bypassable:${r37_bad} (issue #848: the universal Lab Health & Audit Logs board must be the only open non-PR issue carrying lab-health, every workflow and script board lookup must call .github/scripts/health-board.sh, and the helper must resolve the pinned title before the oldest labeled fallback; a second board-bearing issue silently split the quota-wall and self-heal audit trail)" "bad"
