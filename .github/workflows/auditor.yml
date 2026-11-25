@@ -86,12 +86,21 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           HEALTH_BOARD_LIVE_CHECK: "1"
         run: |
-          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh .github/scripts/health-board.sh
+          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh .github/scripts/health-board.sh .github/scripts/deferral-guard.sh
           health_issue=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             health_issue=$(bash .github/scripts/health-board.sh || true)
           fi
           .github/scripts/silent-stall-audit.sh ".github/workflows/opencode.yml" "${health_issue}"
+
+      - name: Re-arm stale PR deferrals (issue #853)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DEFERRAL_WINDOW_HOURS: "6"
+        run: bash .github/scripts/deferral-guard.sh
 
       - name: Run auditor agent
         id: auditor
