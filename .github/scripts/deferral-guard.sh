@@ -13,11 +13,20 @@
 # The note never carries a trigger token: it is an audit signal for the
 # Maintainer, not an automated dispatch.
 #
+# A later comment counts as a dispatch only when it is authored by the
+# repository owner or a bot and its body starts with a known workflow
+# trigger. A later workflow run counts only when it targets the current PR
+# head. The dedupe marker is trusted only inside a signed "- the Auditor"
+# note from the owner or a bot, so a public commenter cannot silence the
+# guard by posting the marker. Every page validator requires ISO-shaped
+# timestamps and every compared event date is parsed, so a malformed read
+# exits 1 instead of suppressing the re-arm.
+#
 # Env:
 #   GITHUB_REPOSITORY        owner/repo (required)
 #   DEFERRAL_WINDOW_HOURS    minimum age before a promise counts as stale (6)
 #   DEFERRAL_MAX_AGE_DAYS    oldest deferral considered (90)
-#   DEFERRAL_MAX_PRS         open PR scan cap (100)
+#   DEFERRAL_PAGE_SIZE       per-page open PR read size (100)
 #   DEFERRAL_NOW_EPOCH       fixed clock for fixtures (default: date -u +%s)
 #   DEFERRAL_BOARD_HELPER    health-board.sh path override (fixtures only)
 #
@@ -33,7 +42,7 @@ fi
 
 window_hours="${DEFERRAL_WINDOW_HOURS:-6}"
 max_age_days="${DEFERRAL_MAX_AGE_DAYS:-90}"
-max_prs="${DEFERRAL_MAX_PRS:-100}"
+page_size="${DEFERRAL_PAGE_SIZE:-100}"
 now_epoch="${DEFERRAL_NOW_EPOCH:-$(date -u +%s)}"
 
 case "$window_hours" in
@@ -42,8 +51,8 @@ esac
 case "$max_age_days" in
   ''|*[!0-9]*) echo "deferral-guard: DEFERRAL_MAX_AGE_DAYS must be numeric." >&2; exit 1 ;;
 esac
-case "$max_prs" in
-  ''|*[!0-9]*) echo "deferral-guard: DEFERRAL_MAX_PRS must be numeric." >&2; exit 1 ;;
+case "$page_size" in
+  ''|*[!0-9]*) echo "deferral-guard: DEFERRAL_PAGE_SIZE must be numeric." >&2; exit 1 ;;
 esac
 case "$now_epoch" in
   ''|*[!0-9]*) echo "deferral-guard: DEFERRAL_NOW_EPOCH must be epoch seconds." >&2; exit 1 ;;
@@ -67,8 +76,11 @@ fi
 
 owner="${GITHUB_REPOSITORY_OWNER:-${repo%%/*}}"
 deferral_re='next window|follows later|when .* lands|following window|later window|later pass|next pass'
+trigger_re='^(/oc|/opencode)[[:space:]]+(research|architect|plan|build|continue|fix|design|design-ux|design-visual|design-motion|review|test|test-linux|test-macos|test-windows|eval|recover|maintainer|lab|ideate|curate|auditor|approve|approve-test|approve-eval)([[:space:]]|$)'
+eval_result_re='^(/oc|/opencode)[[:space:]]+eval[[:space:]]+result'
+iso_re='^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$'
 
-prs_payload=$(gh api "repos/${repo}/pulls?state=open&per_page=${max_prs}" --paginate --slurp 2>/dev/null) || {
+prs_payload=$(gh api "repos/${repo}/pulls?state=open&per_page=${page_size}" --paginate --slurp 2>/dev/null) || {
   echo "::error::deferral-guard: could not list open PRs for ${repo}."
   exit 1
 }
@@ -91,15 +103,16 @@ runs_payload=$(gh api "repos/${repo}/actions/runs?per_page=100" --paginate --slu
   echo "::error::deferral-guard: could not list workflow runs for ${repo}."
   exit 1
 }
-printf '%s' "$runs_payload" | jq -e '
+printf '%s' "$runs_payload" | jq -e --arg iso "$iso_re" '
   type == "array" and
   all(.[]; type == "object" and
     (.workflow_runs | type) == "array" and
     all(.workflow_runs[]; type == "object" and
       (.head_sha | type) == "string" and
-      (.created_at | type) == "string"))
+      (.created_at | type) == "string" and
+      (.created_at | test($iso))))
 ' >/dev/null 2>&1 || {
-  echo "::error::deferral-guard: workflow-run payload was not a valid page array."
+  echo "::error::deferral-guard: workflow-run payload was not a valid page array with ISO timestamps."
   exit 1
 }
 board_payload=$(gh api "repos/${repo}/issues/${board}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {
@@ -109,9 +122,12 @@ board_payload=$(gh api "repos/${repo}/issues/${board}/comments?per_page=100" --p
 printf '%s' "$board_payload" | jq -e '
   type == "array" and
   all(.[]; type == "array" and
-    all(.[]; type == "object" and (.body | type) == "string"))
+    all(.[]; type == "object" and
+      (.body | type) == "string" and
+      (.user | type) == "object" and
+      (.user.login | type) == "string"))
 ' >/dev/null 2>&1 || {
-  echo "::error::deferral-guard: board comment payload was not a valid page array."
+  echo "::error::deferral-guard: board comment payload was not a valid page array with comment authors."
   exit 1
 }
 
@@ -128,17 +144,18 @@ while IFS=$'\t' read -r pr head; do
     echo "::error::deferral-guard: could not read comments on PR #${pr}; refusing to guess."
     exit 1
   }
-  printf '%s' "$comments" | jq -e '
+  printf '%s' "$comments" | jq -e --arg iso "$iso_re" '
     type == "array" and
     all(.[]; type == "array" and
       all(.[]; type == "object" and
         (.id | type) == "number" and
         (.body | type) == "string" and
         (.created_at | type) == "string" and
+        (.created_at | test($iso)) and
         ((.user == null) or
           ((.user | type) == "object" and (.user.login | type) == "string"))))
   ' >/dev/null 2>&1 || {
-    echo "::error::deferral-guard: comment payload for PR #${pr} was not a valid page array."
+    echo "::error::deferral-guard: comment payload for PR #${pr} was not a valid page array with ISO timestamps."
     exit 1
   }
   deferrals=$(printf '%s' "$comments" | jq -r --arg owner "$owner" --arg re "$deferral_re" '
@@ -161,30 +178,57 @@ while IFS=$'\t' read -r pr head; do
     if [ "$age" -lt "$window_seconds" ] || [ "$age" -gt "$max_age_seconds" ]; then
       continue
     fi
-    later_comment_ids=$(printf '%s' "$comments" | jq -r --arg since "$created" '
-      .[][] | select(.created_at > $since) |
-      select(.body | test("(^|[[:space:]])/(oc|opencode)([[:space:]]|$)"; "i")) | .id
+    later_comment_rows=$(printf '%s' "$comments" | jq -r --arg owner "$owner" --arg trigger "$trigger_re" --arg eval_result "$eval_result_re" '
+      .[][] |
+      select((.user.login? // "") as $u | ($u == $owner) or ($u | endswith("[bot]"))) |
+      select(.body | test($trigger; "i")) |
+      select((.body | test($eval_result; "i")) | not) |
+      [.id, .created_at] | @tsv
     ') || {
       echo "::error::deferral-guard: could not compare later comments on PR #${pr}."
       exit 1
     }
-    later_comment=$(printf '%s\n' "$later_comment_ids" | head -n 1)
+    later_comment=""
+    while IFS=$'\t' read -r later_cid later_created; do
+      [ -n "$later_cid" ] || continue
+      if ! later_epoch=$(date -u -d "$later_created" +%s 2>/dev/null); then
+        echo "::error::deferral-guard: trigger comment ${later_cid} on PR #${pr} has an unparseable created_at (${later_created})."
+        exit 1
+      fi
+      if [ "$later_epoch" -gt "$deferral_epoch" ]; then
+        later_comment="$later_cid"
+        break
+      fi
+    done <<< "$later_comment_rows"
     if [ -n "$later_comment" ]; then
       continue
     fi
-    later_run_ids=$(printf '%s' "$runs_payload" | jq -r --arg head "$head" --arg since "$created" '
-      .[] | .workflow_runs[] | select(.head_sha == $head) | select(.created_at > $since) | .id
+    later_run_rows=$(printf '%s' "$runs_payload" | jq -r --arg head "$head" '
+      .[] | .workflow_runs[] | select(.head_sha == $head) | [.id, .created_at] | @tsv
     ') || {
       echo "::error::deferral-guard: could not compare later runs for PR #${pr}."
       exit 1
     }
-    later_run=$(printf '%s\n' "$later_run_ids" | head -n 1)
+    later_run=""
+    while IFS=$'\t' read -r later_rid later_run_created; do
+      [ -n "$later_rid" ] || continue
+      if ! later_run_epoch=$(date -u -d "$later_run_created" +%s 2>/dev/null); then
+        echo "::error::deferral-guard: workflow run ${later_rid} on PR #${pr} head ${head:0:12} has an unparseable created_at (${later_run_created})."
+        exit 1
+      fi
+      if [ "$later_run_epoch" -gt "$deferral_epoch" ]; then
+        later_run="$later_rid"
+        break
+      fi
+    done <<< "$later_run_rows"
     if [ -n "$later_run" ]; then
       continue
     fi
     marker="<!-- deferral-rearm:pr-${pr}-head-${head}-comment-${cid} -->"
-    dedupe_hits=$(printf '%s' "$board_payload" | jq -r --arg marker "$marker" \
-      '[.[][] | select((.body? // "") | contains($marker))] | length') || {
+    dedupe_hits=$(printf '%s' "$board_payload" | jq -r --arg marker "$marker" --arg owner "$owner" '
+      [.[][] |
+       select((.user.login? // "") as $u | ($u == $owner) or ($u | endswith("[bot]"))) |
+       select((.body? // "") | (contains($marker) and contains("- the Auditor")))] | length') || {
       echo "::error::deferral-guard: could not read the board ledger."
       exit 1
     }
@@ -192,7 +236,7 @@ while IFS=$'\t' read -r pr head; do
       echo "deferral-guard: PR #${pr} deferral ${cid} already re-armed."
       continue
     fi
-    note="Deferral re-arm (issue #853): open PR #${pr} at head ${head:0:12} carries a deferral comment (id ${cid}, ${created}) authored by ${login} that promised a later pass. No dispatch or workflow run followed within ${window_hours} hours, so the promise has aged without an owner.
+    note="Deferral re-arm (issue #853): open PR #${pr} at head ${head:0:12} carries a deferral comment (id ${cid}, ${created}) authored by ${login} that promised a later pass. No owner or bot dispatch and no workflow run on the current head followed within ${window_hours} hours, so the promise has aged without an owner.
 
 Re-arm the PR on the current head with a fresh head-bound pass.
 
@@ -204,7 +248,7 @@ ${marker}
       exit 1
     fi
     posted=$((posted + 1))
-    board_payload=$(printf '%s' "$board_payload" | jq --arg body "$note" '. + [[{body: $body}]]') || {
+    board_payload=$(printf '%s' "$board_payload" | jq --arg body "$note" --arg login "github-actions[bot]" '. + [[{body: $body, user: {login: $login}}]]') || {
       echo "::error::deferral-guard: could not update the board ledger after posting."
       exit 1
     }
