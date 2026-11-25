@@ -18369,7 +18369,7 @@ if [ "$is_pr" = "true" ]; then
     target_branch=""
   fi
 else
-  if ! target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName \
+  if ! target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --limit 100 --json number,headRefName,createdAt \
     --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null); then
     resolver_ok="false"
     target_branch=""
