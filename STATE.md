@@ -1,60 +1,60 @@
 # STATE
 
-Last updated: 2026-11-25T11:20Z by run 45602281620
+Last updated: 2026-11-25T12:19Z by run 45612019336
 
-(11:20Z lab-handoff wake on #854: the round-2 pass landed four commits on `039875d95` (B1-B3 plus N1-N4 and the docs), the full audit is 38/0, and the head-bound review is live on the same head after the first review died on the provider wall and auto-retried. This run dispatched no duplicate trigger, posted the #854 note and the #70 board ping, and holds the queue for the verdict. Main unchanged at `e4844201`.)
+(12:15Z review-approval wake on #854: the head-bound review approved `039875d95` for test at 12:15:14Z with B1-B3 and N1-N5 resolved and the full audit at 38/0, the review's forward posted `/oc test` at 12:15:25Z, and the test gate `45612025534` is live on the same head. This run dispatched no duplicate trigger, posted the #854 note and the #70 board ping, and holds the queue for the test/eval chain. Main unchanged at `e4844201`.)
 
 ## TL;DR for the next Hephaestus
 
-- **This was the 11:12Z lab-handoff wake (`45602281620`) on #854**, started by the owner `/oc maintainer` the lab workflow posted at 11:12:31Z after its round-2 pass landed and forwarded `/oc review` at 11:12:25Z.
-- **The round-2 pass succeeded:** lab run `45598790861` worked 10:50:27-11:12:28Z and committed `bbe854319` (build resolver requests `createdAt`), `7e5573d81` (deferral guard fails closed on parse errors; runs/board/array/bad-date fixtures), `a34d41f38` (R20 wrapper pins include the fail-closed initializers with mutation self-tests; R32 wording), and `039875d95` (docs: 90-day cap, head-bound runs, wrapper pins). Full R1-R37 audit with live board check: 38 passed, 0 failed. The expected App-token refusal at 11:12:13Z was followed by the verified PAT push to `039875d95` and the body rewrite.
-- **The head-bound review is live:** the first review on `039875d95` (`45602263791`) died on the provider daily free-usage allowance at 11:13:26Z and posted `/oc review (auto-retry 1)` at 11:13:29Z; the auto-retry review `45602431133` started 11:13:37Z and is past the wall point. Do not post a duplicate review. The branch is CLEAN/MERGEABLE at `039875d95`.
-- **No merge, no tester/eval marker:** #803 stays open until the verdict confirms all three slices. The body keeps `Closes #803` + `Refs #853`, the `PR #854` prose, the 38/0 verification block, the delegation ledger and the skills line.
-- **This run's decision is one health-board ping (#70), no triggers.** The review is the live gate on the shared audit script.
-- **Main `e4844201`; `maintainer/logs` tip `a48f20b9`** (11:01Z publish). Live site 200; zero held runs; the seven known stale queued runs remain.
-- **Models:** registry 108 / 10 free at 11:15Z; the pin and `small_model` are `deepseek-v4.1-flash-free`; the three ladder rungs are live. No upgrade dispatch.
+- **This was the 12:15Z review-approval wake (`45612019336`)** on #854, started by the owner-authored signed round-2 review report (12:15:22Z) and the `/oc test` forward (12:15:25Z).
+- **The review approved `039875d95` for test.** B1 (whole-wrapper R20 pins plus mutation self-tests), B2 (deferral guard fails closed on malformed pages and parse errors, with the missing read-failure fixtures), and B3 (`createdAt` requested before the build-resolver sort) are resolved, as are N1-N5. Full R1-R37 audit: 38 passed, 0 failed with the live board check; `bash -n`, strict YAML parses, `git diff --check`, dash and trailer scans clean.
+- **The test gate is live:** the review's forward posted `/oc test` at 12:15:25Z, test run `45612025534` started at 12:15:30Z and its agent step at 12:15:48Z. Do not post a duplicate test. The branch is CLEAN/MERGEABLE at `039875d95`.
+- **Next gate:** on an `approve-test` marker plus the tester handoff, dispatch `{"action":"eval","pr":854}` on the same head. On tester findings, the lane returns to a scoped lab pass. On a wall death, the workflow's bounded retry is the designed recovery.
+- **No merge, no evaluation marker:** #803 stays open until the merge confirms all three slices. The body keeps `Closes #803` + `Refs #853`, the `PR #854` prose, the 38/0 verification block, the delegation ledger and the skills line.
+- **This run's decision is one health-board ping (#70), no triggers.**
+- **Main `e4844201`; `maintainer/logs` tip `a9c20f49`** (11:20Z publish). Live site 200; zero held runs; the seven known stale queued runs remain.
+- **Models:** registry 108 / 10 free at 12:17Z; the pin and `small_model` are `deepseek-v4.1-flash-free`; the three ladder rungs are live. No upgrade dispatch.
 - **Allowlist:** 19 names plus the self-excluded maintainer = 20 repo-managed; live 23 = those 20 plus three GitHub-managed; zero missing, zero extra.
-- **Queue:** #854 review, then test/eval/merge if clean; then #812, #814, #849, #857, #856, #860 (only after #854 merges), #773, #774, then #742's remainder. #836 stays open.
+- **Queue:** #854 test then eval then merge if clean; then #812, #814 (with the new baseline-resolver addendum), #849, #857, #856, #860 (only after #854 merges), #773, #774, then #742's remainder. #836 stays open.
 
 ## Who I am
 
 Hephaestus, the Maintainer of this repository. I do not write project code; I keep the pipeline full and the gates honest, and I route every change through the lab engineer, reviewer, tester, auditors, curators, and eval. "I'll do it myself" should lose to "route it." I act only when the owner expressly asks or routine triage is due. I use subagents for parallel read-only investigation only when it materially saves time, and the capped 3-8-line delegation ledger is mandatory where required.
 
-## Right now (surveyed 11:13-11:18Z on 2026-11-25)
+## Right now (surveyed 12:15-12:20Z on 2026-11-25)
 
 ### GitHub state
 
-- **Main:** `e48442018bdf7ff794d8f9f6154f5e4e28fb5610` (the 16:35:01Z rebase merge of the health-board selector work; unchanged since). **`maintainer/logs` live tip at materialization:** `a48f20b91` (11:01Z, the publish of the 10:56Z session).
+- **Main:** `e48442018bdf7ff794d8f9f6154f5e4e28fb5610` (the 2026-11-24T16:35:01Z selector merge; unchanged since). **`maintainer/logs` live tip at materialization:** `a9c20f493` (11:20Z, the publish of the 11:12Z session).
 - **Open PRs (2):**
-  - #854 `039875d952b65dfab09eed290b12d704b587806c`, CLEAN/MERGEABLE (base `e4844201`), 9 commits from main (the rebase plus the round-1 four slices plus the round-2 four slices), 8 files +1128/-71. The body carries `Closes #803`, `Refs #853`, the `PR #854` prose, the 38/0 verification block, the delegation ledger, and the skills line. **The round-2 review findings are fixed in the head**; the head-bound review is live in `45602431133`. No tester/eval marker.
+  - #854 `039875d952b65dfab09eed290b12d704b587806c`, CLEAN/MERGEABLE (base `e4844201`), 9 commits from main (the rebase plus the round-1 four slices plus the round-2 four slices), 8 files +1128/-71. The round-2 review approved it for test at 12:15:14Z; the test gate `45612025534` is live on this head (agent since 12:15:48Z). No tester approval or evaluation marker yet. The body carries `Closes #803`, `Refs #853`, the `PR #854` prose, the 38/0 verification block, the delegation ledger, and the skills line.
   - #821 `dce109e4479b3cf2801a1b0127ea98778e58c398`, CLEAN, Maze Chase Windows compatibility harness (base `86570af1`); no workflow files; untouched since 2026-11-07.
 - **Open issues (23 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #803, #812, #814, #831, #836, #849, #856, #857, #860. No new issue. #853 and #848 are closed; #803 stays open until the merge; #831 is bookkeeping only.
 - **#773/#774 verified still valid on main:** `LAB.md:611` still says "Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope" and `LAB.md:1375` still names the phantom "ownership-gated restore-head" step; `setup.sh` still lists only the pre-#743 agent prompts and six core workflows. Both are parked as the post-delivery batch; re-queue after #860. No dispatch now.
 - **Board invariant holds:** `health-board.sh` resolves `70`; only #70 carries `lab-health` among open issues and only #70 has the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`).
-- **Latest comments:** the 11:01 decision note and summary, the 11:12:13Z App-token push rejection, the 11:12:25Z `/oc review` forward, the 11:12:31Z `/oc maintainer` handoff, and the 11:13:29Z `/oc review (auto-retry 1)`. No human comment after the handoff; no new issue or PR.
-- **Branch tips:** main `e4844201`, `maintainer/logs` `a48f20b9`, #854 `039875d95`, #821 `dce109e4`, the landed selector branch `opencode/lab-848-shared-health-board-selector` at `c1040c0c` (intact), the #859 branch `opencode/issue858-curate-umbra-count-copy` at `9b862e48` (never delete). No recovery due.
-- **Held runs:** 0. **Queued:** the seven known stale runs (2026-09-25 x3, 2026-10-05 x1, 2026-11-11 x3). **In progress:** this run `45602281620` plus review `45602431133`. **Pending:** maintainer `45602430946` (auto-retry cohort sibling with no jobs; it should self-skip or see this state).
-- **This run:** `45602281620`, `issue_comment` at 11:12:35Z; trusted pre-agent checkout main `e4844201`; the CLI bootstrap checked out the PR head `039875d95` for this wake (issue #831 disables project config); tree clean; no protected-path edits; no model edit; no branch commands; no `emergency.json`.
+- **Latest comments:** the 11:19 decision note and 11:20 summary, `/oc review (auto-retry 2)` at 11:24:37Z, `/oc review (auto-retry 3)` at 11:56:41Z, the 12:15:14Z approval summary, the 12:15:22Z signed report, and `/oc test` at 12:15:25Z. No human directive after the forward; no new issue or PR.
+- **Branch tips:** main `e4844201`, `maintainer/logs` `a9c20f49`, #854 `039875d95`, #821 `dce109e4`, the landed selector branch `opencode/lab-848-shared-health-board-selector` at `c1040c0c` (intact), the #859 branch `opencode/issue858-curate-umbra-count-copy` at `9b862e48` (never delete). No recovery due.
+- **Held runs:** 0. **Queued:** the seven known stale runs (2026-09-25 x3, 2026-10-05 x1, 2026-11-11 x3). **In progress:** this run `45612019336` plus test `45612025534`. The 12:15 cohort maintainer siblings were cancelled/skipped by the designed dedupe; this is the surviving session.
+- **This run:** `45612019336`, `issue_comment` at 12:15:27Z; trusted pre-agent checkout main `e4844201`; the CLI bootstrap checked out the PR head `039875d95` for this wake (issue #831 disables project config); tree clean; no protected-path edits; no model edit; no branch commands; no `emergency.json`.
 
 ### Runs, CI and queues
 
-- **Lab `45598790861`:** success, 10:50:24-11:12:29Z. The agent completed the round-2 pass: B3 `bbe854319`, B2/N2 `7e5573d81`, B1/N4 `a34d41f38`, N3/N1 `039875d95`; the full R1-R37 audit with the live board check reports 38/0; the decision was `review`. The App-token push was rejected at 11:12:13Z (expected on a workflow-touching branch) and the PAT step pushed and rewrote the body; the forward posted `/oc review` at 11:12:25Z and the maintainer handoff at 11:12:31Z.
-- **Review `45602263791`:** the first head-bound review on `039875d95`; the agent died on the provider daily free-usage allowance at 11:13:09-11:13:26Z (`FreeUsageLimitError`, retry-after ~47770s) with no decision; the verify step posted `/oc review (auto-retry 1)` at 11:13:29Z.
-- **Review `45602431133`:** the auto-retry, live since 11:13:37Z; the agent step started 11:13:54Z and is still working at 11:18Z, past the walled run's death point. This is the live gate on the round-2 head; do not duplicate it.
-- **Pending maintainer `45602430946`:** created at 11:13:32Z from the auto-retry comment cohort; it should self-skip or see this state.
-- **Pages redeploy `45602277437`:** failure at 11:12:54Z, "Found 0 artifact(s)" in the deploy step after the upload step succeeded (the known transient artifact-API class); the live root is 200 and main is unchanged, so the last successful deploy `45442610396` of the same SHA is still serving. The #854 PR-head deploy `45602259091` succeeded on `039875d95`. No dispatch while the site is live.
-- **No other failure in the window.**
-- **Wall:** the last death is the 11:13:26Z review draw. The 10:50-11:12Z lab pass completed on a fresh runner, and the live auto-retry review is working past the wall point, so the allowance is usable on fresh runners now; a single draw is the window test, never a burst. The `retry-after` header is diagnostic only.
-- **Model registry:** fresh read 11:15Z: 108 models / 10 free; `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free` and the other free names are live. No Auditor recommendation, no upgrade dispatch.
+- **Review `45609088460`:** success, verdict approve (test) on `039875d95`. Summary at 12:15:14Z and signed nonce-bound report at 12:15:22Z; B1-B3 and N1-N5 all closed; audit 38/0 with the live board check; branch CLEAN/MERGEABLE against `e4844201`. The review confirms the #853 guard is a schedule/dispatch-only pre-agent step using the job token, the board resolution goes through the shared helper, the note is token-free and deduped per PR/head/comment, and the eleven counters are payload-first and incident-scoped.
+- **Review auto-retry chain:** the first head-bound review on `039875d95` died on the provider daily free-usage allowance at 11:13:26Z; the auto-retry comments landed at 11:13:29Z, 11:24:37Z and 11:56:41Z, and the final look completed at 12:15Z. The chain behaved as designed; no manual retry was needed.
+- **Test `45612025534`:** in progress since 12:15:30Z; the agent step started 12:15:48Z. This is the live gate; do not duplicate it.
+- **Pages redeploy `8055775475`:** failure at 11:12:57Z, "Found 0 artifact(s)" (the known transient artifact-API class); the live root is 200 and main is unchanged, so the last successful deploy `8034701065` (2026-11-24T16:55Z) of the same SHA is still serving. The #854 PR-head deploy succeeded on `039875d95`. No dispatch while the site is live.
+- **No other failure in the window** beyond the wall-killed review draws and the expected concurrency cancellations of the 12:15 maintainer cohort.
+- **Wall:** the last death is the 11:13:26Z review draw; the final auto-retry completed and the tester is working on a fresh runner. A single draw is the window test, never a burst. The `retry-after` header is diagnostic only.
+- **Model registry:** fresh read 12:17Z: 108 models / 10 free; `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free` and the other free names are live. No Auditor recommendation, no upgrade dispatch.
 - **Allowlist:** `maintainer.yml` lists 19 repo workflow names; with the self-excluded `maintainer` that covers all 20 repo-managed names. Live 23 names = those 20 plus the three GitHub-managed names. Zero missing, zero extra.
-- **Audit:** the #854 head carries R1-R37 with the round-2 fixtures and pins: the R20 pins include the fail-closed initializers and mutation self-tests, the deferral guard fails closed on parse errors with the runs/board/array/bad-date fixtures, the build resolver requests `createdAt`, and the R37/R32 text and AGENTS/LAB docs match. The full audit is 38/0.
-- **Pages:** production root returns 200 on `e4844201`; the last production deploy is `45442610396` (2026-11-24T16:54Z, same main SHA); the #854 PR-head deploy `45602259091` succeeded on `039875d95`; the 11:12Z production redeploy failed on an empty artifact with no live content change.
-- **Schedule health:** the 20-minute maintainer cron last fired at 05:01Z; this 11:12Z run is comment-triggered. The scheduler throttle (#831/#836) remains; no manual dispatch while the quota is the scarce resource.
+- **Audit:** the #854 head carries R1-R37 with the round-2 fixtures and pins: the R20 pins include the fail-closed initializers with mutation self-tests, the deferral guard fails closed on parse errors with runs/board/array/bad-date fixtures, the build resolver requests `createdAt`, and the R37/R32 text and AGENTS/LAB docs match. The full audit is 38/0.
+- **Pages:** production root returns 200 on `e4844201`; the last production deploy is `8034701065` (2026-11-24T16:55Z, same main SHA); the 11:12Z production redeploy failed on an empty artifact with no live content change; the #854 PR-head deploy succeeded on `039875d95`.
+- **Schedule health:** the 20-minute maintainer cron last fired at 05:01Z; this 12:15Z run is comment-triggered. The scheduler throttle (#831/#836) remains; no manual dispatch while the quota is the scarce resource.
 
 ### Live lanes and their next step
 
-- **#854 / #803 (protected-path slices):** the round-2 pass landed on `039875d95` and the head-bound review is live. On approval, the chain forwards the tester/eval gates; on findings, another scoped pass on the same head. On a wall death, the bounded auto-retry chain is the recovery; no same-pool retry. The body carries `Closes #803` + `Refs #853`; #803 closes only on a merge that confirms all three slices. The branch is not merge-eligible until a head-fresh tester marker and a head-bound `approve-eval`.
-- **#812 / #814 (audit-harness backlog):** #812 is R11 same-name shadowing with no `lab:` job scoping; #814 is the fail-open baseline read in the fix lane. Both still reproduce on main; #815 is fixed and closed. Next: after #854's verdict, with the R32 verify-body pin updated in lockstep.
+- **#854 / #803 (protected-path slices):** review approved `039875d95`; the test gate is live. On `approve-test`, dispatch `eval` on the same head; on tester findings, another scoped pass; on a wall death, the bounded retry chain is the recovery, no same-pool retry. On `approve-eval` with a fresh tester marker, run the merge preflight and merge; close #803 only if all three slices are confirmed. Never `--delete-branch`.
+- **#812 / #814 (audit-harness backlog):** #812 is R11 same-name shadowing with no `lab:` job scoping; #814 is the fail-open baseline read in the fix lane. Both still reproduce on main; #815 is fixed and closed. Next: after #854's verdict, with the R32 verify-body pin updated in lockstep. **New addendum for #814:** the review found a pre-existing baseline resolver at `opencode.yml:838` on main that also sorts by `.createdAt` without requesting it; fold the `createdAt` request and a pin into that pass instead of opening a new issue or expanding the approved #854 head.
 - **#849 (fail-loud hardening):** its 2026-11-20T03:34:03Z trigger died on the wall (run `44668604966`); it stays queued after #812/#814 and will need a fresh trigger when it reaches the head of the queue.
 - **#773/#774:** #773 is the LAB.md read-only-scope contradiction plus the phantom "ownership-gated restore-head" step reference; #774 is the stale `setup.sh --check` roster. Both verified valid on `e4844201` and parked since October as the post-delivery batch. Queue after #860; no dispatch until the backlog clears.
 - **#857 / #856 / #860 (fail-loud backlog):** accepted and serialized after #849; #860 shares `opencode-review.yml` with the #854 lane, so it cannot start before #854 merges.
@@ -67,7 +67,7 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ## Concurrency and wall coordination
 
-- One draw at a time; no same-pool burst. This run spends zero agent draws: the #854 review is already live and the queue holds for its outcome.
+- One draw at a time; no same-pool burst. This run spends zero agent draws: the #854 test is already live and the queue holds for its outcome.
 - **Checkpoint rule (binding on the next Maintainer):** if #854's head advances with partial commits and a lab run dies without signalling review, do NOT dispatch a review on that partial head. Read the lab decision/comment and the commit messages; only a `review` signal (or an explicitly complete pass) authorizes the review/test/eval chain.
 - Do not dispatch #812/#814/#849/#857/#856/#860/#773/#774/#742 until the #854 verdict is known; the serialized order keeps the shared audit script single-owner.
 - Never merge without a head-fresh tester marker and a head-bound `approve-eval`. Workflow-touching PRs merge only through the hardened PAT sweep, never from the agent session.
@@ -75,9 +75,9 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ## Serialized queue (re-post only if the lane did not land, the window demonstrably holds, and no live/queued run exists)
 
-1. **#854 review (live):** on a verdict, forward the tester/eval chain on approval; on findings, another scoped pass on the same head. Keep #803 open until the merge confirms all three slices.
+1. **#854 test (live):** on approval, dispatch `eval` on the same head; on findings, another scoped pass; then merge only on a head-bound `approve-eval` with a fresh tester marker. Keep #803 open until the merge confirms all three slices.
 2. `{"action":"lab","issue":812}`: after #854; scope R11 to the `lab:` job and update the R32 verify-body pin in lockstep.
-3. `{"action":"lab","issue":814}`: after #812; fail-closed baseline read in the fix lane and update the R32 pin in lockstep.
+3. `{"action":"lab","issue":814}`: after #812; fail-closed baseline read in the fix lane, add `createdAt` to the baseline resolver `--json` list, and update the R32 pin in lockstep.
 4. `{"action":"lab","issue":849}`: after #814; on a push, the review/test chain; re-arm its wall-killed trigger.
 5. `{"action":"lab","issue":857}`: next in the fail-loud backlog after #849.
 6. `{"action":"lab","issue":856}`: after #857.
@@ -90,8 +90,8 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ## Loose ends
 
-1. #854: the round-2 fixes are on `039875d95` and the head-bound review is live. The first review on the new head died on the wall; the auto-retry is working. No duplicate review.
-2. The live review must confirm B1 (wrapper pins + mutation self-tests), B2 (guard fail-closed + read-failure fixtures), and B3 (`createdAt` sort), plus the non-blocking text/docs items; the head carries all of them per the commit messages and the 38/0 audit.
+1. #854: the review approved `039875d95`; the test gate is live. No duplicate test; no eval before the tester approves.
+2. The test must pass on a head-fresh marker; then the quality gate must approve the same head before any merge. The eval dispatch is `{"action":"eval","pr":854}`.
 3. The App-token push refusal is expected wrapper noise on a workflow-touching branch; the PAT step is authoritative. Do not route a post-mortem for it alone.
 4. The 11:12Z site-redeploy dispatch failed on an empty artifact; the live site is 200 and main is unchanged, so the last successful deploy of the same SHA is still serving. If a later successful deploy does not appear and the site goes stale, investigate then.
 5. The PR body is `Closes #803` + `Refs #853` with the `PR #854` prose; the merge will close #803 only if the verdict confirms all three slices.
@@ -100,21 +100,21 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 8. The auditor daily slot fired late at 07:27Z; the 20-minute maintainer cron last fired at 05:01Z. The scheduler throttle (#831/#836) remains; no manual dispatch while the quota is the scarce resource.
 9. #836 stays open for the Owner capacity decision. The merged slice restores rung 3 and aligns the contract only; do not close the issue.
 10. #745 is done: merged `eca3be8e`, Pages green, #853 closed. #742 stays open for the remaining owner-credential work.
-11. Model registry drift: the ladder is 3/3 on main and all three rungs are live; the free count is 10 at 11:15Z, with no rung retired. No lab dispatch.
-12. Maintainer schedule/recover throttling: the declared 20-minute cron fires only a few times a day; the 11:12Z run is comment-triggered. The scheduler throttle (#831/#836) remains.
+11. Model registry drift: the ladder is 3/3 on main and all three rungs are live; the free count is 10 at 12:17Z, with no rung retired. No lab dispatch.
+12. Maintainer schedule/recover throttling: the declared 20-minute cron fires only a few times a day; the 12:15Z run is comment-triggered. The scheduler throttle (#831/#836) remains.
 13. The 22:01Z curator agent completed green without a decision file on 2026-11-24; the bounded auto-retry dispatched the 22:11Z run, which decided `[]`. The 07:31Z curator draw is the next sample. A repeat across runs is a lab-round candidate; no issue opened (follow-ups belong to the Owner).
-14. Workspace: this run's trusted pre-agent checkout is main `e4844201`; the CLI bootstrap checked out the PR head `039875d95` for this wake, so the session tree is on the PR head with project config disabled; the memory bundle came from the trusted log-branch tip `a48f20b9`, `.maintainer/` is gitignored, and the tree is clean.
-15. Memory: the 2026-11-25 file carries the 02:36Z session, the three run markers, the 05:01Z session, the 08:05Z session, the 10:10Z session, the 10:56Z session, and this 11:12Z session. The log publish is append-only with keep-both semantics. The `maintainer/logs` tip at materialization is `a48f20b9`.
+14. Workspace: this run's trusted pre-agent checkout is main `e4844201`; the CLI bootstrap checked out the PR head `039875d95` for this wake, so the session tree is on the PR head with project config disabled; the memory bundle came from the trusted log-branch tip `a9c20f49`, `.maintainer/` is gitignored, and the tree is clean.
+15. Memory: the 2026-11-25 file carries the 02:36Z session, the three run markers, the 05:01Z session, the 08:05Z session, the 10:10Z session, the 10:56Z session, the 11:12Z session, and this 12:15Z session. The log publish is append-only with keep-both semantics. The `maintainer/logs` tip at materialization is `a9c20f49`.
 16. Prompt-contract drift (watch only, no new issue): the `maintainer.yml` OUTPUT CONTRACT action list omits `sweep`, `create_issue`, and `create_pr` while the staged prompt documents them; the workflow handles them. Fold into the next lab round, not a standalone issue.
 17. Auditor doc drift (watch only, no new issue): the two stale `longcat-2.5-free` prompt examples remain; the prompts require a fresh registry query before use. Fold into the next lab round.
 18. The merged tree carries the R26 canonical manifest in lockstep with `maintainer.yml`; the next lab pass must regenerate it if it edits that file.
-19. No agent-side merge or dispatch this run beyond the live review and the board ping. The last verified merge is the selector PR at 16:35:02Z on 2026-11-24.
-20. The general job's ` /oc` substring matcher fired on trigger prose in the eval report on 2026-11-24 and produced two no-action notes plus one extra owner summon; the resulting wake was cancelled. Watch item for a future lab round; no new issue.
+19. No agent-side merge or dispatch this run beyond the live test and the board ping. The last verified merge is the selector PR at 2026-11-24T16:35:02Z.
+20. The general job's ` /oc` substring matcher fired on the review-forward cohort again at 12:15:30Z (all siblings skipped); watch item for a future lab round, no new issue.
 21. No `emergency.json`: the maintainer workflow is alive, production is serving, and no failed lab attempt is being bypassed.
 22. #773/#774 are re-queued after a month-long park. They were valid on `e4844201` when checked at 11:16Z; re-verify before dispatching in case the backlog pass folds them into #742.
-23. **Lab wall-death recovery gap (watch, maybe #820/#836 follow-up):** the lab wall-death intake does not chain the bounded fresh-run recovery (it is a lab run, not an agent run carrying `.maintainer/quota-wall`); the schedule/heartbeat is the designed re-arm. Not worth a duplicate issue now; fold into the capacity work or the next lab round after the backlog.
-24. The pending maintainer `45602430946` was created at 11:13:32Z with no jobs; if it actually runs, it must read this state and avoid re-dispatching the live review.
-25. The live review's auto-retry chain has up to 4 attempts on fresh runners; if it exhausts the chain, the next Maintainer wake must read the verdict trail and re-arm a single fresh review, not a burst.
+23. **New review follow-up (baseline resolver):** `opencode.yml:838` on main sorts by `.createdAt` without requesting it in the `--json` list, the same class as the build-resolver bug fixed here. It is outside the #854 diff and non-blocking; fold the `createdAt` request and a pin into the #814 fix-lane hardening pass. Do not edit the approved #854 head for it.
+24. **Design-lane note (future hardening only):** a manual design trigger placed on a PR thread would day-scope there; the designed issue invocation and the phase-completion forward are unaffected. Not a blocker, no action now.
+25. The live test's bounded retry chain is the recovery if the wall kills it; if it exhausts, the next Maintainer wake must read the verdict trail and re-arm a single fresh test, not a burst.
 
 ## Standing rules I operate under
 
@@ -170,27 +170,26 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 - Protected infra changes only through the lab lane; the agent-write token cannot push workflow files, the domain PAT can.
 - The brain is always mounted read-only; the memory files under `.maintainer/memory/` are the only persistent memory I can edit.
 - The maintainer must always post a comment as its comment.md artifact or an explicit ping; a silent maintainer is a failure. This run comments on #854 and pings the board.
-- The pipeline is green on main (`e4844201`; the post-merge Pages deployment succeeded and the live root is 200), and the platform is perf-sensitive: multi-agent is the only way to keep the guards intact.
-- Free-model provider walls are per-egress IP and sporadic across runners; the wall killed seventeen review draws between 2026-11-22T01:34Z and 2026-11-24T09:34Z, the lab handoff at 12:54:48Z, the lab draws at 16:54:13Z, 23:15:37Z, 03:05:44Z, 05:10:20Z and 11:13:26Z (the first #854 round-2 review), while fresh runners completed the 13:20 lab, 13:55 review, 14:31 test, 15:39 eval, 16:22 eval, the 16:35 merge, the 22:01-22:28Z curator draws, the 02:37Z, 05:01Z, 08:05Z and 10:10Z Maintainer sessions, the 07:27-08:05Z auditor draw, the 08:22-10:09Z fifth #854 lab pass, the 10:50-11:12Z sixth #854 lab pass, and the live 11:13Z review auto-retry. Elapsed time alone is not proof; the fresh-run lottery is the designed recovery, and a single draw is the window test, never a burst.
+- The pipeline is green on main (`e4844201`; the post-merge Pages deployment of the same SHA is live and the root is 200), and the platform is perf-sensitive: multi-agent is the only way to keep the guards intact.
+- Free-model provider walls are per-egress IP and sporadic across runners; the wall killed seventeen review draws between 2026-11-22T01:34Z and 2026-11-24T09:34Z, the lab handoff at 12:54:48Z, the lab draws at 16:54:13Z, 23:15:37Z, 03:05:44Z, 05:10:20Z and 11:13:26Z, while fresh runners completed the 13:20 lab, 13:55 review, 14:31 test, 15:39 eval, 16:22 eval, the 16:35 merge, the 22:01-22:28Z curator draws, the 02:37Z, 05:01Z, 08:05Z, 10:10Z, 10:56Z and 11:12Z Maintainer sessions, the 07:27-08:05Z auditor draw, the 08:22-10:09Z fifth #854 lab pass, the 10:50-11:12Z sixth #854 lab pass, the 11:13-12:15Z review auto-retry chain, and this 12:15Z session. Elapsed time alone is not proof; the fresh-run lottery is the designed recovery, and a single draw is the window test, never a burst.
 - The ladder on `main` is 3/3 (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free`), and the pin and `small_model` are unchanged.
 - Owner's protection contract: never cancel required checks; cancelled runs are not green.
 
 ## Next run
 
-1. Read the verdict of the live review `45602431133` on `039875d95`. On approval, forward the tester/eval chain; on findings, scope another pass on the same head. If the auto-retry chain dies on the wall, re-arm a single fresh review on the next wake and do not review a partial head.
-2. On a merge, close #803 only if the verdict confirms all three slices; keep the branch intact.
+1. Read the test verdict `45612025534` on `039875d95`. On `approve-test` plus the handoff, dispatch `{"action":"eval","pr":854}` on the same head. On tester findings, scope another pass on the same head. If the test retry chain dies on the wall, re-arm a single fresh test on the next wake and do not test a partial head.
+2. On `approve-eval` with the tester marker still fresh, run the merge preflight (main history, head re-read, required checks, mergeable), merge with the rebase path, verify, and close #803 only if all three slices are confirmed; keep the branch intact.
 3. Verify main is still `e4844201` (or advanced only through a verified merge), production is live, and the selector branch is intact at `c1040c0c`.
-4. Then #812, #814, #849, #857, #856, #860, #773, #774 in order (#860 only after #854 merges), then #742's remainder.
-5. Watch the pending maintainer `45602430946`; keep #836 open for the Owner capacity decision; #831 is bookkeeping only; #848, #853 and #815 are closed.
+4. Then #812, #814 (with the baseline-resolver `createdAt` addendum), #849, #857, #856, #860 (only after #854 merges), #773, #774 in order, then #742's remainder.
+5. Keep #836 open for the Owner capacity decision; #831 is bookkeeping only; #848, #853 and #815 are closed.
 6. Verify the board invariant, allowlist, registry/ladder, live site, held runs, and schedule health; if clean, stand by.
 
 ## Open questions
 
-1. Will the live review approve `039875d95`, or return another scoped finding list?
-2. Will the provider wall spare the review runner long enough to finish, or will the auto-retry chain spend itself?
-3. Does the transient Pages artifact failure class recur on the next production deploy now that the PR-head deploy succeeded?
-4. Will the pending maintainer `45602430946` self-skip cleanly?
-5. The scheduler throttle is producing multi-hour gaps in every cron; does the Owner want to fold the scheduler and capacity work into the #836 decision?
-6. Does the capacity tracker still need the Owner's per-egress-IP capacity decision now that the ladder is whole again?
-7. The general job's ` /oc` substring matcher and the prompt-contract drift remain watch items for a future lab round.
-8. Should #773/#774 stay as separate lab targets, or be folded into the #742 remainder when the backlog clears?
+1. Will the tester approve `039875d95`, or return failing commands/evidence?
+2. Will the provider wall spare the tester runner long enough to finish, or will its bounded retry chain spend itself?
+3. Will the quality gate approve the same head, or return findings?
+4. The scheduler throttle is producing multi-hour gaps in every cron; does the Owner want to fold the scheduler and capacity work into the #836 decision?
+5. Does the capacity tracker still need the Owner's per-egress-IP capacity decision now that the ladder is whole again?
+6. The general job's ` /oc` substring matcher and the prompt-contract drift remain watch items for a future lab round.
+7. Should #773/#774 stay as separate lab targets, or be folded into the #742 remainder when the backlog clears?
