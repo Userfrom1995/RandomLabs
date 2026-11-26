@@ -1,54 +1,51 @@
 # STATE
 
-Last updated: 2026-11-26T11:35Z by run 45810951935
+Last updated: 2026-11-26T11:52Z by run 45813652388
 
-(11:28Z pull_request closed wake on #854: the merge sweep merged the PR on the rebase path at 11:28:46Z, main advanced e4844201 -> de728de5f, #803 auto-closed, Pages deployed the new main and the root returns 200; this run dispatched #812 to resume the serialized queue and pinged the board. #865's review is live on 818de0af3.)
+(11:46Z issue_comment wake on #865: the review approved `818de0af3` and its test gate is live; the #812 infrastructure pass is also live. No new dispatch this run; one #70 board note.)
 
 ## TL;DR for the next Hephaestus
 
-- **This was the 11:28Z wake (`45810951935`)** summoned by the #854 pull_request closed event. The merge sweep had already merged the PR; this run verified the merge, the #803 auto-close, and the Pages deploy.
-- **#854 is merged and archived:** head `d449afb93` is content-identical to main `de728de5f` (11 rebased commits, empty diff); the branch remains at `d449afb93` for archival. #803 closed at 11:28:48Z. Do not re-open or re-review.
-- **#812's lab pass is dispatched in this run** (the serialized queue's next item: the R11 same-name decoy bypass in `.github/scripts/silent-stall-audit.sh` plus the LAB.md fold-in). On its push, a fresh review follows; then test, quality, merge. Its branch starts from main `de728de5f`.
-- **#865's review is live** on `818de0af3` (run `45810911108`, started 11:28:35Z). On approval, the test gate; on a test marker, the quality gate; on a head-bound quality approval, verify the merge preflight, confirm the PAT sweep merged on the rebase path, and close #864. The thread's auto-retry budget is spent, so a wall death needs a manual re-arm.
-- **#865 base:** GitHub reports CLEAN/MERGEABLE against the current main `de728de5f`; its branch predates the #854 merge but has no conflicts.
-- **Next gate order:** #865 review -> test -> quality -> merge and close #864; #812 lab -> review -> test -> quality -> merge; then #814, #849, #857, #856, #860, #773, #774, #742.
-- **Main `de728de5f`; `maintainer/logs` tip `58f2c392`.** Models 108/10 free; ladder 3/3 live; allowlist 19/19 + maintainer; board resolves `70`; production 200; preview #854 404 (merged); held 0; the seven stale queued runs unchanged.
+- **This was the 11:46Z wake (`45813652388`)** summoned by the `/oc test` comment on #865 after the review approval. The approval's own test lane is live; no duplicate trigger was needed.
+- **#865 is in the test gate:** head `818de0af3`, review APPROVED at 11:46:47Z with no blocking findings, test run `45813660419` in progress since 11:47:03Z. On a test approval, dispatch exactly one quality pass on the same head; on a head-bound quality approval, verify the merge preflight and the PAT sweep, then #864 closes.
+- **#812's lab pass is live:** run `45812338702` in progress since 11:38:02Z. On its push, a fresh review follows; then test, quality, merge.
+- **Main `de728de5f`; `maintainer/logs` tip `5569a71d`.** Models 108/10 free; ladder 3/3 live; allowlist 19/19 + maintainer; board resolves `70`; production 200; preview #865 200; held 0; the seven stale queued runs unchanged.
+- **Do not duplicate:** no review/test/lab trigger is needed while the two live lanes run. The queue (#814, #849, #857, #856, #860, #773, #774, #742) stays behind #812.
 
 ## Who I am
 
 Hephaestus, the Maintainer of this repository. I do not write project code; I keep the pipeline full and the gates honest, and I route every change through the lab engineer, reviewer, tester, auditors, curators, and eval. "I'll do it myself" should lose to "route it." I act only when the owner expressly asks or routine triage is due.
 
-## Right now (surveyed 11:29-11:34Z on 2026-11-26)
+## Right now (surveyed 11:47-11:52Z on 2026-11-26)
 
 ### GitHub state
 
-- **Main:** `de728de5f9e01c43ae5c2e6fc8ea37914b6412a9` (the #854 rebase merge; the 11 commits `a99dd8b30`..`de728de5f` on top of `e4844201`). **`maintainer/logs` tip:** `58f2c392` (11:28Z publish).
-- **#854:** MERGED at 11:28:46Z, 11 commits, 8 files +1332/-77; the tree is content-identical to the reviewed/tested head `d449afb93`; the branch is intact. `closingIssuesReferences` -> #803, closed at 11:28:48Z.
-- **Open PRs (2):**
-  - #865 `818de0af3b72d044d499594c544b14c06d28f504`, CLEAN/MERGEABLE against `de728de5f`, 2 files +275/-16 (`.github/scripts/silent-stall-audit.sh`, `.github/workflows/maintainer.yml`). The #864 fail-closed comment-poster repair plus the R30 idless/mixed/signed hardening. The body carries the ledger, skills note, sign-off, `Closes #864`, and the stray `Closes #865` footer. Review live on this head; no test/quality marker.
-  - #821 `dce109e4479b3cf2801a1b0127ea98778e58c398`, CLEAN, Maze Chase Windows compatibility harness (base `86570af1`); untouched since 2026-11-07.
-- **Open issues (23 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #812, #814, #831, #836, #849, #856, #857, #860, #864. #70 is the only `lab-health` board; #42 is the only `brainstorm` issue; #864 stays open until #865 merges; #803 is closed.
-- **Board invariant holds:** `health-board.sh` resolves `70`; only #70 carries `lab-health` and the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Newest board note is the 11:28:28Z merge-ready record; this run's ping adds the post-merge record.
-- **Latest comments:** the 11:28:15Z decision note, the 11:28:28Z board note, the 11:28:29Z quality-approval note, and the 11:28:30Z `/oc review (head 818de0af3...)` on #865; no human comment after the trigger; no `/oc fix` anywhere.
-- **Branch tips:** main `de728de5f`, `maintainer/logs` `58f2c392`, #854 `d449afb9` (archival), #865 `818de0af3`, #821 `dce109e4`, the landed selector branch `opencode/lab-848-shared-health-board-selector` at `c1040c0c` (intact), the #859 branch `opencode/issue858-curate-umbra-count-copy` at `9b862e48` (never delete). No recovery due.
-- **Held runs:** 0. **Queued:** the seven known stale runs (2026-09-25 x3, 2026-10-05 x1, 2026-11-11 x3). **In progress:** this run and the #865 review `45810911108`. **Pending:** none.
-- **This run:** `45810951935`, `pull_request` closed on #854, created 11:28:50Z; the trusted pre-agent checkout is main `de728de5f`, but the CLI bootstrap left the session tree on the #854 head `d449afb93` (issue #831 behavior), so trusted facts were read from `origin/main`; session tree clean; no protected-path edits; no model edit; no branch commands; no `emergency.json`.
+- **Main:** `de728de5f9e01c43ae5c2e6fc8ea37914b6412a9` (the #854 rebase merge; base `e4844201`). **`maintainer/logs` tip:** `5569a71da7bf185822b23a7073b19d0e45970938` (the 11:37Z publish).
+- **#865:** head `818de0af3b72d044d499594c544b14c06d28f504`, CLEAN/MERGEABLE against `de728de5f`, 2 files +275/-16 (`.github/scripts/silent-stall-audit.sh`, `.github/workflows/maintainer.yml`). Review APPROVED at 11:46:47Z on this head with three non-blocking observations; `/oc test` posted at 11:46:58Z; test run `45813660419` in progress since 11:47:03Z. The body carries the delegation ledger, skills note, sign-off, `Closes #864`, and the cosmetic `Closes #865` footer; `closingIssuesReferences` lists only #864.
+- **#812:** the serialized queue's next item; lab run `45812338702` in progress since 11:38:02Z (the `/oc lab` trigger at 11:37:55Z). No branch pushed yet.
+- **Open PRs (2):** #865 and #821 `dce109e4479b3cf2801a1b0127ea98778e58c398` (parked, untouched since 2026-11-07).
+- **Open issues (23 non-PR):** #42, #70, #582, #655, #657, #659, #661, #677, #678, #683, #742, #773, #774, #792, #812, #814, #831, #836, #849, #856, #857, #860, #864. #70 is the only `lab-health` board; #42 is the only `brainstorm` issue; #864 stays open until #865 merges.
+- **Board invariant holds:** `health-board.sh` resolves `70`; only #70 carries `lab-health` and the exact title `Lab Health & Audit Logs`; #42 is the only other labelled issue (`brainstorm`). Newest board note before this run: the 11:37:53Z post-merge record; this run's ping adds the review-approval/test-live record.
+- **Latest comments:** the 11:37:55Z `/oc lab` on #812, the 11:46:47Z review decision note, the 11:46:54Z full review report, and the 11:46:58Z `/oc test` on #865; no human comment after the trigger; no `/oc fix` anywhere.
+- **Branch tips:** main `de728de5f`, `maintainer/logs` `5569a71d`, #865 `818de0af3`, #821 `dce109e4`, the landed selector branch `opencode/lab-848-shared-health-board-selector` at `c1040c0c` (intact), the #859 branch `opencode/issue858-curate-umbra-count-copy` at `9b862e48` (never delete), the #854 branch `d449afb9` (archival). No #812 branch yet. No recovery due.
+- **Held runs:** 0. **Queued:** the seven known stale runs (2026-09-25 x3, 2026-10-05 x1, 2026-11-11 x3). **In progress:** this run, the #865 test `45813660419`, and the #812 lab `45812338702`. **Pending:** none.
+- **This run:** `45813652388`, `issue_comment` on #865 (the `/oc test` comment), created 11:46:57Z; the trusted pre-agent checkout is main `de728de5f`, but the CLI bootstrap left the session tree on the #865 head `818de0af3` (issue #831 behavior), so trusted facts were read from `origin/main`; session tree clean; no protected-path edits; no model edit; no branch commands; no `emergency.json`.
 
 ### Runs, CI and queues
 
-- **#854 merge sweep:** merged at 11:28:46Z on the rebase path (no merge commit, no `--delete-branch`); main advanced; #803 auto-closed at 11:28:48Z.
-- **Pages:** the push-triggered deploy `45810951787` was cancelled by the pages concurrency group; the workflow_dispatch deploy `45810953211` completed success at 11:29:28Z for `de728de5f`; production root HTTP 200; preview #854 404 (closed).
-- **#865 review `45810911108`:** in progress since 11:28:35Z on `818de0af3` (the 11:19Z session's manual re-arm posted at 11:28:30Z).
-- **Maintainer close cohort:** the pull_request close event spawned this run plus a cohort of maintainer `workflow_run` runs that skipped/cancelled as the designed concurrency dedupe; the 11:21Z general false-positive handoff run `45809843977` was cancelled.
-- **Failures:** none in the last 100 runs; the only recent failure is the 10:31Z review wall death, already re-armed.
-- **Model registry:** 108 / 10 free at 11:31Z; pin and `small_model` `opencode/deepseek-v4.1-flash-free`; the three ladder rungs are live; `maintainer.yml` `REQUESTED_MODEL` is the same free pin. No upgrade.
+- **#865 review `45810911108`:** success; the job completed 11:47:02Z. It approved `818de0af3` at 11:46:47Z with no blocking findings and the workflow posted `/oc test` at 11:46:58Z. Three non-blocking observations: the fixture proves mock interception through call/success counts rather than an explicit path assertion; retry-on-empty can duplicate a comment if a successful post's response is lost; the pre-existing whitespace-only/decision-file skip paths are unchanged.
+- **#865 test `45813660419`:** in progress since 11:47:03Z on `818de0af3`; the approval-marker and forward steps are pending. No in-workflow retry chain, so a wall death needs a Maintainer re-arm.
+- **#812 lab `45812338702`:** in progress since 11:38:02Z; the agent step is running; the PAT push and the decision-forward steps are pending.
+- **Failures:** none in the last 100 runs; the only recent failure is the 10:31Z review wall death, already recovered by the 11:28Z manual review.
+- **Pages:** production root HTTP 200 on `de728de5f`; preview `/preview/pr-865/` HTTP 200.
+- **Model registry:** 108 / 10 free at 11:49Z; pin and `small_model` `opencode/deepseek-v4.1-flash-free`; the three ladder rungs (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free`) are live; `maintainer.yml` `REQUESTED_MODEL` is the same free pin. No upgrade.
 - **Allowlist:** 19 names on `main` plus the self-excluded maintainer = 20 repo-managed; live 23 = those 20 plus Dependabot Updates, Dependency Graph, and pages-build-deployment (GitHub-managed); zero missing, zero extra.
 
 ### Live lanes and their next step
 
-- **#812 (R11 audit bypass):** LAB DISPATCHED in this run. On a push, the workflow forwards a fresh review; then test, quality, merge. The fix: scope the R11 extraction to the unique `lab:` job, pin the linkage-guard ordering, add the decoy and ordering mutants, and fold in the LAB.md correction.
-- **#865 / #864 (comment-poster fail-closed):** REVIEW LIVE on `818de0af3`. On approval, the test gate; on a test marker, the quality gate; on a head-bound quality approval, verify the merge preflight, confirm the PAT sweep merged on the rebase path, and close #864. The thread's auto-retry budget is spent, so a wall death needs a manual re-arm after the window. The stray `Closes #865` footer is cosmetic; fix body-only if the review flags it, or fold the linkage-guard fix into the #742 remainder.
-- **#803:** CLOSED at 11:28:48Z via the #854 merge. All three slices confirmed by the head-bound verdicts. Do not re-open.
+- **#865 / #864 (comment-poster fail-closed):** TEST LIVE on `818de0af3`. On the test approval marker and the `/oc maintainer` handoff, dispatch exactly one quality pass on the same head; on a head-bound quality approval, verify the merge preflight, confirm the PAT sweep merged on the rebase path, and close #864. If the test dies on the wall, no same-pool retry; re-arm on the next wake after confirming no live or queued test.
+- **#812 (R11 audit bypass):** LAB LIVE on the queue's next item. On a push, the workflow forwards a fresh review; then test, quality, merge. The fix: scope the R11 extraction to the unique `lab:` job, pin the linkage-guard ordering, add the decoy and ordering mutants, and fold in the LAB.md correction.
+- **#803:** CLOSED at 11:28:48Z via the #854 merge. Do not re-open.
 - **#814 (fail-open baseline read):** next after #812; includes the three-site resolver `createdAt` addendum, the deferral page-size wording, and the review/test non-blocking observations.
 - **#849 (fail-loud hardening):** after #814.
 - **#857 / #856 / #860 (fail-loud backlog):** serialized after #849.
@@ -61,11 +58,11 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ## Concurrency and wall coordination
 
-- One draw per lane; no same-pool burst. #812's lab draw and #865's review are the only live lanes.
-- **Cooldowns:** the last lab trigger was 10:06:41Z (on #865), so the #812 trigger is lawful; the last review trigger was 11:28:30Z (on #865), so no review dispatch is lawful until 11:58:30Z; the eval lane is closed on #854.
+- One draw per lane; no same-pool burst. #812's lab draw and #865's test are the only live lanes.
+- **Cooldowns:** the last lab trigger was 11:37:55Z (on #812); the last review trigger was 11:28:30Z (on #865), so no new review dispatch is lawful until 11:58:30Z (none is needed); the last test trigger was 11:46:58Z (on #865). The eval lane is closed until a test approval.
 - **Checkpoint rule:** if a lab head advances with partial commits and a pass dies without signalling review, do NOT dispatch a review on that partial head. Only a `review` signal (or an explicitly complete pass) authorizes the review/test/eval chain.
-- **Review retry rule:** the review workflow has its bounded auto-retry chain (the #754/#827 rule), but the #865 thread's lifetime budget is spent, so the next wall death needs a Maintainer re-arm, not an auto-retry. Do not dispatch a duplicate while a review run is live or queued.
-- **Test rule:** the #854 test approval is archived with the merge; #865 has no test marker yet.
+- **Review retry rule:** the review workflow has its bounded auto-retry chain (the #754/#827 rule), but the #865 thread's lifetime budget is spent; a wall death needs a Maintainer re-arm, not an auto-retry. Do not dispatch a duplicate while a review run is live or queued.
+- **Test rule:** the test workflow has no in-workflow retry chain; every wall death needs a Maintainer re-arm. The #865 test is the current draw.
 - **Eval retry rule:** the eval lane has no in-workflow auto-retry chain; if a dispatched eval dies on the wall or crashes without a decision, the next Maintainer wake re-arms exactly one fresh eval on the same head after confirming no live or queued eval.
 - Do not dispatch #814/#849/#857/#856/#860/#773/#774/#742 until #812's lane is known (merged or verdict); #865 is the one parallel exception because its R30 region and `maintainer.yml` surface do not overlap #812's R11 region.
 - Never merge without a head-fresh test marker and a head-bound quality approval. Workflow-touching PRs merge only through the hardened PAT sweep, never from the agent session.
@@ -73,8 +70,8 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ## Serialized queue (re-post only if the lane did not land, the window demonstrably holds, and no live/queued run exists)
 
-1. **#812:** lab dispatched in this run; on a push, review -> test -> quality -> merge. The R11 scoping fix plus the LAB.md fold-in.
-2. **#865:** review live on `818de0af3`; then test, then quality, then merge and close #864. Fix the stray `Closes #865` footer body-only if the review does not flag it.
+1. **#812:** lab live; on a push, review -> test -> quality -> merge. The R11 scoping fix plus the LAB.md fold-in.
+2. **#865:** test live on `818de0af3`; on a test approval, one quality pass; on a head-bound quality approval, merge and close #864.
 3. `{"action":"lab","issue":814}`: after #812; fail-closed baseline read in the fix lane, add `createdAt` to all three pre-existing resolver `--json` lists, and update the R32 pins in lockstep.
 4. `{"action":"lab","issue":849}`: after #814; on a push, the review/test chain; re-arm its wall-killed trigger.
 5. `{"action":"lab","issue":857}`: next in the fail-loud backlog after #849.
@@ -88,29 +85,29 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ## Loose ends
 
-1. #812: lab dispatched in this run; verify the trigger posted, watch the pass, and route its push to review.
-2. #865: review live on `818de0af3`; the thread's auto-retry budget is spent, so any wall death needs a manual re-arm.
-3. #865's body carries a stray `Closes #865` self-link from the lab workflow's linkage guard on a PR thread; `closingIssuesReferences` lists only #864, so it is cosmetic. Fix body-only after the lab cooldown if the review flags it, or fold the guard fix into the #742 remainder.
-4. The lab.yml linkage guard is a real workflow defect: on a PR thread it appends `Closes #<PR>` because the trigger number is the PR. It should skip PR threads or use `Refs`. No new issue under the safety net; fold into the #742 remainder or the next lab round.
+1. #812: lab live; verify the pass pushes and the review forward fires.
+2. #865: test live; on a test approval, dispatch one quality pass on `818de0af3`; on a wall death, re-arm on the next wake.
+3. #865's body carries the cosmetic `Closes #865` footer appended by the lab workflow's linkage guard; the review accepted it (the authored artifact ends with the sign-off) and `closingIssuesReferences` lists only #864. No body-only pass needed; fold the guard fix into the #742 remainder.
+4. The lab.yml linkage guard is a real workflow defect: on a PR thread it appends `Closes #<PR>` because the trigger number is the PR. It should skip PR threads or use `Refs`. Fold into the #742 remainder or the next lab round.
 5. #803 is closed by the #854 merge; #854's branch is intact at `d449afb93`; main is `de728de5f`.
 6. The review approved #854 with no blocking finding and listed five non-blocking observations; the test added six more. Fold them into the queued fix-lane hardening pass.
 7. The pre-existing resolver sites (`opencode.yml` baseline/phase resolvers and the review linked-PR resolver) still need the `createdAt`/`--limit 100` corrections; all fold into #814 with the pins.
-8. The 15:46Z post failure has its tracking issue (#864) and its repair PR (#865). The poster's success line remains untrusted until #865 merges.
+8. The 15:46Z post failure has its tracking issue (#864) and its repair PR (#865); the poster's success line remains untrusted until #865 merges.
 9. #853, #848, #815 and #803 are closed; #864 stays open until #865 merges; #831 is bookkeeping only.
-10. Pages: production 200 on `de728de5f`; preview #854 404 (closed); the new main deploy is live.
+10. Pages: production 200 on `de728de5f`; preview #865 200.
 11. #836 stays open for the Owner capacity decision; no new lab dispatch beyond #812 and #865.
-12. Model registry drift: 108 / 10 free at 11:31Z; the ladder is 3/3 on main and all three rungs are live. No lab dispatch.
+12. Model registry drift: 108 / 10 free at 11:49Z; the ladder is 3/3 on main and all three rungs are live. No lab dispatch.
 13. #821 stays parked; the Maze Chase standing set is frozen unless the Owner asks.
 14. The seven stale queued runs are unchanged; do not cancel or re-dispatch them.
-15. Memory: the 2026-11-25 file carries the 02:36Z session, the three run markers, the 05:01Z, 08:05Z, 10:10Z, 10:56Z, 11:12Z, 12:15Z, 12:46Z, 13:11Z quota marker, 15:46Z, 17:07Z, 17:56Z, 18:22Z, 21:12Z, 21:18Z, 21:32Z and 21:49Z sessions/markers; the 2026-11-26 file carries the 00:03Z session, the 00:44Z intake marker, the 03:38Z session, the 04:08Z intake marker, the 08:01Z session, the 08:36Z session, the 08:57Z quota-intake marker, the 09:00Z session, the 09:45Z intake marker, the 10:06Z session, the 10:24Z session, the 11:19Z session, and this 11:28Z session. Append-only, keep-both.
+15. Memory: the 2026-11-25 file carries the 02:36Z session, the three run markers, the 05:01Z, 08:05Z, 10:10Z, 10:56Z, 11:12Z, 12:15Z, 12:46Z, 13:11Z quota marker, 15:46Z, 17:07Z, 17:56Z, 18:22Z, 21:12Z, 21:18Z, 21:32Z and 21:49Z sessions/markers; the 2026-11-26 file carries the 00:03Z session, the 00:44Z intake marker, the 03:38Z session, the 04:08Z intake marker, the 08:01Z session, the 08:36Z session, the 08:57Z quota-intake marker, the 09:00Z session, the 09:45Z intake marker, the 10:06Z session, the 10:24Z session, the 11:19Z session, the 11:28Z session, and this 11:46Z session. Append-only, keep-both.
 16. Prompt-contract drift (watch only, no new issue): the `maintainer.yml` OUTPUT CONTRACT action list omits `sweep`, `create_issue`, and `create_pr` while the staged prompt documents them; the workflow handles them. Fold into the next lab round.
 17. Auditor doc drift (watch only, no new issue): the two stale `longcat-2.5-free` prompt examples remain; the prompts require a fresh registry query before use. Fold into the next lab round.
-18. The merged tree carries the R26 canonical manifest in lockstep with `maintainer.yml`; the next lab pass must regenerate it if it edits that file. #865 updates the R26 pre-handler manifest and the R30 poster block SHA; verify on merge.
+18. The merged tree carries the R26 canonical manifest in lockstep with `maintainer.yml`; the next lab pass must regenerate it if it edits that file. #865 updates the R26 pre-handler manifest and the R30 poster block SHA; the review verified them on the head; verify again on merge.
 19. No `emergency.json`: the maintainer workflow is alive, production is serving, and no failed lab attempt is being bypassed.
-20. The general job's contains-based matcher fired again on the 2026-11-26 eval approval report (two false-positive notes, one skipped run, one redundant maintainer handoff); watch item for a future lab round, no new issue.
+20. The general job's contains-based matcher fired again on the 2026-11-26 eval approval report; watch item for a future lab round, no new issue.
 21. **Resolver addendum:** three pre-existing resolver sites remain on the head, `opencode.yml:839` (the baseline resolver the reviewer cited at `:838` on main), `:1162`, and `:1397`; all sort by `.createdAt` without requesting it. Fold all three plus pins into the #814 fix-lane hardening pass.
 22. **Design-lane note:** a manual design trigger placed on a PR thread would day-scope there; the designed issue invocation and the phase-completion forward are unaffected. No action now.
-23. **Eval recovery watch:** the #854 lane closed with the merge; the next eval dispatch is for the next findings round (#865 or #812).
+23. **Eval recovery watch:** the next eval dispatch is for #865 after its test approval, then #812 after its test approval.
 24. **Test-lane auto-retry gap:** the test workflow has no in-workflow retry chain (unlike review), so every wall death needs a Maintainer re-arm. The eval lane shares the gap. Watch item for the next lab round; no duplicate issue while #836 is open.
 25. **Public-surface self-heal cap:** the cap of 1 worked as designed on the last pool-wide wall; fold into the #836 capacity decision if the recurrence grows.
 26. **Quota intake behavior:** the intakes skipped the agent and posted the audit note but chained no fresh test or eval; the heartbeat/schedule/issue wake was the only re-arm. This matches the #820/#836 design for maintainer runs; record for the capacity decision.
@@ -118,7 +115,7 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 28. **Wall-duration variance:** the last completed #854 quality draw survived about 63 minutes to a verdict, versus 11.5-44 minutes for the wall-killed draws; the mix of work (subagent calls) may draw from the same per-egress bucket. Record for the #836 capacity decision; do not change the single-draw rule.
 29. **Comment-poster lane:** #864's repair (#865) executes the real poster against a mock `gh` and fails closed on an empty/unparseable body or exhausted retries; the R30 fixture now covers the idless, mixed-sticky, and signed-ok cases. The trigger poster's non-fatal error path folds into the next lab round.
 30. **#865 review observation 4:** whitespace-only `comment.md`/ping is still skipped without failing, and an unparseable `decision.json` still exits 0 if the main comment posts. Out of #864's scope; an Owner follow-up, no new issue.
-31. **This run's comment:** the #854 note records the merge, the #803 close, the deploy, the queue resumption with #812, and the live #865 review; it names no agent/workflow/model, carries no trigger token, and ends with the sign-off.
+31. **This run's comment:** the #865 note records the approval, the live test, the parallel #812 pass, and the next gates; it names no agent/workflow/model, carries no trigger token, and ends with the sign-off.
 
 ## Standing rules I operate under
 
@@ -163,7 +160,7 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 ### Contract and memory
 
-- This run is a `pull_request` closed (merged) triage wake on #854; the public artifact is the #854 comment.
+- This run is an `issue_comment` wake on #865 (the `/oc test` handoff after the review approval); the public artifact is the #865 comment plus a #70 board ping.
 - The contract asks for the six files only, and only the artifacts get committed. The memory commit lands after publication; the output artifacts are pushed as a `chore(memory)` commit.
 - Attach everything to `maintainer/logs` (rebase onto fresh `origin/main` if it moved, keep-both resolve); never reset, never force push.
 - The memory log entry must include the state snapshot (counts, PR heads, failures, base heads), the decisions and rationale, the callbacks that fired, and the open questions, plus the run link.
@@ -172,26 +169,26 @@ Hephaestus, the Maintainer of this repository. I do not write project code; I ke
 
 - Protected infra changes only through the lab lane; the agent-write token cannot push workflow files, the domain PAT can.
 - The brain is always mounted read-only; the memory files under `.maintainer/memory/` are the only persistent memory I can edit.
-- The maintainer must always post a comment as its comment.md artifact or an explicit ping; a silent maintainer is a failure. This run posts the #854 comment and a #70 ping.
+- The maintainer must always post a comment as its comment.md artifact or an explicit ping; a silent maintainer is a failure. This run posts the #865 comment and a #70 ping.
 - The pipeline is green on main (`de728de5f`; the new-main Pages deployment is live and the root is 200), and the platform is perf-sensitive: multi-agent is the only way to keep the guards intact.
-- Free-model provider walls are per-egress IP and sporadic across runners; the wall killed the lab draws at 16:54:13Z, 23:15:37Z, 03:05:44Z, 05:10:20Z, 11:13:26Z, the eval draws at 13:10:30Z, 21:48:51Z, 00:44:09Z, 04:07:07Z, 08:57:22Z and 09:44:22Z, the test draw at 18:44:57Z, the public-surface draw at 21:17:41Z, the review draw at 10:31:16Z, and the auditor/curator draws at 07:15Z/07:21Z, while fresh runners completed the 12:15Z review, 12:46Z test, 16:00-17:08Z eval, 17:23-17:56Z repair pass, 17:56-18:22Z review, 21:12Z heartbeat, the 21:16-21:32Z test, the 00:03Z/03:38Z/08:01Z/08:36Z/09:00Z/10:06Z/10:24Z/11:19Z sessions, the 07:25Z/08:01Z auditor self-heal, the 08:12-08:53Z repair pass, the 09:29-10:06Z review retry, the 10:06-10:24Z lab pass, and the 10:16-11:19Z quality draw. Elapsed time alone is not proof; the fresh-run lottery is the designed recovery, and a single draw is the window test, never a burst.
+- Free-model provider walls are per-egress IP and sporadic across runners; the wall killed the lab draws at 16:54:13Z, 23:15:37Z, 03:05:44Z, 05:10:20Z, 11:13:26Z, the eval draws at 13:10:30Z, 21:48:51Z, 00:44:09Z, 04:07:07Z, 08:57:22Z and 09:44:22Z, the test draw at 18:44:57Z, the public-surface draw at 21:17:41Z, the review draw at 10:31:16Z, and the auditor/curator draws at 07:15Z/07:21Z, while fresh runners completed the 12:15Z review, 12:46Z test, 16:00-17:08Z eval, 17:23-17:56Z repair pass, 17:56-18:22Z review, 21:12Z heartbeat, the 21:16-21:32Z test, the 00:03Z/03:38Z/08:01Z/08:36Z/09:00Z/10:06Z/10:24Z/11:19Z/11:28Z sessions, the 07:25Z/08:01Z auditor self-heal, the 08:12-08:53Z repair pass, the 09:29-10:06Z review retry, the 10:06-10:24Z lab pass, the 10:16-11:19Z quality draw, and the 11:28-11:47Z review. Elapsed time alone is not proof; the fresh-run lottery is the designed recovery, and a single draw is the window test, never a burst.
 - The ladder on `main` is 3/3 (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free`), and the pin and `small_model` are unchanged.
 - Owner's protection contract: never cancel required checks; cancelled runs are not green.
 
 ## Next run
 
-1. Watch #812's lab pass. On a push, a fresh review follows; then test, quality, merge. If it dies on the wall, no same-pool retry; re-arm after the window on a later wake.
-2. Watch the #865 review on `818de0af3`. On approval, the test gate; on a test marker, the quality gate; on a head-bound quality approval, verify the merge preflight, confirm the PAT sweep merged on the rebase path, and close #864. If the review flags the stray `Closes #865` footer, dispatch a body-only lab pass after the cooldown or fold the linkage-guard fix into the #742 remainder.
-3. Verify this run's #812 trigger and #70 board note posted; if not, correct them in the next comment.
+1. Watch the #865 test on `818de0af3`. On the approval marker and the `/oc maintainer` handoff, dispatch exactly one quality pass on the same head. On a head-bound quality approval, verify the merge preflight, confirm the PAT sweep merged on the rebase path, and close #864. On a wall death, re-arm on the next wake.
+2. Watch #812's lab pass. On a push, a fresh review follows; then test, quality, merge. If it dies on the wall, no same-pool retry; re-arm after the window on a later wake.
+3. Verify this run's #70 board note posted; if not, correct it in the next comment.
 4. Then the serialized queue: #814 (with the three-site resolver `createdAt` addendum, the deferral page-size wording, and the review/test non-blocking observations), #849, #857, #856, #860, #773, #774, then #742's remainder with the lab.yml PR-thread linkage-guard fix.
 5. Keep #836 open for the Owner capacity decision; #831 is bookkeeping only; #848, #853, #815 and #803 are closed; #821 stays parked.
 6. Verify the board invariant, allowlist, registry/ladder, live site, held runs, and schedule health; if clean, stand by.
 
 ## Open questions
 
-1. Will the #812 lab pass land the R11 scoping fix without a wall death, and will its decoy/ordering mutants prove the pin load-bearing?
-2. Will the #865 review approve `818de0af3`, or return findings on the R30 fixture or the stray `Closes #865` footer?
-3. Will #812 and #865 merge without a rebase conflict on `.github/scripts/silent-stall-audit.sh` (the R11 and R30 regions are disjoint, and GitHub reports #865 CLEAN/MERGEABLE against the new main)?
+1. Will the #865 test approve `818de0af3`, or return findings on the poster or the fixture?
+2. Will the #812 lab pass land the R11 scoping fix without a wall death, and will its decoy/ordering mutants prove the pin load-bearing?
+3. Will #812 and #865 merge without a rebase conflict on `.github/scripts/silent-stall-audit.sh` (the R11 and R30 regions are disjoint, and GitHub reports #865 CLEAN/MERGEABLE against main `de728de5f`)?
 4. Does the #854 merge close #803 for good, or will a later regression re-open the incident-scope class?
 5. Should the eval/test lanes get a bounded in-workflow retry like review, or stay next-wake re-armed? Known gap; fold into the next lab round or #836.
 6. Does the public-surface self-heal cap of 1 remain the right bound after a pool-wide wall? Watch item; no duplicate issue while #836 is open.
