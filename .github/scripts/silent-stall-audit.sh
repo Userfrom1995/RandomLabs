@@ -15529,7 +15529,7 @@ echo "memory pushed to maintainer/logs"
 rm -rf "$bundle"
 ### 20 name=Post Maintainer comment | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ github.token }}", "OC_TARGET": "${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}"}
 python3 - <<'PY'
-import json, os, subprocess
+import json, os, re, subprocess, sys, time
 repo = os.environ["GITHUB_REPOSITORY"]
 target = os.environ.get("OC_TARGET", "")
 decisions = []
@@ -15567,6 +15567,69 @@ elif gate == "pushed":
         ".maintainer/emergency.json).\n\n"
     )
 sign = "- Hephaestus, the Maintainer"
+# Issue #864: the poster is the only delivery path for the Maintainer's
+# public report and pings, so a failed post must never conclude green.
+# Retry a bounded number of times on an empty/unparseable response or a
+# transient 5xx/429, print success only after a parsed comment id, and
+# exit nonzero when every attempt for any target fails.
+RETRY_DELAYS = (2, 5, 10)
+TRANSIENT_STATUS = re.compile(r"(?:^|[^0-9])(?:429|5[0-9][0-9])(?:[^0-9]|$)")
+def post_comment(t, body):
+    last_error = ""
+    for attempt in range(len(RETRY_DELAYS) + 1):
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            result = None
+            last_error = f"could not execute gh: {exc}"
+        if result is not None:
+            output = (result.stdout or "").strip()
+            error = (result.stderr or "").strip()
+            if result.returncode == 0:
+                try:
+                    response = json.loads(output)
+                except Exception:
+                    response = None
+                if isinstance(response, dict) and response.get("id"):
+                    print(f"posted comment on #{t}", flush=True)
+                    return True
+                last_error = "empty or unparseable API response"
+                if output:
+                    last_error += f": {output[:300]}"
+            else:
+                last_error = error or f"gh exited {result.returncode}"
+                retryable = (
+                    not error
+                    or "unexpected end of JSON input" in error
+                    or TRANSIENT_STATUS.search(error) is not None
+                    or TRANSIENT_STATUS.search(output) is not None
+                )
+                if not retryable:
+                    print(
+                        f"::error::Failed to post comment on #{t}: {' '.join(last_error.split())}",
+                        flush=True,
+                    )
+                    return False
+        if attempt < len(RETRY_DELAYS):
+            delay = RETRY_DELAYS[attempt]
+            print(
+                f"::warning::Comment post to #{t} failed ({' '.join(last_error.split())}); "
+                f"retrying in {delay}s (attempt {attempt + 1}/{len(RETRY_DELAYS)})",
+                flush=True,
+            )
+            time.sleep(delay)
+    print(
+        f"::error::Failed to post comment on #{t} after {len(RETRY_DELAYS) + 1} attempts: "
+        f"{' '.join(last_error.split())}",
+        flush=True,
+    )
+    return False
+failed = False
 for t, body, is_main_comment in posts:
     body = body.strip()
     if not body:
@@ -15575,11 +15638,10 @@ for t, body, is_main_comment in posts:
         body = gate_notice + body
     if sign not in body:
         body = body + "\n\n" + sign
-    subprocess.run(
-        ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
-        check=False,
-    )
-    print(f"posted comment on #{t}")
+    if not post_comment(t, body):
+        failed = True
+if failed:
+    sys.exit(1)
 PY
 R26PRE
 )
@@ -20476,7 +20538,13 @@ fi
 #      are pinned, the decision/evidence write ban also covers
 #      pathlib.Path(...).write_text/write_bytes and Path(...).open plus
 #      os.replace/os.rename and shutil copy/move spellings, and the checkout,
-#      gate, configure, and restore blocks are mutation-self-tested.
+#      gate, configure, and restore blocks are mutation-self-tested;
+#   9. the Maintainer comment poster is executed against a mock gh (issue
+#      #864): a parsed comment id is the only success path, a transient 5xx
+#      is retried within the bounded budget, and an empty-body success, an
+#      unparseable body, or an exhausted non-zero exit print no success line
+#      and exit nonzero, so a dropped public report or ping can never
+#      conclude the step green.
 # Review-gated residual: the surrounding sweep control flow is still
 # review-gated, as documented in R21. Honest limit: like R21, the head time is
 # the later of committer dates and force-push events, so a fast-forward push of
@@ -20907,7 +20975,7 @@ EXPECTED_REVIEW_OBSERVER_ENV = {
     "LD_PRELOAD": "",
 }
 EXPECTED_REVIEW_OBSERVER_BLOCK_SHA256 = "a19c047e69816a314e83a579f988662df38fe9a74d5843d56ef9df0fcc0772b5"
-EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "a3b907775fe95c3c892b911d7602df2a56fbf89ee87d834ee5c039fb4ab4bf1e"
+EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "d69412d1303c69166d6cc72292cffd86ac6f83205a970ff3d1188861b7bf17f0"
 EXPECTED_JOB_IF = (
     "github.event.issue.pull_request != null && ( "
     "startsWith(github.event.comment.body, '/oc eval') || "
@@ -22570,6 +22638,12 @@ def validate_maintainer(doc, sink):
         return
     if normalized_sha(run) != EXPECTED_MAINTAINER_POST_BLOCK_SHA256:
         sink.append("maintainer.yml(post-maintainer-comment-run-block-not-exact)")
+    else:
+        # Issue #864: hand the parsed poster body to the functional fixture so
+        # it executes the real shipped code, not a reimplementation. Only the
+        # exact pinned body is exported, so a structural mutant cannot poison
+        # the fixture copy.
+        write("maintainer-post.run", run)
 
 
 def step_index(document, name):
@@ -23865,6 +23939,106 @@ R30PY
 )
   if [ -n "$r30_struct_out" ]; then
     r30_bad="${r30_bad} ${r30_struct_out//$'\n'/ }"
+  fi
+fi
+# Issue #864: the Maintainer comment poster is the only delivery path for the
+# public report and pings. Execute the real extracted poster body against a
+# mock gh: a parsed comment id is the only success path, a transient 5xx is
+# retried within the bounded budget, and an empty-body success, an unparseable
+# body, or an exhausted non-zero exit print no success line and exit nonzero.
+# The retry delays are neutralized in the fixture copy only; the shipped body
+# stays pinned whole-region by EXPECTED_MAINTAINER_POST_BLOCK_SHA256 above.
+r30_poster_body="$r30_struct_dir/maintainer-post.run"
+if [ ! -s "$r30_poster_body" ]; then
+  r30_bad="${r30_bad} poster(extracted-body-missing)"
+else
+  r30_poster_dir=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r30_poster_dir" ]; then
+    r30_bad="${r30_bad} poster(fixture-sandbox-unavailable)"
+  else
+    mkdir -p "$r30_poster_dir/bin" "$r30_poster_dir/home"
+    cat > "$r30_poster_dir/bin/gh" <<'R30POSTGH'
+#!/usr/bin/env bash
+printf 'CALL %s\n' "$*" >> "${R30_POST_LOG:?}"
+mode=$(cat "${R30_POST_MODE:?}" 2>/dev/null || echo ok)
+case "$mode" in
+  ok) printf '{"id": 101}\n' ;;
+  empty) : ;;
+  notjson) printf 'not json\n' ;;
+  flaky)
+    if [ ! -f "${R30_POST_STATE:?}" ]; then
+      : > "$R30_POST_STATE"
+      printf 'HTTP 502: Bad Gateway\n' >&2
+      exit 1
+    fi
+    printf '{"id": 102}\n'
+    ;;
+  fail5xx) printf 'HTTP 503: Service Unavailable\n' >&2; exit 1 ;;
+  fail4xx) printf 'HTTP 422: Unprocessable Entity\n' >&2; exit 1 ;;
+  *) printf 'unexpected mock mode\n' >&2; exit 1 ;;
+esac
+R30POSTGH
+    chmod +x "$r30_poster_dir/bin/gh"
+    sed 's/^RETRY_DELAYS = (2, 5, 10)$/RETRY_DELAYS = (0, 0, 0)/' "$r30_poster_body" > "$r30_poster_dir/poster.sh"
+    if ! grep -qxF 'RETRY_DELAYS = (0, 0, 0)' "$r30_poster_dir/poster.sh"; then
+      r30_bad="${r30_bad} poster(fixture-retry-neutralization-failed)"
+    else
+      r30_poster_case() {
+        local label="$1" mode="$2" decision_json="$3" with_comment="$4"
+        local want_rc="$5" want_success="$6" want_calls="$7" want_errors="$8"
+        local case_dir="$r30_poster_dir/case-$label" rc=0 success calls errors
+        mkdir -p "$case_dir/.maintainer"
+        printf '%s\n' "$decision_json" > "$case_dir/.maintainer/decision.json"
+        if [ "$with_comment" = "1" ]; then
+          printf '%s\n' "Maintainer report body." > "$case_dir/.maintainer/comment.md"
+        fi
+        printf '%s\n' "$mode" > "$case_dir/mode"
+        : > "$case_dir/gh.log"
+        rm -f "$case_dir/gh.state"
+        (
+          cd "$case_dir" || exit 90
+          env -i \
+            HOME="$r30_poster_dir/home" \
+            PATH="$r30_poster_dir/bin:/usr/bin:/bin" \
+            GITHUB_REPOSITORY="owner/repo" \
+            OC_TARGET="864" \
+            R30_POST_LOG="$case_dir/gh.log" \
+            R30_POST_MODE="$case_dir/mode" \
+            R30_POST_STATE="$case_dir/gh.state" \
+            bash "$r30_poster_dir/poster.sh"
+        ) > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+        success=$(grep -c '^posted comment on #' "$case_dir/stdout" 2>/dev/null || true)
+        calls=$(grep -c '^CALL ' "$case_dir/gh.log" 2>/dev/null || true)
+        errors=$(grep -c '^::error::' "$case_dir/stdout" 2>/dev/null || true)
+        if [ "$want_rc" = "0" ]; then
+          [ "$rc" -eq 0 ] || r30_bad="${r30_bad} poster(${label}:rc-${rc})"
+        else
+          [ "$rc" -ne 0 ] || r30_bad="${r30_bad} poster(${label}:rc-0)"
+        fi
+        [ "${success:-0}" -eq "$want_success" ] || r30_bad="${r30_bad} poster(${label}:success-${success:-0})"
+        [ "${calls:-0}" -eq "$want_calls" ] || r30_bad="${r30_bad} poster(${label}:calls-${calls:-0})"
+        [ "${errors:-0}" -eq "$want_errors" ] || r30_bad="${r30_bad} poster(${label}:errors-${errors:-0})"
+      }
+      r30_poster_case ok-multi ok \
+        '[{"action": "ping", "target": "70", "message": "board note"}, {"action": "ping", "target": "854", "message": "status note"}]' \
+        1 0 3 3 0
+      r30_poster_case empty-multi empty \
+        '[{"action": "ping", "target": "70", "message": "board note"}, {"action": "ping", "target": "854", "message": "status note"}]' \
+        1 1 0 12 3
+      r30_poster_case fail4xx-one fail4xx \
+        '[{"action": "ping", "target": "70", "message": "board note"}]' 0 1 0 1 1
+      r30_poster_case fail5xx-one fail5xx \
+        '[{"action": "ping", "target": "70", "message": "board note"}]' 0 1 0 4 1
+      r30_poster_case notjson-one notjson \
+        '[{"action": "ping", "target": "70", "message": "board note"}]' 0 1 0 4 1
+      r30_poster_case flaky-one flaky \
+        '[{"action": "ping", "target": "70", "message": "board note"}]' 0 0 1 2 0
+      grep -qF -- '- Hephaestus, the Maintainer' "$r30_poster_dir/case-ok-multi/gh.log" 2>/dev/null \
+        || r30_bad="${r30_bad} poster(ok-multi:missing-signoff)"
+      grep -qF 'Failed to post comment on #70' "$r30_poster_dir/case-empty-multi/stdout" 2>/dev/null \
+        || r30_bad="${r30_bad} poster(empty-multi:no-target-error)"
+    fi
+    rm -rf "$r30_poster_dir"
   fi
 fi
 if [ ! -f "$R30_PUBLISHER" ]; then
@@ -25522,9 +25696,9 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), every post-agent Tester step additionally pins the privileged shell, an in-body /usr/bin:/bin reset before its first lookup, and absolute /bin/bash -p -s nested helpers, with a fakebin functional control and reset-removal mutation self-tests, and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep and executed against a mock gh where a parsed comment id is the only success path, a transient 5xx is retried within the bounded budget, and an empty-body success, an unparseable body, or an exhausted non-zero exit print no success line and exit nonzero (issue #864), and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), every post-agent Tester step additionally pins the privileged shell, an in-body /usr/bin:/bin reset before its first lookup, and absolute /bin/bash -p -s nested helpers, with a fakebin functional control and reset-removal mutation self-tests, and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
 else
-  check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
+  check "R30" "eval verdict publication, PAT merge gate, or Maintainer comment delivery guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict; issue #864: the Maintainer comment poster reported success after an empty API response and silently dropped the public report and pings)" "bad"
 fi
 
 # [R31] Agent bootstrap token scope guard (issue #743): `opencode github run`

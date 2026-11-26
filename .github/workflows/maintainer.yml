@@ -1437,7 +1437,7 @@ jobs:
           OC_TARGET: ${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}
         run: |
           python3 - <<'PY'
-          import json, os, subprocess
+          import json, os, re, subprocess, sys, time
 
           repo = os.environ["GITHUB_REPOSITORY"]
           target = os.environ.get("OC_TARGET", "")
@@ -1481,6 +1481,71 @@ jobs:
               )
 
           sign = "- Hephaestus, the Maintainer"
+          # Issue #864: the poster is the only delivery path for the Maintainer's
+          # public report and pings, so a failed post must never conclude green.
+          # Retry a bounded number of times on an empty/unparseable response or a
+          # transient 5xx/429, print success only after a parsed comment id, and
+          # exit nonzero when every attempt for any target fails.
+          RETRY_DELAYS = (2, 5, 10)
+          TRANSIENT_STATUS = re.compile(r"(?:^|[^0-9])(?:429|5[0-9][0-9])(?:[^0-9]|$)")
+
+          def post_comment(t, body):
+              last_error = ""
+              for attempt in range(len(RETRY_DELAYS) + 1):
+                  try:
+                      result = subprocess.run(
+                          ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
+                          capture_output=True,
+                          text=True,
+                          check=False,
+                      )
+                  except OSError as exc:
+                      result = None
+                      last_error = f"could not execute gh: {exc}"
+                  if result is not None:
+                      output = (result.stdout or "").strip()
+                      error = (result.stderr or "").strip()
+                      if result.returncode == 0:
+                          try:
+                              response = json.loads(output)
+                          except Exception:
+                              response = None
+                          if isinstance(response, dict) and response.get("id"):
+                              print(f"posted comment on #{t}", flush=True)
+                              return True
+                          last_error = "empty or unparseable API response"
+                          if output:
+                              last_error += f": {output[:300]}"
+                      else:
+                          last_error = error or f"gh exited {result.returncode}"
+                          retryable = (
+                              not error
+                              or "unexpected end of JSON input" in error
+                              or TRANSIENT_STATUS.search(error) is not None
+                              or TRANSIENT_STATUS.search(output) is not None
+                          )
+                          if not retryable:
+                              print(
+                                  f"::error::Failed to post comment on #{t}: {' '.join(last_error.split())}",
+                                  flush=True,
+                              )
+                              return False
+                  if attempt < len(RETRY_DELAYS):
+                      delay = RETRY_DELAYS[attempt]
+                      print(
+                          f"::warning::Comment post to #{t} failed ({' '.join(last_error.split())}); "
+                          f"retrying in {delay}s (attempt {attempt + 1}/{len(RETRY_DELAYS)})",
+                          flush=True,
+                      )
+                      time.sleep(delay)
+              print(
+                  f"::error::Failed to post comment on #{t} after {len(RETRY_DELAYS) + 1} attempts: "
+                  f"{' '.join(last_error.split())}",
+                  flush=True,
+              )
+              return False
+
+          failed = False
           for t, body, is_main_comment in posts:
               body = body.strip()
               if not body:
@@ -1489,11 +1554,11 @@ jobs:
                   body = gate_notice + body
               if sign not in body:
                   body = body + "\n\n" + sign
-              subprocess.run(
-                  ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
-                  check=False,
-              )
-              print(f"posted comment on #{t}")
+              if not post_comment(t, body):
+                  failed = True
+
+          if failed:
+              sys.exit(1)
           PY
       - name: Run /oc triggers as owner
         if: always() && steps.actor_gate.outputs.run == 'true'
