@@ -20,7 +20,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Reviewer**: Strict read-only quality gate. Inspects diffs line-by-line under high-thinking rigor and approves by handing the PR to the Tester.
 - **Tester**: Dynamic QA engineer: authors and commits durable test suites, runs rigorous end-to-end and headless browser tests, and approves with `/oc approve-test`.
 - **Linux / macOS / Windows Testers**: Per-OS real-user QA specialists: test every command, flag, and workflow natively on their OS (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows) and feed per-platform reports to the Tester.
-- **Evaluator**: Autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility across 5 dimensions; commands swarm subagents; writes `/tmp/evaluator-decision.json`.
+- **Evaluator**: Autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, competitive baseline integrity, visual craft, adversarial resilience, and reproducibility across 5 dimensions; commands swarm subagents; writes `/tmp/evaluator-decision.json`.
 - **Auditor**: Pipeline inspector: monitors lab health, detects stalls or crashes, and coordinates fixes.
 - **Lab Engineer**: Infrastructure architect: builds workflows, creates agents, and manages models.
 - **Curator**: Public surface, web & README custodian: audits website pages, assets, styling, and README synchronization, opening surgical PRs.
@@ -32,7 +32,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
   once with `bash setup.sh --secrets --dispatch`. Once the secrets are set,
   Actions -> `maintainer` -> Run workflow is a dispatch-only alternative.
 - **Reset:** `bash shutdown.sh` (backs up and removes the lab).
-- Full architecture: [LAB.md](LAB.md) · [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) · [Agent prompts](.github/agents/REGISTRY.md)
+- Full architecture: [LAB.md](LAB.md) · [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) · [Agent registry](.github/agents/REGISTRY.md)
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
 `/oc architect`, `/oc plan`, `/oc research`, `/oc ideate`, `/oc review`, `/oc test`,
