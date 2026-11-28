@@ -12,7 +12,8 @@
 //
 // Usage: node web/e2e/site-e2e.js [base-url] [debug-port]
 //   base-url defaults to http://localhost:8931/ (serve maze-chase/ first:
-//   `python3 -m http.server 8931` inside it; Windows: `python -m http.server 8931`)
+//   `node web/e2e/serve-site.js --port 8931` inside it, or let
+//   run-browser-e2e.sh start its own keep-alive server)
 //   debug-port defaults to 9331. Launch chromium first with
 //   `--headless=new --remote-debugging-port=9331 --window-size=1280,900 about:blank`
 //
@@ -136,9 +137,35 @@ function assert(condition, message) {
   }
 }
 
+// Every request drains its body and asks for a fresh connection: the
+// suites crawl many URLs, and an unconsumed keep-alive body made Node
+// 22's undici client abort mid-crawl with an internal Parser.finish
+// assertion (issue #792). A request failure is recorded as a failed
+// assertion and never aborts the rest of the crawl; the timeout keeps a
+// server that connects but never responds from stalling it forever.
+async function fetchQuietly(url, { text = false } = {}) {
+  const response = await fetch(url, {
+    redirect: 'follow',
+    headers: { connection: 'close' },
+    signal: AbortSignal.timeout(10000),
+  });
+  const body = text ? await response.text() : await response.arrayBuffer();
+  return { response, body };
+}
+
+function fetchError(error) {
+  return error && error.cause && error.cause.message
+    ? error.cause.message
+    : (error && error.message) || String(error);
+}
+
 async function httpStatus(url) {
-  const response = await fetch(url, { redirect: 'follow' });
-  return { status: response.status, body: await response.text() };
+  try {
+    const { response, body } = await fetchQuietly(url, { text: true });
+    return { status: response.status, body, error: null };
+  } catch (error) {
+    return { status: 0, body: '', error: fetchError(error) };
+  }
 }
 
 function resolveLink(pageUrl, href) {
@@ -243,7 +270,10 @@ async function collectLinks(ws) {
   for (const [path, expectedTitle] of SITE_PAGES) {
     const url = BASE + path;
     const loaded = await httpStatus(url);
-    assert(loaded.status === 200, `${path} responds 200 (got ${loaded.status})`);
+    assert(
+      loaded.status === 200,
+      `${path} responds 200 (got ${loaded.status}${loaded.error ? `: ${loaded.error}` : ''})`,
+    );
     await navigate(ws, url);
     assert(consoleErrors.length === 0, `${path} loads without console errors`);
     for (const error of consoleErrors) console.error('  console:', error);
@@ -618,14 +648,18 @@ async function collectLinks(ws) {
   // Crawl every internal link once, over HTTP, and verify fragments.
   while (linkQueue.length > 0) {
     const url = linkQueue.shift();
-    const response = await fetch(url.href, { redirect: 'follow' });
-    assert(response.ok, `link ${url.pathname} responds ${response.status}`);
-    if (!response.ok) {
-      await response.arrayBuffer();
+    const wantsBody = Boolean(url.hash && /\.(html|htm)?$/.test(url.pathname));
+    let loaded;
+    try {
+      loaded = await fetchQuietly(url.href, { text: wantsBody });
+    } catch (error) {
+      assert(false, `link ${url.pathname} is fetchable (${fetchError(error)})`);
       continue;
     }
-    if (url.hash && /\.(html|htm)?$/.test(url.pathname)) {
-      const body = await response.text();
+    const { response, body } = loaded;
+    assert(response.ok, `link ${url.pathname} responds ${response.status}`);
+    if (!response.ok) continue;
+    if (wantsBody) {
       const wanted = `id="${url.hash.slice(1)}"`;
       let at = body.indexOf(wanted);
       let found = false;
@@ -635,14 +669,15 @@ async function collectLinks(ws) {
         at = body.indexOf(wanted, at + 1);
       }
       assert(found, `link ${url.pathname}${url.hash} names a real id`);
-    } else {
-      await response.arrayBuffer();
     }
   }
   for (const asset of ['site.css', 'web/maze-chase.js', 'web/maze-chase.wasm', 'web/favicon.svg']) {
-    const response = await fetch(BASE + asset);
-    assert(response.ok, `asset ${asset} responds ${response.status}`);
-    await response.arrayBuffer();
+    try {
+      const { response } = await fetchQuietly(BASE + asset);
+      assert(response.ok, `asset ${asset} responds ${response.status}`);
+    } catch (error) {
+      assert(false, `asset ${asset} is fetchable (${fetchError(error)})`);
+    }
   }
 
   await navigate(ws, gameUrl);

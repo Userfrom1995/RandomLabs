@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 22014; source-fnv: ef71e17e8daf7871; output-fnv: 7c261ed062bf9c0c -->
+<!-- generated from docs/release.md; source-bytes: 22064; source-fnv: 9b40243d3eb75465; output-fnv: 33f3f638c1b44267 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -57,7 +57,7 @@
 <ul>
 <li>Stable Rust 1.89 or newer (<code>rustc --version</code>). The workspace uses edition 2021 with no pinned nightly features; the locked dependency graph requires 1.89 for the desktop layer. The release pipeline pins Rust 1.99.0 for every native job (the toolchain that produced the committed WebAssembly bytes), and the release build, test, and verifier commands use <code>--locked</code> so <code>Cargo.lock</code> is enforced. The Linux job runs on Ubuntu 24.04, so the deb/rpm binaries are built against glibc 2.39 and declare that floor; the supported distribution list is Ubuntu 24.04+, Debian 13+, Fedora 40+, and RHEL 10+.</li>
 <li>For the browser build: <code>rustup target add wasm32-unknown-unknown</code>.</li>
-<li>For the browser E2E: Node 22+ (the CDP harnesses use the built-in WebSocket; no npm packages) plus a headless chromium; serving uses <code>python3 -m http.server</code> (<code>python -m http.server</code> on Windows).</li>
+<li>For the browser E2E: Node 22+ (the CDP harnesses use the built-in WebSocket; no npm packages) plus a headless chromium; the runner starts its own HTTP/1.1 keep-alive <code>web/e2e/serve-site.js</code>, and python3 is only needed for free-port allocation.</li>
 <li>Debian/Ubuntu packaging: <code>dpkg-dev</code>, <code>rpm</code>, <code>rpm2cpio</code>, <code>cpio</code>, plus <code>libasound2-dev</code> and <code>libudev-dev</code> for the desktop build, and <code>libxkbcommon-x11-0</code> so the Xvfb-gated windowed probe can load winit's XKB backend. Fedora/RHEL hosts only need the <code>rpm-build</code> equivalent of the RPM tools.</li>
 <li>macOS packaging: <code>hdiutil</code> (part of macOS) and the Xcode command line tools. Windows packaging: Inno Setup 6.3 or newer (<code>iscc.exe</code>; the installer uses <code>x64compatible</code>), installed by the release job.</li>
 <li>No cross-OS relabeling is allowed: the Windows zip and installer are built on Windows, the app and dmg on macOS, and the deb/rpm on the matching Linux architecture; the tarballs are built on the host named in the artifact.</li>
