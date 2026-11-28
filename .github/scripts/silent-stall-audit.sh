@@ -12482,14 +12482,13 @@ ${R23_MARKER}
               r23_check "s10-remote-absent" "$([ -z "$(r23_tip "$r23_tmp/s10")" ] && echo 1 || echo 0)"
               r23_check "s10-no-pushed-claim" "$(printf '%s' "$r23_s10_out" | grep -qF 'memory pushed to maintainer/logs' && echo 0 || echo 1)"
             fi
-            # Issue #870 fixture: reproduce the incident shape exactly. The
-            # workflow load step points refs/remotes/origin/logs at the tip it
-            # loaded, the agent then runs `git fetch --depth=1` of a newer
-            # memory tip (creating a shallow boundary at that newer commit),
-            # and the remote advances again before the publish. The old loaded
-            # ref is now behind the graft, so an unforced fetch rejects as
-            # non-fast-forward. Returns the advanced remote tip in
-            # r23_shallow_tip.
+            # Issue #870 fixture: reproduce the incident shape. The workflow
+            # load step points refs/remotes/origin/logs at the tip it loaded,
+            # the agent then runs `git fetch --depth=1` of a newer memory tip
+            # (creating a shallow boundary at that newer commit), and the
+            # publish fetches that newer tip. The old loaded ref is now behind
+            # the graft, so the unforced fetch rejects as non-fast-forward.
+            # Returns the advanced remote tip in r23_shallow_tip.
             r23_shallow_setup() {
               local dir="$1" conc
               r23_seed "$dir" "$r23_base_log" "state-seed
@@ -12532,8 +12531,8 @@ ${R23_MARKER}
             # Legacy mutant (issue #870): drop the shallow restore and the
             # forced refspec from the extracted block. The same fixture must
             # then fail (the unforced fetch stays rejected under the graft and
-            # no publish lands), proving the fixture fails on the pre-fix code
-            # and that both guards are load-bearing.
+            # no publish lands), proving the fixture fails on the pre-fix code,
+            # so the regression is load-bearing.
             r23_legacy="$r23_tmp/block-legacy.sh"
             awk '
               index($0, "is-shallow-repository 2>/dev/null") { skip=1; next }

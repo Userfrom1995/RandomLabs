@@ -10,7 +10,8 @@
 1. **Restore full history before the publish loop.** If
    `git rev-parse --is-shallow-repository` reports `true`, the step runs
    `git fetch origin --unshallow` and warns loudly if that fails. This mirrors
-   the issue #602 guards on the PAT merge sweep and the actor-gate fetch.
+   the issue #602 guard on the PAT merge sweep (a shallow check plus an
+   unshallow before ancestry-dependent work).
 2. **Force the private publish ref.** The in-loop fetch is now
    `git fetch --force origin +refs/heads/maintainer/logs:refs/remotes/origin/logs`,
    so a lingering graft or a non-fast-forward private-ref update can never
@@ -27,13 +28,12 @@
    attempt count and total backoff are unchanged (3 attempts, 2 sleeps).
 5. **Pin the incident shape in R23.** A new shallow fixture loads the older
    tip into `refs/remotes/origin/logs`, advances the remote to a concurrent
-   commit, depth-fetches that commit (creating the shallow boundary), and
-   advances the remote again. Scenario 11 fails the first publish fetch
-   through the existing git shim (which now delegates `--unshallow` to real
-   git) and asserts recovery on attempt 2 with both the concurrent entry and
-   the session preserved. A legacy mutant without the shallow restore and
-   forced refspec must fail the same fixture, proving both guards are
-   load-bearing.
+   commit, then depth-fetches that commit, which creates the shallow boundary
+   behind the loaded ref. Scenario 11 fails the first publish fetch through
+   the existing git shim (which now delegates `--unshallow` to real git) and
+   asserts recovery on attempt 2 with both the concurrent entry and the
+   session preserved. A legacy mutant without the shallow restore and forced
+   refspec must fail the same fixture, proving the regression is load-bearing.
 6. **Add a prompt guard.** The Maintainer prompt now tells the agent to fetch
    `maintainer/logs` with full history and never to use `--depth` or any
    shallow option when inspecting it. The hardcoded step repairs the state,
@@ -82,5 +82,16 @@
 - The load step's unforced fetch is intentionally unchanged: it runs in a
   fresh full-depth checkout before the agent, and forcing it would not add
   safety there. The publish step is the only writer.
-- Delegation ledger for this round is in the PR body.
+- Delegation ledger (this round): `general` (shallow-graft reproduction)
+  re-derived the incident in /tmp and confirmed the unforced rejection, the
+  forced-fetch recovery, the unshallow restore, and the ls-remote 0/2 exits;
+  `general` (R23 scenario audit) inspected scenario 11 and the legacy mutant
+  and ran the full audit (38 passed, 0 failed); `explore` (prompt/docs parity)
+  confirmed the prompt, docs, and this note match the code and flagged the
+  accuracy claims corrected here; the primary read the full diff of all six
+  changed files and re-ran the full audit after the edits (38 passed, 0
+  failed).
+- Skills: no skill fits; the `customize-opencode` skill covers `opencode.json`,
+  `.opencode/`, and opencode config internals, not lab workflow, audit, prompt,
+  or documentation edits.
 - the Lab Engineer
