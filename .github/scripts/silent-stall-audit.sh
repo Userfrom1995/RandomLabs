@@ -11942,6 +11942,16 @@ fi
 #      was required must have advanced the remote tip. Mock interception is
 #      proven before any scenario and every scenario is bounded by timeout,
 #      so an unbounded-loop re-spelling fails the rule.
+#   7. shallow-graft recovery (issue #870): the agent's read-only
+#      `git fetch --depth=1` of maintainer/logs leaves a shallow boundary at
+#      the newer memory tip, so every unforced publish fetch of a further
+#      advanced tip rejects as non-fast-forward and the session is lost. The
+#      step must clear shallow state before the loop, force the private-ref
+#      update, and probe the remote ref on failure instead of bootstrapping an
+#      orphan root. Scenario 11 drives the real block on that fixture with the
+#      first publish fetch failing and asserts recovery on attempt 2; a legacy
+#      mutant (guard and forced refspec removed) must fail the same fixture,
+#      proving the regression is load-bearing.
 # Honest limits: the fixture races are injected deterministically (hook
 # rejection plus tip advance on the first backoff), not by true concurrent
 # processes; a nondeterministic interleaving that defeats the 3-attempt bound
@@ -12007,12 +12017,22 @@ else
     # Bounded loop and bounded backoff.
     [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*for attempt in 1 2 3; do$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(no-bounded-3-attempt-loop)"
     [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*sleep 5$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(no-bounded-backoff)"
+    printf '%s\n' "$r23_block" | grep -qF 'if [ "$attempt" -gt 1 ]; then' || r23_bad="${r23_bad} maintainer.yml(backoff-not-between-attempts)"
     # Loud publish path: unconditional fetch and push inside the loop, no
     # --quiet anywhere on a fetch/push line, and no lingering rebase fallback.
-    [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*if git fetch origin maintainer/logs:refs/remotes/origin/logs; then$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(fetch-not-loud-unconditional)"
+    [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*if git fetch --force origin \+refs/heads/maintainer/logs:refs/remotes/origin/logs; then$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(fetch-not-forced-loud-unconditional)"
     [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*if git push origin "HEAD:maintainer/logs"; then$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(push-not-loud)"
     printf '%s\n' "$r23_block" | grep -E 'git (fetch|push)' | grep -q -- '--quiet' && r23_bad="${r23_bad} maintainer.yml(quiet-publish-path)"
     printf '%s\n' "$r23_block" | grep -qE '^[[:space:]]*git rebase' && r23_bad="${r23_bad} maintainer.yml(rebase-fallback-still-present)"
+    # Issue #870: the agent's read-only `git fetch --depth=1` leaves a shallow
+    # boundary at the memory tip, so an unforced publish fetch of an advanced
+    # tip is rejected as non-fast-forward. The step must clear the shallow
+    # state before the loop and force the private-ref update, and a failed
+    # fetch must probe the remote ref instead of assuming a first run.
+    printf '%s\n' "$r23_block" | grep -qF 'git rev-parse --is-shallow-repository' || r23_bad="${r23_bad} maintainer.yml(no-shallow-state-check)"
+    printf '%s\n' "$r23_block" | grep -qF 'git fetch origin --unshallow' || r23_bad="${r23_bad} maintainer.yml(no-publish-unshallow)"
+    printf '%s\n' "$r23_block" | grep -qF 'git ls-remote --exit-code origin refs/heads/maintainer/logs' || r23_bad="${r23_bad} maintainer.yml(no-remote-branch-probe)"
+    printf '%s\n' "$r23_block" | grep -qF 'retrying the real tip instead of bootstrapping an orphan root (issue #870)' || r23_bad="${r23_bad} maintainer.yml(no-rejected-fetch-retry)"
     # Bootstrap idempotence (review findings F1/F1b): a unique unborn root per
     # attempt keeps retries alive under `bash -e`, and an empty bootstrap
     # composition can never take the green no-changes shortcut.
@@ -12026,7 +12046,7 @@ else
     r23_self="${BASH_SOURCE[0]:-$0}"
     [ -f "$r23_self" ] || r23_self=".github/scripts/silent-stall-audit.sh"
     r23_shell_pat='timeout 60 bash -e'
-    r23_shell_pat="${r23_shell_pat} \"\$r23_tmp/block.sh\""
+    r23_shell_pat="${r23_shell_pat} \"\$block\""
     [ "$(grep -cF -- "$r23_shell_pat" "$r23_self" 2>/dev/null || true)" = "1" ] || r23_bad="${r23_bad} harness(no-bash-e-fidelity)"
     # Keep-both log semantics: baseline + delta isolation, append (never
     # overwrite), exactly one marker append per committed attempt.
@@ -12102,11 +12122,17 @@ R23SLEEP
         # captured before the shim goes on PATH; the shim fails up to
         # R23_FETCH_FAIL_COUNT `fetch` invocations (counting them in
         # R23_FETCH_COUNT) and always delegates to real git for everything
-        # else, so checkout/commit/push/hooks still run genuine git.
+        # else, so checkout/commit/push/hooks still run genuine git. Issue
+        # #870: an `--unshallow` fetch always delegates, so the shallow
+        # fixture can fail the first publish fetch while the pre-loop history
+        # restore still runs for real.
         r23_real_git=$(command -v git)
         cat > "$r23_bin/git" <<R23GIT
 #!/usr/bin/env bash
 if [ "\${1:-}" = "fetch" ] && [ -n "\${R23_FETCH_FAIL_COUNT:-}" ]; then
+  case " \$* " in
+    *" --unshallow "*) exec "$r23_real_git" "\$@" ;;
+  esac
   n=0
   [ -n "\${R23_FETCH_COUNT:-}" ] && [ -f "\$R23_FETCH_COUNT" ] && n=\$(cat "\$R23_FETCH_COUNT")
   n=\$((n + 1))
@@ -12211,7 +12237,7 @@ R23HOOK
               fi
             }
             r23_run() {
-              local dir="$1" reject="$2" advance="$3" fetch_fail="${4:-0}"
+              local dir="$1" reject="$2" advance="$3" fetch_fail="${4:-0}" block="${5:-$r23_tmp/block.sh}"
               : > "$dir/sleeps"; : > "$dir/fetches"
               (
                 cd "$dir/work" || exit 1
@@ -12220,7 +12246,7 @@ R23HOOK
                   R23_SLEEP_COUNT="$dir/sleeps" R23_REMOTE="$dir/remote.git" \
                   R23_REJECT_COUNT="$reject" R23_ADVANCE_REF="$advance" \
                   R23_FETCH_COUNT="$dir/fetches" R23_FETCH_FAIL_COUNT="$fetch_fail" \
-                  timeout 60 bash -e "$r23_tmp/block.sh"
+                  timeout 60 bash -e "$block"
               ) > "$dir/out" 2>&1
               echo $? > "$dir/rc"
             }
@@ -12456,6 +12482,79 @@ ${R23_MARKER}
               r23_check "s10-remote-absent" "$([ -z "$(r23_tip "$r23_tmp/s10")" ] && echo 1 || echo 0)"
               r23_check "s10-no-pushed-claim" "$(printf '%s' "$r23_s10_out" | grep -qF 'memory pushed to maintainer/logs' && echo 0 || echo 1)"
             fi
+            # Issue #870 fixture: reproduce the incident shape exactly. The
+            # workflow load step points refs/remotes/origin/logs at the tip it
+            # loaded, the agent then runs `git fetch --depth=1` of a newer
+            # memory tip (creating a shallow boundary at that newer commit),
+            # and the remote advances again before the publish. The old loaded
+            # ref is now behind the graft, so an unforced fetch rejects as
+            # non-fast-forward. Returns the advanced remote tip in
+            # r23_shallow_tip.
+            r23_shallow_setup() {
+              local dir="$1" conc
+              r23_seed "$dir" "$r23_base_log" "state-seed
+" || return 1
+              conc=$(r23_concurrent "$dir" "$r23_conc_suffix") || return 1
+              [ -n "$conc" ] || return 1
+              git -C "$dir/work" fetch -q origin maintainer/logs:refs/remotes/origin/logs || return 1
+              git --git-dir="$dir/remote.git" update-ref refs/heads/maintainer/logs "$conc" || return 1
+              git -C "$dir/work" fetch -q origin maintainer/logs --depth=1 || return 1
+              [ "$(git -C "$dir/work" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ] || return 1
+              r23_shallow_tip=$(r23_tip "$dir")
+              return 0
+            }
+            # Scenario 11 (issue #870): a shallow workspace plus an advanced
+            # maintainer/logs tip must recover on attempt 2 and publish the
+            # session. The first publish fetch is rejected (the incident's
+            # shallow-graft shape); attempt 2 must force the real tip instead
+            # of bootstrapping an orphan root. The shallow restore runs for
+            # real (the shim delegates `--unshallow`), so the fixture covers
+            # both the guard and the forced refspec.
+            if ! r23_shallow_setup "$r23_tmp/s11"; then
+              r23_fail "s11-setup"
+            else
+              r23_s11_tip="$r23_shallow_tip"
+              r23_session "$r23_tmp/s11" "$r23_base_log" "$r23_session_entry" "state-session
+"
+              r23_run "$r23_tmp/s11" 0 "" 1
+              r23_s11_log=$(r23_show "$r23_tmp/s11" "logs/$R23_TODAY.md")
+              r23_s11_out=$(cat "$r23_tmp/s11/out" 2>/dev/null || true)
+              r23_check "s11-rc" "$([ "$(r23_rc "$r23_tmp/s11")" = "0" ] && echo 1 || echo 0)"
+              r23_check "s11-shallow-guard" "$(printf '%s' "$r23_s11_out" | grep -qF 'workspace is shallow' && echo 1 || echo 0)"
+              r23_check "s11-attempt2" "$(printf '%s' "$r23_s11_out" | grep -qF 'attempt 2/3' && echo 1 || echo 0)"
+              r23_check "s11-rejected-retry" "$(printf '%s' "$r23_s11_out" | grep -qF 'retrying the real tip instead of bootstrapping an orphan root' && echo 1 || echo 0)"
+              r23_check "s11-concurrent-kept" "$(printf '%s' "$r23_s11_log" | grep -qF 'entry-concurrent' && echo 1 || echo 0)"
+              r23_check "s11-session-kept" "$(printf '%s' "$r23_s11_log" | grep -qF 'entry-session' && echo 1 || echo 0)"
+              r23_check "s11-marker-once" "$([ "$(printf '%s' "$r23_s11_log" | grep -cF "$R23_MARKER")" = "1" ] && echo 1 || echo 0)"
+              r23_check "s11-state" "$([ "$(r23_show "$r23_tmp/s11" STATE.md)" = "state-session" ] && echo 1 || echo 0)"
+              r23_green_implies_pushed "$r23_tmp/s11" "$r23_s11_tip" "s11"
+            fi
+            # Legacy mutant (issue #870): drop the shallow restore and the
+            # forced refspec from the extracted block. The same fixture must
+            # then fail (the unforced fetch stays rejected under the graft and
+            # no publish lands), proving the fixture fails on the pre-fix code
+            # and that both guards are load-bearing.
+            r23_legacy="$r23_tmp/block-legacy.sh"
+            awk '
+              index($0, "is-shallow-repository 2>/dev/null") { skip=1; next }
+              skip && /^[[:space:]]*fi[[:space:]]*$/ { skip=0; next }
+              !skip { print }
+            ' "$r23_tmp/block.sh" | sed 's/git fetch --force origin +refs\/heads\/maintainer\/logs:refs\/remotes\/origin\/logs/git fetch origin maintainer\/logs:refs\/remotes\/origin\/logs/' > "$r23_legacy"
+            if ! grep -qF 'if git fetch origin maintainer/logs:refs/remotes/origin/logs; then' "$r23_legacy" \
+               || grep -qF 'git fetch origin --unshallow' "$r23_legacy"; then
+              r23_fail "s11-legacy-mutation"
+            elif ! r23_shallow_setup "$r23_tmp/s11b"; then
+              r23_fail "s11b-setup"
+            else
+              r23_s11b_tip="$r23_shallow_tip"
+              r23_session "$r23_tmp/s11b" "$r23_base_log" "$r23_session_entry" "state-session
+"
+              r23_run "$r23_tmp/s11b" 0 "" 0 "$r23_legacy"
+              r23_s11b_out=$(cat "$r23_tmp/s11b/out" 2>/dev/null || true)
+              r23_check "s11-legacy-rc-red" "$([ "$(r23_rc "$r23_tmp/s11b")" != "0" ] && echo 1 || echo 0)"
+              r23_check "s11-legacy-no-publish" "$([ "$(r23_tip "$r23_tmp/s11b")" = "$r23_s11b_tip" ] && echo 1 || echo 0)"
+              r23_check "s11-legacy-fetch-rejected" "$(printf '%s' "$r23_s11b_out" | grep -qF 'maintainer/logs fetch failed' && echo 1 || echo 0)"
+            fi
           fi
         fi
       fi
@@ -12464,7 +12563,7 @@ ${R23_MARKER}
   fi
 fi
 if [ -z "$r23_bad" ]; then
-  check "R23" "maintainer memory publish is a bounded 3-attempt fetch-recompose-push loop with keep-both day-log semantics (session delta isolated against the materialization baseline and appended, never a whole-file overwrite; STATE.md last-writer-wins), a loud never-quiet publish path, a loud red give-up that prints the recoverable bundle, idempotent marker handling, per-path memory staging, and a retry-safe bootstrap (unique unborn root per attempt; an empty bootstrap composition never concludes green), all enforced by a functional sandbox that executes the real extracted step under the runner's bash -e shell against a local bare-repo origin with injected push rejections and concurrent tip advance (clean push, race-recovery preserving the concurrent entry, entry-only-violation recovery, persistent-rejection bound 3 attempts / 2 backoffs / loud exit / untouched remote, no-log keep-existing, already-marked no-duplication, no-changes no-commit, bootstrap recovery after one rejected push, bootstrap persistent rejection reaching the full cap, persistent fetch failure on an existing branch via a proven git shim reaching the loud cap with the remote untouched, and every publishing scenario asserting that a green publish claim advanced the remote tip) (issue #647, review findings F1/F1b/F2)" "ok"
+  check "R23" "maintainer memory publish is a bounded 3-attempt fetch-recompose-push loop with keep-both day-log semantics (session delta isolated against the materialization baseline and appended, never a whole-file overwrite; STATE.md last-writer-wins), a loud never-quiet publish path, a loud red give-up that prints the recoverable bundle, idempotent marker handling, per-path memory staging, and a retry-safe bootstrap (unique unborn root per attempt; an empty bootstrap composition never concludes green), all enforced by a functional sandbox that executes the real extracted step under the runner's bash -e shell against a local bare-repo origin with injected push rejections and concurrent tip advance (clean push, race-recovery preserving the concurrent entry, entry-only-violation recovery, persistent-rejection bound 3 attempts / 2 backoffs / loud exit / untouched remote, no-log keep-existing, already-marked no-duplication, no-changes no-commit, bootstrap recovery after one rejected push, bootstrap persistent rejection reaching the full cap, persistent fetch failure on an existing branch via a proven git shim reaching the loud cap with the remote untouched, every publishing scenario asserting that a green publish claim advanced the remote tip, and shallow-graft recovery on an advanced memory tip with a legacy mutant proving the fixture fails on the pre-fix code) (issue #647, review findings F1/F1b/F2; issue #870)" "ok"
 else
   check "R23" "maintainer memory publish guard missing:${r23_bad} (issue #647: a single-shot quiet rebase fallback silently lost a whole memory session to a concurrent push)" "bad"
 fi
@@ -15762,13 +15861,50 @@ if [ -s "$bundle/log-entry.md" ]; then
   fi
 fi
 memory_pushed=0
+# Issue #870: the Maintainer agent may run a read-only
+# `git fetch --depth=1` of the memory branch while diagnosing. That
+# marks the fetched tip as a shallow boundary, so the unforced
+# publish fetch below reads the older loaded ref as unrelated and
+# rejects the update as non-fast-forward (run 46121290367 lost the
+# 07:27Z checkpoint this way). Restore full history before the loop
+# (mirroring the issue #602 guards), then force the publish fetch
+# into its private ref so a lingering graft can never block it.
+if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+  echo "workspace is shallow (agent depth-limited fetch); restoring full history before the memory publish (issue #870)"
+  git fetch origin --unshallow || echo "::warning::could not restore full history before the memory publish; the forced fetch below still loads the real tip (issue #870)"
+fi
 for attempt in 1 2 3; do
   echo "== maintainer memory publish attempt $attempt/3 =="
+  if [ "$attempt" -gt 1 ]; then
+    sleep 5
+  fi
   have_tip=0
-  if git fetch origin maintainer/logs:refs/remotes/origin/logs; then
+  fetch_rejected=0
+  if git fetch --force origin +refs/heads/maintainer/logs:refs/remotes/origin/logs; then
     if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then have_tip=1; fi
   else
     echo "::warning::maintainer/logs fetch failed on attempt $attempt (loud on purpose, issue #647)"
+    # Issue #870: a failed fetch is not proof that the memory branch
+    # is absent. A shallow graft or a transient network error can
+    # reject the update while the branch exists remotely; treating
+    # that as "first run" bootstraps an unrelated orphan root and
+    # every retry then loses the session. Probe the remote ref:
+    # exit 0 means retry the real tip, exit 2 means the branch is
+    # genuinely absent (bootstrap), anything else means the probe
+    # itself failed (retry rather than manufacture history).
+    ls_remote_rc=0
+    git ls-remote --exit-code origin refs/heads/maintainer/logs >/dev/null 2>&1 || ls_remote_rc=$?
+    if [ "$ls_remote_rc" = "0" ]; then
+      echo "::warning::maintainer/logs exists remotely but the fetch was rejected on attempt $attempt; retrying the real tip instead of bootstrapping an orphan root (issue #870)"
+      fetch_rejected=1
+    elif [ "$ls_remote_rc" != "2" ]; then
+      echo "::warning::could not verify whether maintainer/logs exists (git ls-remote exit $ls_remote_rc); retrying without bootstrapping (issue #870)"
+      fetch_rejected=1
+    fi
+  fi
+  if [ "$fetch_rejected" = "1" ]; then
+    echo "skipping composition on attempt $attempt because the fetch was rejected, not because the memory branch is missing (issue #870)"
+    continue
   fi
   if [ "$have_tip" = "1" ]; then
     git checkout --force --detach refs/remotes/origin/logs --quiet
@@ -15837,9 +15973,6 @@ for attempt in 1 2 3; do
     echo "::warning::memory push rejected on attempt $attempt (git output above); refetching the fresh tip and recomposing"
   else
     echo "::warning::memory commit failed on attempt $attempt"
-  fi
-  if [ "$attempt" -lt 3 ]; then
-    sleep 5
   fi
 done
 # Restore workspace to origin/main so subsequent steps have access to repo scripts
