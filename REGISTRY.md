@@ -10,7 +10,7 @@ reviewed PRs (see LAB.md §21).
 | Hephaestus | The Maintainer - brain/orchestrator | maintainer | bootstrap | 2026-08-12 | - (workflow triggers) | `.github/agents/maintainer.md` |
 | The Ideator | On-demand brainstorm candidate generator | worker | bootstrap | 2026-08-12 | `/oc ideate` · `workflow_dispatch` | `.github/agents/ideator.md` |
 | The Researcher | Scientific research & algorithm design | worker | bootstrap | 2026-08-16 | `/oc research` | `.github/agents/researcher.md` |
-| The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` | `.github/agents/architect.md` |
+| The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` · `/oc plan` | `.github/agents/architect.md` |
 | The Builder | Implements builds (resume mode) | worker | bootstrap | 2026-08-12 | `/oc build` · `/oc continue` | `.github/agents/builder.md` |
 | The Fixer | Applies reviewer findings | worker | bootstrap | 2026-08-12 | `/oc fix` | `.github/agents/fixer.md` |
 | The Reviewer | Strict quality gate; read-only | worker | bootstrap | 2026-08-12 | `/oc review` | `.github/agents/reviewer.md` |
