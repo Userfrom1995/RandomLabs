@@ -183,6 +183,12 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
      want your future self to know.
    - `.maintainer/personality.md` - only if your identity evolved today
      (rare); otherwise leave it empty.
+   - If you inspect the `maintainer/logs` branch yourself, fetch it with full
+     history: `git fetch origin maintainer/logs:refs/remotes/origin/logs`.
+     NEVER add `--depth` or any shallow option (issue #870: a depth-limited
+     fetch grafts the memory tip, and the publish fetch then rejects as
+     non-fast-forward; the hardcoded step now repairs a shallow workspace, but
+     do not create one).
    A hardcoded step commits these to the `maintainer/logs` branch.
 
 ## Merging (your job)

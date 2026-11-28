@@ -2174,6 +2174,18 @@ whose functional sandbox executes the real extracted step under that same
 and race scenarios included; a green publish claim must have advanced the
 remote tip).
 
+A shallow workspace cannot block the publish (issue #870): the agent's
+read-only `git fetch --depth=1` of the memory branch grafts the fetched tip,
+so an unforced publish fetch of a further advanced tip was rejected as
+non-fast-forward on every attempt and the session was lost. The step now
+restores full history before the loop when the workspace is shallow (warning
+loudly if that fails), force-updates its private publish ref, and on a failed
+fetch probes `git ls-remote --exit-code` so an existing branch is retried
+instead of bootstrapped as an orphan root. R23's sandbox adds that exact
+shallow-graft fixture (the first publish fetch fails, attempt 2 recovers and
+keeps both the concurrent entry and the session) and a legacy mutant without
+the shallow restore and forced refspec that must fail the same fixture.
+
 ## 23. Fork PRs (external contributors)
 
 - The bot cannot push to a fork's branch → the Fixer never runs on fork PRs;

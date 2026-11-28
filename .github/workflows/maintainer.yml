@@ -1333,13 +1333,50 @@ jobs:
             fi
           fi
           memory_pushed=0
+          # Issue #870: the Maintainer agent may run a read-only
+          # `git fetch --depth=1` of the memory branch while diagnosing. That
+          # marks the fetched tip as a shallow boundary, so the unforced
+          # publish fetch below reads the older loaded ref as unrelated and
+          # rejects the update as non-fast-forward (run 46121290367 lost the
+          # 07:27Z checkpoint this way). Restore full history before the loop
+          # (mirroring the issue #602 guards), then force the publish fetch
+          # into its private ref so a lingering graft can never block it.
+          if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+            echo "workspace is shallow (agent depth-limited fetch); restoring full history before the memory publish (issue #870)"
+            git fetch origin --unshallow || echo "::warning::could not restore full history before the memory publish; the forced fetch below still loads the real tip (issue #870)"
+          fi
           for attempt in 1 2 3; do
             echo "== maintainer memory publish attempt $attempt/3 =="
+            if [ "$attempt" -gt 1 ]; then
+              sleep 5
+            fi
             have_tip=0
-            if git fetch origin maintainer/logs:refs/remotes/origin/logs; then
+            fetch_rejected=0
+            if git fetch --force origin +refs/heads/maintainer/logs:refs/remotes/origin/logs; then
               if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then have_tip=1; fi
             else
               echo "::warning::maintainer/logs fetch failed on attempt $attempt (loud on purpose, issue #647)"
+              # Issue #870: a failed fetch is not proof that the memory branch
+              # is absent. A shallow graft or a transient network error can
+              # reject the update while the branch exists remotely; treating
+              # that as "first run" bootstraps an unrelated orphan root and
+              # every retry then loses the session. Probe the remote ref:
+              # exit 0 means retry the real tip, exit 2 means the branch is
+              # genuinely absent (bootstrap), anything else means the probe
+              # itself failed (retry rather than manufacture history).
+              ls_remote_rc=0
+              git ls-remote --exit-code origin refs/heads/maintainer/logs >/dev/null 2>&1 || ls_remote_rc=$?
+              if [ "$ls_remote_rc" = "0" ]; then
+                echo "::warning::maintainer/logs exists remotely but the fetch was rejected on attempt $attempt; retrying the real tip instead of bootstrapping an orphan root (issue #870)"
+                fetch_rejected=1
+              elif [ "$ls_remote_rc" != "2" ]; then
+                echo "::warning::could not verify whether maintainer/logs exists (git ls-remote exit $ls_remote_rc); retrying without bootstrapping (issue #870)"
+                fetch_rejected=1
+              fi
+            fi
+            if [ "$fetch_rejected" = "1" ]; then
+              echo "skipping composition on attempt $attempt because the fetch was rejected, not because the memory branch is missing (issue #870)"
+              continue
             fi
             if [ "$have_tip" = "1" ]; then
               git checkout --force --detach refs/remotes/origin/logs --quiet
@@ -1408,9 +1445,6 @@ jobs:
               echo "::warning::memory push rejected on attempt $attempt (git output above); refetching the fresh tip and recomposing"
             else
               echo "::warning::memory commit failed on attempt $attempt"
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              sleep 5
             fi
           done
           # Restore workspace to origin/main so subsequent steps have access to repo scripts
